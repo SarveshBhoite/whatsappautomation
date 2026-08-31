@@ -1,4 +1,5 @@
 "use client";
+import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -42,6 +43,8 @@ function LocalPerformanceMaxContent() {
           campaignName: campaignName || "Local-Performance Max-1",
           campaignType: "PERFORMANCE_MAX",
           biddingStrategy: biddingFocus || "Maximize conversion value",
+          targetCpa: typeof targetCpaValue !== "undefined" ? Number(targetCpaValue) : null,
+          targetRoas: typeof targetRoasValue !== "undefined" ? Number(targetRoasValue) / 100 : null,
           budget: typeof dailyBudgetValue !== "undefined" && dailyBudgetValue ? Number(dailyBudgetValue) : null,
           startDate: typeof startDate !== "undefined" && startDate ? startDate : new Date().toISOString().split("T")[0],
           endDate: typeof endDate !== "undefined" && endDate ? endDate : null,
@@ -95,6 +98,7 @@ function LocalPerformanceMaxContent() {
   // Language Selection State with API simulation
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
+  
   const [isSearchingLanguages, setIsSearchingLanguages] = useState<boolean>(false);
   const [languageSearchResults, setLanguageSearchResults] = useState<string[]>([]);
 
@@ -151,6 +155,8 @@ function LocalPerformanceMaxContent() {
 
   // Start and End Dates State
   const [startDate, setStartDate] = useState<string>("2026-08-10");
+  const [startDateError, setStartDateError] = useState<string | null>(null);
+  const [endDateError, setEndDateError] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string>("");
 
   // Campaign URL options & Custom Parameters
@@ -342,10 +348,24 @@ function LocalPerformanceMaxContent() {
   const [savedLeadForms, setSavedLeadForms] = useState<Array<{ headline: string; business: string }>>([]);
   const [savedCallouts, setSavedCallouts] = useState<string[]>([]);
 
+  // Sitelink validation states
+  const [sitelinkText, setSitelinkText] = useState<string>("");
+  const [sitelinkDesc1, setSitelinkDesc1] = useState<string>("");
+  const [sitelinkDesc2, setSitelinkDesc2] = useState<string>("");
+  const [sitelinkUrl, setSitelinkUrl] = useState<string>("");
+  const [sitelinkDupeError, setSitelinkDupeError] = useState<string | null>(null);
+  const [sitelinkUrlError, setSitelinkUrlError] = useState<string | null>(null);
+  const [sitelinkDescError, setSitelinkDescError] = useState<string | null>(null);
+  const [sitelinkItems, setSitelinkItems] = useState<Array<{ text: string; desc1: string; desc2: string; url: string }>>([{ text: "", desc1: "", desc2: "", url: "" }]);
+
   // Callouts advanced states
   const [modalCalloutTexts, setModalCalloutTexts] = useState<string[]>([]);
   const [newCalloutInput, setNewCalloutInput] = useState<string>("");
   const [calloutStartDateType, setCalloutStartDateType] = useState<"none" | "date">("none");
+  const [calloutStartError, setCalloutStartError] = useState<string | null>(null);
+  const [calloutEndError, setCalloutEndError] = useState<string | null>(null);
+  const [calloutSchedDupeError, setCalloutSchedDupeError] = useState<string | null>(null);
+  const [calloutDupeError, setCalloutDupeError] = useState<string | null>(null);
   const [calloutStartDateValue, setCalloutStartDateValue] = useState<string>("");
   const [calloutEndDateType, setCalloutEndDateType] = useState<"none" | "date">("none");
   const [calloutEndDateValue, setCalloutEndDateValue] = useState<string>("");
@@ -448,6 +468,9 @@ function LocalPerformanceMaxContent() {
 
   // Dates
   const [promoStartDate, setPromoStartDate] = useState<string>("");
+  const [promoStartDateError, setPromoStartDateError] = useState<string | null>(null);
+  const [promoEndDateError, setPromoEndDateError] = useState<string | null>(null);
+  const [promoFinalUrlError, setPromoFinalUrlError] = useState<string | null>(null);
   const [promoEndDate, setPromoEndDate] = useState<string>("");
 
   // URL Options
@@ -462,6 +485,9 @@ function LocalPerformanceMaxContent() {
   const [promoTermsConditions, setPromoTermsConditions] = useState<string>("");
   const [promoAdditionalTermsLink, setPromoAdditionalTermsLink] = useState<string>("");
   const [assetSchedStartDate, setAssetSchedStartDate] = useState<string>("");
+  const [assetSchedStartError, setAssetSchedStartError] = useState<string | null>(null);
+  const [assetSchedEndError, setAssetSchedEndError] = useState<string | null>(null);
+  const [assetSchedDupeError, setAssetSchedDupeError] = useState<string | null>(null);
   const [assetSchedEndDate, setAssetSchedEndDate] = useState<string>("");
   const [assetSchedules, setAssetSchedules] = useState<Array<{ id: string; day: string; start: string; end: string }>>([
     { id: "as-1", day: "All days", start: "12:00 AM", end: "12:00 AM" }
@@ -1338,20 +1364,32 @@ function LocalPerformanceMaxContent() {
                         <div className="space-y-1">
                           <label className="block text-[11px] text-slate-500 font-semibold">Start date</label>
                           <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
-                          />
+                             type="date"
+                             min={new Date().toISOString().split("T")[0]}
+                             value={startDate}
+                             onChange={(e) => {
+                               setStartDate(e.target.value);
+                               const today = new Date().toISOString().split("T")[0];
+                               if (e.target.value && e.target.value < today) { setStartDateError("Start date cannot be in the past."); } else { setStartDateError(null); }
+                               if (endDate && e.target.value && endDate <= e.target.value) { const d = new Date(e.target.value); d.setDate(d.getDate()+1); setEndDate(d.toISOString().split("T")[0]); setEndDateError(null); }
+                             }}
+                             className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary ${startDateError ? "border-rose-400" : "border-slate-200"}`}
+                           />
+                           {startDateError && <p className="text-[11px] text-rose-500 font-semibold">{startDateError}</p>}
                         </div>
                         <div className="space-y-1">
                           <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
                           <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
-                          />
+                             type="date"
+                             min={startDate ? (() => { const d = new Date(startDate); d.setDate(d.getDate()+1); return d.toISOString().split("T")[0]; })() : new Date().toISOString().split("T")[0]}
+                             value={endDate}
+                             onChange={(e) => {
+                               setEndDate(e.target.value);
+                               if (startDate && e.target.value && e.target.value <= startDate) { setEndDateError("End date must be after start date."); } else { setEndDateError(null); }
+                             }}
+                             className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary ${endDateError ? "border-rose-400" : "border-slate-200"}`}
+                           />
+                           {endDateError && <p className="text-[11px] text-rose-500 font-semibold">{endDateError}</p>}
                         </div>
                       </div>
                     </div>
@@ -3669,7 +3707,7 @@ function LocalPerformanceMaxContent() {
               </div>
             </div>
             <div className="flex justify-between items-center pt-3 border-t border-slate-200">
-              <button type="button" className="text-primary font-bold text-xs hover:underline">+ Sitelink 2</button>
+              <button type="button" onClick={() => setSitelinkItems(prev => prev.length < 4 ? [...prev, { text: "", desc1: "", desc2: "", url: "" }] : prev)} className="text-primary font-bold text-xs hover:underline cursor-pointer">+ Add another sitelink</button>
               <button
                 type="button"
                 onClick={() => {

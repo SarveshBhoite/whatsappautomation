@@ -1,4 +1,5 @@
 "use client";
+import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -46,8 +47,8 @@ export default function SalesSearchPage() {
   const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
   const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
-  const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
-  const [showLanguageDropdown, setShowLanguageDropdown] = useState<boolean>(false);
+  
+  
   const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
   const [audienceTab, setAudienceTab] = useState<"SEARCH" | "BROWSE">("SEARCH");
   const [audienceSearchQuery, setAudienceSearchQuery] = useState<string>("");
@@ -76,6 +77,7 @@ export default function SalesSearchPage() {
 
   // Search-Specific AI Max Settings State
   const [enableAiMax, setEnableAiMax] = useState<boolean>(true);
+  const [showDisableAiMaxModal, setShowDisableAiMaxModal] = useState<boolean>(false);
   const [enableTextCustomization, setEnableTextCustomization] = useState<boolean>(true);
   const [enableFinalUrlExpansion, setEnableFinalUrlExpansion] = useState<boolean>(true);
   const [brandInclusions, setBrandInclusions] = useState<string[]>([]);
@@ -209,7 +211,7 @@ export default function SalesSearchPage() {
     { name: "Club Atlético River Plate", url: "https://www.cariverplate.com.ar/" },
     { name: "Bank Of America ATM", url: "https://locators.bankofamerica.com/" }
   ];
-  const [aiGenFinalUrl, setAiGenFinalUrl] = useState<string>("https://www.example.com");
+  const [aiGenFinalUrl, setAiGenFinalUrl] = useState<string>("");
 
   const [showMoreSettings, setShowMoreSettings] = useState<boolean>(false);
   const [openSetting, setOpenSetting] = useState<string | null>(null);
@@ -424,11 +426,7 @@ export default function SalesSearchPage() {
     "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"
   ];
 
-  const languagesList = [
-    "English", "Hindi", "Bengali", "Marathi", "Telugu", "Tamil", "Gujarati", "Urdu",
-    "Kannada", "Odia", "Malayalam", "Punjabi", "Spanish", "French", "German",
-    "Chinese (simplified)", "Japanese", "Arabic", "Portuguese", "Russian"
-  ];
+  
 
   const locationSuggestionsList = [
     { name: "Mumbai, Maharashtra, India", type: "City", reach: "21,400,000" },
@@ -1877,6 +1875,14 @@ export default function SalesSearchPage() {
                           </div>
                         )}
 
+                        {/* Unlisted / Invalid City Warning Message */}
+                        {customLocationInput.trim().length >= 2 && !isSearchingLocations && locationSearchResults.length === 0 && (
+                          <div className="p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 text-xs font-semibold flex items-center gap-2 max-w-md">
+                            <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                            <span>No matching locations found for "{customLocationInput}". Only verified cities/locations from Google Ads API can be added.</span>
+                          </div>
+                        )}
+
                         {/* Selected Target Locations Chips / Cards */}
                         {targetLocations.length > 0 && (
                           <div className="space-y-2 max-w-md">
@@ -1975,69 +1981,7 @@ export default function SalesSearchPage() {
                   <div className="space-y-3 text-xs">
                     <p className="text-slate-500">Select the languages your customers speak.</p>
 
-                    <div className="space-y-1 max-w-md">
-                      <div className="relative">
-                        <SearchIcon className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
-                        <input
-                          type="text"
-                          value={languageSearchInput}
-                          maxLength={50}
-                          onChange={(e) => setLanguageSearchInput(e.target.value)}
-                          placeholder="Start typing to search languages (e.g. English, Hindi)"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-12 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                        />
-                        {languageSearchInput.trim().length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setLanguageSearchInput("")}
-                            className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-slate-500 block text-right font-mono">{languageSearchInput.length} / 50</span>
-                    </div>
-
-                    {/* Languages Matching Results - Only displayed when user types search term */}
-                    {languageSearchInput.trim().length > 0 && (
-                      <div className="border border-slate-200 rounded-xl bg-slate-50 p-2 max-h-48 overflow-y-auto animate-in fade-in duration-150 max-w-md">
-                        {languagesList.filter(l => l.toLowerCase().includes(languageSearchInput.trim().toLowerCase())).length > 0 ? (
-                          <div className="grid grid-cols-2 gap-2">
-                            {languagesList.filter(l => l.toLowerCase().includes(languageSearchInput.trim().toLowerCase())).map((lang, idx) => {
-                              const isSelected = selectedLanguages.includes(lang);
-                              return (
-                                <label key={idx} className="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-slate-900 p-1.5 rounded-lg hover:bg-white transition-colors">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                      if (e.target.checked) setSelectedLanguages(prev => [...prev, lang]);
-                                      else setSelectedLanguages(prev => prev.filter(l => l !== lang));
-                                    }}
-                                    className="rounded text-primary h-3.5 w-3.5"
-                                  />
-                                  <span className="font-medium text-xs">{lang}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <p className="text-slate-500 text-xs p-2 text-center">No matching languages found for "{languageSearchInput}"</p>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {selectedLanguages.map((lang, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-xs text-primary font-medium">
-                          {lang}
-                          <button onClick={() => setSelectedLanguages(prev => prev.filter((_, i) => i !== idx))}>
-                            <X className="h-3 w-3 hover:text-rose-400" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
+                    <LanguageDropdown selectedLanguages={selectedLanguages} setSelectedLanguages={setSelectedLanguages} customerId={customerId || "6587355041"} />
                   </div>
                 </div>
               ) : (
@@ -2525,6 +2469,7 @@ export default function SalesSearchPage() {
                           <div className="space-y-3 text-xs pt-4 border-t border-slate-200/40">
                             {adScheduleList.map((sched, idx) => {
                               const isSchedInvalid = sched.start && sched.end && !(sched.start === "00:00" && sched.end === "00:00") && sched.end <= sched.start;
+                              const isSchedDuplicate = adScheduleList.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === sched.end);
                               return (
                                 <div key={idx} className="space-y-1">
                                   <div className="flex flex-wrap items-center gap-3">
@@ -2576,7 +2521,7 @@ export default function SalesSearchPage() {
                                         setAdScheduleList(updated);
                                       }}
                                       className={`bg-slate-50 border rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono ${
-                                        isSchedInvalid ? "border-rose-300 bg-rose-50/20" : "border-slate-200"
+                                        isSchedInvalid || isSchedDuplicate ? "border-rose-300 bg-rose-50/20" : "border-slate-200"
                                       }`}
                                     >
                                       {timeOptions.map((t, i) => {
@@ -2602,6 +2547,11 @@ export default function SalesSearchPage() {
                                   {isSchedInvalid && (
                                     <span className="text-[10px] text-rose-500 font-medium block">
                                       End time ({sched.end}) must be strictly after start time ({sched.start})
+                                    </span>
+                                  )}
+                                  {isSchedDuplicate && (
+                                    <span className="text-[10px] text-rose-500 font-medium block">
+                                      Duplicate ad schedule: this day and time range is already added.
                                     </span>
                                   )}
                                 </div>
@@ -2897,7 +2847,13 @@ export default function SalesSearchPage() {
                     <input
                       type="checkbox"
                       checked={enableAiMax}
-                      onChange={(e) => setEnableAiMax(e.target.checked)}
+                      onChange={(e) => {
+                        if (!e.target.checked && enableAiMax) {
+                          setShowDisableAiMaxModal(true);
+                        } else {
+                          setEnableAiMax(e.target.checked);
+                        }
+                      }}
                       className="rounded text-primary h-4 w-4"
                     />
                     <span className="font-bold text-slate-900 text-sm">Optimize your campaign with AI Max</span>
@@ -3005,7 +2961,13 @@ export default function SalesSearchPage() {
                           <p className="text-[11px] text-amber-400 font-semibold">Requires text customization to be turned on to ensure ad copy matches landing page</p>
 
                           <div className="pt-1">
-                            <button type="button" className="text-blue-400 hover:underline font-semibold text-[11px]">Add URL exclusions</button>
+                            <button 
+                              type="button" 
+                              onClick={() => setShowUrlInclusionsModal(true)}
+                              className="text-blue-400 hover:underline font-semibold text-[11px]"
+                            >
+                              Add URL exclusions
+                            </button>
                           </div>
 
                           {/* Before / After Final URL Expansion Visual Preview */}
@@ -3237,6 +3199,7 @@ export default function SalesSearchPage() {
                             value={aiGenFinalUrl}
                             onChange={(e) => setAiGenFinalUrl(e.target.value)}
                             placeholder="Final URL (required)*"
+                            required
                             className="w-full bg-transparent text-xs text-rose-300 placeholder-rose-400/80 font-mono focus:outline-none"
                           />
                         </div>
@@ -5923,8 +5886,17 @@ export default function SalesSearchPage() {
                 value={brandListNameInput}
                 onChange={(e) => setBrandListNameInput(e.target.value)}
                 placeholder="Enter list name"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary ${
+                  brandListNameInput.trim() && (brandListModalMode === "INCLUSION" ? brandInclusions : brandExclusions).some(b => b.toLowerCase() === brandListNameInput.trim().toLowerCase())
+                    ? "border-rose-300 bg-rose-50/20"
+                    : "border-slate-200"
+                }`}
               />
+              {brandListNameInput.trim() && (brandListModalMode === "INCLUSION" ? brandInclusions : brandExclusions).some(b => b.toLowerCase() === brandListNameInput.trim().toLowerCase()) && (
+                <span className="text-[10px] text-rose-500 font-semibold block">
+                  A brand list with this name already exists in your {brandListModalMode.toLowerCase()} lists.
+                </span>
+              )}
             </div>
 
             {/* Brands Search & Select Grid Card */}
@@ -6006,7 +5978,13 @@ export default function SalesSearchPage() {
           <div className="h-16 bg-white border-t border-slate-200 px-8 flex items-center gap-4 shrink-0">
             <button
               onClick={() => {
-                const label = brandListNameInput.trim() || (selectedBrandListBrands.length > 0 ? selectedBrandListBrands.map(b => b.name).join(", ") : "Custom Brand List");
+                const trimmedName = brandListNameInput.trim();
+                const listToCompare = brandListModalMode === "INCLUSION" ? brandInclusions : brandExclusions;
+                if (trimmedName && listToCompare.some(b => b.toLowerCase() === trimmedName.toLowerCase())) {
+                  alert(`A brand list named "${trimmedName}" already exists. Please choose a unique name.`);
+                  return;
+                }
+                const label = trimmedName || (selectedBrandListBrands.length > 0 ? selectedBrandListBrands.map(b => b.name).join(", ") : "Custom Brand List");
                 if (brandListModalMode === "INCLUSION") {
                   setBrandInclusions(prev => [...prev, label]);
                 } else {
@@ -6412,7 +6390,17 @@ export default function SalesSearchPage() {
                 <div className="flex items-center gap-4 pt-2">
                   <button
                     type="button"
-                    onClick={() => setActiveModal(null)}
+                    onClick={() => {
+                      if (callPhone.trim()) {
+                        const digits = callPhone.replace(/[^0-9]/g, "");
+                        const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+                        if (clean10.length !== 10) {
+                          alert("Phone number for Call extension must be exactly 10 digits (e.g. 9876543210).");
+                          return;
+                        }
+                      }
+                      setActiveModal(null);
+                    }}
                     className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-slate-900 font-bold text-xs shadow cursor-pointer"
                   >
                     Save
@@ -6461,7 +6449,26 @@ export default function SalesSearchPage() {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setActiveModal(null)}
+                onClick={() => {
+                  const filledSitelinks = sitelinks.filter(s => s.text.trim() || s.url.trim());
+                  for (const st of filledSitelinks) {
+                    if (st.url.trim() && !st.url.trim().startsWith("http://") && !st.url.trim().startsWith("https://")) {
+                      alert(`Sitelink "${st.text || 'Untitled'}" Final URL must start with http:// or https://`);
+                      return;
+                    }
+                    if (st.text.trim() && !st.url.trim()) {
+                      alert(`Sitelink "${st.text}" must have a valid Final URL.`);
+                      return;
+                    }
+                  }
+                  const texts = filledSitelinks.map(s => s.text.trim().toLowerCase()).filter(Boolean);
+                  const duplicates = texts.filter((item, index) => texts.indexOf(item) !== index);
+                  if (duplicates.length > 0) {
+                    alert(`Duplicate sitelink text detected: "${duplicates[0]}". Sitelink texts must be unique.`);
+                    return;
+                  }
+                  setActiveModal(null);
+                }}
                 className="px-6 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500 cursor-pointer shadow"
               >
                 Save
@@ -7097,7 +7104,26 @@ export default function SalesSearchPage() {
               <div className="flex items-center gap-4 pt-3 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setActiveModal(null)}
+                  onClick={() => {
+                    const itemStr = (promoItem || "Special Discount").trim();
+                    let cleanPromoUrl = promoFinalUrl.trim();
+                    if (cleanPromoUrl && !cleanPromoUrl.startsWith("http://") && !cleanPromoUrl.startsWith("https://")) {
+                      alert("Promotion Final URL must start with http:// or https://");
+                      return;
+                    }
+                    if (promoValue.trim() !== "") {
+                      const numVal = parseFloat(promoValue);
+                      if (isNaN(numVal) || numVal <= 0) {
+                        alert("Discount value must be a positive number greater than 0.");
+                        return;
+                      }
+                      if (promoType === "PERCENT" && numVal > 100) {
+                        alert("Percent discount cannot exceed 100%.");
+                        return;
+                      }
+                    }
+                    setActiveModal(null);
+                  }}
                   className="px-6 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500 cursor-pointer shadow"
                 >
                   Save
@@ -7171,7 +7197,14 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setCallouts(calloutInputList.filter(c => c.trim()));
+                    const valid = calloutInputList.map(c => c.trim()).filter(Boolean);
+                    const lowerVals = valid.map(c => c.toLowerCase());
+                    const dup = lowerVals.find((val, idx) => lowerVals.indexOf(val) !== idx);
+                    if (dup) {
+                      alert(`Duplicate callout text "${dup}". Callouts must be unique.`);
+                      return;
+                    }
+                    setCallouts(valid);
                     setActiveModal(null);
                   }}
                   className="px-6 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500 cursor-pointer shadow"
@@ -7304,7 +7337,18 @@ export default function SalesSearchPage() {
               <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setActiveModal(null)}
+                  onClick={() => {
+                    const validVals = snippetValuesList.map(v => v.trim()).filter(Boolean);
+                    if (validVals.length > 0) {
+                      const lowerVals = validVals.map(v => v.toLowerCase());
+                      const dup = lowerVals.find((val, idx) => lowerVals.indexOf(val) !== idx);
+                      if (dup) {
+                        alert(`Duplicate snippet value "${dup}". All values must be unique.`);
+                        return;
+                      }
+                    }
+                    setActiveModal(null);
+                  }}
                   className="px-6 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500 cursor-pointer shadow"
                 >
                   Save
@@ -7873,7 +7917,17 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setSavedLeadForms(prev => [...prev, { headline: lfHeadline || "Lead Form", business: lfBusinessName || "Business" }]);
+                    const hText = (lfHeadline || "Lead Form").trim();
+                    const bText = (lfBusinessName || "Business").trim();
+                    if (lfPrivacyPolicyUrl.trim() && !lfPrivacyPolicyUrl.trim().startsWith("http://") && !lfPrivacyPolicyUrl.trim().startsWith("https://")) {
+                      alert("Privacy policy URL must start with http:// or https://");
+                      return;
+                    }
+                    if (savedLeadForms.some(lf => lf.headline.toLowerCase() === hText.toLowerCase() && lf.business.toLowerCase() === bText.toLowerCase())) {
+                      alert("A lead form with this headline and business name already exists.");
+                      return;
+                    }
+                    setSavedLeadForms(prev => [...prev, { headline: hText, business: bText }]);
                     setActiveModal(null);
                   }}
                   className="px-6 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 cursor-pointer shadow transition-all"
@@ -8182,7 +8236,17 @@ export default function SalesSearchPage() {
               <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setActiveModal(null)}
+                  onClick={() => {
+                    if (selectedMessagePlatform === "WhatsApp" && msgPhone.trim()) {
+                      const digits = msgPhone.replace(/[^0-9]/g, "");
+                      const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+                      if (clean10.length !== 10) {
+                        alert("WhatsApp phone number must be exactly 10 digits (e.g. 9876543210).");
+                        return;
+                      }
+                    }
+                    setActiveModal(null);
+                  }}
                   className="px-6 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500 cursor-pointer shadow"
                 >
                   Save
@@ -8438,7 +8502,16 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setSavedApps(prev => [...prev, { platform: appPlatform, query: appSearchQuery || "My App", linkText: appLinkText || "Download" }]);
+                    const query = (appSearchQuery || "").trim();
+                    if (!query) {
+                      alert("Please enter an app name or package ID.");
+                      return;
+                    }
+                    if (savedApps.some(a => a.platform === appPlatform && a.query.toLowerCase() === query.toLowerCase())) {
+                      alert(`This app is already added for ${appPlatform}.`);
+                      return;
+                    }
+                    setSavedApps(prev => [...prev, { platform: appPlatform, query, linkText: appLinkText.trim() || "Download" }]);
                     setActiveModal(null);
                   }}
                   className="px-6 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500 cursor-pointer shadow"
@@ -8454,6 +8527,41 @@ export default function SalesSearchPage() {
                 </button>
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Disable AI Max Modal ── */}
+      {showDisableAiMaxModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-md text-sm">
+            <h3 className="text-xl font-bold text-slate-900">Turn off AI Max for this Search campaign?</h3>
+            <p className="text-slate-700">You'll lose access to the following features for this campaign:</p>
+            <ul className="list-disc pl-5 text-slate-600 space-y-2">
+              <li>Google AI features like asset optimization and search term matching for your ad groups</li>
+              <li>Brand inclusions and exclusions, URL inclusions and exclusions, and locations of interest</li>
+              <li>Report data related to AI Max settings used in this campaign</li>
+            </ul>
+            <p className="text-slate-500 italic">AI Max remembers your previous settings when you turn it on again</p>
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowDisableAiMaxModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 cursor-pointer transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEnableAiMax(false);
+                  setShowDisableAiMaxModal(false);
+                }}
+                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all shadow-md shadow-primary/20"
+              >
+                Turn off AI Max
+              </button>
             </div>
           </div>
         </div>

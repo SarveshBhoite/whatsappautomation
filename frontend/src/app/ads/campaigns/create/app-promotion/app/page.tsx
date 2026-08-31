@@ -1,4 +1,5 @@
 "use client";
+import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 
 import { useEffect, useState } from "react";
@@ -8,7 +9,7 @@ import {
   Sparkles, Layers, Target, Search as SearchIcon, Video as VideoIcon, LayoutGrid, ShoppingBag,
   Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3,
   Image as ImageIcon, Play, Upload, ExternalLink, ShieldCheck, DollarSign, RefreshCw, Apple,
-  Wand2, Filter, Eye, SlidersHorizontal, Tag, PhoneCall, Phone, Wrench, ChevronLeft, ChevronRight, FileText, Code
+  Wand2, Filter, Eye, SlidersHorizontal, Tag, PhoneCall, Phone, Wrench, ChevronLeft, ChevronRight, FileText, Code, Menu
 } from "lucide-react";
 
 interface AppOption {
@@ -99,7 +100,7 @@ const PRESET_APPS_IOS: AppOption[] = [
   }
 ];
 
-export default function AppPromotionWizard()  {
+export default function AppPromotionWizard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get("customerId");
@@ -109,6 +110,7 @@ export default function AppPromotionWizard()  {
   // Wizard Step State: "CAMPAIGN_SETTINGS" | "AD_GROUP" | "BIDDING_BUDGET" | "SUMMARY"
   const [wizardStep, setWizardStep] = useState<"CAMPAIGN_SETTINGS" | "AD_GROUP" | "BIDDING_BUDGET" | "SUMMARY">("CAMPAIGN_SETTINGS");
   const [campaignName, setCampaignName] = useState<string>("app-promotion-7");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Step 1: Bidding State
   const [biddingFocus, setBiddingFocus] = useState<"Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Conversions");
@@ -139,7 +141,7 @@ export default function AppPromotionWizard()  {
   const [viewThroughConversion, setViewThroughConversion] = useState<boolean>(true);
   const [useDataFeed, setUseDataFeed] = useState<boolean>(false);
   const [dataFeedType, setDataFeedType] = useState<string>("Dynamic ad feed");
-  
+
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
   const [targetLocations, setTargetLocations] = useState<Array<{ name: string; type: string; reach: string }>>([
@@ -345,24 +347,59 @@ export default function AppPromotionWizard()  {
   const [displayPath2, setDisplayPath2] = useState<string>("");
   const [headlines, setHeadlines] = useState<string[]>([""]);
   const [descriptions, setDescriptions] = useState<string[]>([""]);
-  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  // Duplicate validation errors
+  const [headlineDupeError, setHeadlineDupeError] = useState<string>("");
+  const [descriptionDupeError, setDescriptionDupeError] = useState<string>("");
+  const [imageDupeError, setImageDupeError] = useState<string>("");
+  const [videoDupeError, setVideoDupeError] = useState<string>("");
+  const [htmlDupeError, setHtmlDupeError] = useState<string>("");
+  // Image entries with aspect ratio metadata (first upload auto-creates 3 variants)
+  const [uploadedImageEntries, setUploadedImageEntries] = useState<Array<{ file: File; ratio: string; label: string }>>([]);
   const [uploadedVideos, setUploadedVideos] = useState<File[]>([]);
   const [uploadedHtml5, setUploadedHtml5] = useState<File[]>([]);
-  
-  const [isPromotionsOpen, setIsPromotionsOpen] = useState(false);
+
+  // Promotions modal state
+  const [showPromotionsModal, setShowPromotionsModal] = useState(false);
   const [promotionEvent, setPromotionEvent] = useState("None");
   const [promotionLanguage, setPromotionLanguage] = useState("Hindi");
   const [promotionCurrency, setPromotionCurrency] = useState("INR");
   const [promotionType, setPromotionType] = useState("Monetary discount");
   const [promotionTypeAmount, setPromotionTypeAmount] = useState("");
+  const [promotionAmountError, setPromotionAmountError] = useState("");
   const [promotionItem, setPromotionItem] = useState("");
   const [promotionFinalUrl, setPromotionFinalUrl] = useState("");
+  const [promotionUrlError, setPromotionUrlError] = useState("");
   const [promotionDetailsType, setPromotionDetailsType] = useState("None");
   const [promotionDetailsAmount, setPromotionDetailsAmount] = useState("");
   const [promotionStartDateOption, setPromotionStartDateOption] = useState("NONE");
   const [promotionStartDate, setPromotionStartDate] = useState("");
   const [promotionEndDateOption, setPromotionEndDateOption] = useState("NONE");
   const [promotionEndDate, setPromotionEndDate] = useState("");
+  const [promotionDateError, setPromotionDateError] = useState("");
+  // Promotion schedule (days & hours)
+  const [promoSchedules, setPromoSchedules] = useState<Array<{ day: string; start: string; end: string }>>([]);
+  const [promoSchedDay, setPromoSchedDay] = useState("All days");
+  const [promoSchedStart, setPromoSchedStart] = useState("00:00");
+  const [promoSchedEnd, setPromoSchedEnd] = useState("23:45");
+  const [promoTimeError, setPromoTimeError] = useState("");
+  // Saved promotions list
+  const [savedPromotions, setSavedPromotions] = useState<Array<{ event: string; type: string; amount: string; item: string; url: string }>>([]);
+  // Audience Signal Form
+  const [showAudienceSignalForm, setShowAudienceSignalForm] = useState(false);
+  const [audienceSignalName, setAudienceSignalName] = useState("");
+  const [audienceSignalNameError, setAudienceSignalNameError] = useState("");
+  const [customSegments, setCustomSegments] = useState<Array<{ name: string; type: string }>>([]);
+  const [showNewCustomSegmentInput, setShowNewCustomSegmentInput] = useState(false);
+  const [newSegmentName, setNewSegmentName] = useState("");
+  const [newSegmentType, setNewSegmentType] = useState<"INTEREST" | "PURCHASE_INTENT" | "SEARCH_TERMS">("INTEREST");
+  const [yourDataInput, setYourDataInput] = useState("");
+  const [interestsDemographicsInput, setInterestsDemographicsInput] = useState("");
+  const [showAdditionalDemographics, setShowAdditionalDemographics] = useState(false);
+  // Demographics checkboxes
+  const [demoGenders, setDemoGenders] = useState<string[]>(["Female", "Male", "Unknown"]);
+  const [demoAges, setDemoAges] = useState<string[]>(["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"]);
+  const [demoParentalStatus, setDemoParentalStatus] = useState<string[]>(["Parent", "Not a parent", "Unknown"]);
+  const [demoHouseholdIncome, setDemoHouseholdIncome] = useState<string[]>(["Top 10%", "11-20%", "21-30%", "31-40%", "41-50%", "Lower 50%", "Unknown"]);
 
   const [isUrlOptionsOpen, setIsUrlOptionsOpen] = useState(false);
   const [adGroupTrackingTemplate, setAdGroupTrackingTemplate] = useState("");
@@ -480,7 +517,7 @@ export default function AppPromotionWizard()  {
   const [lfLeadScoringQuestion, setLfLeadScoringQuestion] = useState<string>("");
   const [lfPrivacyPolicyUrl, setLfPrivacyPolicyUrl] = useState<string>("");
   const [lfBackgroundImage, setLfBackgroundImage] = useState<string>("");
-  
+
   // Submission Message
   const [lfSubHeadline, setLfSubHeadline] = useState<string>("Thank you.");
   const [lfSubDescription, setLfSubDescription] = useState<string>("We'll contact you soon.");
@@ -507,9 +544,10 @@ export default function AppPromotionWizard()  {
   ]);
   const [appStartDate, setAppStartDate] = useState<string>("");
   const [appEndDate, setAppEndDate] = useState<string>("");
-  const [appScheduleDays, setAppScheduleDays] = useState<string>("All days");
-  const [appScheduleStart, setAppScheduleStart] = useState<string>("09:00");
-  const [appScheduleEnd, setAppScheduleEnd] = useState<string>("18:00");
+  const [appSchedules, setAppSchedules] = useState<Array<{days: string; start: string; end: string}>>([
+    { days: "All days", start: "09:00", end: "18:00" }
+  ]);
+  const [scheduleError, setScheduleError] = useState<string>("");
   const [showAppAdvanced, setShowAppAdvanced] = useState<boolean>(false);
   const [savedApps, setSavedApps] = useState<Array<{ platform: string; query: string; linkText: string }>>([]);
 
@@ -590,6 +628,13 @@ export default function AppPromotionWizard()  {
       <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="md:hidden p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
+            title="Menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <button
             onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
             title="Close"
@@ -616,13 +661,28 @@ export default function AppPromotionWizard()  {
 
       {/* ── Main Layout: Sidebar & Content ── */}
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
-        
+
         {/* Left Sidebar Navigation */}
-        <aside className="w-64 border-r border-slate-200 bg-slate-50/50 hidden md:block shrink-0 overflow-y-auto hidden-scrollbar">
+        {/* Mobile Overlay */}
+        {isMobileSidebarOpen && (
+          <div 
+            className="md:hidden fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+        )}
+        <aside className={`w-64 border-r border-slate-200 bg-white md:bg-slate-50/50 shrink-0 overflow-y-auto hidden-scrollbar fixed md:static inset-y-0 left-0 z-50 transform transition-transform duration-200 ease-in-out ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
           <div className="p-6 space-y-6">
-            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-2 text-xs font-semibold text-slate-800">
-              <SearchIcon className="h-4 w-4 text-primary shrink-0" />
-              <span>App</span>
+            <div className="flex items-center justify-between">
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2 text-xs font-semibold text-slate-800 flex-1">
+                <SearchIcon className="h-4 w-4 text-primary shrink-0" />
+                <span>App</span>
+              </div>
+              <button 
+                className="md:hidden ml-2 p-1.5 text-slate-500 hover:bg-slate-100 rounded-md"
+                onClick={() => setIsMobileSidebarOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
             <nav className="space-y-1.5 text-xs">
@@ -630,11 +690,10 @@ export default function AppPromotionWizard()  {
               <div className="space-y-1">
                 <div
                   onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}
-                  className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
-                    wizardStep === "CAMPAIGN_SETTINGS"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                      : "text-slate-500 hover:bg-white hover:text-slate-800"
-                  }`}
+                  className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${wizardStep === "CAMPAIGN_SETTINGS"
+                    ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                    : "text-slate-500 hover:bg-white hover:text-slate-800"
+                    }`}
                 >
                   <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">1</div>
                   <span>Campaign settings</span>
@@ -654,11 +713,10 @@ export default function AppPromotionWizard()  {
               <div className="space-y-1">
                 <div
                   onClick={() => setWizardStep("AD_GROUP")}
-                  className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
-                    wizardStep === "AD_GROUP"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                      : "text-slate-500 hover:bg-white hover:text-slate-800"
-                  }`}
+                  className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${wizardStep === "AD_GROUP"
+                    ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                    : "text-slate-500 hover:bg-white hover:text-slate-800"
+                    }`}
                 >
                   <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">2</div>
                   <span>Ad group</span>
@@ -676,11 +734,10 @@ export default function AppPromotionWizard()  {
               <div className="space-y-1">
                 <div
                   onClick={() => setWizardStep("BIDDING_BUDGET")}
-                  className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
-                    wizardStep === "BIDDING_BUDGET"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                      : "text-slate-500 hover:bg-white hover:text-slate-800"
-                  }`}
+                  className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${wizardStep === "BIDDING_BUDGET"
+                    ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                    : "text-slate-500 hover:bg-white hover:text-slate-800"
+                    }`}
                 >
                   <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">3</div>
                   <span>Bidding and budget</span>
@@ -696,11 +753,10 @@ export default function AppPromotionWizard()  {
               {/* 4) Review */}
               <div
                 onClick={() => setWizardStep("SUMMARY")}
-                className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
-                  wizardStep === "SUMMARY"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-500 hover:bg-white hover:text-slate-800"
-                }`}
+                className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${wizardStep === "SUMMARY"
+                  ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                  : "text-slate-500 hover:bg-white hover:text-slate-800"
+                  }`}
               >
                 <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">4</div>
                 <span>Review</span>
@@ -711,7 +767,7 @@ export default function AppPromotionWizard()  {
 
         {/* Main Content Area */}
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-6 max-w-4xl mx-auto">
-          
+
           {/* STEP 2: CAMPAIGN SETTINGS */}
           {wizardStep === "CAMPAIGN_SETTINGS" && (
             <div className="space-y-6 animate-in fade-in duration-200">
@@ -728,20 +784,8 @@ export default function AppPromotionWizard()  {
                     <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
                   <div className="space-y-4 text-xs">
-                    <div className="space-y-3">
-                      <label className="text-slate-700 font-semibold block">Mobile app platform</label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="radio" checked={mobileAppPlatform === "ANDROID"} onChange={() => setMobileAppPlatform("ANDROID")} className="text-primary focus:ring-primary h-4 w-4 bg-slate-50 border-slate-300" />
-                          <span className="text-slate-800">Android</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="radio" checked={mobileAppPlatform === "IOS"} onChange={() => setMobileAppPlatform("IOS")} className="text-primary focus:ring-primary h-4 w-4 bg-slate-50 border-slate-300" />
-                          <span className="text-slate-800">iOS</span>
-                        </label>
-                      </div>
-                    </div>
-                    
+
+
                     <div className="space-y-2">
                       <label className="text-slate-700 font-semibold block">Look up your app</label>
                       <div className="relative max-w-md">
@@ -754,7 +798,7 @@ export default function AppPromotionWizard()  {
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                         />
                       </div>
-                      
+
                       {selectedMobileApp && (
                         <div className="mt-4 flex items-center gap-4 p-3 rounded-xl border border-primary/30 bg-primary/5 max-w-md">
                           <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center shrink-0 border border-slate-300">
@@ -778,7 +822,7 @@ export default function AppPromotionWizard()  {
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenMainSetting("mobile_app")}
                 >
@@ -923,7 +967,7 @@ export default function AppPromotionWizard()  {
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenMainSetting("locations")}
                 >
@@ -962,24 +1006,26 @@ export default function AppPromotionWizard()  {
                       />
                     </div>
 
-                    {/* Languages Checkbox Grid - Only Shown on Click/Focus/Type */}
+                    {/* Languages Clickable Dropdown List */}
                     {(showLanguageDropdown || languageAppInput.trim().length > 0) && (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 max-h-40 overflow-y-auto p-2 border border-slate-200 rounded-xl bg-slate-50 animate-in fade-in duration-200">
+                      <div className="border border-slate-200 rounded-xl bg-white shadow-md max-h-44 overflow-y-auto animate-in fade-in duration-150 z-10 relative">
                         {languagesList.filter(l => l.toLowerCase().includes(languageAppInput.toLowerCase())).map((lang, idx) => {
                           const isSelected = selectedLanguages.includes(lang);
                           return (
-                            <label key={idx} className="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-slate-900 p-1 rounded hover:bg-white">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  if (e.target.checked) setSelectedLanguages(prev => [...prev, lang]);
-                                  else setSelectedLanguages(prev => prev.filter(l => l !== lang));
-                                }}
-                                className="rounded text-primary h-3.5 w-3.5"
-                              />
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) setSelectedLanguages(prev => prev.filter(l => l !== lang));
+                                else setSelectedLanguages(prev => [...prev, lang]);
+                                setLanguageAppInput("");
+                                setShowLanguageDropdown(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-4 py-2 text-xs text-left transition-colors hover:bg-slate-50 ${isSelected ? "text-primary font-semibold bg-primary/5" : "text-slate-800"}`}
+                            >
                               <span>{lang}</span>
-                            </label>
+                              {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                            </button>
                           );
                         })}
                       </div>
@@ -998,7 +1044,7 @@ export default function AppPromotionWizard()  {
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenMainSetting("languages")}
                 >
@@ -1039,7 +1085,7 @@ export default function AppPromotionWizard()  {
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenMainSetting("view_through")}
                 >
@@ -1095,7 +1141,7 @@ export default function AppPromotionWizard()  {
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenMainSetting("eu_political")}
                 >
@@ -1125,7 +1171,7 @@ export default function AppPromotionWizard()  {
 
                 {showMoreSettings && (
                   <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-800 text-xs animate-in fade-in duration-200 overflow-hidden">
-                    
+
                     {/* 1. Start and end dates */}
                     <div className="divide-y divide-slate-800">
                       {openSetting === "dates" ? (
@@ -1162,24 +1208,24 @@ export default function AppPromotionWizard()  {
                               <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
                               <div className="flex items-center gap-4 mb-2 mt-1">
                                 <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
-                                  <input 
-                                    type="radio" 
-                                    name="endDateOption" 
-                                    checked={endDateOption === "NONE"} 
+                                  <input
+                                    type="radio"
+                                    name="endDateOption"
+                                    checked={endDateOption === "NONE"}
                                     onChange={() => {
                                       setEndDateOption("NONE");
                                       setEndDate("");
-                                    }} 
+                                    }}
                                     className="text-primary focus:ring-primary h-3.5 w-3.5"
                                   />
                                   None
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
-                                  <input 
-                                    type="radio" 
-                                    name="endDateOption" 
-                                    checked={endDateOption === "SELECT"} 
-                                    onChange={() => setEndDateOption("SELECT")} 
+                                  <input
+                                    type="radio"
+                                    name="endDateOption"
+                                    checked={endDateOption === "SELECT"}
+                                    onChange={() => setEndDateOption("SELECT")}
                                     className="text-primary focus:ring-primary h-3.5 w-3.5"
                                   />
                                   Select a date
@@ -1200,7 +1246,7 @@ export default function AppPromotionWizard()  {
                           <p className="text-[11px] text-slate-500">Your ads will continue to run unless you specify an end date.</p>
                         </div>
                       ) : (
-                        <div 
+                        <div
                           className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors"
                           onClick={() => setOpenSetting("dates")}
                         >
@@ -1246,35 +1292,35 @@ export default function AppPromotionWizard()  {
                                 </span>
                               </div>
                             </label>
-                            
+
                             {useDataFeed && (
                               <div className="ml-7 space-y-3 pt-2">
                                 <label className="flex items-center gap-2 cursor-pointer text-slate-700">
-                                  <input 
-                                    type="radio" 
-                                    name="dataFeedType" 
-                                    checked={dataFeedType === "Dynamic ad feed"} 
-                                    onChange={() => setDataFeedType("Dynamic ad feed")} 
+                                  <input
+                                    type="radio"
+                                    name="dataFeedType"
+                                    checked={dataFeedType === "Dynamic ad feed"}
+                                    onChange={() => setDataFeedType("Dynamic ad feed")}
                                     className="text-primary focus:ring-primary h-4 w-4"
                                   />
                                   Dynamic ad feed
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer text-slate-700">
-                                  <input 
-                                    type="radio" 
-                                    name="dataFeedType" 
-                                    checked={dataFeedType === "Google Merchant Center feed"} 
-                                    onChange={() => setDataFeedType("Google Merchant Center feed")} 
+                                  <input
+                                    type="radio"
+                                    name="dataFeedType"
+                                    checked={dataFeedType === "Google Merchant Center feed"}
+                                    onChange={() => setDataFeedType("Google Merchant Center feed")}
                                     className="text-primary focus:ring-primary h-4 w-4"
                                   />
                                   Google Merchant Center feed
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer text-slate-700">
-                                  <input 
-                                    type="radio" 
-                                    name="dataFeedType" 
-                                    checked={dataFeedType === "Hotel Center feed"} 
-                                    onChange={() => setDataFeedType("Hotel Center feed")} 
+                                  <input
+                                    type="radio"
+                                    name="dataFeedType"
+                                    checked={dataFeedType === "Hotel Center feed"}
+                                    onChange={() => setDataFeedType("Hotel Center feed")}
                                     className="text-primary focus:ring-primary h-4 w-4"
                                   />
                                   Hotel Center feed
@@ -1284,7 +1330,7 @@ export default function AppPromotionWizard()  {
                           </div>
                         </div>
                       ) : (
-                        <div 
+                        <div
                           className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors"
                           onClick={() => setOpenSetting("data_feed")}
                         >
@@ -1317,7 +1363,7 @@ export default function AppPromotionWizard()  {
 
               {/* Main Container Card */}
               <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
-                
+
                 {/* Header Banner: Get the best AI-powered performance */}
                 <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
                   <div className="flex items-start gap-4">
@@ -1376,7 +1422,7 @@ export default function AppPromotionWizard()  {
                   <div className="p-6 rounded-xl border border-slate-200 bg-slate-50 space-y-6 animate-in fade-in duration-200">
                     {showAssetOptimization ? (
                       <>
-                        <div 
+                        <div
                           onClick={() => setShowAssetOptimization(false)}
                           className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
                         >
@@ -1410,7 +1456,7 @@ export default function AppPromotionWizard()  {
                           {/* Before / After Sponsored Result Ad Visual Preview */}
                           <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                             <div className="flex flex-col md:flex-row items-center justify-center gap-4 py-2">
-                              
+
                               {/* Original Ad Card */}
                               <div className="w-full md:w-64 p-3 rounded-lg border border-slate-200 bg-white space-y-2">
                                 <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200">
@@ -1478,7 +1524,7 @@ export default function AppPromotionWizard()  {
                           {/* Before / After Final URL Expansion Visual Preview */}
                           <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                             <div className="flex flex-col md:flex-row items-center justify-center gap-4 py-2">
-                              
+
                               {/* Original Landing Card */}
                               <div className="w-full md:w-64 p-3 rounded-lg border border-slate-200 bg-white space-y-2">
                                 <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200">
@@ -1519,7 +1565,7 @@ export default function AppPromotionWizard()  {
                         </div>
                       </>
                     ) : (
-                      <div 
+                      <div
                         className="flex items-center justify-between cursor-pointer select-none"
                         onClick={() => setShowAssetOptimization(true)}
                       >
@@ -1541,7 +1587,7 @@ export default function AppPromotionWizard()  {
                 <div className="p-6 rounded-xl border border-slate-200 bg-slate-50 space-y-5 shadow-sm">
                   {showBrands ? (
                     <>
-                      <div 
+                      <div
                         onClick={() => setShowBrands(false)}
                         className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
                       >
@@ -1620,7 +1666,7 @@ export default function AppPromotionWizard()  {
                       </div>
                     </>
                   ) : (
-                    <div 
+                    <div
                       className="flex items-center justify-between cursor-pointer select-none"
                       onClick={() => setShowBrands(true)}
                     >
@@ -1693,7 +1739,7 @@ export default function AppPromotionWizard()  {
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenKeywordAssetCard(true)}
                 >
@@ -1727,11 +1773,10 @@ export default function AppPromotionWizard()  {
                       setWizardStep("AD_GROUP");
                     }
                   }}
-                  className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow ${
-                    aiGenFinalUrl.trim()
-                      ? "bg-primary text-slate-950 hover:bg-secondary cursor-pointer shadow-primary/20"
-                      : "bg-slate-100 text-slate-500 cursor-not-allowed border border-slate-300/50"
-                  }`}
+                  className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow ${aiGenFinalUrl.trim()
+                    ? "bg-primary text-slate-950 hover:bg-secondary cursor-pointer shadow-primary/20"
+                    : "bg-slate-100 text-slate-500 cursor-not-allowed border border-slate-300/50"
+                    }`}
                 >
                   <Sparkles className="h-4 w-4" />
                   Generate
@@ -1773,33 +1818,56 @@ export default function AppPromotionWizard()  {
                   <p className="text-slate-500">
                     Provide a variety of text, images, and videos. Google AI will combine them to create ads for different formats and placements.
                   </p>
-                  
+
                   {/* Headlines */}
                   <div className="space-y-2">
                     <label className="block text-slate-700 font-semibold">Headlines <span className="text-slate-500 font-normal ml-1">Up to 5</span></label>
                     <div className="space-y-2">
                       {headlines.map((headline, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input 
-                            type="text" 
-                            placeholder="Add headline" 
-                            value={headline}
-                            onChange={(e) => {
-                              const newH = [...headlines];
-                              newH[idx] = e.target.value;
-                              setHeadlines(newH);
-                            }}
-                            className="w-full max-w-xl bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary" 
-                          />
-                          {headlines.length > 1 && (
-                            <button onClick={() => setHeadlines(headlines.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-2">
-                              <X className="h-4 w-4" />
-                            </button>
-                          )}
+                        <div key={idx} className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="Add headline"
+                              value={headline}
+                              maxLength={30}
+                              onChange={(e) => {
+                                const newH = [...headlines];
+                                newH[idx] = e.target.value;
+                                setHeadlines(newH);
+                                // Duplicate check: look for same trimmed value in other slots
+                                const val = e.target.value.trim().toLowerCase();
+                                const dupeExists = val.length > 0 && newH.some((h, i) => i !== idx && h.trim().toLowerCase() === val);
+                                setHeadlineDupeError(dupeExists ? `"${e.target.value.trim()}" is already added as a headline.` : "");
+                              }}
+                              className={`w-full max-w-xl bg-slate-50 border rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none ${headlineDupeError && headlines[idx].trim().toLowerCase() === headlines.find((h, i) => i !== idx && h.trim().toLowerCase() === headlines[idx].trim().toLowerCase() && headlines[idx].trim().length > 0)?.trim().toLowerCase()
+                                ? "border-rose-400 focus:border-rose-400"
+                                : "border-slate-200 focus:border-primary"
+                                }`}
+                            />
+                            <span className="text-[10px] text-slate-400 shrink-0">{headline.length}/30</span>
+                            {headlines.length > 1 && (
+                              <button onClick={() => { setHeadlines(headlines.filter((_, i) => i !== idx)); setHeadlineDupeError(""); }} className="text-slate-500 hover:text-rose-400 p-1.5">
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
+                      {headlineDupeError && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-400/30 text-rose-400 text-[11px] font-semibold max-w-xl animate-in fade-in duration-150">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                          {headlineDupeError}
+                        </div>
+                      )}
                       {headlines.length < 5 && (
-                        <button onClick={() => setHeadlines([...headlines, ""])} className="text-primary hover:text-secondary text-xs font-semibold flex items-center gap-1 mt-1">
+                        <button
+                          onClick={() => {
+                            if (headlineDupeError) return;
+                            setHeadlines([...headlines, ""]);
+                          }}
+                          className={`text-xs font-semibold flex items-center gap-1 mt-1 ${headlineDupeError ? "text-slate-300 cursor-not-allowed" : "text-primary hover:text-secondary cursor-pointer"}`}
+                        >
                           <Plus className="h-3 w-3" /> Add headline
                         </button>
                       )}
@@ -1811,27 +1879,49 @@ export default function AppPromotionWizard()  {
                     <label className="block text-slate-700 font-semibold">Descriptions <span className="text-slate-500 font-normal ml-1">Up to 5</span></label>
                     <div className="space-y-2">
                       {descriptions.map((desc, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input 
-                            type="text" 
-                            placeholder="Add description" 
-                            value={desc}
-                            onChange={(e) => {
-                              const newD = [...descriptions];
-                              newD[idx] = e.target.value;
-                              setDescriptions(newD);
-                            }}
-                            className="w-full max-w-xl bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary" 
-                          />
-                          {descriptions.length > 1 && (
-                            <button onClick={() => setDescriptions(descriptions.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-2">
-                              <X className="h-4 w-4" />
-                            </button>
-                          )}
+                        <div key={idx} className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="Add description"
+                              value={desc}
+                              maxLength={90}
+                              onChange={(e) => {
+                                const newD = [...descriptions];
+                                newD[idx] = e.target.value;
+                                setDescriptions(newD);
+                                const val = e.target.value.trim().toLowerCase();
+                                const dupeExists = val.length > 0 && newD.some((d, i) => i !== idx && d.trim().toLowerCase() === val);
+                                setDescriptionDupeError(dupeExists ? `"${e.target.value.trim()}" is already added as a description.` : "");
+                              }}
+                              className={`w-full max-w-xl bg-slate-50 border rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none ${descriptionDupeError && descriptions[idx].trim().toLowerCase() === descriptions.find((d, i) => i !== idx && d.trim().toLowerCase() === descriptions[idx].trim().toLowerCase() && descriptions[idx].trim().length > 0)?.trim().toLowerCase()
+                                ? "border-rose-400 focus:border-rose-400"
+                                : "border-slate-200 focus:border-primary"
+                                }`}
+                            />
+                            <span className="text-[10px] text-slate-400 shrink-0">{desc.length}/90</span>
+                            {descriptions.length > 1 && (
+                              <button onClick={() => { setDescriptions(descriptions.filter((_, i) => i !== idx)); setDescriptionDupeError(""); }} className="text-slate-500 hover:text-rose-400 p-1.5">
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
+                      {descriptionDupeError && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-400/30 text-rose-400 text-[11px] font-semibold max-w-xl animate-in fade-in duration-150">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                          {descriptionDupeError}
+                        </div>
+                      )}
                       {descriptions.length < 5 && (
-                        <button onClick={() => setDescriptions([...descriptions, ""])} className="text-primary hover:text-secondary text-xs font-semibold flex items-center gap-1 mt-1">
+                        <button
+                          onClick={() => {
+                            if (descriptionDupeError) return;
+                            setDescriptions([...descriptions, ""]);
+                          }}
+                          className={`text-xs font-semibold flex items-center gap-1 mt-1 ${descriptionDupeError ? "text-slate-300 cursor-not-allowed" : "text-primary hover:text-secondary cursor-pointer"}`}
+                        >
                           <Plus className="h-3 w-3" /> Add description
                         </button>
                       )}
@@ -1839,265 +1929,221 @@ export default function AppPromotionWizard()  {
                   </div>
 
                   {/* Images, Videos & HTML5 */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl pt-2">
-                    {/* Images */}
-                    <div className="relative">
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        multiple
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={(e) => {
-                          if (e.target.files) {
-                            const files = Array.from(e.target.files).slice(0, 20);
-                            setUploadedImages(files);
-                            console.log("Mock ImageKit upload started for", files.length, "images");
-                          }
-                        }}
-                      />
-                      <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedImages.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-300 bg-white'} hover:bg-slate-100 transition-colors pointer-events-none gap-2`}>
-                        <ImageIcon className={`h-6 w-6 ${uploadedImages.length > 0 ? 'text-primary' : 'text-slate-500'}`} />
-                        <span className="font-semibold text-slate-800">Images</span>
-                        <span className="text-[10px] text-slate-500">{uploadedImages.length > 0 ? `${uploadedImages.length}/20 uploaded` : 'Up to 20'}</span>
-                      </div>
-                    </div>
-                    
-                    {/* Videos */}
-                    <div className="relative">
-                      <input 
-                        type="file" 
-                        accept="video/*" 
-                        multiple
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={(e) => {
-                          if (e.target.files) {
-                            const files = Array.from(e.target.files).slice(0, 20);
-                            setUploadedVideos(files);
-                            console.log("Mock ImageKit upload started for", files.length, "videos");
-                          }
-                        }}
-                      />
-                      <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedVideos.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-300 bg-white'} hover:bg-slate-100 transition-colors pointer-events-none gap-2`}>
-                        <VideoIcon className={`h-6 w-6 ${uploadedVideos.length > 0 ? 'text-primary' : 'text-slate-500'}`} />
-                        <span className="font-semibold text-slate-800">Videos</span>
-                        <span className="text-[10px] text-slate-500">{uploadedVideos.length > 0 ? `${uploadedVideos.length}/20 uploaded` : 'Up to 20'}</span>
-                      </div>
-                    </div>
-
-                    {/* HTML5 */}
-                    <div className="relative">
-                      <input 
-                        type="file" 
-                        accept=".html,.zip" 
-                        multiple
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={(e) => {
-                          if (e.target.files) {
-                            const files = Array.from(e.target.files).slice(0, 20);
-                            setUploadedHtml5(files);
-                            console.log("Mock ImageKit upload started for", files.length, "html5 files");
-                          }
-                        }}
-                      />
-                      <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedHtml5.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-300 bg-white'} hover:bg-slate-100 transition-colors pointer-events-none gap-2`}>
-                        <Code className={`h-6 w-6 ${uploadedHtml5.length > 0 ? 'text-primary' : 'text-slate-500'}`} />
-                        <span className="font-semibold text-slate-800">HTML5</span>
-                        <span className="text-[10px] text-slate-500">{uploadedHtml5.length > 0 ? `${uploadedHtml5.length}/20 uploaded` : 'Up to 20'}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Promotions */}
-                  <div className="pt-4 border-t border-slate-200/40">
-                    <div 
-                      className="flex items-center justify-between cursor-pointer group"
-                      onClick={() => setIsPromotionsOpen(!isPromotionsOpen)}
-                    >
-                      <h3 className="font-semibold text-slate-800 text-sm group-hover:text-primary transition-colors">Add promotions to your ad group</h3>
-                      {isPromotionsOpen ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
-                    </div>
-                    {isPromotionsOpen && (
-                      <div className="mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="block text-[11px] text-slate-500 font-semibold">Add new promotion</label>
-                            <select value={promotionEvent} onChange={(e) => setPromotionEvent(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary">
-                              {["None", "Back to school", "Black Friday", "Boxing Day", "Carnival", "Chinese New Year", "Christmas", "Cyber Monday", "Diwali", "Easter", "Eid al-Adha", "Eid al-Fitr", "End of Season", "Epiphany", "Fall Sale", "Father's Day", "Halloween", "Hanukkah", "Holi", "Independence Day", "Labor Day", "Mother's Day", "National Day", "Navratri", "New Year's", "Parent's Day", "Passover", "Ramadan", "Rosh Hashanah", "Singles Day", "Spring Sale", "St. Nicholas Day", "Summer Sale", "Valentine's Day", "Winter Sale", "Women's Day"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-[11px] text-slate-500 font-semibold">Language</label>
-                            <select value={promotionLanguage} onChange={(e) => setPromotionLanguage(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary">
-                              {["Hindi", "Arabic", "Bulgarian", "Catalan", "Chinese (Hong Kong)", "Chinese (Simplified)", "Chinese (Traditional)", "Croatian", "Czech", "Danish", "Dutch", "English", "English (Australia)", "English (United Kingdom)", "Estonian", "Filipino", "Finnish", "French", "German", "Greek", "Hebrew", "Hungarian", "Indonesian", "Italian", "Japanese", "Korean", "Latvian", "Lithuanian", "Malay", "Norwegian", "Polish", "Portuguese (Brazil)", "Portuguese (Portugal)", "Romanian", "Russian", "Serbian", "Slovak", "Slovenian", "Spanish (Latin America)", "Spanish (Spain)", "Swedish", "Thai", "Turkish", "Ukrainian", "Vietnamese"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                            </select>
+                  <div className="space-y-3 pt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
+                      {/* Images */}
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <input type="file" accept="image/*" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            onChange={(e) => {
+                              if (!e.target.files) return;
+                              const incoming = Array.from(e.target.files);
+                              const existingNames = new Set(uploadedImageEntries.map(en => en.file.name));
+                              const dupes = incoming.filter(f => existingNames.has(f.name));
+                              if (dupes.length > 0) { setImageDupeError(`"${dupes[0].name}" is already uploaded.`); e.target.value = ""; return; }
+                              setImageDupeError("");
+                              const newFiles = incoming.slice(0, Math.max(0, 20 - uploadedImageEntries.length));
+                              if (uploadedImageEntries.length === 0 && newFiles.length > 0) {
+                                const first = newFiles[0];
+                                setUploadedImageEntries([
+                                  { file: first, ratio: "1.91:1", label: "Landscape (1.91:1)" },
+                                  { file: first, ratio: "1:1", label: "Square (1:1)" },
+                                  { file: first, ratio: "4:5", label: "Portrait (4:5)" },
+                                  ...newFiles.slice(1).map(f => ({ file: f, ratio: "1:1", label: f.name }))
+                                ]);
+                              } else {
+                                setUploadedImageEntries(prev => [...prev, ...newFiles.map(f => ({ file: f, ratio: "1:1", label: f.name }))]);
+                              }
+                              e.target.value = "";
+                            }}
+                          />
+                          <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedImageEntries.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-300 bg-white'} hover:bg-slate-100 transition-colors pointer-events-none gap-2`}>
+                            <ImageIcon className={`h-6 w-6 ${uploadedImageEntries.length > 0 ? 'text-primary' : 'text-slate-500'}`} />
+                            <span className="font-semibold text-slate-800">Images</span>
+                            <span className="text-[10px] text-slate-500">{uploadedImageEntries.length > 0 ? `${uploadedImageEntries.length}/20 uploaded` : 'Up to 20'}</span>
                           </div>
                         </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="block text-[11px] text-slate-500 font-semibold">Currency</label>
-                            <select value={promotionCurrency} onChange={(e) => setPromotionCurrency(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary">
-                              {["INR", "AED", "ARS", "AUD", "BGN", "BND", "BOB", "BRL", "CAD", "CHF", "CLP", "CNY", "COP", "CZK", "DKK", "EGP", "EUR", "FJD", "GBP", "HKD", "HRK", "HUF", "IDR", "ILS", "JPY", "KES", "KRW", "MAD", "MXN", "MYR", "NOK", "NZD", "PEN", "PHP", "PKR", "PLN", "RON", "RSD", "RUB", "SAR", "SEK", "SGD", "THB", "TRY", "TWD", "UAH", "USD", "VND", "ZAR"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                            </select>
+                        {imageDupeError && <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-400/30 text-rose-400 text-[11px] font-semibold animate-in fade-in duration-150"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{imageDupeError}</div>}
+                      </div>
+                      {/* Videos */}
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <input type="file" accept="video/*" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            onChange={(e) => {
+                              if (!e.target.files) return;
+                              const incoming = Array.from(e.target.files);
+                              const existingNames = new Set(uploadedVideos.map(f => f.name));
+                              const dupes = incoming.filter(f => existingNames.has(f.name));
+                              if (dupes.length > 0) { setVideoDupeError(`"${dupes[0].name}" is already uploaded.`); e.target.value = ""; return; }
+                              setVideoDupeError("");
+                              setUploadedVideos(prev => [...prev, ...incoming].slice(0, 20));
+                              e.target.value = "";
+                            }}
+                          />
+                          <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedVideos.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-300 bg-white'} hover:bg-slate-100 transition-colors pointer-events-none gap-2`}>
+                            <VideoIcon className={`h-6 w-6 ${uploadedVideos.length > 0 ? 'text-primary' : 'text-slate-500'}`} />
+                            <span className="font-semibold text-slate-800">Videos</span>
+                            <span className="text-[10px] text-slate-500">{uploadedVideos.length > 0 ? `${uploadedVideos.length}/20 uploaded` : 'Up to 20'}</span>
                           </div>
-                          <div className="space-y-1">
-                            <label className="block text-[11px] text-slate-500 font-semibold">Promotion type</label>
-                            <div className="flex items-center gap-2">
-                              <select value={promotionType} onChange={(e) => setPromotionType(e.target.value)} className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary">
-                                {["Monetary discount", "Percent discount", "Up to monetary discount", "Up to percent discount"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                              </select>
-                              <input type="text" placeholder="Amount" value={promotionTypeAmount} onChange={(e) => setPromotionTypeAmount(e.target.value)} className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary" />
+                        </div>
+                        {videoDupeError && <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-400/30 text-rose-400 text-[11px] font-semibold animate-in fade-in duration-150"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{videoDupeError}</div>}
+                        {uploadedVideos.length > 0 && <div className="flex flex-wrap gap-1.5 pt-1">{uploadedVideos.map((f, i) => <div key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200 text-[11px] text-slate-700 font-medium"><VideoIcon className="h-3 w-3" />{f.name}<button type="button" onClick={() => setUploadedVideos(prev => prev.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-rose-400 ml-0.5"><X className="h-3 w-3" /></button></div>)}</div>}
+                      </div>
+                      {/* HTML5 */}
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <input type="file" accept=".html,.zip" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            onChange={(e) => {
+                              if (!e.target.files) return;
+                              const incoming = Array.from(e.target.files);
+                              const existingNames = new Set(uploadedHtml5.map(f => f.name));
+                              const dupes = incoming.filter(f => existingNames.has(f.name));
+                              if (dupes.length > 0) { setHtmlDupeError(`"${dupes[0].name}" is already uploaded.`); e.target.value = ""; return; }
+                              setHtmlDupeError("");
+                              setUploadedHtml5(prev => [...prev, ...incoming].slice(0, 20));
+                              e.target.value = "";
+                            }}
+                          />
+                          <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedHtml5.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-300 bg-white'} hover:bg-slate-100 transition-colors pointer-events-none gap-2`}>
+                            <Code className={`h-6 w-6 ${uploadedHtml5.length > 0 ? 'text-primary' : 'text-slate-500'}`} />
+                            <span className="font-semibold text-slate-800">HTML5</span>
+                            <span className="text-[10px] text-slate-500">{uploadedHtml5.length > 0 ? `${uploadedHtml5.length}/20 uploaded` : 'Up to 20'}</span>
+                          </div>
+                        </div>
+                        {htmlDupeError && <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-400/30 text-rose-400 text-[11px] font-semibold animate-in fade-in duration-150"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{htmlDupeError}</div>}
+                        {uploadedHtml5.length > 0 && <div className="flex flex-wrap gap-1.5 pt-1">{uploadedHtml5.map((f, i) => <div key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200 text-[11px] text-slate-700 font-medium"><Code className="h-3 w-3" />{f.name}<button type="button" onClick={() => setUploadedHtml5(prev => prev.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-rose-400 ml-0.5"><X className="h-3 w-3" /></button></div>)}</div>}
+                      </div>
+                    </div>
+                    {/* Image thumbnails with ratio labels */}
+                    {uploadedImageEntries.length > 0 && (
+                      <div className="flex flex-wrap gap-2 max-w-2xl animate-in fade-in duration-200">
+                        {uploadedImageEntries.map((entry, idx) => (
+                          <div key={idx} className="relative group flex flex-col items-center gap-1 p-2 rounded-xl border border-slate-200 bg-slate-50 w-28">
+                            <div className="w-24 h-16 rounded-lg bg-slate-200 overflow-hidden">
+                              <img src={URL.createObjectURL(entry.file)} alt={entry.label} className="w-full h-full object-cover" />
                             </div>
+                            <span className="text-[9px] text-slate-500 font-semibold text-center leading-tight">{entry.label}</span>
+                            <button type="button" onClick={() => setUploadedImageEntries(prev => prev.filter((_, i) => i !== idx))} className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><X className="h-2.5 w-2.5" /></button>
                           </div>
-                        </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-                        <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-500 font-semibold">Item</label>
-                          <input type="text" value={promotionItem} onChange={(e) => setPromotionItem(e.target.value)} className="w-full max-w-xl bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary" />
-                        </div>
+                  {/* Promotions */}
+                  <div className="pt-4 border-t border-slate-200/40 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-slate-800 text-sm">Promotions</h3>
+                      <button type="button" onClick={() => { setPromotionAmountError(""); setPromotionUrlError(""); setPromotionDateError(""); setPromoTimeError(""); setShowPromotionsModal(true); }} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 transition-all cursor-pointer">
+                        <Plus className="h-3.5 w-3.5" /> Add promotion
+                      </button>
+                    </div>
+                    {savedPromotions.length > 0 && (
+                      <div className="space-y-2 max-w-xl">
+                        {savedPromotions.map((promo, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+                            <div><span className="font-bold text-slate-800">{promo.event !== "None" ? promo.event : promo.type}</span><span className="text-slate-500 ml-2">{promo.amount} • {promo.item || "No item"}</span></div>
+                            <button type="button" onClick={() => setSavedPromotions(prev => prev.filter((_, i) => i !== idx))} className="text-slate-400 hover:text-rose-400"><X className="h-3.5 w-3.5" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-                        <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-500 font-semibold">Final URL</label>
-                          <input type="text" value={promotionFinalUrl} onChange={(e) => setPromotionFinalUrl(e.target.value)} className="w-full max-w-xl bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary" />
-                          <p className="text-[10px] text-slate-500 pt-1 leading-relaxed max-w-xl">
-                            The final URL is the URL that people reach after clicking your ad. It should match what your ad promotes. If you use a cross-domain redirect, enter it in a tracking template. This field will not apply to App Campaigns (pre-populated with your Play Store or App Store link). If you plan to use it with other campaigns, replace it with a final URL.
-                          </p>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-500 font-semibold">Promotion details</label>
-                          <div className="flex items-center gap-2 max-w-xl">
-                            <select value={promotionDetailsType} onChange={(e) => setPromotionDetailsType(e.target.value)} className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary">
-                              {["None", "On orders over", "Promo code"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                            </select>
-                            {promotionDetailsType !== "None" && (
-                              <input type="text" placeholder={promotionDetailsType === "Promo code" ? "Code" : "Amount"} value={promotionDetailsAmount} onChange={(e) => setPromotionDetailsAmount(e.target.value)} className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary" />
+                  <div
+                    className="flex items-center justify-between cursor-pointer group"
+                    onClick={() => setIsUrlOptionsOpen(!isUrlOptionsOpen)}
+                  >
+                    <h3 className="font-semibold text-slate-800 text-sm group-hover:text-primary transition-colors">URL options</h3>
+                    {isUrlOptionsOpen ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                  </div>
+                  {isUrlOptionsOpen && (
+                    <div className="mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4 max-w-xl">
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-slate-500 font-semibold">Tracking template</label>
+                        <input type="text" placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5" value={adGroupTrackingTemplate} onChange={(e) => setAdGroupTrackingTemplate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-slate-500 font-semibold">Final URL suffix</label>
+                        <input type="text" placeholder="Example: param1=value1&param2=value2" value={adGroupFinalUrlSuffix} onChange={(e) => setAdGroupFinalUrlSuffix(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary" />
+                      </div>
+                      <div className="space-y-2 pt-2">
+                        <label className="block text-[11px] text-slate-500 font-semibold">Custom parameters</label>
+                        {adGroupCustomParams.map((param, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <span className="text-slate-500 font-mono">{`{_`}</span>
+                            <input type="text" placeholder="Name" value={param.name} onChange={(e) => { const updated = [...adGroupCustomParams]; updated[idx].name = e.target.value; setAdGroupCustomParams(updated); }} className="w-1/3 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary" />
+                            <span className="text-slate-500 font-mono">{`}`} =</span>
+                            <input type="text" placeholder="Value" value={param.value} onChange={(e) => { const updated = [...adGroupCustomParams]; updated[idx].value = e.target.value; setAdGroupCustomParams(updated); }} className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary" />
+                            {adGroupCustomParams.length > 1 && (
+                              <button onClick={() => setAdGroupCustomParams(adGroupCustomParams.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-1">
+                                <X className="h-4 w-4" />
+                              </button>
                             )}
                           </div>
-                        </div>
-
-                        <div className="space-y-1 pt-2">
-                          <label className="block text-[11px] text-slate-500 font-semibold">Displayed promotion dates</label>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl">
-                            <div className="space-y-2">
-                              <span className="text-[10px] text-slate-500">Start date</span>
-                              <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700"><input type="radio" checked={promotionStartDateOption === "NONE"} onChange={() => { setPromotionStartDateOption("NONE"); setPromotionStartDate(""); }} className="text-primary focus:ring-primary h-3.5 w-3.5" /> None</label>
-                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700"><input type="radio" checked={promotionStartDateOption === "SELECT"} onChange={() => setPromotionStartDateOption("SELECT")} className="text-primary focus:ring-primary h-3.5 w-3.5" /> Select a date</label>
-                              </div>
-                              {promotionStartDateOption === "SELECT" && <input type="date" value={promotionStartDate} onChange={(e) => setPromotionStartDate(e.target.value)} onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer" />}
-                            </div>
-                            <div className="space-y-2">
-                              <span className="text-[10px] text-slate-500">End date</span>
-                              <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700"><input type="radio" checked={promotionEndDateOption === "NONE"} onChange={() => { setPromotionEndDateOption("NONE"); setPromotionEndDate(""); }} className="text-primary focus:ring-primary h-3.5 w-3.5" /> None</label>
-                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700"><input type="radio" checked={promotionEndDateOption === "SELECT"} onChange={() => setPromotionEndDateOption("SELECT")} className="text-primary focus:ring-primary h-3.5 w-3.5" /> Select a date</label>
-                              </div>
-                              {promotionEndDateOption === "SELECT" && <input type="date" value={promotionEndDate} min={promotionStartDate || undefined} onChange={(e) => setPromotionEndDate(e.target.value)} onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer" />}
-                            </div>
-                          </div>
-                        </div>
+                        ))}
+                        <button onClick={() => setAdGroupCustomParams([...adGroupCustomParams, { name: "", value: "" }])} className="text-primary hover:text-secondary text-xs font-semibold flex items-center gap-1 mt-1">
+                          <Plus className="h-3 w-3" /> Add custom parameter
+                        </button>
                       </div>
-                    )}
-                  </div>
-
-                  {/* URL Options */}
-                  <div className="pt-4 border-t border-slate-200/40">
-                    <div 
-                      className="flex items-center justify-between cursor-pointer group"
-                      onClick={() => setIsUrlOptionsOpen(!isUrlOptionsOpen)}
-                    >
-                      <h3 className="font-semibold text-slate-800 text-sm group-hover:text-primary transition-colors">URL options</h3>
-                      {isUrlOptionsOpen ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                      <label className="flex items-center gap-2 cursor-pointer mt-4">
+                        <input type="checkbox" checked={differentMobileUrl} onChange={(e) => setDifferentMobileUrl(e.target.checked)} className="rounded text-primary h-4 w-4" />
+                        <span className="font-semibold text-slate-800 text-xs">Use a different final URL for mobile</span>
+                      </label>
                     </div>
-                    {isUrlOptionsOpen && (
-                      <div className="mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4 max-w-xl">
-                        <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-500 font-semibold">Tracking template</label>
-                          <input type="text" placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5" value={adGroupTrackingTemplate} onChange={(e) => setAdGroupTrackingTemplate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-500 font-semibold">Final URL suffix</label>
-                          <input type="text" placeholder="Example: param1=value1&param2=value2" value={adGroupFinalUrlSuffix} onChange={(e) => setAdGroupFinalUrlSuffix(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary" />
-                        </div>
-                        <div className="space-y-2 pt-2">
-                          <label className="block text-[11px] text-slate-500 font-semibold">Custom parameters</label>
-                          {adGroupCustomParams.map((param, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                              <span className="text-slate-500 font-mono">{`{_`}</span>
-                              <input type="text" placeholder="Name" value={param.name} onChange={(e) => { const updated = [...adGroupCustomParams]; updated[idx].name = e.target.value; setAdGroupCustomParams(updated); }} className="w-1/3 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary" />
-                              <span className="text-slate-500 font-mono">{`}`} =</span>
-                              <input type="text" placeholder="Value" value={param.value} onChange={(e) => { const updated = [...adGroupCustomParams]; updated[idx].value = e.target.value; setAdGroupCustomParams(updated); }} className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary" />
-                              {adGroupCustomParams.length > 1 && (
-                                <button onClick={() => setAdGroupCustomParams(adGroupCustomParams.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-1">
-                                  <X className="h-4 w-4" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          <button onClick={() => setAdGroupCustomParams([...adGroupCustomParams, {name: "", value: ""}])} className="text-primary hover:text-secondary text-xs font-semibold flex items-center gap-1 mt-1">
-                            <Plus className="h-3 w-3" /> Add custom parameter
-                          </button>
-                        </div>
-                        <label className="flex items-center gap-2 cursor-pointer mt-4">
-                          <input type="checkbox" checked={differentMobileUrl} onChange={(e) => setDifferentMobileUrl(e.target.checked)} className="rounded text-primary h-4 w-4" />
-                          <span className="font-semibold text-slate-800 text-xs">Use a different final URL for mobile</span>
-                        </label>
-                      </div>
-                    )}
-                  </div>
+                  )}
+                </div>
 
-                  {/* Advanced Options */}
-                  <div className="pt-4 border-t border-slate-200/40">
-                    <div 
-                      className="flex items-center justify-between cursor-pointer group"
-                      onClick={() => setIsAdvancedOptionsOpen(!isAdvancedOptionsOpen)}
-                    >
-                      <h3 className="font-semibold text-slate-800 text-sm group-hover:text-primary transition-colors">Advanced options</h3>
-                      {isAdvancedOptionsOpen ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                {/* Advanced Options */}
+                <div className="pt-4 border-t border-slate-200/40">
+                  <div
+                    className="flex items-center justify-between cursor-pointer group"
+                    onClick={() => setIsAdvancedOptionsOpen(!isAdvancedOptionsOpen)}
+                  >
+                    <h3 className="font-semibold text-slate-800 text-sm group-hover:text-primary transition-colors">Advanced options</h3>
+                    {isAdvancedOptionsOpen ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                  </div>
+                  {isAdvancedOptionsOpen && (
+                    <div className="mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4 max-w-xl text-xs">
+                      <div className="space-y-1">
+                        <h4 className="font-semibold text-slate-800">Asset scheduling</h4>
+                        <p className="text-[11px] text-slate-500">Select when your assets will be eligible to show</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <span className="text-[11px] text-slate-500 font-semibold block">Start date</span>
+                          <div className="flex gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer text-slate-700"><input type="radio" checked={assetScheduleStartDateOption === "NONE"} onChange={() => { setAssetScheduleStartDateOption("NONE"); setAssetScheduleStartDate(""); }} className="text-primary focus:ring-primary h-3.5 w-3.5" /> None</label>
+                            <label className="flex items-center gap-2 cursor-pointer text-slate-700"><input type="radio" checked={assetScheduleStartDateOption === "SELECT"} onChange={() => setAssetScheduleStartDateOption("SELECT")} className="text-primary focus:ring-primary h-3.5 w-3.5" /> Select a date</label>
+                          </div>
+                          {assetScheduleStartDateOption === "SELECT" && <input type="date" value={assetScheduleStartDate} onChange={(e) => setAssetScheduleStartDate(e.target.value)} onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer mt-2" />}
+                        </div>
+                        <div className="space-y-2">
+                          <span className="text-[11px] text-slate-500 font-semibold block">End date</span>
+                          <div className="flex gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer text-slate-700"><input type="radio" checked={assetScheduleEndDateOption === "NONE"} onChange={() => { setAssetScheduleEndDateOption("NONE"); setAssetScheduleEndDate(""); }} className="text-primary focus:ring-primary h-3.5 w-3.5" /> None</label>
+                            <label className="flex items-center gap-2 cursor-pointer text-slate-700"><input type="radio" checked={assetScheduleEndDateOption === "SELECT"} onChange={() => setAssetScheduleEndDateOption("SELECT")} className="text-primary focus:ring-primary h-3.5 w-3.5" /> Select a date</label>
+                          </div>
+                          {assetScheduleEndDateOption === "SELECT" && <input type="date" value={assetScheduleEndDate} min={assetScheduleStartDate || undefined} onChange={(e) => setAssetScheduleEndDate(e.target.value)} onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer mt-2" />}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 pt-2">
+                        <label className="block text-[11px] text-slate-500 font-semibold">Days and hours</label>
+                        <select value={assetScheduleDays} onChange={(e) => setAssetScheduleDays(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary">
+                          {["All days", "Mondays - Fridays", "Saturdays - Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"].map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      </div>
+
+                      <div className="pt-2">
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more</a><br />
+                          <span className="mt-1 block">Based on account time zone: (GMT+05:30) India Standard Time</span>
+                        </p>
+                      </div>
                     </div>
-                    {isAdvancedOptionsOpen && (
-                      <div className="mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4 max-w-xl text-xs">
-                        <div className="space-y-1">
-                          <h4 className="font-semibold text-slate-800">Asset scheduling</h4>
-                          <p className="text-[11px] text-slate-500">Select when your assets will be eligible to show</p>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <span className="text-[11px] text-slate-500 font-semibold block">Start date</span>
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer text-slate-700"><input type="radio" checked={assetScheduleStartDateOption === "NONE"} onChange={() => { setAssetScheduleStartDateOption("NONE"); setAssetScheduleStartDate(""); }} className="text-primary focus:ring-primary h-3.5 w-3.5" /> None</label>
-                              <label className="flex items-center gap-2 cursor-pointer text-slate-700"><input type="radio" checked={assetScheduleStartDateOption === "SELECT"} onChange={() => setAssetScheduleStartDateOption("SELECT")} className="text-primary focus:ring-primary h-3.5 w-3.5" /> Select a date</label>
-                            </div>
-                            {assetScheduleStartDateOption === "SELECT" && <input type="date" value={assetScheduleStartDate} onChange={(e) => setAssetScheduleStartDate(e.target.value)} onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer mt-2" />}
-                          </div>
-                          <div className="space-y-2">
-                            <span className="text-[11px] text-slate-500 font-semibold block">End date</span>
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer text-slate-700"><input type="radio" checked={assetScheduleEndDateOption === "NONE"} onChange={() => { setAssetScheduleEndDateOption("NONE"); setAssetScheduleEndDate(""); }} className="text-primary focus:ring-primary h-3.5 w-3.5" /> None</label>
-                              <label className="flex items-center gap-2 cursor-pointer text-slate-700"><input type="radio" checked={assetScheduleEndDateOption === "SELECT"} onChange={() => setAssetScheduleEndDateOption("SELECT")} className="text-primary focus:ring-primary h-3.5 w-3.5" /> Select a date</label>
-                            </div>
-                            {assetScheduleEndDateOption === "SELECT" && <input type="date" value={assetScheduleEndDate} min={assetScheduleStartDate || undefined} onChange={(e) => setAssetScheduleEndDate(e.target.value)} onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer mt-2" />}
-                          </div>
-                        </div>
-
-                        <div className="space-y-1 pt-2">
-                          <label className="block text-[11px] text-slate-500 font-semibold">Days and hours</label>
-                          <select value={assetScheduleDays} onChange={(e) => setAssetScheduleDays(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary">
-                            {["All days", "Mondays - Fridays", "Saturdays - Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"].map(d => <option key={d} value={d}>{d}</option>)}
-                          </select>
-                        </div>
-                        
-                        <div className="pt-2">
-                          <p className="text-[11px] text-slate-500 leading-relaxed">
-                            To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more</a><br/>
-                            <span className="mt-1 block">Based on account time zone: (GMT+05:30) India Standard Time</span>
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -2111,13 +2157,200 @@ export default function AppPromotionWizard()  {
                   <p className="text-slate-500">
                     Add audience signals to help Google AI find people most likely to engage with your app.
                   </p>
-                  <button className="flex items-center justify-between w-full max-w-xl p-4 rounded-xl border border-slate-200 bg-slate-50 hover:border-slate-600 transition-colors cursor-pointer">
-                    <span className="font-semibold text-slate-800">Create an audience signal</span>
-                    <Plus className="h-4 w-4 text-slate-500" />
-                  </button>
+
+                  {!showAudienceSignalForm ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAudienceSignalForm(true)}
+                      className="flex items-center justify-between w-full max-w-xl p-4 rounded-xl border border-slate-200 bg-slate-50 hover:border-primary transition-colors cursor-pointer"
+                    >
+                      <span className="font-semibold text-slate-800">Create an audience signal</span>
+                      <Plus className="h-4 w-4 text-slate-500" />
+                    </button>
+                  ) : (
+                    <div className="space-y-5 max-w-xl animate-in fade-in duration-200">
+                      {/* Audience Name */}
+                      <div className="space-y-1.5">
+                        <label className="block font-semibold text-slate-800">Audience signal name <span className="text-rose-400">*</span></label>
+                        <input
+                          type="text"
+                          value={audienceSignalName}
+                          onChange={(e) => { setAudienceSignalName(e.target.value); if (e.target.value.trim()) setAudienceSignalNameError(""); }}
+                          placeholder="Enter audience signal name"
+                          className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none ${audienceSignalNameError ? "border-rose-400" : "border-slate-200 focus:border-primary"}`}
+                        />
+                        {audienceSignalNameError && <p className="text-rose-400 text-[11px] flex items-center gap-1"><AlertCircle className="h-3 w-3" />{audienceSignalNameError}</p>}
+                      </div>
+
+                      {/* Custom Segments */}
+                      <div className="space-y-3 p-4 rounded-xl border border-slate-200 bg-slate-50">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-slate-800">Custom segments</h4>
+                          <button type="button" onClick={() => setShowNewCustomSegmentInput(true)} className="inline-flex items-center gap-1 text-primary text-xs font-semibold hover:text-secondary">
+                            <Plus className="h-3.5 w-3.5" /> New segment
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Reach people based on their interests, purchase intentions, or search behavior</p>
+
+                        {customSegments.length > 0 && (
+                          <div className="space-y-1.5">
+                            {customSegments.map((seg, i) => (
+                              <div key={i} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white border border-slate-200">
+                                <div>
+                                  <span className="font-semibold text-slate-800">{seg.name}</span>
+                                  <span className="ml-2 text-slate-400 text-[10px]">
+                                    {seg.type === "INTEREST" ? "Interests/Behaviors" : seg.type === "PURCHASE_INTENT" ? "Purchase Intentions" : "Search Terms"}
+                                  </span>
+                                </div>
+                                <button type="button" onClick={() => setCustomSegments(prev => prev.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-rose-400"><X className="h-3.5 w-3.5" /></button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {showNewCustomSegmentInput && (
+                          <div className="space-y-3 p-3 rounded-xl border border-primary/30 bg-primary/5 animate-in fade-in duration-150">
+                            <input
+                              type="text"
+                              value={newSegmentName}
+                              onChange={(e) => setNewSegmentName(e.target.value)}
+                              placeholder="Segment name"
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                            />
+                            <div className="space-y-2">
+                              <p className="text-[11px] text-slate-500 font-semibold">Include people who:</p>
+                              {(["INTEREST", "PURCHASE_INTENT", "SEARCH_TERMS"] as const).map((t) => (
+                                <label key={t} className="flex items-center gap-2 cursor-pointer">
+                                  <input type="radio" name="segType" checked={newSegmentType === t} onChange={() => setNewSegmentType(t)} className="text-primary h-3.5 w-3.5" />
+                                  <span className="text-slate-700">
+                                    {t === "INTEREST" ? "Have the following interests or behaviors" : t === "PURCHASE_INTENT" ? "Have purchase intentions for any of these" : "Searched for any of these terms on Google"}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => { if (newSegmentName.trim()) { setCustomSegments(prev => [...prev, { name: newSegmentName.trim(), type: newSegmentType }]); setNewSegmentName(""); setShowNewCustomSegmentInput(false); } }} className="px-4 py-1.5 rounded-lg bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer">Add</button>
+                              <button type="button" onClick={() => { setNewSegmentName(""); setShowNewCustomSegmentInput(false); }} className="px-3 py-1.5 text-slate-500 font-semibold text-xs hover:text-slate-900 cursor-pointer">Cancel</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Your Data */}
+                      <div className="space-y-1.5 p-4 rounded-xl border border-slate-200 bg-slate-50">
+                        <h4 className="font-bold text-slate-800">Your data</h4>
+                        <p className="text-[11px] text-slate-500">People who have previously interacted with your business</p>
+                        <input
+                          type="text"
+                          value={yourDataInput}
+                          onChange={(e) => setYourDataInput(e.target.value)}
+                          placeholder="Search audiences from your data"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+
+                      {/* Interests & Detailed Demographics */}
+                      <div className="space-y-1.5 p-4 rounded-xl border border-slate-200 bg-slate-50">
+                        <h4 className="font-bold text-slate-800">Interests & detailed demographics</h4>
+                        <p className="text-[11px] text-slate-500">Add in-market segments, life events, and more</p>
+                        <input
+                          type="text"
+                          value={interestsDemographicsInput}
+                          onChange={(e) => setInterestsDemographicsInput(e.target.value)}
+                          placeholder="Search interests and life events"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+
+                      {/* Demographics */}
+                      <div className="space-y-4 p-4 rounded-xl border border-slate-200 bg-slate-50">
+                        <h4 className="font-bold text-slate-800">Demographics</h4>
+
+                        {/* Gender */}
+                        <div className="space-y-2">
+                          <p className="font-semibold text-slate-700 text-[11px]">Gender</p>
+                          <div className="flex flex-wrap gap-3">
+                            {["Female", "Male", "Unknown"].map(g => (
+                              <label key={g} className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={demoGenders.includes(g)} onChange={(e) => { if (e.target.checked) setDemoGenders(prev => [...prev, g]); else setDemoGenders(prev => prev.filter(x => x !== g)); }} className="rounded text-primary h-3.5 w-3.5" />
+                                <span className="text-slate-700">{g}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Age */}
+                        <div className="space-y-2">
+                          <p className="font-semibold text-slate-700 text-[11px]">Age</p>
+                          <div className="flex flex-wrap gap-3">
+                            {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map(a => (
+                              <label key={a} className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={demoAges.includes(a)} onChange={(e) => { if (e.target.checked) setDemoAges(prev => [...prev, a]); else setDemoAges(prev => prev.filter(x => x !== a)); }} className="rounded text-primary h-3.5 w-3.5" />
+                                <span className="text-slate-700">{a}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Additional demographics toggle */}
+                        <button type="button" onClick={() => setShowAdditionalDemographics(p => !p)} className="text-primary text-[11px] font-semibold flex items-center gap-1 hover:text-secondary cursor-pointer">
+                          {showAdditionalDemographics ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          {showAdditionalDemographics ? "Hide" : "Show"} additional demographics
+                        </button>
+
+                        {showAdditionalDemographics && (
+                          <div className="space-y-4 animate-in fade-in duration-150">
+                            {/* Parental Status */}
+                            <div className="space-y-2">
+                              <p className="font-semibold text-slate-700 text-[11px]">Parental status</p>
+                              <div className="flex flex-wrap gap-3">
+                                {["Parent", "Not a parent", "Unknown"].map(p => (
+                                  <label key={p} className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" checked={demoParentalStatus.includes(p)} onChange={(e) => { if (e.target.checked) setDemoParentalStatus(prev => [...prev, p]); else setDemoParentalStatus(prev => prev.filter(x => x !== p)); }} className="rounded text-primary h-3.5 w-3.5" />
+                                    <span className="text-slate-700">{p}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Household Income */}
+                            <div className="space-y-2">
+                              <p className="font-semibold text-slate-700 text-[11px]">Household income</p>
+                              <p className="text-[10px] text-slate-400 italic">Household income targeting is not available in all countries.</p>
+                              <div className="flex flex-wrap gap-3">
+                                {["Top 10%", "11-20%", "21-30%", "31-40%", "41-50%", "Lower 50%", "Unknown"].map(h => (
+                                  <label key={h} className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" checked={demoHouseholdIncome.includes(h)} onChange={(e) => { if (e.target.checked) setDemoHouseholdIncome(prev => [...prev, h]); else setDemoHouseholdIncome(prev => prev.filter(x => x !== h)); }} className="rounded text-primary h-3.5 w-3.5" />
+                                    <span className="text-slate-700">{h}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Save / Cancel */}
+                      <div className="flex items-center gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!audienceSignalName.trim()) { setAudienceSignalNameError("Audience signal name is required."); return; }
+                            setShowAudienceSignalForm(false);
+                          }}
+                          className="px-6 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer transition-all"
+                        >
+                          Save signal
+                        </button>
+                        <button type="button" onClick={() => { setShowAudienceSignalForm(false); setAudienceSignalName(""); setAudienceSignalNameError(""); setCustomSegments([]); }} className="px-4 py-2 text-slate-500 font-semibold text-xs hover:text-slate-900 cursor-pointer">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-              
+
               {/* Navigation Actions */}
               <div className="flex items-center justify-end gap-4 pt-2">
                 <button
@@ -2241,7 +2474,7 @@ export default function AppPromotionWizard()  {
                           />
                           <span className="text-xs text-slate-700 font-medium">Set a maximum cost per click bid limit</span>
                         </label>
-                        
+
                         {setMaxCpc && (
                           <div className="space-y-1 ml-6 animate-in slide-in-from-left-2 duration-150">
                             <label className="block text-[11px] text-slate-500">Maximum CPC bid limit</label>
@@ -2257,7 +2490,7 @@ export default function AppPromotionWizard()  {
                             </div>
                           </div>
                         )}
-                        
+
                         <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
                           Alternative bid strategies like portfolios are available in settings after you create your campaign
                         </p>
@@ -2322,7 +2555,7 @@ export default function AppPromotionWizard()  {
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenBiddingSetting("bidding")}
                 >
@@ -2368,7 +2601,7 @@ export default function AppPromotionWizard()  {
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenBiddingSetting("acquisition")}
                 >
@@ -2383,7 +2616,7 @@ export default function AppPromotionWizard()  {
                   <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
-              
+
               <hr className="border-slate-200 my-8" />
 
               <div>
@@ -2393,7 +2626,7 @@ export default function AppPromotionWizard()  {
 
               <div className="p-6 rounded-2xl border border-slate-200 bg-white shadow-sm text-xs">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                  
+
                   {/* Left Main Controls Column (8 Cols) */}
                   <div className="lg:col-span-8 space-y-6">
                     {/* Blue Info Notice Banner */}
@@ -2410,9 +2643,8 @@ export default function AppPromotionWizard()  {
                       {/* Option 1: Average daily budget */}
                       <label
                         onClick={() => setBudgetType("DAILY")}
-                        className={`flex items-start gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                          budgetType === "DAILY" ? "border-primary bg-primary/10" : "border-slate-200 bg-slate-50 hover:border-slate-300"
-                        }`}
+                        className={`flex items-start gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all ${budgetType === "DAILY" ? "border-primary bg-primary/10" : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                          }`}
                       >
                         <input
                           type="radio"
@@ -2444,9 +2676,8 @@ export default function AppPromotionWizard()  {
                       {/* Option 2: Campaign total budget */}
                       <label
                         onClick={() => setBudgetType("TOTAL")}
-                        className={`flex items-start gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                          budgetType === "TOTAL" ? "border-primary bg-primary/10" : "border-slate-200 bg-slate-50 hover:border-slate-300"
-                        }`}
+                        className={`flex items-start gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all ${budgetType === "TOTAL" ? "border-primary bg-primary/10" : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                          }`}
                       >
                         <input
                           type="radio"
@@ -2458,7 +2689,7 @@ export default function AppPromotionWizard()  {
                         <div className="space-y-1 flex-1">
                           <span className="font-bold text-slate-900 block">Campaign total budget</span>
                           <span className="text-slate-500 block text-[11px]">Set a budget for the duration of your campaign</span>
-                          
+
                           {budgetType === "TOTAL" && (
                             <div className="pt-2 space-y-4">
                               <div className="relative max-w-xs">
@@ -2484,7 +2715,7 @@ export default function AppPromotionWizard()  {
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => alert("Editing Campaign Dates...")}
+                                  onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}
                                   className="text-blue-400 font-bold hover:underline cursor-pointer"
                                 >
                                   Edit
@@ -2518,14 +2749,16 @@ export default function AppPromotionWizard()  {
               </div>
 
               {/* 1. Issues Section */}
+              {(!headlines.some(h => h.trim().length > 0) || (selectedPresetBudget === "CUSTOM" && !customBudgetValue.trim())) && (
               <div className="space-y-2">
                 <div className="space-y-0.5">
                   <h3 className="font-bold text-slate-800 text-xs">Issues</h3>
                   <p className="text-[11px] text-slate-500">Fix these issues to run your campaign</p>
                 </div>
 
-                <div className="space-y-2">
+                  <div className="space-y-2">
                   {/* Issue 1: Create an ad */}
+                  {!headlines.some(h => h.trim().length > 0) && (
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
@@ -2536,30 +2769,15 @@ export default function AppPromotionWizard()  {
                     <button
                       type="button"
                       onClick={() => setWizardStep("AD_GROUP")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
+                      className="text-blue-500 font-bold hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      View
+                      Fix
                     </button>
                   </div>
-
-                  {/* Issue 2: Add keywords */}
-                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-800">
-                        <strong className="text-slate-900 font-bold">Add keywords:</strong> Get your ads running by adding keywords to your ad group
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep("AD_GROUP")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      View
-                    </button>
-                  </div>
+                  )}
 
                   {/* Issue 3: Add a budget */}
+                  {(selectedPresetBudget === "CUSTOM" && !customBudgetValue.trim()) && (
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
@@ -2570,13 +2788,15 @@ export default function AppPromotionWizard()  {
                     <button
                       type="button"
                       onClick={() => setWizardStep("BIDDING_BUDGET")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
+                      className="text-blue-500 font-bold hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      View
+                      Fix
                     </button>
                   </div>
+                  )}
 
                   {/* Issue 4: Budget value required */}
+                  {(selectedPresetBudget === "CUSTOM" && !customBudgetValue.trim()) && (
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
@@ -2587,13 +2807,15 @@ export default function AppPromotionWizard()  {
                     <button
                       type="button"
                       onClick={() => setWizardStep("BIDDING_BUDGET")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
+                      className="text-blue-500 font-bold hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      View
+                      Fix
                     </button>
                   </div>
+                  )}
                 </div>
               </div>
+              )}
 
               {/* 2. Recommendations Section */}
               <div className="space-y-2 pt-2">
@@ -2718,11 +2940,42 @@ export default function AppPromotionWizard()  {
                   <span className="text-slate-500 w-48 font-medium">Budget</span>
                   <div className="flex-1 space-y-1">
                     <span className="text-slate-900 font-bold">Campaign total: ₹0.00</span>
-                    <span className="text-rose-400 font-semibold flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
-                      Value is required
-                    </span>
+                    <span className="text-rose-400 font-semibold flex items-center gap-1"></span>
+                    {promoTimeError && <p className="text-rose-400 text-[11px] flex items-center gap-1"><AlertCircle className="h-3 w-3" />{promoTimeError}</p>}
+                    {promoSchedules.length > 0 && (
+                      <div className="space-y-1.5">
+                        {promoSchedules.map((s, i) => (
+                          <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white border border-slate-200">
+                            <span className="text-slate-700">{s.day}: {s.start} – {s.end}</span>
+                            <button type="button" onClick={() => setPromoSchedules(prev => prev.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-rose-400"><X className="h-3.5 w-3.5" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+                </div>
+
+                {/* Footer */}
+                <div className="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-4 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Validate before saving
+                      let valid = true;
+                      const amount = parseFloat(promotionTypeAmount);
+                      if (!isNaN(amount) && amount < 0) { setPromotionAmountError("Amount cannot be negative."); valid = false; }
+                      if (promotionFinalUrl.trim() && !/^https?:\/\/.+/.test(promotionFinalUrl.trim())) { setPromotionUrlError("URL must start with http:// or https://"); valid = false; }
+                      if (promotionStartDateOption === "SELECT" && promotionEndDateOption === "SELECT" && promotionEndDate && promotionStartDate && promotionEndDate < promotionStartDate) { setPromotionDateError("End date must be after start date."); valid = false; }
+                      if (!valid) return;
+                      setSavedPromotions(prev => [...prev, { event: promotionEvent, type: promotionType, amount: promotionTypeAmount, item: promotionItem, url: promotionFinalUrl }]);
+                      setShowPromotionsModal(false);
+                      setPromotionTypeAmount(""); setPromotionItem(""); setPromotionFinalUrl(""); setPromotionDetailsAmount(""); setPromoSchedules([]);
+                    }}
+                    className="px-6 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer transition-all"
+                  >
+                    Save promotion
+                  </button>
+                  <button type="button" onClick={() => setShowPromotionsModal(false)} className="px-4 py-2 text-slate-500 font-semibold text-xs hover:text-slate-900 cursor-pointer">Cancel</button>
                 </div>
               </div>
 
@@ -2802,11 +3055,10 @@ export default function AppPromotionWizard()  {
                   {/* 1) Customer list */}
                   <div
                     onClick={() => setSelectedNewSegmentType("CUSTOMER_LIST")}
-                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
-                      selectedNewSegmentType === "CUSTOMER_LIST"
-                        ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
+                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${selectedNewSegmentType === "CUSTOMER_LIST"
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/50"
+                      : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
                   >
                     {selectedNewSegmentType === "CUSTOMER_LIST" && (
                       <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary text-slate-950 flex items-center justify-center font-bold">
@@ -2823,11 +3075,10 @@ export default function AppPromotionWizard()  {
                   {/* 2) Lead form segment */}
                   <div
                     onClick={() => setSelectedNewSegmentType("LEAD_FORM")}
-                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
-                      selectedNewSegmentType === "LEAD_FORM"
-                        ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
+                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${selectedNewSegmentType === "LEAD_FORM"
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/50"
+                      : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
                   >
                     {selectedNewSegmentType === "LEAD_FORM" && (
                       <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary text-slate-950 flex items-center justify-center font-bold">
@@ -2844,11 +3095,10 @@ export default function AppPromotionWizard()  {
                   {/* 3) YouTube users */}
                   <div
                     onClick={() => setSelectedNewSegmentType("YOUTUBE")}
-                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
-                      selectedNewSegmentType === "YOUTUBE"
-                        ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
+                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${selectedNewSegmentType === "YOUTUBE"
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/50"
+                      : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
                   >
                     {selectedNewSegmentType === "YOUTUBE" && (
                       <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary text-slate-950 flex items-center justify-center font-bold">
@@ -2865,11 +3115,10 @@ export default function AppPromotionWizard()  {
                   {/* 4) Google Analytics 4 segment */}
                   <div
                     onClick={() => setSelectedNewSegmentType("GA4")}
-                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
-                      selectedNewSegmentType === "GA4"
-                        ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
+                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${selectedNewSegmentType === "GA4"
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/50"
+                      : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
                   >
                     {selectedNewSegmentType === "GA4" && (
                       <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary text-slate-950 flex items-center justify-center font-bold">
@@ -2895,11 +3144,10 @@ export default function AppPromotionWizard()  {
                   {/* 5) App users */}
                   <div
                     onClick={() => setSelectedNewSegmentType("APP_USERS")}
-                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
-                      selectedNewSegmentType === "APP_USERS"
-                        ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
+                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${selectedNewSegmentType === "APP_USERS"
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/50"
+                      : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
                   >
                     {selectedNewSegmentType === "APP_USERS" && (
                       <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary text-slate-950 flex items-center justify-center font-bold">
@@ -2916,11 +3164,10 @@ export default function AppPromotionWizard()  {
                   {/* 6) Website visitors */}
                   <div
                     onClick={() => setSelectedNewSegmentType("WEBSITE_VISITORS")}
-                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
-                      selectedNewSegmentType === "WEBSITE_VISITORS"
-                        ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
+                    className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${selectedNewSegmentType === "WEBSITE_VISITORS"
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/50"
+                      : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
                   >
                     {selectedNewSegmentType === "WEBSITE_VISITORS" && (
                       <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary text-slate-950 flex items-center justify-center font-bold">
@@ -3002,11 +3249,10 @@ export default function AppPromotionWizard()  {
                                 key={idx}
                                 type="button"
                                 onClick={() => setSelectedDataSourceProduct(prod)}
-                                className={`p-3 rounded-xl border flex items-center justify-between text-left font-semibold text-xs transition-all cursor-pointer ${
-                                  selectedDataSourceProduct === prod
-                                    ? "bg-primary/10 border-primary text-primary"
-                                    : "bg-slate-50 border-slate-200 text-slate-800 hover:border-slate-300"
-                                }`}
+                                className={`p-3 rounded-xl border flex items-center justify-between text-left font-semibold text-xs transition-all cursor-pointer ${selectedDataSourceProduct === prod
+                                  ? "bg-primary/10 border-primary text-primary"
+                                  : "bg-slate-50 border-slate-200 text-slate-800 hover:border-slate-300"
+                                  }`}
                               >
                                 <span className="truncate">{prod}</span>
                                 {selectedDataSourceProduct === prod && <Check className="h-3.5 w-3.5 shrink-0" />}
@@ -3453,9 +3699,8 @@ export default function AppPromotionWizard()  {
                   <button
                     type="button"
                     onClick={() => setImportAppWebMetrics(prev => !prev)}
-                    className={`px-3 py-1 rounded-full font-bold text-xs transition-all cursor-pointer ${
-                      importAppWebMetrics ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-100 text-slate-500"
-                    }`}
+                    className={`px-3 py-1 rounded-full font-bold text-xs transition-all cursor-pointer ${importAppWebMetrics ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-100 text-slate-500"
+                      }`}
                   >
                     {importAppWebMetrics ? "On" : "Off"}
                   </button>
@@ -3472,9 +3717,8 @@ export default function AppPromotionWizard()  {
                   <button
                     type="button"
                     onClick={() => setImportGa4Audiences(prev => !prev)}
-                    className={`px-3 py-1 rounded-full font-bold text-xs transition-all cursor-pointer ${
-                      importGa4Audiences ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-100 text-slate-500"
-                    }`}
+                    className={`px-3 py-1 rounded-full font-bold text-xs transition-all cursor-pointer ${importGa4Audiences ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-100 text-slate-500"
+                      }`}
                   >
                     {importGa4Audiences ? "On" : "Off"}
                   </button>
@@ -3525,10 +3769,10 @@ export default function AppPromotionWizard()  {
                   const segLabel = customerListStep === "CUSTOMER_LIST_DETAILS"
                     ? `Customer list (${selectedDataSourceProduct})`
                     : customerListStep === "LEAD_FORM_DETAILS"
-                    ? leadFormSegmentName.trim() || "Lead form segment"
-                    : customerListStep === "YOUTUBE_DETAILS"
-                    ? youtubeSegmentName.trim() || "YouTube users segment"
-                    : `GA4 Segment (${ga4SelectedProperty.split(" ")[0]})`;
+                      ? leadFormSegmentName.trim() || "Lead form segment"
+                      : customerListStep === "YOUTUBE_DETAILS"
+                        ? youtubeSegmentName.trim() || "YouTube users segment"
+                        : `GA4 Segment (${ga4SelectedProperty.split(" ")[0]})`;
                   setSelectedAudienceSegments(prev => [...prev, segLabel]);
                   setShowNewSegmentModal(false);
                   setCustomerListStep("SELECT_TYPE");
@@ -3639,11 +3883,10 @@ export default function AppPromotionWizard()  {
                               setSelectedBrandListBrands(prev => [...prev, b]);
                             }
                           }}
-                          className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-primary/10 border-primary text-primary"
-                              : "bg-white border-slate-200 hover:border-slate-300 text-slate-800"
-                          }`}
+                          className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${isSelected
+                            ? "bg-primary/10 border-primary text-primary"
+                            : "bg-white border-slate-200 hover:border-slate-300 text-slate-800"
+                            }`}
                         >
                           <div className="truncate pr-2">
                             <span className="font-semibold text-xs block truncate">{b.name}</span>
@@ -3723,40 +3966,37 @@ export default function AppPromotionWizard()  {
 
             {/* Split Card Container (Left 65% Controls, Right 35% Selection Summary) */}
             <div className="grid grid-cols-1 md:grid-cols-12 rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-md min-h-[400px]">
-              
+
               {/* Left Column Controls (8 cols) */}
               <div className="md:col-span-8 p-6 space-y-6 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between">
                 <div className="space-y-5">
-                  
+
                   {/* 3 Tabs Header: URLs / Custom labels / Rules */}
                   <div className="flex items-center gap-8 border-b border-slate-200 pb-3">
                     <button
                       onClick={() => setUrlInclusionsTab("URLS")}
-                      className={`font-semibold pb-2 border-b-2 transition-all cursor-pointer ${
-                        urlInclusionsTab === "URLS"
-                          ? "border-blue-500 text-blue-400 font-bold"
-                          : "border-transparent text-slate-500 hover:text-slate-800"
-                      }`}
+                      className={`font-semibold pb-2 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "URLS"
+                        ? "border-blue-500 text-blue-400 font-bold"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                        }`}
                     >
                       URLs
                     </button>
                     <button
                       onClick={() => setUrlInclusionsTab("CUSTOM_LABELS")}
-                      className={`font-semibold pb-2 border-b-2 transition-all cursor-pointer ${
-                        urlInclusionsTab === "CUSTOM_LABELS"
-                          ? "border-blue-500 text-blue-400 font-bold"
-                          : "border-transparent text-slate-500 hover:text-slate-800"
-                      }`}
+                      className={`font-semibold pb-2 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "CUSTOM_LABELS"
+                        ? "border-blue-500 text-blue-400 font-bold"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                        }`}
                     >
                       Custom labels
                     </button>
                     <button
                       onClick={() => setUrlInclusionsTab("RULES")}
-                      className={`font-semibold pb-2 border-b-2 transition-all cursor-pointer ${
-                        urlInclusionsTab === "RULES"
-                          ? "border-blue-500 text-blue-400 font-bold"
-                          : "border-transparent text-slate-500 hover:text-slate-800"
-                      }`}
+                      className={`font-semibold pb-2 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "RULES"
+                        ? "border-blue-500 text-blue-400 font-bold"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                        }`}
                     >
                       Rules
                     </button>
@@ -3897,7 +4137,7 @@ export default function AppPromotionWizard()  {
 
           {/* Main Content Scroll Container */}
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6">
-            
+
             {/* Section 1: Campaign-level calls */}
             <div className="space-y-3">
               <div>
@@ -4124,7 +4364,7 @@ export default function AppPromotionWizard()  {
 
           {/* Main Scroll Content */}
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-5">
-            
+
             {/* Sitelinks Accordion List (Sitelink 1 to 6+) */}
             {sitelinks.map((st, idx) => {
               const isOpen = openSitelinkIdx === idx;
@@ -4142,7 +4382,7 @@ export default function AppPromotionWizard()  {
                   {/* Accordion Body Form Controls */}
                   {isOpen && (
                     <div className="p-6 border-t border-slate-200 bg-slate-50 space-y-4 animate-in fade-in duration-150">
-                      
+
                       {/* Sitelink text */}
                       <div className="space-y-1">
                         <div className="relative">
@@ -4519,7 +4759,7 @@ export default function AppPromotionWizard()  {
             <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
               <div className="space-y-1">
                 <span className="font-bold text-slate-800 text-xs block">Add new promotion</span>
-                
+
                 {/* Occasion */}
                 <div className="space-y-1 max-w-xs pt-1">
                   <div className="flex items-center gap-1 text-slate-700 font-semibold">
@@ -4994,14 +5234,14 @@ export default function AppPromotionWizard()  {
 
               {/* Grid split: 60% Left form inputs, 40% Right sticky preview */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
+
                 {/* Left Column (Inputs) */}
                 <div className="lg:col-span-7 space-y-6">
-                  
+
                   {/* Card 1: Create your lead form */}
                   <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
                     <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Create your lead form</h4>
-                    
+
                     <div className="space-y-1">
                       <label className="block text-slate-700 font-semibold">Headline</label>
                       <input
@@ -5217,7 +5457,7 @@ export default function AppPromotionWizard()  {
                   {/* Card 3: Privacy Policy & Background Image */}
                   <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
                     <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Privacy & Design</h4>
-                    
+
                     <div className="space-y-1">
                       <label className="block text-slate-700 font-semibold">Privacy policy URL</label>
                       <input
@@ -5244,7 +5484,7 @@ export default function AppPromotionWizard()  {
                   {/* Card 4: Form Submission Message */}
                   <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
                     <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Create form submission message</h4>
-                    
+
                     <div className="space-y-1">
                       <label className="block text-slate-700 font-semibold">Headline</label>
                       <input
@@ -5447,7 +5687,7 @@ export default function AppPromotionWizard()  {
                 <div className="lg:col-span-5 lg:sticky lg:top-8">
                   <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
                     <span className="font-bold text-slate-800 text-xs block pb-1 border-b border-slate-200">Preview</span>
-                    
+
                     {/* Smartphone Mockup Body */}
                     <div className="relative mx-auto max-w-[280px] rounded-[32px] border-4 border-slate-200 bg-slate-50 p-4 shadow-md text-left space-y-3">
                       {/* Form Header */}
@@ -5483,7 +5723,7 @@ export default function AppPromotionWizard()  {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Dynamic fields showing in preview */}
                         {Object.keys(lfContactFields).filter(f => f !== "Name" && f !== "Email" && f !== "Phone number" && lfContactFields[f]).map(field => (
                           <div key={field} className="space-y-1 animate-in fade-in duration-100">
@@ -5870,11 +6110,11 @@ export default function AppPromotionWizard()  {
             </div>
 
             <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
-              
+
               {/* Add new app details */}
               <div className="space-y-4">
                 <span className="font-bold text-slate-800 text-xs block">Add new app</span>
-                
+
                 {/* Platform */}
                 <div className="space-y-2">
                   <span className="text-slate-700 font-semibold block">Select your mobile app's platform</span>
@@ -5934,7 +6174,7 @@ export default function AppPromotionWizard()  {
                 {/* App URL Options */}
                 <div className="pt-2 border-t border-slate-200 space-y-4">
                   <span className="font-bold text-slate-800 text-xs block">App URL options</span>
-                  
+
                   <div className="space-y-1">
                     <label className="block text-slate-700 font-semibold">Tracking template</label>
                     <input
@@ -6007,7 +6247,7 @@ export default function AppPromotionWizard()  {
 
                 {/* Advanced Options Accordion */}
                 <div className="pt-2 border-t border-slate-200 space-y-4">
-                  <div 
+                  <div
                     onClick={() => setShowAppAdvanced(!showAppAdvanced)}
                     className="flex items-center justify-between cursor-pointer text-slate-800 font-bold text-xs select-none"
                   >
@@ -6041,33 +6281,81 @@ export default function AppPromotionWizard()  {
                         </div>
                       </div>
 
-                      <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <div className="space-y-3 pt-2 border-t border-slate-200">
                         <label className="block text-[11px] text-slate-500 font-semibold">Days and hours</label>
-                        <div className="flex gap-2 items-center">
-                          <select
-                            value={appScheduleDays}
-                            onChange={(e) => setAppScheduleDays(e.target.value)}
-                            className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900"
-                          >
-                            <option value="All days">All days</option>
-                            <option value="Mondays to Fridays">Mondays to Fridays</option>
-                            <option value="Saturdays and Sundays">Saturdays and Sundays</option>
-                          </select>
-                          <span className="text-slate-500">from</span>
-                          <input
-                            type="time"
-                            value={appScheduleStart}
-                            onChange={(e) => setAppScheduleStart(e.target.value)}
-                            className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono"
-                          />
-                          <span className="text-slate-500">to</span>
-                          <input
-                            type="time"
-                            value={appScheduleEnd}
-                            onChange={(e) => setAppScheduleEnd(e.target.value)}
-                            className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono"
-                          />
-                        </div>
+                        {appSchedules.map((schedule, idx) => (
+                          <div key={idx} className="flex gap-2 items-center flex-wrap">
+                            <select
+                              value={schedule.days}
+                              onChange={(e) => {
+                                const newSched = [...appSchedules];
+                                newSched[idx].days = e.target.value;
+                                setAppSchedules(newSched);
+                                setScheduleError("");
+                              }}
+                              className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900"
+                            >
+                              <option value="All days">All days</option>
+                              <option value="Mondays to Fridays">Mondays to Fridays</option>
+                              <option value="Saturdays and Sundays">Saturdays and Sundays</option>
+                            </select>
+                            <span className="text-slate-500">from</span>
+                            <input
+                              type="time"
+                              value={schedule.start}
+                              onChange={(e) => {
+                                const newSched = [...appSchedules];
+                                newSched[idx].start = e.target.value;
+                                setAppSchedules(newSched);
+                                setScheduleError("");
+                              }}
+                              className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono"
+                            />
+                            <span className="text-slate-500">to</span>
+                            <input
+                              type="time"
+                              value={schedule.end}
+                              onChange={(e) => {
+                                const newSched = [...appSchedules];
+                                newSched[idx].end = e.target.value;
+                                setAppSchedules(newSched);
+                                setScheduleError("");
+                              }}
+                              className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono"
+                            />
+                            {appSchedules.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAppSchedules(appSchedules.filter((_, i) => i !== idx));
+                                  setScheduleError("");
+                                }}
+                                className="text-slate-500 hover:text-rose-400 p-1.5 shrink-0"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        {scheduleError && (
+                          <p className="text-rose-500 text-xs mt-1 animate-in fade-in">{scheduleError}</p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const latest = appSchedules[appSchedules.length - 1];
+                            const isDuplicate = appSchedules.slice(0, -1).some(s => s.days === latest.days && s.start === latest.start && s.end === latest.end);
+                            if (isDuplicate) {
+                              setScheduleError("Duplicate schedule exists. Please modify or remove the identical schedule before adding a new one.");
+                            } else {
+                              setAppSchedules([...appSchedules, { days: "All days", start: "09:00", end: "18:00" }]);
+                              setScheduleError("");
+                            }
+                          }}
+                          className="text-blue-500 font-semibold text-xs hover:underline flex items-center gap-1 cursor-pointer pt-1"
+                        >
+                          + Add schedule
+                        </button>
                       </div>
 
                       <p className="text-[10px] text-slate-500 leading-normal pt-2 border-t border-slate-200/40">
@@ -6107,4 +6395,7 @@ export default function AppPromotionWizard()  {
       )}
     </div>
   );
+
 }
+
+

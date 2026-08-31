@@ -6,12 +6,12 @@ import prisma from "./utils/prisma";
 
 async function runLiveVerification() {
   console.log("===============================================================");
-  console.log("=== STARTING LIVE SALES -> SEARCH TEST FOR CAMPAIGN: Atharva ===");
+  console.log("=== STARTING LIVE SALES -> SEARCH TEST FOR CAMPAIGN: JDS ===");
   console.log("===============================================================");
 
   const orgId = "demo-org-123";
   const customerId = "6587355041";
-  const campaignName = "Atharva";
+  const campaignName = "JDS";
 
   // Step 0: Check account connectivity
   console.log("[PRE-CHECK] Verifying Google Ads Account connection...");
@@ -30,9 +30,9 @@ async function runLiveVerification() {
     biddingStrategy: "MAXIMIZE_CONVERSIONS",
     budget: 500,
     startDate: "2026-08-25",
-    finalUrl: "https://www.atharva-automation.com",
+    finalUrl: "https://www.JDS-automation.com",
     headlines: [
-      "Atharva Smart Automation",
+      "JDS Smart Automation",
       "Next Gen CRM Marketing",
       "Boost Sales Conversions"
     ],

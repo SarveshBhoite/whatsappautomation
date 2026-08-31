@@ -1,19 +1,21 @@
 "use client";
+import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall,
   Sparkles, Layers, Target, Search, Video, LayoutGrid, ShoppingBag,
-  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, ArrowLeft, Copy, Eye, MoreVertical, Upload
+  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, ArrowLeft, Copy, Eye, MoreVertical, Upload, Menu
 } from "lucide-react";
 
-export default function NoGuidanceVideoWizard() {
+export default function NoGuidanceVideoPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   // Wizard Step State: "CAMPAIGN_SETTINGS" | "AD_GROUP" | "AD" | "REVIEW"
   const [videoStep, setVideoStep] = useState<"CAMPAIGN_SETTINGS" | "AD_GROUP" | "AD" | "REVIEW">("CAMPAIGN_SETTINGS");
@@ -33,17 +35,66 @@ export default function NoGuidanceVideoWizard() {
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState<boolean>(false);
   const [campaignSearchTerm, setCampaignSearchTerm] = useState<string>("");
 
-  // Sample old campaign list
-  const existingCampaigns = [
-    { id: "c-101", name: "Video - 2026-07-15", type: "Video", status: "Active", budget: "₹1,500/day" },
-    { id: "c-102", name: "Sales Summer Promo - Video", type: "Video", status: "Ended", budget: "₹2,000/day" },
-    { id: "c-103", name: "Video - High Intent Audiences", type: "Video", status: "Active", budget: "₹3,500/day" },
-    { id: "c-104", name: "Website Traffic - Discovery 2026", type: "Display", status: "Paused", budget: "₹1,000/day" },
-    { id: "c-105", name: "Video - Product Launch", type: "Video", status: "Active", budget: "₹5,000/day" },
-  ];
+  // Validation States & Google Ads Accounts Integration
+  const [isPublishing, setIsPublishing] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [existingCampaignsList, setExistingCampaignsList] = useState<Array<{ name?: string }>>([]);
+  const [duplicateNameError, setDuplicateNameError] = useState<string | null>(null);
+
+  // Load existing campaigns from Google Ads API / DB once on component mount
+  useEffect(() => {
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+    const targetCid = customerId || "6587355041";
+
+    fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(targetCid)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) {
+          setExistingCampaignsList(data);
+          const normalized = videoCampaignName.trim().toLowerCase();
+          const isDup = data.some((c: any) => c.name && c.name.trim().toLowerCase() === normalized);
+          if (isDup) {
+            setDuplicateNameError("Campaign name already exists. Please choose a unique campaign name.");
+            setFieldErrors(prev => ({ ...prev, videoCampaignName: "Campaign name already exists. Please choose a unique campaign name." }));
+          }
+        }
+      })
+      .catch(() => {
+        // Non-blocking fallback
+      });
+  }, [customerId]);
+
+  // Real-time check whenever videoCampaignName changes
+  const checkDuplicateCampaignName = (nameToTest: string): boolean => {
+    const trimmed = nameToTest.trim();
+    if (!trimmed) {
+      setDuplicateNameError(null);
+      return false;
+    }
+    const normalized = trimmed.toLowerCase();
+    const isDup = existingCampaignsList.some(c => c.name && c.name.trim().toLowerCase() === normalized);
+    if (isDup) {
+      const msg = "Campaign name already exists. Please choose a unique campaign name.";
+      setDuplicateNameError(msg);
+      setFieldErrors(prev => ({ ...prev, videoCampaignName: msg }));
+      return true;
+    } else {
+      setDuplicateNameError(null);
+      setFieldErrors(prev => {
+        const updated = { ...prev };
+        delete updated.videoCampaignName;
+        return updated;
+      });
+      return false;
+    }
+  };
+
   const [videoGoal, setVideoGoal] = useState<"Conversions" | "Clicks" | "Conversion value" | "YouTube engagements">("Conversions");
   const [includeViewThrough, setIncludeViewThrough] = useState<boolean>(false);
-  const [targetCpaVideo, setTargetCpaVideo] = useState<boolean>(false);
+  const [targetCpaVideo, setTargetCpaVideo] = useState<boolean>(true);
+  const [targetCpaValue, setTargetCpaValue] = useState<string>("50");
   const [videoBudgetType, setVideoBudgetType] = useState<string>("Daily");
   const [videoBudgetAmount, setVideoBudgetAmount] = useState<string>("");
   const [onlyNewCustomers, setOnlyNewCustomers] = useState<boolean>(false);
@@ -158,8 +209,61 @@ export default function NoGuidanceVideoWizard() {
   // Location & Language Level States
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("INDIA");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
+  const [isSearchingLocations, setIsSearchingLocations] = useState<boolean>(false);
+  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ id?: string; name: string; canonicalName: string; targetType: string; reach?: string }>>([]);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
-  const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
+  
+
+  // Live Location Search from Google Ads Geo Targets API
+  useEffect(() => {
+    if (customLocationInput.trim().length >= 2) {
+      setIsSearchingLocations(true);
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "6587355041";
+
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`${BACKEND}/api/ads/geo-targets/search?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}&q=${encodeURIComponent(customLocationInput.trim())}`);
+          if (res.ok) {
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : (data.results || data.data || []);
+            const formatted = list.map((item: any) => ({
+              id: item.id || item.geoTargetConstant?.id || item.resourceName?.split("/").pop(),
+              name: item.name || item.geoTargetConstant?.name || item.canonicalName || item.geoTargetConstant?.canonicalName,
+              canonicalName: item.canonicalName || item.geoTargetConstant?.canonicalName || item.name,
+              targetType: item.targetType || item.geoTargetConstant?.targetType || "Location"
+            }));
+            setLocationSearchResults(formatted);
+          } else {
+            const localFallback = [
+              { name: "Mumbai", canonicalName: "Mumbai, Maharashtra, India", targetType: "City" },
+              { name: "Delhi", canonicalName: "Delhi, India", targetType: "Union territory" },
+              { name: "Bengaluru", canonicalName: "Bengaluru, Karnataka, India", targetType: "City" },
+              { name: "Hyderabad", canonicalName: "Hyderabad, Telangana, India", targetType: "City" },
+              { name: "Ahmedabad", canonicalName: "Ahmedabad, Gujarat, India", targetType: "City" },
+              { name: "Chennai", canonicalName: "Chennai, Tamil Nadu, India", targetType: "City" },
+              { name: "Kolkata", canonicalName: "Kolkata, West Bengal, India", targetType: "City" },
+              { name: "Pune", canonicalName: "Pune, Maharashtra, India", targetType: "City" },
+              { name: "Surat", canonicalName: "Surat, Gujarat, India", targetType: "City" },
+              { name: "Jaipur", canonicalName: "Jaipur, Rajasthan, India", targetType: "City" },
+              { name: "United States", canonicalName: "United States", targetType: "Country" }
+            ].filter(loc => loc.name.toLowerCase().includes(customLocationInput.toLowerCase()) || loc.canonicalName.toLowerCase().includes(customLocationInput.toLowerCase()));
+            setLocationSearchResults(localFallback);
+          }
+        } catch {
+          setLocationSearchResults([]);
+        } finally {
+          setIsSearchingLocations(false);
+        }
+      }, 200);
+
+      return () => clearTimeout(timer);
+    } else {
+      setLocationSearchResults([]);
+      setIsSearchingLocations(false);
+    }
+  }, [customLocationInput, customerId]);
 
   // Channels Selection State
   const [selectedChannels, setSelectedChannels] = useState<string[]>(["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"]);
@@ -257,9 +361,400 @@ export default function NoGuidanceVideoWizard() {
     }
   };
 
+  // Structured Validation Issues Definition for Review & Preflight
+  interface ValidationIssue {
+    id: string;
+    level: "Campaign" | "Ad group" | "Ad";
+    parameter: string;
+    message: string;
+    step: "CAMPAIGN_SETTINGS" | "AD_GROUP" | "AD";
+    settingKey?: string;
+    adGroupId?: string;
+  }
+
+  const getReviewValidationErrors = (): ValidationIssue[] => {
+    const issues: ValidationIssue[] = [];
+
+    // 1. Campaign Name
+    const trimmedName = (videoCampaignName || "").trim();
+    if (!trimmedName) {
+      issues.push({
+        id: "camp-name-req",
+        level: "Campaign",
+        parameter: "Campaign name",
+        message: "Campaign name is required.",
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "name"
+      });
+    } else {
+      const isDup = existingCampaignsList.some(
+        c => c.name && c.name.trim().toLowerCase() === trimmedName.toLowerCase()
+      );
+      if (isDup || duplicateNameError) {
+        issues.push({
+          id: "camp-name-dup",
+          level: "Campaign",
+          parameter: "Campaign name",
+          message: "Campaign name already exists. Please choose a unique name.",
+          step: "CAMPAIGN_SETTINGS",
+          settingKey: "name"
+        });
+      }
+    }
+
+    // 2. Daily Budget
+    const numBudget = Number(videoBudgetAmount);
+    if (!videoBudgetAmount.trim() || isNaN(numBudget) || numBudget <= 0) {
+      issues.push({
+        id: "camp-budget",
+        level: "Campaign",
+        parameter: "Budget amount",
+        message: "Daily Budget must be a positive number greater than 0.",
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "budget"
+      });
+    }
+
+    // 3. Video Bidding Strategy Validation
+    // Google Ads API v24 rejects standard Maximize Conversions (without Target CPA) for standard Video campaigns.
+    // Video campaigns require Target CPA or YouTube Engagements.
+    const isTargetCpaValid = targetCpaVideo && targetCpaValue.trim() && !isNaN(Number(targetCpaValue)) && Number(targetCpaValue) > 0;
+    const isYouTubeEngagements = videoGoal === "YouTube engagements";
+
+    if (!isTargetCpaValid && !isYouTubeEngagements) {
+      issues.push({
+        id: "camp-bidding-unsupported",
+        level: "Campaign",
+        parameter: "Bidding strategy",
+        message: "This bidding strategy is not supported for Video campaigns. Please select a supported Video bidding strategy.",
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "targetCpa"
+      });
+    }
+
+    // 4. Target CPA numeric check (if checkbox is enabled)
+    if (targetCpaVideo) {
+      const numCpa = Number(targetCpaValue);
+      if (!targetCpaValue.trim() || isNaN(numCpa) || numCpa <= 0) {
+        issues.push({
+          id: "camp-target-cpa",
+          level: "Campaign",
+          parameter: "Target CPA",
+          message: "Target CPA is enabled and must be a positive number greater than 0.",
+          step: "CAMPAIGN_SETTINGS",
+          settingKey: "targetCpa"
+        });
+      }
+    }
+
+    // 4. Start & End Dates
+    const todayFormatted = getTodayFormattedDate();
+    if (startDate && startDate < todayFormatted) {
+      issues.push({
+        id: "camp-start-date",
+        level: "Campaign",
+        parameter: "Start date",
+        message: `Start date (${startDate}) cannot be in the past.`,
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "budget"
+      });
+    }
+    if (startDate && endDate && endDate < startDate) {
+      issues.push({
+        id: "camp-end-date",
+        level: "Campaign",
+        parameter: "End date",
+        message: `End date (${endDate}) cannot be earlier than start date (${startDate}).`,
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "budget"
+      });
+    }
+
+    // 5. Ad Schedule
+    if (
+      adScheduleStartTime &&
+      adScheduleEndTime &&
+      !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00") &&
+      adScheduleEndTime <= adScheduleStartTime
+    ) {
+      issues.push({
+        id: "camp-ad-schedule",
+        level: "Campaign",
+        parameter: "Ad schedule",
+        message: `Schedule end time (${adScheduleEndTime}) must be strictly after start time (${adScheduleStartTime}).`,
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "adSchedule"
+      });
+    }
+
+    // 6. Custom Location
+    if (selectedLocation === "CUSTOM" && !customLocationInput.trim()) {
+      issues.push({
+        id: "ag-custom-loc",
+        level: "Ad group",
+        parameter: "Locations",
+        message: "A location name or territory is required when 'Enter another location' is selected.",
+        step: "AD_GROUP",
+        settingKey: "locations"
+      });
+    }
+
+    // 7. Ad Group Names
+    adGroups.forEach((ag, idx) => {
+      if (!ag.name.trim()) {
+        issues.push({
+          id: `ag-name-${ag.id || idx}`,
+          level: "Ad group",
+          parameter: `Ad group ${idx + 1} name`,
+          message: "Ad group name is required.",
+          step: "AD_GROUP",
+          settingKey: "name",
+          adGroupId: ag.id
+        });
+      }
+    });
+
+    // 8. Ad Name
+    if (!adName.trim()) {
+      issues.push({
+        id: "ad-name",
+        level: "Ad",
+        parameter: "Ad name",
+        message: "Ad name is required.",
+        step: "AD",
+        settingKey: "adName"
+      });
+    }
+
+    // 9. Ad Final URL
+    const trimmedAdUrl = (adFinalUrl || "").trim();
+    if (!trimmedAdUrl || (!trimmedAdUrl.startsWith("http://") && !trimmedAdUrl.startsWith("https://")) || trimmedAdUrl === "https://" || trimmedAdUrl === "http://") {
+      issues.push({
+        id: "ad-final-url",
+        level: "Ad",
+        parameter: "Final URL",
+        message: "Final URL is required and must begin with http:// or https://",
+        step: "AD",
+        settingKey: "finalUrl"
+      });
+    }
+
+    // 10. Mobile Final URL (if enabled)
+    if (useDiffMobileUrl) {
+      const trimmedMobUrl = (mobileFinalUrl || "").trim();
+      if (!trimmedMobUrl || (!trimmedMobUrl.startsWith("http://") && !trimmedMobUrl.startsWith("https://")) || trimmedMobUrl === "https://" || trimmedMobUrl === "http://") {
+        issues.push({
+          id: "ad-mob-url",
+          level: "Ad",
+          parameter: "Mobile final URL",
+          message: "Mobile final URL is enabled and must begin with http:// or https://",
+          step: "AD"
+        });
+      }
+    }
+
+    // 11. Format-specific Assets Validation
+    if (videoAdType === "SINGLE_IMAGE") {
+      if (adImages.length === 0) {
+        issues.push({
+          id: "ad-images",
+          level: "Ad",
+          parameter: "Marketing images",
+          message: "At least 1 marketing image is required.",
+          step: "AD"
+        });
+      }
+      if (adLogos.length === 0) {
+        issues.push({
+          id: "ad-logos",
+          level: "Ad",
+          parameter: "Business logo",
+          message: "At least 1 logo is required.",
+          step: "AD"
+        });
+      }
+      const validHl = adHeadlines.filter(h => h && h.trim().length > 0);
+      if (validHl.length === 0) {
+        issues.push({
+          id: "ad-headlines",
+          level: "Ad",
+          parameter: "Headlines",
+          message: "At least 1 headline is required.",
+          step: "AD"
+        });
+      }
+      const validDesc = adDescriptions.filter(d => d && d.trim().length > 0);
+      if (validDesc.length === 0) {
+        issues.push({
+          id: "ad-descriptions",
+          level: "Ad",
+          parameter: "Descriptions",
+          message: "At least 1 description is required.",
+          step: "AD"
+        });
+      }
+      if (!businessName.trim()) {
+        issues.push({
+          id: "ad-biz-name",
+          level: "Ad",
+          parameter: "Business name",
+          message: "Business name is required.",
+          step: "AD"
+        });
+      }
+    } else if (videoAdType === "VIDEO") {
+      if (adVideos.length === 0) {
+        issues.push({
+          id: "ad-videos",
+          level: "Ad",
+          parameter: "Videos",
+          message: "At least 1 YouTube video URL is required.",
+          step: "AD"
+        });
+      }
+      if (adLogos.length === 0) {
+        issues.push({
+          id: "ad-logos-video",
+          level: "Ad",
+          parameter: "Business logo",
+          message: "At least 1 logo is required.",
+          step: "AD"
+        });
+      }
+      const validHl = adHeadlines.filter(h => h && h.trim().length > 0);
+      if (validHl.length === 0) {
+        issues.push({
+          id: "ad-headlines-video",
+          level: "Ad",
+          parameter: "Headlines",
+          message: "At least 1 headline is required.",
+          step: "AD"
+        });
+      }
+      const validLongHl = adLongHeadlines.filter(lh => lh && lh.trim().length > 0);
+      if (validLongHl.length === 0) {
+        issues.push({
+          id: "ad-long-headlines-video",
+          level: "Ad",
+          parameter: "Long headline",
+          message: "At least 1 long headline is required for video ads.",
+          step: "AD"
+        });
+      }
+      const validDesc = adDescriptions.filter(d => d && d.trim().length > 0);
+      if (validDesc.length === 0) {
+        issues.push({
+          id: "ad-descriptions-video",
+          level: "Ad",
+          parameter: "Descriptions",
+          message: "At least 1 description is required.",
+          step: "AD"
+        });
+      }
+      if (!businessName.trim()) {
+        issues.push({
+          id: "ad-biz-name-video",
+          level: "Ad",
+          parameter: "Business name",
+          message: "Business name is required.",
+          step: "AD"
+        });
+      }
+    } else if (videoAdType === "CAROUSEL") {
+      if (carouselCards.length < 2) {
+        issues.push({
+          id: "ad-carousel-cards",
+          level: "Ad",
+          parameter: "Carousel cards",
+          message: "At least 2 carousel cards are required for carousel image ads.",
+          step: "AD"
+        });
+      } else {
+        const hasEmptyCard = carouselCards.some(c => !c.image.trim() || !c.headline.trim());
+        if (hasEmptyCard) {
+          issues.push({
+            id: "ad-carousel-incomplete",
+            level: "Ad",
+            parameter: "Carousel card content",
+            message: "All carousel cards must contain both an image URL and a headline.",
+            step: "AD"
+          });
+        }
+      }
+      if (adLogos.length === 0) {
+        issues.push({
+          id: "ad-logos-carousel",
+          level: "Ad",
+          parameter: "Business logo",
+          message: "At least 1 logo is required.",
+          step: "AD"
+        });
+      }
+      if (!adHeadlines[0] || !adHeadlines[0].trim()) {
+        issues.push({
+          id: "ad-headlines-carousel",
+          level: "Ad",
+          parameter: "Headline",
+          message: "Headline is required.",
+          step: "AD"
+        });
+      }
+      if (!adDescriptions[0] || !adDescriptions[0].trim()) {
+        issues.push({
+          id: "ad-descriptions-carousel",
+          level: "Ad",
+          parameter: "Description",
+          message: "Description is required.",
+          step: "AD"
+        });
+      }
+      if (!businessName.trim()) {
+        issues.push({
+          id: "ad-biz-name-carousel",
+          level: "Ad",
+          parameter: "Business name",
+          message: "Business name is required.",
+          step: "AD"
+        });
+      }
+    }
+
+    // 12. Tracking Template validation
+    const effectiveTrackingTemplate = trackingTemplate || agTrackingTemplate || adTrackingTemplate;
+    if (effectiveTrackingTemplate && effectiveTrackingTemplate.trim()) {
+      const hasTag = /\{(?:lpurl|unescapedlpurl|escapedlpurl|lpurlpath|2escapedlpurl)\}/i.test(effectiveTrackingTemplate.trim());
+      if (!hasTag) {
+        issues.push({
+          id: "camp-tracking-template",
+          level: "Campaign",
+          parameter: "Tracking template",
+          message: "Tracking template must contain a landing page parameter tag (e.g. {lpurl}). Example: https://tracking.example.com/?url={lpurl}",
+          step: "CAMPAIGN_SETTINGS",
+          settingKey: "urlOptions"
+        });
+      }
+    }
+
+    return issues;
+  };
+
+  const handleFixIssue = (issue: ValidationIssue) => {
+    if (issue.adGroupId) {
+      setActiveAdGroupId(issue.adGroupId);
+    }
+    setVideoStep(issue.step);
+    if (issue.step === "CAMPAIGN_SETTINGS" && issue.settingKey) {
+      setOpenCampaignSetting(issue.settingKey);
+    } else if (issue.step === "AD_GROUP" && issue.settingKey) {
+      setOpenAdGroupSetting(issue.settingKey);
+    } else if (issue.step === "AD" && issue.settingKey) {
+      setOpenAdSetting(issue.settingKey);
+    }
+  };
+
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     if (customerId) {
       fetch(`${BACKEND}/api/ads/customer-info?orgId=${orgId}&customerId=${customerId}`)
         .then(r => r.json())
@@ -278,19 +773,27 @@ export default function NoGuidanceVideoWizard() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ────────────────── */}
-      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
-        <div className="flex items-center gap-4">
+      <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-1.5 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 md:hidden cursor-pointer"
+            title="Open steps menu"
+            aria-label="Open steps menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <button
             onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all flex items-center gap-1 text-xs cursor-pointer"
             title="Back to campaign objectives"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
+            <span className="hidden sm:inline">Back</span>
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-            <Zap className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-slate-800">Google Ads • Video</span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-3 sm:pl-4">
+            <Video className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate max-w-[140px] sm:max-w-none">Video</span>
           </div>
         </div>
 
@@ -301,10 +804,10 @@ export default function NoGuidanceVideoWizard() {
         </div>
 
         <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="font-mono hidden sm:inline">
+          <span className="font-mono text-[11px] sm:text-xs truncate max-w-[140px] sm:max-w-none">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900 shrink-0" />
           <button
             onClick={() => router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`)}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
@@ -315,38 +818,219 @@ export default function NoGuidanceVideoWizard() {
         </div>
       </header>
 
+      {/* ── Mobile Sidebar Drawer (Slide-over overlay) ── */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+
+          {/* Drawer panel */}
+          <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col z-10 border-r border-slate-200 animate-in slide-in-from-left duration-200">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Video className="h-5 w-5 text-primary" />
+                <h2 className="font-bold text-slate-900 text-sm">Video</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-4">
+              {/* Dynamic Status in Campaign Header */}
+              {(() => {
+                const allIssues = getReviewValidationErrors();
+                const hasErrors = allIssues.length > 0;
+                return (
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-800">
+                    <span className="truncate">{videoCampaignName}</span>
+                    {hasErrors ? (
+                      <span title={`${allIssues.length} issue(s) detected`}>
+                        <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                      </span>
+                    ) : (
+                      <span title="All parameters valid">
+                        <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Navigation Tree Matching Google Ads Hierarchy */}
+              <nav className="space-y-1 text-xs font-sans">
+                {/* Campaign Header */}
+                {(() => {
+                  const campIssues = getReviewValidationErrors().filter(e => e.level === "Campaign");
+                  const hasCampIssues = campIssues.length > 0;
+                  return (
+                    <div
+                      onClick={() => {
+                        setVideoStep("CAMPAIGN_SETTINGS");
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`p-2.5 rounded-r-full flex items-center justify-between font-semibold cursor-pointer transition-all ${
+                        videoStep === "CAMPAIGN_SETTINGS"
+                          ? "bg-blue-600/20 text-blue-400 font-bold"
+                          : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <LayoutGrid className="h-4 w-4 text-slate-500 shrink-0" />
+                        <span className="truncate">{videoCampaignName}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {hasCampIssues ? (
+                          <span title={`${campIssues.length} error(s)`}>
+                            <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                          </span>
+                        ) : (
+                          <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="border-t border-slate-200 my-2" />
+
+                {/* Dynamic List of Ad Groups with Nested Ads */}
+                <div className="space-y-1">
+                  {adGroups.map((ag) => {
+                    const isAgActive = videoStep === "AD_GROUP" && activeAdGroupId === ag.id;
+
+                    return (
+                      <div key={ag.id} className="space-y-0.5">
+                        {/* Ad Group Row */}
+                        <div
+                          onClick={() => {
+                            setActiveAdGroupId(ag.id);
+                            setVideoStep("AD_GROUP");
+                            setIsMobileSidebarOpen(false);
+                          }}
+                          className={`p-2.5 rounded-r-full flex items-center justify-between font-semibold cursor-pointer transition-all ${
+                            isAgActive
+                              ? "bg-blue-600/20 text-blue-400 font-bold"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            <LayoutGrid className={`h-4 w-4 shrink-0 ${isAgActive ? "text-blue-400" : "text-slate-500"}`} />
+                            <span className="truncate">{ag.name}</span>
+                          </div>
+                        </div>
+
+                        {/* Nested Child Ad 1 */}
+                        <div
+                          onClick={() => {
+                            setActiveAdGroupId(ag.id);
+                            setVideoStep("AD");
+                            setIsMobileSidebarOpen(false);
+                          }}
+                          className={`ml-6 p-2 rounded-r-full flex items-center justify-between text-xs font-medium cursor-pointer transition-all ${
+                            videoStep === "AD" && activeAdGroupId === ag.id
+                              ? "bg-blue-600/20 text-blue-400 font-bold"
+                              : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <Plus className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                            <span className="truncate">Ad 1</span>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-slate-200 my-1.5" />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Review campaign */}
+                <div
+                  onClick={() => {
+                    setVideoStep("REVIEW");
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={`p-2.5 rounded-r-full flex items-center gap-2.5 font-semibold cursor-pointer transition-all ${
+                    videoStep === "REVIEW"
+                      ? "bg-blue-600/20 text-blue-400 font-bold"
+                      : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <Info className="h-4 w-4 text-slate-500" />
+                  <span>Review campaign</span>
+                </div>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Main Layout: Sidebar & Content ── */}
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
         
         {/* Left Sub-Navigation Sidebar matching screenshot */}
         <aside className="w-64 border-r border-slate-200 bg-slate-50/50 hidden md:block shrink-0 overflow-y-auto hidden-scrollbar">
           <div className="space-y-4">
-            {/* Campaign Name Header */}
-            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-800">
-              <span className="truncate">{videoCampaignName}</span>
-              <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
-            </div>
+            {/* Dynamic Status in Campaign Header */}
+            {(() => {
+              const allIssues = getReviewValidationErrors();
+              const hasErrors = allIssues.length > 0;
+              return (
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-800">
+                  <span className="truncate">{videoCampaignName}</span>
+                  {hasErrors ? (
+                    <span title={`${allIssues.length} issue(s) detected`}>
+                      <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                    </span>
+                  ) : (
+                    <span title="All parameters valid">
+                      <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Navigation Tree Matching Google Ads Hierarchy */}
             <nav className="space-y-1 text-xs font-sans">
               {/* Campaign Header */}
-              <div
-                onClick={() => setVideoStep("CAMPAIGN_SETTINGS")}
-                className={`p-2.5 rounded-r-full flex items-center justify-between font-semibold cursor-pointer transition-all ${
-                  videoStep === "CAMPAIGN_SETTINGS"
-                    ? "bg-blue-600/20 text-blue-400 font-bold"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-              >
-                <div className="flex items-center gap-2.5 truncate">
-                  <LayoutGrid className="h-4 w-4 text-slate-500 shrink-0" />
-                  <span className="truncate">{videoCampaignName}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                  <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
-                </div>
-              </div>
+              {(() => {
+                const campIssues = getReviewValidationErrors().filter(e => e.level === "Campaign");
+                const hasCampIssues = campIssues.length > 0;
+                return (
+                  <div
+                    onClick={() => setVideoStep("CAMPAIGN_SETTINGS")}
+                    className={`p-2.5 rounded-r-full flex items-center justify-between font-semibold cursor-pointer transition-all ${
+                      videoStep === "CAMPAIGN_SETTINGS"
+                        ? "bg-blue-600/20 text-blue-400 font-bold"
+                        : "text-slate-700 hover:bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <LayoutGrid className="h-4 w-4 text-slate-500 shrink-0" />
+                      <span className="truncate">{videoCampaignName}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {hasCampIssues ? (
+                        <span title={`${campIssues.length} error(s)`}>
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                        </span>
+                      ) : (
+                        <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      )}
+                      <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="border-t border-slate-200 my-2" />
 
@@ -482,7 +1166,7 @@ export default function NoGuidanceVideoWizard() {
 
               {/* 1. Ad group name Card */}
               <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
-                {openAdGroupSetting === "adGroupName" ? (
+                {openAdGroupSetting === "name" ? (
                   <>
                     <div 
                       onClick={() => setOpenAdGroupSetting(null)}
@@ -509,8 +1193,8 @@ export default function NoGuidanceVideoWizard() {
                   </>
                 ) : (
                   <div 
-                    onClick={() => setOpenAdGroupSetting("adGroupName")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    onClick={() => setOpenAdGroupSetting("name")}
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -520,7 +1204,18 @@ export default function NoGuidanceVideoWizard() {
                         {activeAdGroup.name}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("name");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -588,9 +1283,46 @@ export default function NoGuidanceVideoWizard() {
                               value={customLocationInput}
                               onChange={(e) => setCustomLocationInput(e.target.value)}
                               placeholder="Enter a location to target or exclude"
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                             />
+                            {isSearchingLocations && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                              </div>
+                            )}
                           </div>
+
+                          {/* Live Location Search Dropdown Results */}
+                          {locationSearchResults.length > 0 && (
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 max-w-md z-10 relative">
+                              {locationSearchResults.map((loc, idx) => (
+                                <div
+                                  key={idx}
+                                  onClick={() => {
+                                    setCustomLocationInput(loc.canonicalName || loc.name);
+                                    setLocationSearchResults([]);
+                                  }}
+                                  className="p-2.5 hover:bg-primary/10 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                                >
+                                  <div>
+                                    <span className="font-semibold text-slate-800 block">{loc.canonicalName || loc.name}</span>
+                                    {loc.id && <span className="text-[10px] text-slate-500 font-mono">ID: {loc.id}</span>}
+                                  </div>
+                                  <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-medium">
+                                    {loc.targetType || "Location"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Unlisted / Invalid City Warning Message */}
+                          {customLocationInput.trim().length >= 2 && !isSearchingLocations && locationSearchResults.length === 0 && (
+                            <div className="p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 text-xs font-semibold flex items-center gap-2 max-w-md">
+                              <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                              <span>No matching locations found for "{customLocationInput}". Only verified cities/locations from Google Ads API can be added.</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -598,17 +1330,28 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("locations")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
                         <span className="font-bold text-slate-800">Locations</span>
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : customLocationInput || "Custom location"}
+                        {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : `Custom: ${customLocationInput || "None"}`}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("locations");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -630,64 +1373,33 @@ export default function NoGuidanceVideoWizard() {
 
                     <p className="text-xs text-slate-500">Select the languages your customers speak.</p>
 
-                    <div className="space-y-3">
-                      <div className="relative max-w-md">
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            if (e.target.value && !selectedLanguages.includes(e.target.value)) {
-                              setSelectedLanguages(prev => [...prev, e.target.value]);
-                            }
-                            e.target.value = "";
-                          }}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
-                        >
-                          <option value="">-- Add language --</option>
-                          {[
-                            "All languages", "Arabic", "Bengali", "Bulgarian", "Catalan", "Chinese (simplified)", "Chinese (traditional)",
-                            "Croatian", "Czech", "Danish", "Dutch", "English", "Estonian", "Filipino", "Finnish", "French",
-                            "German", "Greek", "Gujarati", "Hebrew", "Hindi", "Hungarian", "Icelandic", "Indonesian", "Italian",
-                            "Japanese", "Kannada", "Korean", "Latvian", "Lithuanian", "Malay", "Malayalam", "Marathi", "Norwegian",
-                            "Persian", "Polish", "Portuguese", "Punjabi", "Romanian", "Russian", "Serbian", "Slovak", "Slovenian",
-                            "Spanish", "Swedish", "Tamil", "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese"
-                          ].map((lang) => (
-                            <option key={lang} value={lang}>{lang}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <span className="px-3 py-1 rounded-full bg-slate-100 border border-slate-300 text-xs text-slate-700 font-medium">
-                          All languages
-                        </span>
-                        {selectedLanguages.map((lang, idx) => (
-                          <span key={idx} className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold hover:bg-rose-500/30 transition-all cursor-pointer">
-                            <button 
-                              onClick={() => setSelectedLanguages(prev => prev.filter((_, i) => i !== idx))}
-                              title={`Remove ${lang}`}
-                              type="button"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                    <LanguageDropdown selectedLanguages={selectedLanguages} setSelectedLanguages={setSelectedLanguages} customerId={customerId || "6587355041"} />
                   </>
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("languages")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
                         <span className="font-bold text-slate-800">Languages</span>
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        {selectedLanguages.length === 0 ? "All languages" : selectedLanguages.join(", ")}
+                        {selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "All languages"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("languages");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -768,7 +1480,7 @@ export default function NoGuidanceVideoWizard() {
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={(e) => {
-                                      if (e.target.checked) {
+                                    if (e.target.checked) {
                                       setSelectedAdGroupChannels(prev => [...prev, ch.name]);
                                     } else {
                                       setSelectedAdGroupChannels(prev => prev.filter(item => item !== ch.name));
@@ -790,17 +1502,28 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("channels")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
                         <span className="font-bold text-slate-800">Channels</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 truncate max-w-[200px]">
+                      <div className="text-[11px] text-slate-500">
                         {channelTargeting === "ALL" ? "All Google channels" : selectedAdGroupChannels.join(", ")}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("channels");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -823,7 +1546,7 @@ export default function NoGuidanceVideoWizard() {
                       <button
                         type="button"
                         onClick={() => setIsAudienceModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-slate-955 font-bold text-xs hover:bg-secondary cursor-pointer shadow-md shadow-primary/10 transition-all"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer shadow-md shadow-primary/10 transition-all"
                       >
                         <Users className="h-3.5 w-3.5" />
                         Create an audience
@@ -845,17 +1568,28 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("audience")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
                         <span className="font-bold text-slate-800">Audience</span>
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        {audienceName || "No audience created"}
+                        {audienceName || "No audience selected"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("audience");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -916,17 +1650,28 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("optimizedTargeting")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
                         <span className="font-bold text-slate-800">Optimized targeting</span>
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        {useOptimizedTargeting ? (limitOptimizedToAgeGender ? "Optimized targeting (limited to specifications)" : "Optimized targeting active") : "Turned off"}
+                        {useOptimizedTargeting ? "Use optimized targeting" : "Off"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("optimizedTargeting");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -937,7 +1682,7 @@ export default function NoGuidanceVideoWizard() {
                   <>
                     <div 
                       onClick={() => setOpenAdGroupSetting(null)}
-                      className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
+                      className="flex items-center justify-between cursor-pointer pb-1 select-none font-bold border-b border-slate-200 pb-3"
                     >
                       <h2 className="text-sm font-semibold text-slate-900">Ad group URL options</h2>
                       <ChevronUp className="h-4 w-4 text-slate-500" />
@@ -995,7 +1740,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("urlOptions")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1005,7 +1750,18 @@ export default function NoGuidanceVideoWizard() {
                         {agTrackingTemplate || agFinalUrlSuffix || agCustomParams.some(p => p.name || p.value) ? "Custom URL options set" : "No options set"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("urlOptions");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1031,7 +1787,7 @@ export default function NoGuidanceVideoWizard() {
                       <ChevronUp className="h-4 w-4 text-slate-500" />
                     </div>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                      Save time by using Google AI to draft a Video campaign with settings & assets from an existing campaign. You can modify any setting before publishing. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
+                      Save time by using Google AI to draft a Demand Gen campaign with settings & assets from an existing campaign. You can modify any setting before publishing. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
                     </p>
                     <div className="flex items-center justify-between text-xs pt-1">
                       <div className="flex items-center gap-2">
@@ -1057,7 +1813,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("prefill")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56 flex items-center gap-2">
@@ -1068,7 +1824,18 @@ export default function NoGuidanceVideoWizard() {
                         {selectedSourceCampaign ? `Source: ${selectedSourceCampaign}` : ""}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("prefill");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1104,42 +1871,49 @@ export default function NoGuidanceVideoWizard() {
                     </div>
 
                     <div className="p-4 overflow-y-auto space-y-2 flex-1">
-                      {existingCampaigns
-                        .filter(c => c.name.toLowerCase().includes(campaignSearchTerm.toLowerCase()))
-                        .map((camp) => (
-                          <div
-                            key={camp.id}
-                            onClick={() => {
-                              setSelectedSourceCampaign(camp.name);
-                              setIsCampaignModalOpen(false);
-                            }}
-                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                              selectedSourceCampaign === camp.name
-                                ? "bg-primary/10 border-primary text-primary"
-                                : "bg-slate-50 border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-800"
-                            }`}
-                          >
-                            <div>
-                              <p className="text-xs font-bold">{camp.name}</p>
-                              <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
-                                <span>Type: {camp.type}</span>
-                                <span>•</span>
-                                <span>Budget: {camp.budget}</span>
+                      {existingCampaignsList.length === 0 ? (
+                        <p className="text-center py-6 text-slate-500 text-xs">No existing campaigns found.</p>
+                      ) : (
+                        existingCampaignsList
+                          .filter((c: any) => (c.name || "").toLowerCase().includes(campaignSearchTerm.toLowerCase()))
+                          .map((camp: any, idx: number) => {
+                            const campName = camp.name || `Campaign ${idx + 1}`;
+                            return (
+                              <div
+                                key={camp.id || camp.resourceName || idx}
+                                onClick={() => {
+                                  setSelectedSourceCampaign(campName);
+                                  setIsCampaignModalOpen(false);
+                                }}
+                                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                                  selectedSourceCampaign === campName
+                                    ? "bg-primary/10 border-primary text-primary"
+                                    : "bg-slate-50 border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-800"
+                                }`}
+                              >
+                                <div>
+                                  <p className="text-xs font-bold">{campName}</p>
+                                  <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
+                                    <span>Type: {camp.advertisingChannelType || camp.type || "Demand Gen"}</span>
+                                    <span>•</span>
+                                    <span>Status: {camp.status || "Active"}</span>
+                                  </div>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                  camp.status === "ENABLED" || camp.status === "Active" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-100 text-slate-500"
+                                }`}>
+                                  {camp.status || "Active"}
+                                </span>
                               </div>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              camp.status === "Active" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-100 text-slate-500"
-                            }`}>
-                              {camp.status}
-                            </span>
-                          </div>
-                        ))}
+                            );
+                          })
+                      )}
                     </div>
 
                     <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs">
                       <button
                         onClick={() => setIsCampaignModalOpen(false)}
-                        className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
+                        className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-700 text-slate-700 font-semibold"
                       >
                         Cancel
                       </button>
@@ -1149,100 +1923,210 @@ export default function NoGuidanceVideoWizard() {
               )}
 
               {/* 2. Campaign Name Card */}
-              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
+              <div className={`p-5 rounded-2xl border bg-white space-y-3 shadow-lg ${
+                !videoCampaignName.trim() || duplicateNameError || fieldErrors.videoCampaignName
+                  ? "border-rose-400 bg-rose-50/10"
+                  : "border-slate-200"
+              }`}>
                 {openCampaignSetting === "name" ? (
                   <>
                     <div 
                       onClick={() => setOpenCampaignSetting(null)}
-                      className="flex items-center justify-between border-b border-slate-200 pb-2.5 cursor-pointer select-none"
+                      className="flex items-center justify-between cursor-pointer select-none"
                     >
-                      <label className="block text-xs font-bold text-slate-800">Campaign name</label>
+                      <div className="flex items-center gap-1">
+                        <label className="block text-xs font-bold text-slate-800 cursor-pointer">Campaign name</label>
+                        <span className="text-rose-500 font-bold">*</span>
+                      </div>
                       <ChevronUp className="h-4 w-4 text-slate-500" />
                     </div>
                     <input
                       type="text"
                       value={videoCampaignName}
-                      onChange={(e) => setVideoCampaignName(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setVideoCampaignName(val);
+                        checkDuplicateCampaignName(val);
+                      }}
                       maxLength={256}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
+                      className={`w-full border rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none font-medium ${
+                        !videoCampaignName.trim() || duplicateNameError || fieldErrors.videoCampaignName
+                          ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                          : "bg-slate-50 border-slate-200 focus:border-primary"
+                      }`}
                     />
-                    <div className="flex justify-between items-center text-[11px] text-slate-500">
-                      <p>Text is {videoCampaignName.length} characters out of 256</p>
-                      <span className="font-mono">{videoCampaignName.length} / 256</span>
+                    {!videoCampaignName.trim() && (
+                      <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Campaign name is required
+                      </span>
+                    )}
+                    {videoCampaignName.trim() && (duplicateNameError || fieldErrors.videoCampaignName) && (
+                      <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {duplicateNameError || fieldErrors.videoCampaignName}
+                      </span>
+                    )}
+                    <div className="flex justify-between text-[11px] text-slate-500">
+                      <span>Text is {videoCampaignName.length} characters out of 256</span>
+                      <span>{videoCampaignName.length} / 256</span>
                     </div>
                   </>
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("name")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
-                      <div className="w-56">
+                      <div className="w-56 flex items-center gap-1">
                         <span className="font-bold text-slate-800">Campaign name</span>
+                        <span className="text-rose-500 font-bold">*</span>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        {videoCampaignName}
+                      <div className="text-[11px] font-medium">
+                        {videoCampaignName.trim() ? (
+                          duplicateNameError || fieldErrors.videoCampaignName ? (
+                            <span className="text-rose-500 flex items-center gap-1">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {duplicateNameError || fieldErrors.videoCampaignName}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">{videoCampaignName}</span>
+                          )
+                        ) : (
+                          <span className="text-rose-500 flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Campaign name is required
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("name");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
 
               {/* 3. Campaign Goal Card */}
-              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                {openCampaignSetting === "goal" ? (
-                  <>
-                    <div 
-                      onClick={() => setOpenCampaignSetting(null)}
-                      className="flex items-center justify-between border-b border-slate-200 pb-2.5 cursor-pointer select-none"
-                    >
-                      <div>
-                        <h3 className="text-xs font-bold text-slate-800">Campaign goal</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Select the goal for your Video campaign</p>
-                      </div>
-                      <ChevronUp className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      {[
-                        { id: "Conversions", title: "Conversions", desc: "Get more sales or other conversion actions with your audiences by using a conversion based bid strategy" },
-                        { id: "Clicks", title: "Clicks", desc: "Get more traffic or engagement with your ads using a cost-per-click based bid strategy" },
-                        { id: "Conversion value", title: "Conversion value", desc: "Get more sales or other conversion actions to get the most value or at a value you set" },
-                        { id: "YouTube engagements", title: "YouTube engagements", desc: "Get more YouTube subscriptions and engagements" }
-                      ].map((goalItem) => {
-                        const isSelected = videoGoal === goalItem.id;
-                        return (
-                          <div
-                            key={goalItem.id}
-                            onClick={() => setVideoGoal(goalItem.id as any)}
-                            className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                              isSelected ? "bg-primary/10 border-primary" : "bg-slate-50 border-slate-200 hover:border-slate-300"
-                            }`}
-                          >
-                            <h4 className={`font-bold mb-1 ${isSelected ? "text-primary" : "text-slate-900"}`}>{goalItem.title}</h4>
-                            <p className="text-[11px] text-slate-500 leading-relaxed">{goalItem.desc}</p>
+              {(() => {
+                const isBiddingUnsupported = videoGoal === "Clicks" || videoGoal === "Conversion value";
+                return (
+                  <div className={`p-5 rounded-2xl border bg-white space-y-4 shadow-lg transition-all ${
+                    isBiddingUnsupported || fieldErrors.videoGoal
+                      ? "border-rose-400 bg-rose-50/10 shadow-rose-500/5 ring-1 ring-rose-400"
+                      : "border-slate-200"
+                  }`}>
+                    {openCampaignSetting === "goal" ? (
+                      <>
+                        <div 
+                          onClick={() => setOpenCampaignSetting(null)}
+                          className="flex items-center justify-between border-b border-slate-200 pb-2.5 cursor-pointer select-none"
+                        >
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="text-xs font-bold text-slate-800">Campaign goal</h3>
+                              <span className="text-rose-500 font-bold">*</span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">Select the goal for your Video campaign</p>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                ) : (
-                  <div 
-                    onClick={() => setOpenCampaignSetting("goal")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
-                  >
-                    <div className="flex items-center gap-16">
-                      <div className="w-56">
-                        <span className="font-bold text-slate-800">Campaign goal</span>
+                          <ChevronUp className="h-4 w-4 text-slate-500" />
+                        </div>
+
+                        {isBiddingUnsupported && (
+                          <div className="p-3.5 rounded-xl border border-rose-400/30 bg-rose-500/10 text-rose-600 text-xs flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                            <span className="font-semibold">This bidding strategy is not supported for Video campaigns. Please select a supported Video bidding strategy.</span>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          {[
+                            { id: "Conversions", title: "Conversions", desc: "Get more NoGuidance or other conversion actions with your audiences by using a conversion based bid strategy", supported: true },
+                            { id: "Clicks", title: "Clicks", desc: "Get more traffic or engagement with your ads using a cost-per-click based bid strategy", supported: false },
+                            { id: "Conversion value", title: "Conversion value", desc: "Get more NoGuidance or other conversion actions to get the most value or at a value you set", supported: false },
+                            { id: "YouTube engagements", title: "YouTube engagements", desc: "Get more YouTube subscriptions and engagements", supported: true }
+                          ].map((goalItem) => {
+                            const isSelected = videoGoal === goalItem.id;
+                            const isGoalUnsupported = isSelected && !goalItem.supported;
+                            return (
+                              <div
+                                key={goalItem.id}
+                                onClick={() => {
+                                  setVideoGoal(goalItem.id as any);
+                                  if (goalItem.supported) {
+                                    setFieldErrors(prev => {
+                                      const updated = { ...prev };
+                                      delete updated.videoGoal;
+                                      return updated;
+                                    });
+                                  } else {
+                                    setFieldErrors(prev => ({
+                                      ...prev,
+                                      videoGoal: "This bidding strategy is not supported for Video campaigns. Please select a supported Video bidding strategy."
+                                    }));
+                                  }
+                                }}
+                                className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                                  isGoalUnsupported
+                                    ? "bg-rose-50/40 border-rose-400 text-rose-900"
+                                    : isSelected
+                                    ? "bg-primary/10 border-primary"
+                                    : "bg-slate-50 border-slate-200 hover:border-slate-300"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <h4 className={`font-bold ${isGoalUnsupported ? "text-rose-600" : isSelected ? "text-primary" : "text-slate-900"}`}>{goalItem.title}</h4>
+                                  {!goalItem.supported && (
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-rose-100 text-rose-600 border border-rose-200">Not supported for Video</span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-500 leading-relaxed">{goalItem.desc}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <div 
+                        onClick={() => setOpenCampaignSetting("goal")}
+                        className="flex items-center justify-between cursor-pointer select-none text-xs group"
+                      >
+                        <div className="flex items-center gap-16">
+                          <div className="w-56">
+                            <span className="font-bold text-slate-800">Campaign goal</span>
+                          </div>
+                          <div className="text-[11px] font-medium">
+                            {isBiddingUnsupported ? (
+                              <span className="text-rose-500 flex items-center gap-1">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" /> This bidding strategy is not supported for Video campaigns. Please select a supported Video bidding strategy.
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">{videoGoal}</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Edit"
+                          title="Edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenCampaignSetting("goal");
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        {videoGoal}
-                      </div>
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* 4. Conversion Goals Card (Hidden for Clicks and YouTube engagements) */}
               {videoGoal !== "Clicks" && videoGoal !== "YouTube engagements" && (
@@ -1281,7 +2165,7 @@ export default function NoGuidanceVideoWizard() {
                   ) : (
                     <div 
                       onClick={() => setOpenCampaignSetting("conversions")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56">
@@ -1291,7 +2175,18 @@ export default function NoGuidanceVideoWizard() {
                           Use campaign specific goal: Phone call leads
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenCampaignSetting("conversions");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1331,7 +2226,7 @@ export default function NoGuidanceVideoWizard() {
                   ) : (
                     <div 
                       onClick={() => setOpenCampaignSetting("viewThrough")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56 flex items-center gap-2">
@@ -1342,68 +2237,186 @@ export default function NoGuidanceVideoWizard() {
                           {includeViewThrough ? "Turned on" : "Turned off"}
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenCampaignSetting("viewThrough");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
               )}
 
               {/* 6. Target cost per action */}
-              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
-                {openCampaignSetting === "targetCpa" ? (
-                  <>
-                    <div 
-                      onClick={() => setOpenCampaignSetting(null)}
-                      className="flex items-center justify-between border-b border-slate-200 pb-2.5 cursor-pointer select-none"
-                    >
-                      <h3 className="text-xs font-bold text-slate-800">Target cost per action</h3>
-                      <ChevronUp className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      By default, your campaign will aim to maximize your conversions. You can set an optional target cost per action (Target CPA) to optimize for getting conversions at a specific cost per conversion.
-                    </p>
-                    <label className="flex items-start gap-3 cursor-pointer pt-1 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={targetCpaVideo}
-                        onChange={(e) => setTargetCpaVideo(e.target.checked)}
-                        className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
-                      />
-                      <div>
-                        <span className="font-semibold text-slate-800 block">Set a target cost per action (optional)</span>
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
-                          Target CPA is the average amount you'd like to pay for a conversion. Google Ads will optimize bids to help get as many conversions as possible at the target cost-per-action (CPA). <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
+              {(() => {
+                const isBiddingUnsupported = !targetCpaVideo && videoGoal !== "YouTube engagements";
+                const hasCpaValueErr = targetCpaVideo && (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue);
+                const hasBiddingErr = isBiddingUnsupported || hasCpaValueErr;
+                return (
+                  <div className={`p-5 rounded-2xl border bg-white space-y-3 shadow-lg transition-all ${
+                    hasBiddingErr
+                      ? "border-rose-400 bg-rose-50/10 shadow-rose-500/5 ring-1 ring-rose-400"
+                      : "border-slate-200"
+                  }`}>
+                    {openCampaignSetting === "targetCpa" ? (
+                      <>
+                        <div 
+                          onClick={() => setOpenCampaignSetting(null)}
+                          className="flex items-center justify-between border-b border-slate-200 pb-2.5 cursor-pointer select-none"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="text-xs font-bold text-slate-800">Target cost per action</h3>
+                            <span className="text-rose-500 font-bold">*</span>
+                          </div>
+                          <ChevronUp className="h-4 w-4 text-slate-500" />
+                        </div>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          For Video campaigns, Google Ads requires a <strong>Target cost per action (Target CPA)</strong> or YouTube engagements. Please enable Target CPA below and enter your target cost per conversion.
                         </p>
+
+                        {isBiddingUnsupported && (
+                          <div className="p-3 rounded-xl border border-rose-400/30 bg-rose-500/10 text-rose-600 text-xs flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                            <span className="font-semibold">This bidding strategy is not supported for Video campaigns. Please select a supported Video bidding strategy.</span>
+                          </div>
+                        )}
+
+                        <label className="flex items-start gap-3 cursor-pointer pt-1 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={targetCpaVideo}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setTargetCpaVideo(checked);
+                              setSubmitError(null);
+                              if (!checked) {
+                                setFieldErrors(prev => {
+                                  const updated = { ...prev };
+                                  delete updated.targetCpaValue;
+                                  return updated;
+                                });
+                              } else if (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0) {
+                                setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
+                              }
+                            }}
+                            className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
+                          />
+                          <div>
+                            <span className="font-semibold text-slate-800 block">Set a target cost per action (Required for Video Conversions)</span>
+                            <p className="text-[11px] text-slate-500 leading-relaxed">
+                              Target CPA is the average amount you'd like to pay for a conversion. Google Ads will optimize bids to help get as many conversions as possible at the target cost-per-action (CPA). <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
+                            </p>
+                          </div>
+                        </label>
+
+                        {targetCpaVideo && (
+                          <div className="pt-2 pl-7 space-y-1">
+                            <label className="block text-slate-700 font-semibold text-xs">Target CPA amount (₹) <span className="text-rose-500">*</span></label>
+                            <div className="relative w-48">
+                              <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="any"
+                                value={targetCpaValue}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setTargetCpaValue(val);
+                                  setSubmitError(null);
+                                  if (!val.trim() || isNaN(Number(val)) || Number(val) <= 0) {
+                                    setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
+                                  } else {
+                                    setFieldErrors(prev => {
+                                      const updated = { ...prev };
+                                      delete updated.targetCpaValue;
+                                      return updated;
+                                    });
+                                  }
+                                }}
+                                placeholder="e.g. 50"
+                                className={`w-full border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-medium focus:outline-none ${
+                                  !targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue
+                                    ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                    : "bg-slate-50 border-slate-200 focus:border-primary"
+                                }`}
+                              />
+                            </div>
+                            {(!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue) && (
+                              <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.targetCpaValue || "Target CPA must be a positive number greater than 0."}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div 
+                        onClick={() => setOpenCampaignSetting("targetCpa")}
+                        className="flex items-center justify-between cursor-pointer select-none text-xs group"
+                      >
+                        <div className="flex items-center gap-16">
+                          <div className="w-56">
+                            <span className="font-bold text-slate-800">Target cost per action</span>
+                          </div>
+                          <div className="text-[11px] font-medium">
+                            {isBiddingUnsupported ? (
+                              <span className="text-rose-500 flex items-center gap-1">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" /> This bidding strategy is not supported for Video campaigns. Please select a supported Video bidding strategy.
+                              </span>
+                            ) : targetCpaVideo ? (
+                              !targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue ? (
+                                <span className="text-rose-500 flex items-center gap-1">
+                                  <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Target CPA must be greater than 0
+                                </span>
+                              ) : (
+                                <span className="text-slate-700">₹{targetCpaValue}</span>
+                              )
+                            ) : (
+                              <span className="text-slate-500">No bid set</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Edit"
+                          title="Edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenCampaignSetting("targetCpa");
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
                       </div>
-                    </label>
-                  </>
-                ) : (
-                  <div 
-                    onClick={() => setOpenCampaignSetting("targetCpa")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
-                  >
-                    <div className="flex items-center gap-16">
-                      <div className="w-56">
-                        <span className="font-bold text-slate-800">Target cost per action</span>
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        {targetCpaVideo ? "CPA target set" : "No bid set"}
-                      </div>
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* 7. Budget and dates */}
-              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
+              <div className={`p-5 rounded-2xl border bg-white space-y-4 shadow-lg ${
+                !videoBudgetAmount.trim() || isNaN(Number(videoBudgetAmount)) || Number(videoBudgetAmount) <= 0 || fieldErrors.videoBudgetAmount || (startDate && startDate < getTodayFormattedDate()) || (startDate && endDate && endDate < startDate)
+                  ? "border-rose-400 bg-rose-50/10"
+                  : "border-slate-200"
+              }`}>
                 {openCampaignSetting === "budget" ? (
                   <>
                     <div 
                       onClick={() => setOpenCampaignSetting(null)}
                       className="border-b border-slate-200 pb-2.5 flex items-center justify-between cursor-pointer select-none"
                     >
-                      <h3 className="text-xs font-bold text-slate-800">Budget and dates</h3>
+                      <div className="flex items-center gap-1">
+                        <h3 className="text-xs font-bold text-slate-800">Budget and dates</h3>
+                        <span className="text-rose-500 font-bold">*</span>
+                      </div>
                       <ChevronUp className="h-4 w-4 text-slate-500" />
                     </div>
 
@@ -1423,34 +2436,102 @@ export default function NoGuidanceVideoWizard() {
                         <div className="relative w-48">
                           <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
                           <input
-                            type="text"
+                            type="number"
+                            min="0.01"
+                            step="any"
                             value={videoBudgetAmount}
-                            onChange={(e) => setVideoBudgetAmount(e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setVideoBudgetAmount(val);
+                              if (!val.trim() || isNaN(Number(val)) || Number(val) <= 0) {
+                                setFieldErrors(prev => ({ ...prev, videoBudgetAmount: "Daily Budget must be a positive number greater than 0." }));
+                              } else {
+                                setFieldErrors(prev => {
+                                  const updated = { ...prev };
+                                  delete updated.videoBudgetAmount;
+                                  return updated;
+                                });
+                              }
+                            }}
                             placeholder="Required"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 placeholder-amber-400/70 font-medium"
+                            className={`w-full border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-medium focus:outline-none ${
+                              !videoBudgetAmount.trim() || isNaN(Number(videoBudgetAmount)) || Number(videoBudgetAmount) <= 0 || fieldErrors.videoBudgetAmount
+                                ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                : "bg-slate-50 border-slate-200 focus:border-primary"
+                            }`}
                           />
                         </div>
                       </div>
+
+                      {(!videoBudgetAmount.trim() || isNaN(Number(videoBudgetAmount)) || Number(videoBudgetAmount) <= 0 || fieldErrors.videoBudgetAmount) && (
+                        <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.videoBudgetAmount || "Daily Budget is required and must be greater than 0."}
+                        </span>
+                      )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50">
                         <div className="space-y-1.5">
                           <label className="block text-slate-700 font-medium">Start date</label>
                           <input
                             type="date"
+                            min={getTodayFormattedDate()}
                             value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setStartDate(val);
+                              if (val && val < getTodayFormattedDate()) {
+                                setFieldErrors(prev => ({ ...prev, startDate: "Start date cannot be in the past." }));
+                              } else {
+                                setFieldErrors(prev => {
+                                  const updated = { ...prev };
+                                  delete updated.startDate;
+                                  return updated;
+                                });
+                              }
+                            }}
+                            className={`w-full border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none font-medium ${
+                              startDate && startDate < getTodayFormattedDate() || fieldErrors.startDate
+                                ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                : "bg-white border-slate-200 focus:border-primary"
+                            }`}
                           />
+                          {startDate && startDate < getTodayFormattedDate() && (
+                            <span className="text-[10px] text-rose-500 font-medium block">
+                              Start date cannot be in the past (minimum: {getTodayFormattedDate()})
+                            </span>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <label className="block text-slate-700 font-medium">End date (optional)</label>
                           <input
                             type="date"
+                            min={startDate || getTodayFormattedDate()}
                             value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setEndDate(val);
+                              if (val && startDate && val < startDate) {
+                                setFieldErrors(prev => ({ ...prev, endDate: "End date cannot be earlier than start date." }));
+                              } else {
+                                setFieldErrors(prev => {
+                                  const updated = { ...prev };
+                                  delete updated.endDate;
+                                  return updated;
+                                });
+                              }
+                            }}
                             placeholder="Select end date"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
+                            className={`w-full border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none font-medium ${
+                              endDate && startDate && endDate < startDate || fieldErrors.endDate
+                                ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                : "bg-white border-slate-200 focus:border-primary"
+                            }`}
                           />
+                          {endDate && startDate && endDate < startDate && (
+                            <span className="text-[10px] text-rose-500 font-medium block">
+                              End date cannot be earlier than start date ({startDate})
+                            </span>
+                          )}
                           {!endDate && <p className="text-[10px] text-slate-500">None (Run continuously)</p>}
                         </div>
                       </div>
@@ -1463,17 +2544,35 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("budget")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
-                      <div className="w-56">
+                      <div className="w-56 flex items-center gap-1">
                         <span className="font-bold text-slate-800">Budget and dates</span>
+                        <span className="text-rose-500 font-bold">*</span>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        {videoBudgetAmount ? `₹${videoBudgetAmount} / day` : "Enter a budget"} • Start: {startDate} • End: {endDate || "None"}
+                      <div className="text-[11px] font-medium">
+                        {!videoBudgetAmount.trim() || isNaN(Number(videoBudgetAmount)) || Number(videoBudgetAmount) <= 0 ? (
+                          <span className="text-rose-500 flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Budget is required (must be &gt; 0)
+                          </span>
+                        ) : (
+                          <span className="text-slate-700">₹{videoBudgetAmount} / day • Start: {startDate} • End: {endDate || "None"}</span>
+                        )}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("budget");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1510,7 +2609,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("customerAcquisition")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1520,7 +2619,18 @@ export default function NoGuidanceVideoWizard() {
                         {onlyNewCustomers ? "Only bid for new customers" : "Bid equally for new and existing customers"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("customerAcquisition");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1606,7 +2716,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("brandGuidelines")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1616,7 +2726,18 @@ export default function NoGuidanceVideoWizard() {
                         {mainBrandColor || accentBrandColor ? `Main: ${mainBrandColor}, Accent: ${accentBrandColor}` : "No guidelines set"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("brandGuidelines");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1648,7 +2769,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("euPoliticalAds")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1658,7 +2779,18 @@ export default function NoGuidanceVideoWizard() {
                         {euPoliticalAds === "YES" ? "Yes, EU political ads" : "Doesn't have EU political ads"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("euPoliticalAds");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1688,6 +2820,7 @@ export default function NoGuidanceVideoWizard() {
                       />
                       <span className="font-semibold text-slate-800">Use campaign location and language settings</span>
                     </label>
+
                     {useCampaignLocationLang && (
                       <div className="space-y-3 pt-2 pl-7 border-l-2 border-slate-200">
                         <p className="font-semibold text-slate-700">For any selected locations, use</p>
@@ -1724,7 +2857,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("locationLang")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1734,7 +2867,18 @@ export default function NoGuidanceVideoWizard() {
                         {useCampaignLocationLang ? "Set at campaign level" : "Set at ad group, include people with presence in locations"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("locationLang");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1782,7 +2926,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("devices")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1792,13 +2936,28 @@ export default function NoGuidanceVideoWizard() {
                         {deviceTargetingType === "ALL" ? "All eligible devices (computers, mobile, tablet, and TV screens)" : "Set specific targeting for devices"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("devices");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
 
               {/* 13. Ad schedule */}
-              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg text-xs">
+              <div className={`p-5 rounded-2xl border bg-white space-y-4 shadow-lg text-xs ${
+                adScheduleStartTime && adScheduleEndTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00") && adScheduleEndTime <= adScheduleStartTime || fieldErrors.adSchedule
+                  ? "border-rose-400 bg-rose-50/10"
+                  : "border-slate-200"
+              }`}>
                 {openCampaignSetting === "adSchedule" ? (
                   <>
                     <div 
@@ -1823,7 +2982,27 @@ export default function NoGuidanceVideoWizard() {
                         <option value="Sundays">Sundays</option>
                       </select>
 
-                      <select value={adScheduleStartTime} onChange={(e) => setAdScheduleStartTime(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary">
+                      <select
+                        value={adScheduleStartTime}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setAdScheduleStartTime(val);
+                          if (val && adScheduleEndTime && !(val === "00:00" && adScheduleEndTime === "00:00") && adScheduleEndTime <= val) {
+                            setFieldErrors(prev => ({ ...prev, adSchedule: `End time (${adScheduleEndTime}) must be strictly after start time (${val}).` }));
+                          } else {
+                            setFieldErrors(prev => {
+                              const updated = { ...prev };
+                              delete updated.adSchedule;
+                              return updated;
+                            });
+                          }
+                        }}
+                        className={`border rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none ${
+                          adScheduleEndTime <= adScheduleStartTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00")
+                            ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                            : "bg-slate-50 border-slate-200 focus:border-primary"
+                        }`}
+                      >
                         {Array.from({ length: 96 }).map((_, i) => {
                           const hours = String(Math.floor(i / 4)).padStart(2, "0");
                           const mins = String((i % 4) * 15).padStart(2, "0");
@@ -1838,7 +3017,27 @@ export default function NoGuidanceVideoWizard() {
 
                       <span className="text-slate-500 font-medium">to</span>
 
-                      <select value={adScheduleEndTime} onChange={(e) => setAdScheduleEndTime(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary">
+                      <select
+                        value={adScheduleEndTime}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setAdScheduleEndTime(val);
+                          if (adScheduleStartTime && val && !(adScheduleStartTime === "00:00" && val === "00:00") && val <= adScheduleStartTime) {
+                            setFieldErrors(prev => ({ ...prev, adSchedule: `End time (${val}) must be strictly after start time (${adScheduleStartTime}).` }));
+                          } else {
+                            setFieldErrors(prev => {
+                              const updated = { ...prev };
+                              delete updated.adSchedule;
+                              return updated;
+                            });
+                          }
+                        }}
+                        className={`border rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none ${
+                          adScheduleEndTime <= adScheduleStartTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00")
+                            ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                            : "bg-slate-50 border-slate-200 focus:border-primary"
+                        }`}
+                      >
                         {Array.from({ length: 96 }).map((_, i) => {
                           const hours = String(Math.floor(i / 4)).padStart(2, "0");
                           const mins = String((i % 4) * 15).padStart(2, "0");
@@ -1852,6 +3051,12 @@ export default function NoGuidanceVideoWizard() {
                       </select>
                     </div>
 
+                    {adScheduleEndTime <= adScheduleStartTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00") && (
+                      <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> End time ({adScheduleEndTime}) must be strictly after start time ({adScheduleStartTime})
+                      </span>
+                    )}
+
                     <div className="space-y-1 text-slate-500 text-[11px] leading-relaxed">
                       <p>To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a></p>
                       <p>Based on account time zone: <strong>(GMT+05:30) India Standard Time</strong></p>
@@ -1861,17 +3066,36 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("adSchedule")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
                         <span className="font-bold text-slate-800">Ad schedule</span>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        {adScheduleDays === "All days" && adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45" ? "All day" : `${adScheduleDays} - ${adScheduleStartTime} to ${adScheduleEndTime}`}
+                      <div className="text-[11px] font-medium">
+                        {adScheduleEndTime <= adScheduleStartTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00") ? (
+                          <span className="text-rose-500 flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> End time must be after start time
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">
+                            {adScheduleDays === "All days" && adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45" ? "All day" : `${adScheduleDays} - ${adScheduleStartTime} to ${adScheduleEndTime}`}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("adSchedule");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1892,7 +3116,7 @@ export default function NoGuidanceVideoWizard() {
                       Add vendors to let them see measurement data for this campaign. Only vendors that have already been added to your account can be used for new campaigns.
                     </p>
                     <p className="text-slate-500 leading-relaxed">
-                      Third-party measurement coverage is limited for Video campaigns. Contact your vendor for more info.
+                      Third-party measurement coverage is limited for Demand Gen campaigns. Contact your vendor for more info.
                     </p>
 
                     <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
@@ -1902,7 +3126,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("thirdParty")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1912,7 +3136,18 @@ export default function NoGuidanceVideoWizard() {
                         None
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("thirdParty");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1950,7 +3185,7 @@ export default function NoGuidanceVideoWizard() {
                           <Plus className="h-3.5 w-3.5" /> Add custom parameters
                         </button>
                       </div>
-                      {customParametersVideo.map((p, idx) => (
+                      {customParametersVideo.map((p: { id: string; name: string; value: string }, idx: number) => (
                         <div key={p.id || idx} className="flex items-center gap-2">
                           <span className="font-mono text-slate-500">{`{_`}</span>
                           <input type="text" value={p.name} onChange={(e) => { const u = [...customParametersVideo]; u[idx].name = e.target.value; setCustomParametersVideo(u); }} placeholder="Name" className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900" />
@@ -1964,17 +3199,28 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("urlOptions")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
                         <span className="font-bold text-slate-800">Campaign URL options</span>
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        {trackingTemplate || finalUrlSuffix || customParametersVideo.some(p => p.name || p.value) ? "Custom URL options set" : "No options set"}
+                        {trackingTemplate || finalUrlSuffix || customParametersVideo.some((p: { id: string; name: string; value: string }) => p.name || p.value) ? "Custom URL options set" : "No options set"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("urlOptions");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2015,7 +3261,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("ipExclusions")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -2025,7 +3271,18 @@ export default function NoGuidanceVideoWizard() {
                         {ipExclusionsInput ? "Exclusions set" : "No exclusions set"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("ipExclusions");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2138,7 +3395,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdSetting("adType")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -2148,7 +3405,18 @@ export default function NoGuidanceVideoWizard() {
                         {videoAdType === "SINGLE_IMAGE" ? "Single image ad" : videoAdType === "VIDEO" ? "Video ad" : "Carousel image ad"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdSetting("adType");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2176,7 +3444,7 @@ export default function NoGuidanceVideoWizard() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdSetting("adName")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -2186,49 +3454,103 @@ export default function NoGuidanceVideoWizard() {
                         {adName}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdSetting("adName");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
 
               {/* 3. Final URL Card */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
+              <div className={`p-6 rounded-2xl border bg-white space-y-3 shadow-lg ${
+                !adFinalUrl || (!adFinalUrl.startsWith("http://") && !adFinalUrl.startsWith("https://")) || fieldErrors.adFinalUrl
+                  ? "border-rose-400 bg-rose-50/10"
+                  : "border-slate-200"
+              }`}>
                 {openAdSetting === "finalUrl" ? (
                   <>
                     <div 
                       onClick={() => setOpenAdSetting(null)}
                       className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
                     >
-                      <label className="block text-slate-700 font-semibold">Final URL</label>
+                      <div className="flex items-center gap-1">
+                        <label className="block text-slate-700 font-semibold">Final URL</label>
+                        <span className="text-rose-500 font-bold">*</span>
+                      </div>
                       <ChevronUp className="h-4 w-4 text-slate-500" />
                     </div>
                     <input
                       type="text"
                       value={adFinalUrl}
-                      onChange={(e) => setAdFinalUrl(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setAdFinalUrl(val);
+                        if (!val || (!val.startsWith("http://") && !val.startsWith("https://"))) {
+                          setFieldErrors(prev => ({ ...prev, adFinalUrl: "Final URL is required and must begin with http:// or https://" }));
+                        } else {
+                          setFieldErrors(prev => {
+                            const updated = { ...prev };
+                            delete updated.adFinalUrl;
+                            return updated;
+                          });
+                        }
+                      }}
                       placeholder="https://"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
+                      className={`w-full border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none font-mono ${
+                        !adFinalUrl || (!adFinalUrl.startsWith("http://") && !adFinalUrl.startsWith("https://")) || fieldErrors.adFinalUrl
+                          ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                          : "bg-slate-50 border-slate-200 focus:border-primary"
+                      }`}
                     />
-                    {!adFinalUrl || adFinalUrl === "https://" ? (
-                      <span className="text-[10px] text-rose-400 block font-semibold">Required</span>
+                    {(!adFinalUrl || (!adFinalUrl.startsWith("http://") && !adFinalUrl.startsWith("https://")) || fieldErrors.adFinalUrl) ? (
+                      <span className="text-[10px] text-rose-500 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.adFinalUrl || "Final URL must begin with http:// or https:// (e.g. https://www.example.com)"}
+                      </span>
                     ) : (
-                      <span className="text-[10px] text-slate-500 block">Enter a final URL</span>
+                      <span className="text-[10px] text-slate-500 block">Enter a valid final landing page URL</span>
                     )}
                   </>
                 ) : (
                   <div 
                     onClick={() => setOpenAdSetting("finalUrl")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
-                      <div className="w-56">
+                      <div className="w-56 flex items-center gap-1">
                         <span className="font-bold text-slate-800">Final URL</span>
+                        <span className="text-rose-500 font-bold">*</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 font-mono truncate max-w-[200px]">
-                        {adFinalUrl || "https://"}
+                      <div className="text-[11px] font-mono truncate max-w-[200px]">
+                        {!adFinalUrl || (!adFinalUrl.startsWith("http://") && !adFinalUrl.startsWith("https://")) ? (
+                          <span className="text-rose-500 flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Final URL required
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">{adFinalUrl}</span>
+                        )}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdSetting("finalUrl");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2239,8 +3561,19 @@ export default function NoGuidanceVideoWizard() {
               {videoAdType === "SINGLE_IMAGE" && (
                 <div className="space-y-6 animate-in fade-in duration-200">
                   {/* Media */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Media</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Media</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Media"
+                        title="Edit Media"
+                        onClick={() => document.getElementById("adImageInput")?.focus()}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
                     
                     {/* Images Section */}
                     <div className="space-y-2.5">
@@ -2410,8 +3743,18 @@ export default function NoGuidanceVideoWizard() {
                   </div>
 
                   {/* Text */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Text</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Text</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Text"
+                        title="Edit Text"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     <div className="space-y-3">
                       <div className="flex justify-between">
@@ -2539,12 +3882,22 @@ export default function NoGuidanceVideoWizard() {
                   </div>
 
                   {/* Asset Optimization */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <div>
-                      <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Asset optimization</h4>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                        Let Google AI use your existing ad content to create optimized assets. This helps improve ad coverage and drive conversions. <a href="#" className="text-blue-400 hover:underline">How it works</a>
-                      </p>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Asset optimization</h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                          Let Google AI use your existing ad content to create optimized assets. This helps improve ad coverage and drive conversions. <a href="#" className="text-blue-400 hover:underline">How it works</a>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Edit Asset Optimization"
+                        title="Edit Asset Optimization"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer shrink-0 ml-4"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
 
                     <div className="space-y-3">
@@ -2593,13 +3946,27 @@ export default function NoGuidanceVideoWizard() {
                   </div>
 
                   {/* URL and other options */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
                     <div 
                       onClick={() => setShowAdUrlOptions(!showAdUrlOptions)}
                       className="flex items-center justify-between cursor-pointer pb-1 select-none font-bold text-slate-800"
                     >
-                      <span>URL and other options</span>
-                      <span>{showAdUrlOptions ? "▲" : "▼"}</span>
+                      <span className="text-sm">URL and other options</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label="Edit URL Options"
+                          title="Edit URL Options"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAdUrlOptions(!showAdUrlOptions);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        {showAdUrlOptions ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                      </div>
                     </div>
 
                     {showAdUrlOptions && (
@@ -2622,19 +3989,31 @@ export default function NoGuidanceVideoWizard() {
                               value={mobileFinalUrl}
                               onChange={(e) => setMobileFinalUrl(e.target.value)}
                               placeholder="https://"
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none"
                             />
                           </div>
                         )}
 
                         <div className="space-y-1">
-                          <label className="block font-semibold text-slate-700">Tracking template</label>
-                          <input type="text" value={adTrackingTemplate} onChange={(e) => setAdTrackingTemplate(e.target.value)} placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none" />
+                          <label className="block font-semibold text-slate-700">Tracking Template</label>
+                          <input
+                            type="url"
+                            value={adTrackingTemplate}
+                            onChange={(e) => setAdTrackingTemplate(e.target.value)}
+                            placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none"
+                          />
                         </div>
 
                         <div className="space-y-1">
                           <label className="block font-semibold text-slate-700">Final URL suffix</label>
-                          <input type="text" value={adFinalUrlSuffix} onChange={(e) => setAdFinalUrlSuffix(e.target.value)} placeholder="Example: param1=value1&param2=value2" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none" />
+                          <input
+                            type="text"
+                            value={adFinalUrlSuffix}
+                            onChange={(e) => setAdFinalUrlSuffix(e.target.value)}
+                            placeholder="Example: param1=value1&param2=value2"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none"
+                          />
                         </div>
 
                         <div className="space-y-2 pt-1">
@@ -2664,6 +4043,7 @@ export default function NoGuidanceVideoWizard() {
                       </div>
                     )}
                   </div>
+
                 </div>
               )}
 
@@ -2671,8 +4051,19 @@ export default function NoGuidanceVideoWizard() {
               {videoAdType === "VIDEO" && (
                 <div className="space-y-6 animate-in fade-in duration-200">
                   {/* Media */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Media</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Media</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Media"
+                        title="Edit Media"
+                        onClick={() => document.getElementById("adVideoInput")?.focus()}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     <div className="space-y-2">
                       <div className="flex justify-between">
@@ -2811,8 +4202,18 @@ export default function NoGuidanceVideoWizard() {
                   </div>
 
                   {/* Text */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Text</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Text</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Text"
+                        title="Edit Text"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     {/* Headline */}
                     <div className="space-y-3">
@@ -2983,9 +4384,22 @@ export default function NoGuidanceVideoWizard() {
                   </div>
 
                   {/* Sitelinks */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Sitelinks</h4>
-                    <p className="text-[11px] text-slate-500">Add 4 or more to maximize performance</p>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Sitelinks</h4>
+                        <p className="text-[11px] text-slate-500">Add 4 or more to maximize performance</p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Edit Sitelinks"
+                        title="Edit Sitelinks"
+                        onClick={() => document.getElementById("sitelinkInput")?.focus()}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     <div className="flex gap-2 max-w-xl">
                       <input
@@ -3020,12 +4434,22 @@ export default function NoGuidanceVideoWizard() {
                   </div>
 
                   {/* Asset Optimization */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <div>
-                      <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Asset optimization</h4>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                        Let Google AI use your existing ad content to create optimized assets. This helps improve ad coverage and drive conversions. <a href="#" className="text-blue-400 hover:underline">How it works</a>
-                      </p>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Asset optimization</h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                          Let Google AI use your existing ad content to create optimized assets. This helps improve ad coverage and drive conversions. <a href="#" className="text-blue-400 hover:underline">How it works</a>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Edit Asset Optimization"
+                        title="Edit Asset Optimization"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer shrink-0 ml-4"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
 
                     <div className="space-y-3">
@@ -3070,8 +4494,18 @@ export default function NoGuidanceVideoWizard() {
               {videoAdType === "CAROUSEL" && (
                 <div className="space-y-6 animate-in fade-in duration-200">
                   {/* Media */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Media</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Media</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Media"
+                        title="Edit Media"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     {/* Cards */}
                     <div className="space-y-4">
@@ -3197,7 +4631,7 @@ export default function NoGuidanceVideoWizard() {
                             onClick={() => {
                               const el = document.getElementById("adLogoInputC") as HTMLInputElement;
                               if (el && el.value.trim()) {
-                                  setAdLogos(p => [...p, el.value.trim()]);
+                                setAdLogos(p => [...p, el.value.trim()]);
                                 el.value = "";
                               }
                             }}
@@ -3249,8 +4683,18 @@ export default function NoGuidanceVideoWizard() {
                   </div>
 
                   {/* Text */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Text</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Text</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Text"
+                        title="Edit Text"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     {/* Headline */}
                     <div className="space-y-3">
@@ -3311,13 +4755,27 @@ export default function NoGuidanceVideoWizard() {
                   </div>
 
                   {/* URL and other options */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
                     <div 
                       onClick={() => setShowAdUrlOptions(!showAdUrlOptions)}
                       className="flex items-center justify-between cursor-pointer pb-1 select-none font-bold text-slate-800"
                     >
-                      <span>URL and other options</span>
-                      <span>{showAdUrlOptions ? "▲" : "▼"}</span>
+                      <span className="text-sm">URL and other options</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label="Edit URL Options"
+                          title="Edit URL Options"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAdUrlOptions(!showAdUrlOptions);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        {showAdUrlOptions ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                      </div>
                     </div>
 
                     {showAdUrlOptions && (
@@ -3382,181 +4840,348 @@ export default function NoGuidanceVideoWizard() {
                 <p className="text-slate-500 font-semibold text-xs">{videoCampaignName}</p>
               </div>
 
-              {/* Campaign Level Details */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-900">{videoCampaignName}</h3>
-                    <div className="flex items-center gap-2 text-[11px] text-rose-400 font-semibold">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                      <span>"{videoCampaignName}" has errors which will prevent this campaign from being published</span>
+              {/* Dynamic Overall Validation Status Banner */}
+              {(() => {
+                const validationErrors = getReviewValidationErrors();
+                const hasErrors = validationErrors.length > 0;
+
+                if (hasErrors) {
+                  return (
+                    <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-slate-800 space-y-3">
+                      <div className="flex items-center gap-2 text-rose-500 font-bold text-sm">
+                        <AlertCircle className="h-5 w-5 shrink-0" />
+                        <span>Campaign has {validationErrors.length} {validationErrors.length === 1 ? "issue" : "issues"} that must be fixed before publishing</span>
+                      </div>
+                      <p className="text-slate-600 text-xs">
+                        Review the required parameters below and click <strong className="text-rose-500">Fix</strong> to jump directly to the field.
+                      </p>
+                      <div className="divide-y divide-rose-500/15 pt-1">
+                        {validationErrors.map((err) => (
+                          <div key={err.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-500/20 text-rose-600">
+                                  {err.level}
+                                </span>
+                                <span className="font-bold text-slate-900 text-xs">{err.parameter}</span>
+                              </div>
+                              <p className="text-rose-600 text-xs font-medium">{err.message}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleFixIssue(err)}
+                              className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 self-start sm:self-center transition-all cursor-pointer shadow-sm"
+                            >
+                              <span>Fix</span>
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-slate-800 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-600 shrink-0">
+                        <Check className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-emerald-700">Ready to publish</h4>
+                        <p className="text-xs text-slate-600">All required campaign settings, ad group parameters, and ad assets are valid.</p>
+                      </div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowReviewCampaignDetails(!showReviewCampaignDetails)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
-                  >
-                    <span>More details</span>
-                    {showReviewCampaignDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                );
+              })()}
+
+              {/* Submit Error Banner (Backend Google Ads launch errors) */}
+              {submitError && (
+                <div className="p-4 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-600 flex items-start gap-3 text-xs font-semibold animate-in shake duration-200">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <span className="font-bold block">Failed to publish campaign</span>
+                    <span className="font-normal block leading-relaxed">{submitError}</span>
+                  </div>
+                  <button type="button" onClick={() => setSubmitError(null)} className="text-rose-500 hover:text-rose-700">
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Daily budget</span>
-                    <p className="text-slate-800 font-bold">{videoBudgetAmount ? `₹${videoBudgetAmount}` : "Not set"}</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Start date</span>
-                    <p className="text-slate-800 font-bold">{startDate ? new Date(startDate).toLocaleDateString("en-US", { year: "numeric", month: "numeric", day: "numeric" }) : "Not set"}</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">End date</span>
-                    <p className="text-slate-800 font-bold">{endDate ? new Date(endDate).toLocaleDateString("en-US", { year: "numeric", month: "numeric", day: "numeric" }) : "Not set"}</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Bidding strategy</span>
-                    <p className="text-slate-800 font-bold">Maximize clicks</p>
-                  </div>
-                </div>
+              {/* Campaign Level Details */}
+              {(() => {
+                const campErrors = getReviewValidationErrors().filter(e => e.level === "Campaign");
+                const hasCampErrors = campErrors.length > 0;
 
-                {showReviewCampaignDetails && (
-                  <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Customer acquisition</span>
-                      <span className="font-semibold text-slate-800 text-right">{onlyNewCustomers ? "Optimize for new customers" : "Bid equally for new and existing customers"}</span>
+                return (
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-bold text-slate-900">{videoCampaignName}</h3>
+                        {hasCampErrors ? (
+                          <div className="flex items-center gap-2 text-[11px] text-rose-500 font-semibold">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>"{videoCampaignName}" has errors which will prevent this campaign from being published</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold">
+                            <Check className="h-3.5 w-3.5 shrink-0" />
+                            <span>Campaign settings are valid</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasCampErrors && (
+                          <button
+                            type="button"
+                            onClick={() => handleFixIssue(campErrors[0])}
+                            className="px-3 py-1 rounded-lg bg-rose-50 text-rose-600 font-bold hover:bg-rose-100 transition-all text-xs cursor-pointer"
+                          >
+                            Fix ({campErrors.length})
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowReviewCampaignDetails(!showReviewCampaignDetails)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                        >
+                          <span>More details</span>
+                          {showReviewCampaignDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Brand guidelines</span>
-                      <span className="font-semibold text-slate-800 text-right">No guidelines set</span>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Daily budget</span>
+                        <p className={`font-bold ${!videoBudgetAmount || Number(videoBudgetAmount) <= 0 ? "text-rose-500" : "text-slate-800"}`}>
+                          {videoBudgetAmount ? `₹${videoBudgetAmount}` : "Not set (Required)"}
+                        </p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Start date</span>
+                        <p className="text-slate-800 font-bold">{startDate ? new Date(startDate).toLocaleDateString("en-US", { year: "numeric", month: "numeric", day: "numeric" }) : "Not set"}</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">End date</span>
+                        <p className="text-slate-800 font-bold">{endDate ? new Date(endDate).toLocaleDateString("en-US", { year: "numeric", month: "numeric", day: "numeric" }) : "No end date"}</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Bidding strategy</span>
+                        <p className="text-slate-800 font-bold">{targetCpaVideo ? `Target CPA (₹${targetCpaValue || "0"})` : videoGoal === "Clicks" ? "Maximize clicks" : "Maximize conversions"}</p>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">EU political ads</span>
-                      <span className="font-semibold text-slate-800 text-right">{euPoliticalAds === "YES" ? "Has EU political ads" : "Doesn't have EU political ads"}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Location and language</span>
-                      <span className="font-semibold text-slate-800 text-right">Set at ad group, include people with presence in locations</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Devices</span>
-                      <span className="font-semibold text-slate-800 text-right">{deviceTargetingType === "ALL" ? "All eligible devices (computers, mobile, tablet, and TV screens)" : "Specific device targeting"}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Ad schedule</span>
-                      <span className="font-semibold text-slate-800 text-right">{adScheduleDays === "All days" && adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45" ? "All day" : `${adScheduleDays} (${adScheduleStartTime} - ${adScheduleEndTime})`}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Campaign URL options</span>
-                      <span className="font-semibold text-slate-800 text-right font-mono truncate max-w-[200px]" title={trackingTemplate || "No options set"}>{trackingTemplate ? "Template set" : "No options set"}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">IP exclusions</span>
-                      <span className="font-semibold text-slate-800 text-right truncate max-w-[200px]" title={ipExclusionsInput || "No exclusions set"}>{ipExclusionsInput ? "IP exclusions active" : "No exclusions set"}</span>
-                    </div>
+
+                    {showReviewCampaignDetails && (
+                      <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Customer acquisition</span>
+                          <span className="font-semibold text-slate-800 text-right">{onlyNewCustomers ? "Optimize for new customers" : "Bid equally for new and existing customers"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Brand guidelines</span>
+                          <span className="font-semibold text-slate-800 text-right">No guidelines set</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">EU political ads</span>
+                          <span className="font-semibold text-slate-800 text-right">{euPoliticalAds === "YES" ? "Has EU political ads" : "Doesn't have EU political ads"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Location and language</span>
+                          <span className="font-semibold text-slate-800 text-right">Set at ad group, include people with presence in locations</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Devices</span>
+                          <span className="font-semibold text-slate-800 text-right">{deviceTargetingType === "ALL" ? "All eligible devices (computers, mobile, tablet, and TV screens)" : "Specific device targeting"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Ad schedule</span>
+                          <span className="font-semibold text-slate-800 text-right">{adScheduleDays === "All days" && adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45" ? "All day" : `${adScheduleDays} (${adScheduleStartTime} - ${adScheduleEndTime})`}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Campaign URL options</span>
+                          <span className="font-semibold text-slate-800 text-right font-mono truncate max-w-[200px]" title={trackingTemplate || "No options set"}>{trackingTemplate ? "Template set" : "No options set"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">IP exclusions</span>
+                          <span className="font-semibold text-slate-800 text-right truncate max-w-[200px]" title={ipExclusionsInput || "No exclusions set"}>{ipExclusionsInput ? "IP exclusions active" : "No exclusions set"}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Ad Group Level Details */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-900">{activeAdGroup.name}</h3>
-                    <div className="flex items-center gap-2 text-[11px] text-rose-400 font-semibold">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                      <span>"{activeAdGroup.name}" has errors which will prevent this campaign from being published</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowReviewAdGroupDetails(!showReviewAdGroupDetails)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
-                  >
-                    <span>More details</span>
-                    {showReviewAdGroupDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
+              {(() => {
+                const agErrors = getReviewValidationErrors().filter(e => e.level === "Ad group");
+                const hasAgErrors = agErrors.length > 0;
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Ads</span>
-                    <p className="text-slate-800 font-bold">1</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Available impressions</span>
-                    <p className="text-slate-800 font-bold">10B+</p>
-                  </div>
-                </div>
+                return (
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-bold text-slate-900">{activeAdGroup.name}</h3>
+                        {hasAgErrors ? (
+                          <div className="flex items-center gap-2 text-[11px] text-rose-500 font-semibold">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>"{activeAdGroup.name}" has errors which will prevent this campaign from being published</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold">
+                            <Check className="h-3.5 w-3.5 shrink-0" />
+                            <span>Ad group settings are valid</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasAgErrors && (
+                          <button
+                            type="button"
+                            onClick={() => handleFixIssue(agErrors[0])}
+                            className="px-3 py-1 rounded-lg bg-rose-50 text-rose-600 font-bold hover:bg-rose-100 transition-all text-xs cursor-pointer"
+                          >
+                            Fix ({agErrors.length})
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowReviewAdGroupDetails(!showReviewAdGroupDetails)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                        >
+                          <span>More details</span>
+                          {showReviewAdGroupDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
 
-                {showReviewAdGroupDetails && (
-                  <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Languages</span>
-                      <span className="font-semibold text-slate-800 text-right">{selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "All languages"}</span>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Ads</span>
+                        <p className="text-slate-800 font-bold">1</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Available impressions</span>
+                        <p className="text-slate-800 font-bold">10B+</p>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Locations</span>
-                      <span className="font-semibold text-slate-800 text-right">{selectedLocation === "ALL" ? "All locations" : selectedLocation === "INDIA" ? "India (country)" : customLocationInput || "Custom location"}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Channels</span>
-                      <span className="font-semibold text-slate-800 text-right">{selectedAdGroupChannels.length === 8 ? "All Google channels" : selectedAdGroupChannels.join(", ")}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Optimized targeting</span>
-                      <span className="font-semibold text-slate-800 text-right">{useOptimizedTargeting ? "On" : "Off"}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Ad group URL options</span>
-                      <span className="font-semibold text-slate-800 text-right font-mono truncate max-w-[200px]" title={agTrackingTemplate || "No options set"}>{agTrackingTemplate ? "Template set" : "No options set"}</span>
-                    </div>
+
+                    {showReviewAdGroupDetails && (
+                      <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Languages</span>
+                          <span className="font-semibold text-slate-800 text-right">{selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "All languages"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Locations</span>
+                          <span className="font-semibold text-slate-800 text-right">{selectedLocation === "ALL" ? "All locations" : selectedLocation === "INDIA" ? "India (country)" : customLocationInput || "Custom location"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Channels</span>
+                          <span className="font-semibold text-slate-800 text-right">{selectedAdGroupChannels.length === 8 ? "All Google channels" : selectedAdGroupChannels.join(", ")}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Optimized targeting</span>
+                          <span className="font-semibold text-slate-800 text-right">{useOptimizedTargeting ? "On" : "Off"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Ad group URL options</span>
+                          <span className="font-semibold text-slate-800 text-right font-mono truncate max-w-[200px]" title={agTrackingTemplate || "No options set"}>{agTrackingTemplate ? "Template set" : "No options set"}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Ad Level Details */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-900">{adName || "Ad 1"}</h3>
-                    <div className="flex items-center gap-2 text-[11px] text-rose-400 font-semibold">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                      <span>"{adName || "Ad 1"}" has errors which will prevent this campaign from being published</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowReviewAdDetails(!showReviewAdDetails)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
-                  >
-                    <span>More details</span>
-                    {showReviewAdDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
+              {(() => {
+                const adErrors = getReviewValidationErrors().filter(e => e.level === "Ad");
+                const hasAdErrors = adErrors.length > 0;
 
-                {showReviewAdDetails && (
-                  <div className="pt-2 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Active enhancements</span>
-                      <span className="font-semibold text-slate-800 text-right">3 active enhancements</span>
+                return (
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-bold text-slate-900">{adName || "Ad 1"}</h3>
+                        {hasAdErrors ? (
+                          <div className="flex items-center gap-2 text-[11px] text-rose-500 font-semibold">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>"{adName || "Ad 1"}" has errors which will prevent this campaign from being published</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold">
+                            <Check className="h-3.5 w-3.5 shrink-0" />
+                            <span>Ad assets and details are valid</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasAdErrors && (
+                          <button
+                            type="button"
+                            onClick={() => handleFixIssue(adErrors[0])}
+                            className="px-3 py-1 rounded-lg bg-rose-50 text-rose-600 font-bold hover:bg-rose-100 transition-all text-xs cursor-pointer"
+                          >
+                            Fix ({adErrors.length})
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowReviewAdDetails(!showReviewAdDetails)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                        >
+                          <span>More details</span>
+                          {showReviewAdDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Ad Type</span>
-                      <span className="font-semibold text-slate-800 text-right">{videoAdType === "SINGLE_IMAGE" ? "Single image ad" : videoAdType === "VIDEO" ? "Video ad" : "Carousel image ad"}</span>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Ad format</span>
+                        <p className="text-slate-800 font-bold">{videoAdType === "SINGLE_IMAGE" ? "Single image" : videoAdType === "VIDEO" ? "Video" : "Carousel image"}</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Assets count</span>
+                        <p className="text-slate-800 font-bold">{videoAdType === "SINGLE_IMAGE" ? `${adImages.length} images, ${adLogos.length} logos` : videoAdType === "VIDEO" ? `${adVideos.length} videos, ${adLogos.length} logos` : `${carouselCards.length} cards, ${adLogos.length} logos`}</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Business Name</span>
+                        <p className={`font-bold ${!businessName.trim() ? "text-rose-500" : "text-slate-800"}`}>{businessName.trim() || "Not set (Required)"}</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Final URL</span>
+                        <p className={`font-bold truncate max-w-[150px] ${!adFinalUrl || adFinalUrl === "https://" ? "text-rose-500" : "text-slate-800"}`} title={adFinalUrl}>{adFinalUrl && adFinalUrl !== "https://" ? adFinalUrl : "Not set (Required)"}</p>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Assets</span>
-                      <span className="font-semibold text-slate-800 text-right">{adImages.length === 0 && adLogos.length === 0 && adVideos.length === 0 ? "No assets" : `${adImages.length} images, ${adLogos.length} logos`}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Final URL</span>
-                      <span className="font-semibold text-slate-800 text-right">{!adFinalUrl || adFinalUrl === "https://" ? "Final URL not set" : adFinalUrl}</span>
-                    </div>
+
+                    {showReviewAdDetails && (
+                      <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Active enhancements</span>
+                          <span className="font-semibold text-slate-800 text-right">3 active enhancements</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Call to action</span>
+                          <span className="font-semibold text-slate-800 text-right">{adCallToAction}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Headlines</span>
+                          <span className="font-semibold text-slate-800 text-right">{adHeadlines.filter(Boolean).join(", ") || "None"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Descriptions</span>
+                          <span className="font-semibold text-slate-800 text-right">{adDescriptions.filter(Boolean).join(", ") || "None"}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
           )}
 
@@ -3619,7 +5244,7 @@ export default function NoGuidanceVideoWizard() {
                 <div className="flex justify-between items-center">
                   <div>
                     <span className="font-bold text-slate-700 block">Custom segments</span>
-                    <span className="text-[10px] text-slate-500 block leading-normal mt-0.5 font-medium">People based on their search activity, downloaded apps, or visited sites</span>
+                    <span className="text-[10px] text-slate-500 block leading-normal mt-0.5">People based on their search activity, downloaded apps, or visited sites</span>
                   </div>
                   <button
                     type="button"
@@ -3706,7 +5331,7 @@ export default function NoGuidanceVideoWizard() {
                 <div className="flex justify-between items-center">
                   <div>
                     <span className="font-bold text-slate-700 block">Interests & detailed demographics</span>
-                    <span className="text-[10px] text-slate-500 block leading-normal mt-0.5 font-medium font-medium">People based on their interests, life events, or detailed demographics</span>
+                    <span className="text-[10px] text-slate-500 block leading-normal mt-0.5">People based on their interests, life events, or detailed demographics</span>
                   </div>
                   <button
                     type="button"
@@ -3737,7 +5362,7 @@ export default function NoGuidanceVideoWizard() {
                 <div className="flex justify-between items-center">
                   <div>
                     <span className="font-bold text-slate-700 block">Exclusions</span>
-                    <span className="text-[10px] text-slate-500 block leading-normal mt-0.5 font-medium">Exclude remarketing lists or lookalike segments from this audience</span>
+                    <span className="text-[10px] text-slate-500 block leading-normal mt-0.5">Exclude remarketing lists or lookalike segments from this audience</span>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -3902,39 +5527,42 @@ export default function NoGuidanceVideoWizard() {
                   />
                 </div>
 
-                <div className="space-y-4 pt-2 border-t border-slate-200">
-                  <span className="font-bold text-slate-700 block">Include people with following interests or behaviors</span>
+                <div className="space-y-2 pt-2 border-t border-slate-200/40">
+                  <span className="font-semibold text-slate-700 block">Include people with following interests or behaviors</span>
                   
                   <div className="space-y-2">
-                    <label className="flex items-start gap-2.5 cursor-pointer text-slate-700 font-semibold">
+                    <label className="flex items-start gap-2 cursor-pointer text-slate-700">
                       <input
                         type="radio"
-                        name="customSegType"
+                        name="customSegOption"
                         checked={newCustomSegType === "INTERESTS"}
                         onChange={() => setNewCustomSegType("INTERESTS")}
-                        className="mt-0.5 text-primary h-3.5 w-3.5"
+                        className="mt-0.5"
                       />
                       <div>
                         <span>People with any of these interests or purchase intentions</span>
                       </div>
                     </label>
-                    <label className="flex items-start gap-2.5 cursor-pointer text-slate-700 font-semibold">
+
+                    <label className="flex items-start gap-2 cursor-pointer text-slate-700">
                       <input
                         type="radio"
-                        name="customSegType"
+                        name="customSegOption"
                         checked={newCustomSegType === "SEARCH_TERMS"}
                         onChange={() => setNewCustomSegType("SEARCH_TERMS")}
-                        className="mt-0.5 text-primary h-3.5 w-3.5"
+                        className="mt-0.5"
                       />
                       <div>
                         <span>People who searched for any of these terms on Google</span>
-                        <span className="text-[10px] text-slate-500 font-medium block leading-normal mt-0.5">
+                        <span className="text-[10px] text-slate-500 block leading-normal mt-0.5">
                           Only on campaigns running on Google properties. On other campaigns, terms will be used as interests or purchase intentions.
                         </span>
                       </div>
                     </label>
                   </div>
+                </div>
 
+                <div className="space-y-3 pt-2">
                   <div className="space-y-1">
                     <label className="block text-slate-500 font-semibold">Add Google search terms</label>
                     <input
@@ -4224,8 +5852,8 @@ export default function NoGuidanceVideoWizard() {
                               type="checkbox"
                               checked={interestsList.includes(item.name)}
                               onChange={(e) => {
-                                        if (e.target.checked) setInterestsList(p => [...p, item.name]);
-                                        else setInterestsList(p => p.filter(x => x !== item.name));
+                                if (e.target.checked) setInterestsList(p => [...p, item.name]);
+                                else setInterestsList(p => p.filter(x => x !== item.name));
                               }}
                               className="rounded text-primary h-3.5 w-3.5"
                             />
@@ -4422,13 +6050,39 @@ export default function NoGuidanceVideoWizard() {
       {/* ── Fixed Footer Action Bar ── */}
       <footer className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 px-8 flex items-center justify-between z-50">
         <button
-          onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
+          onClick={() => {
+            if (videoStep === "REVIEW") setVideoStep("AD");
+            else if (videoStep === "AD") setVideoStep("AD_GROUP");
+            else if (videoStep === "AD_GROUP") setVideoStep("CAMPAIGN_SETTINGS");
+            else router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
+          }}
           className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
         >
-          Cancel
+          {videoStep === "CAMPAIGN_SETTINGS" ? "Cancel" : "Back"}
         </button>
 
         <div className="flex items-center gap-3">
+          {videoStep === "CAMPAIGN_SETTINGS" && (
+            <button
+              onClick={() => {
+                const isTargetCpaValid = targetCpaVideo && targetCpaValue.trim() && !isNaN(Number(targetCpaValue)) && Number(targetCpaValue) > 0;
+                const isYouTubeEngagements = videoGoal === "YouTube engagements";
+                if (!isTargetCpaValid && !isYouTubeEngagements) {
+                  setFieldErrors(prev => ({
+                    ...prev,
+                    targetCpaValue: "This bidding strategy is not supported for Video campaigns. Please select a supported Video bidding strategy."
+                  }));
+                  setOpenCampaignSetting("targetCpa");
+                  return;
+                }
+                setVideoStep("AD_GROUP");
+              }}
+              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
+            >
+              Continue to Ad Group
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
           {videoStep === "AD_GROUP" && (
             <button
               onClick={() => setVideoStep("AD")}
@@ -4441,24 +6095,134 @@ export default function NoGuidanceVideoWizard() {
           {videoStep === "AD" && (
             <button
               onClick={() => setVideoStep("REVIEW")}
-              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-955 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
+              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >
               Review Campaign
               <ArrowRight className="h-4 w-4" />
             </button>
           )}
-          {videoStep === "REVIEW" && (
-            <button
-              onClick={() => {
-                alert(`Video campaign "${videoCampaignName}" published successfully!`);
-                router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
-              }}
-              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-955 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
-            >
-              Save & Publish
-              <Check className="h-4 w-4" />
-            </button>
-          )}
+          {videoStep === "REVIEW" && (() => {
+            const validationErrors = getReviewValidationErrors();
+            const hasValidationErrors = validationErrors.length > 0;
+            return (
+              <button
+                disabled={isPublishing || hasValidationErrors}
+                onClick={async () => {
+                  setSubmitError(null);
+
+                  // Run complete frontend validation check
+                  if (hasValidationErrors) {
+                    const firstErr = validationErrors[0];
+                    setSubmitError(`${firstErr.parameter}: ${firstErr.message}`);
+                    handleFixIssue(firstErr);
+                    return;
+                  }
+
+                  // All parameters are valid! Proceed to launch
+                  setIsPublishing(true);
+                  try {
+                    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+                    const targetCid = customerId || "6587355041";
+
+                    const validHeadlines = adHeadlines.filter(h => h && h.trim().length > 0);
+                    const validDescriptions = adDescriptions.filter(d => d && d.trim().length > 0);
+
+                  // Final Video Bidding Payload Assembly
+                  const isTargetCpaValid = targetCpaVideo && targetCpaValue.trim() && !isNaN(Number(targetCpaValue)) && Number(targetCpaValue) > 0;
+                  const isYouTubeEngagements = videoGoal === "YouTube engagements";
+
+                  // Safety Gate: If Video bidding configuration is invalid/unsupported, block completely
+                  if (!isTargetCpaValid && !isYouTubeEngagements) {
+                    const errMsg = "This bidding strategy is not supported for Video campaigns. Please select a supported Video bidding strategy.";
+                    setSubmitError(`Bidding strategy: ${errMsg}`);
+                    setFieldErrors(prev => ({
+                      ...prev,
+                      targetCpaValue: errMsg,
+                      videoGoal: errMsg
+                    }));
+                    setOpenCampaignSetting("targetCpa");
+                    return;
+                  }
+
+                  // Resolve bidding strategy ONLY if valid
+                  const resolvedBiddingStrategy = isTargetCpaValid
+                    ? "TARGET_CPA"
+                    : isYouTubeEngagements
+                    ? "MANUAL_CPV"
+                    : undefined;
+
+                  if (!resolvedBiddingStrategy) {
+                    setSubmitError("Bidding strategy: Invalid or unsupported Video bidding configuration.");
+                    return;
+                  }
+
+                  const resolvedTargetCpa = resolvedBiddingStrategy === "TARGET_CPA"
+                    ? Number(targetCpaValue)
+                    : undefined;
+
+                  const payloadToLaunch = {
+                    orgId,
+                    customerId: targetCid,
+                    campaignName: videoCampaignName.trim(),
+                    channelType: "VIDEO",
+                    biddingStrategy: resolvedBiddingStrategy,
+                    budget: Number(videoBudgetAmount),
+                    targetCpa: resolvedTargetCpa,
+                    startDate: startDate || getTodayFormattedDate(),
+                    endDate: endDate || undefined,
+                    finalUrl: adFinalUrl.trim(),
+                    businessName: businessName.trim(),
+                    headlines: validHeadlines.length > 0 ? validHeadlines : ["Explore Video Campaign"],
+                    descriptions: validDescriptions.length > 0 ? validDescriptions : ["Discover great offers today with Video Campaign"],
+                    images: videoAdType === "SINGLE_IMAGE" ? adImages : videoAdType === "VIDEO" ? adVideos : carouselCards.map(c => c.image),
+                    logos: adLogos,
+                    adFormat: videoAdType,
+                    adName: adName.trim(),
+                    adSchedule: adScheduleStartTime && adScheduleEndTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45") ? [{ day: adScheduleDays, start: adScheduleStartTime, end: adScheduleEndTime }] : [],
+                    locations: selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["INDIA"] : [customLocationInput],
+                    languages: selectedLanguages,
+                    channels: selectedAdGroupChannels,
+                    optimizedTargeting: useOptimizedTargeting,
+                    customerAcquisitionMode: onlyNewCustomers ? "NEW_CUSTOMERS_ONLY" : "ALL_CUSTOMERS",
+                    trackingTemplate: trackingTemplate || agTrackingTemplate || adTrackingTemplate || undefined,
+                    finalUrlSuffix: finalUrlSuffix || agFinalUrlSuffix || adFinalUrlSuffix || undefined,
+                    euPolitical: euPoliticalAds,
+                    conversionGoals: []
+                  };
+
+                  console.log("[VIDEO DEBUG] BEFORE LAUNCH FETCH", payloadToLaunch);
+                  console.log("[VIDEO DEBUG] biddingStrategy", resolvedBiddingStrategy);
+                  console.log("[VIDEO DEBUG] targetCpa", resolvedTargetCpa);
+                  console.log("[VIDEO DEBUG] targetCpaVideo", targetCpaVideo);
+                  console.log("[VIDEO DEBUG] videoGoal", videoGoal);
+
+                  const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payloadToLaunch)
+                  });
+
+                    if (res.ok) {
+                      alert(`Video campaign "${videoCampaignName.trim()}" published successfully!`);
+                      router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                    } else {
+                      const errData = await res.json().catch(() => ({}));
+                      setSubmitError(errData.message || errData.error || "Failed to publish Video campaign.");
+                    }
+                  } catch (err: any) {
+                    setSubmitError(err?.message || "Backend server unavailable.");
+                  } finally {
+                    setIsPublishing(false);
+                  }
+                }}
+                className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
+              >
+                {isPublishing ? "Publishing..." : "Save & Publish"}
+                <Check className="h-4 w-4" />
+              </button>
+            );
+          })()}
         </div>
       </footer>
     </div>

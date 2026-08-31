@@ -1,13 +1,14 @@
 "use client";
+import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall, Play, BarChart2,
-  Search, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, Sparkles, Image as ImageIcon, Video as VideoIcon, Upload, Phone, DollarSign, Tag, FileText, MessageSquare, Smartphone, SlidersHorizontal, Globe, Users, Settings, Edit3, Lock, ShieldAlert, Layers
+  Search, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, Sparkles, Image as ImageIcon, Video as VideoIcon, Upload, Phone, DollarSign, Tag, FileText, MessageSquare, Smartphone, SlidersHorizontal, Globe, Users, Settings, Edit3, Lock, ShieldAlert, Layers, Crop, ZoomIn, RotateCcw, Menu
 } from "lucide-react";
 
-export default function LeadsPerformanceMaxPage() {
+export default function Page() {
   return (
     <Suspense fallback={<div className="p-8 text-xs text-slate-500">Loading campaign setup...</div>}>
       <LeadsPerformanceMaxContent />
@@ -21,9 +22,12 @@ function LeadsPerformanceMaxContent() {
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY">("BIDDING");
-  const [campaignName, setCampaignName] = useState<string>("Leads-Performance Max-1");
+  const [campaignName, setCampaignName] = useState<string>("leads-Performance Max-1");
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [showDraftModal, setShowDraftModal] = useState<boolean>(false);
   const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
 
@@ -47,7 +51,7 @@ function LeadsPerformanceMaxContent() {
           descriptions: Array.isArray(descriptions) ? descriptions.filter(Boolean) : [],
           searchThemes: typeof searchThemes !== "undefined" && Array.isArray(searchThemes) ? searchThemes : [],
           languages: typeof selectedLanguages !== "undefined" ? selectedLanguages : ["English"],
-          geoTargets: typeof selectedLocation !== "undefined" && selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["INDIA"] : (typeof customLocationInput !== "undefined" && customLocationInput ? [customLocationInput] : ["ALL"]),
+          geoTargets: typeof selectedLocation !== "undefined" && selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["INDIA"] : (customLocationInput ? [customLocationInput] : ["ALL"]),
           draftData: {
             assetGroupName: typeof assetGroupName !== "undefined" ? assetGroupName : "Asset group 1",
             businessName: typeof businessName !== "undefined" ? businessName : "",
@@ -81,17 +85,21 @@ function LeadsPerformanceMaxContent() {
   const [localCustomerOptimization, setLocalCustomerOptimization] = useState<boolean>(false);
 
   // Step 2: Campaign Settings State
-  const [isLocationsOpen, setIsLocationsOpen] = useState<boolean>(false);
-  const [isLanguagesOpen, setIsLanguagesOpen] = useState<boolean>(false);
-  const [isEUPoliticalAdsOpen, setIsEUPoliticalAdsOpen] = useState<boolean>(false);
+  const [isLocationsOpen, setIsLocationsOpen] = useState(false);
+  const [isLanguagesOpen, setIsLanguagesOpen] = useState(false);
+  const [isEUPoliticalAdsOpen, setIsEUPoliticalAdsOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
+  const [selectedCustomLocations, setSelectedCustomLocations] = useState<Array<{ name: string; id?: string; canonicalName?: string }>>([]);
+  const [isSearchingLocations, setIsSearchingLocations] = useState<boolean>(false);
+  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ name: string; id?: string; canonicalName?: string; targetType?: string }>>([]);
   const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
   const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
-
+  
   // Language Selection State with API simulation
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
+  
   const [isSearchingLanguages, setIsSearchingLanguages] = useState<boolean>(false);
   const [languageSearchResults, setLanguageSearchResults] = useState<string[]>([]);
 
@@ -117,8 +125,63 @@ function LeadsPerformanceMaxContent() {
     }
   }, [languageSearchInput, selectedLanguages]);
 
+  // Live Location Search from backend API
+  useEffect(() => {
+    if (customLocationInput.trim().length >= 2) {
+      setIsSearchingLocations(true);
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "8627341950";
+
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`${BACKEND}/api/ads/geo-targets/search?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}&q=${encodeURIComponent(customLocationInput.trim())}`);
+          if (res.ok) {
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : (data.results || data.data || []);
+            const formatted = list.map((item: any) => ({
+              id: item.id || item.geoTargetConstant?.id || item.resourceName?.split("/").pop(),
+              name: item.name || item.geoTargetConstant?.name || item.canonicalName || item.geoTargetConstant?.canonicalName,
+              canonicalName: item.canonicalName || item.geoTargetConstant?.canonicalName || item.name,
+              targetType: item.targetType || item.geoTargetConstant?.targetType || "Location"
+            }));
+            setLocationSearchResults(formatted);
+          } else {
+            // Fallback to local filtering if search API returns 400/500
+            const localFallback = [
+              { name: "Mumbai", canonicalName: "Mumbai, Maharashtra, India", targetType: "City" },
+              { name: "Delhi", canonicalName: "Delhi, India", targetType: "Union territory" },
+              { name: "Bengaluru", canonicalName: "Bengaluru, Karnataka, India", targetType: "City" },
+              { name: "Hyderabad", canonicalName: "Hyderabad, Telangana, India", targetType: "City" },
+              { name: "Ahmedabad", canonicalName: "Ahmedabad, Gujarat, India", targetType: "City" },
+              { name: "Chennai", canonicalName: "Chennai, Tamil Nadu, India", targetType: "City" },
+              { name: "Kolkata", canonicalName: "Kolkata, West Bengal, India", targetType: "City" },
+              { name: "Pune", canonicalName: "Pune, Maharashtra, India", targetType: "City" },
+              { name: "Surat", canonicalName: "Surat, Gujarat, India", targetType: "City" },
+              { name: "Jaipur", canonicalName: "Jaipur, Rajasthan, India", targetType: "City" },
+              { name: "United States", canonicalName: "United States", targetType: "Country" },
+              { name: "United Kingdom", canonicalName: "United Kingdom", targetType: "Country" },
+              { name: "Canada", canonicalName: "Canada", targetType: "Country" },
+              { name: "Australia", canonicalName: "Australia", targetType: "Country" },
+              { name: "United Arab Emirates", canonicalName: "United Arab Emirates", targetType: "Country" }
+            ].filter(loc => loc.canonicalName.toLowerCase().includes(customLocationInput.toLowerCase()));
+            setLocationSearchResults(localFallback);
+          }
+        } catch (err) {
+          console.error("Location search error:", err);
+          setLocationSearchResults([]);
+        } finally {
+          setIsSearchingLocations(false);
+        }
+      }, 250);
+      return () => clearTimeout(timer);
+    } else {
+      setLocationSearchResults([]);
+      setIsSearchingLocations(false);
+    }
+  }, [customLocationInput, customerId]);
+
   const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
-  const [openCampaignSettings, setOpenCampaignSettings] = useState<boolean>(false);
   const [showMoreCampaignSettings, setShowMoreCampaignSettings] = useState<boolean>(false);
   const [activeEditSetting, setActiveEditSetting] = useState<string | null>(null);
 
@@ -139,7 +202,7 @@ function LeadsPerformanceMaxContent() {
     "16:00", "16:15", "16:30", "16:45", "17:00", "17:15", "17:30", "17:45",
     "18:00", "18:15", "18:30", "18:45", "19:00", "19:15", "19:30", "19:45",
     "20:00", "20:15", "20:30", "20:45", "21:00", "21:15", "21:30", "21:45",
-    "22:00", "22:15", "22:30", "22:45", "23:00", "23:15", "23:30", "23:45"
+    "22:00", "22:15", "22:30", "22:45", "23:00", "23:15", "23:30", "23:45", "24:00"
   ];
 
   const dayOptions = [
@@ -148,8 +211,13 @@ function LeadsPerformanceMaxContent() {
   ];
 
   // Start and End Dates State
-  const [startDate, setStartDate] = useState<string>("2026-08-10");
+  const todayDateString = new Date().toISOString().split("T")[0];
+  const todayIsoStr = todayDateString;
+  const [startDate, setStartDate] = useState<string>(todayDateString);
+  const [startDateError, setStartDateError] = useState<string | null>(null);
+  const [endDateError, setEndDateError] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string>("");
+  const [endDateOption, setEndDateOption] = useState<"NONE" | "SELECT">("NONE");
 
   // Campaign URL options & Custom Parameters
   const [trackingTemplate, setTrackingTemplate] = useState<string>("");
@@ -282,20 +350,20 @@ function LeadsPerformanceMaxContent() {
     tv: true
   });
   const [turnOnAgeExclusions, setTurnOnAgeExclusions] = useState<boolean>(false);
+  const [excludedAges, setExcludedAges] = useState<string[]>([]);
   const [turnOnGenderExclusions, setTurnOnGenderExclusions] = useState<boolean>(false);
+  const [excludedGenders, setExcludedGenders] = useState<string[]>([]);
 
   // Step 3: Asset Group State
+  const [isAssetGroupInfoOpen, setIsAssetGroupInfoOpen] = useState(false);
+  const [isBrandGuidelinesMainOpen, setIsBrandGuidelinesMainOpen] = useState(false);
+  const [isAssetsSectionOpen, setIsAssetsSectionOpen] = useState(false);
+  const [isMoreOptionsCardOpen, setIsMoreOptionsCardOpen] = useState(false);
+  const [isAssetOptimizationCardOpen, setIsAssetOptimizationCardOpen] = useState(false);
+  const [isSignalsOpen, setIsSignalsOpen] = useState(false);
   const [assetGroupName, setAssetGroupName] = useState<string>("Asset Group 1");
   const [finalUrl, setFinalUrl] = useState<string>("");
   const [businessName, setBusinessName] = useState<string>("");
-
-  // Asset Group Cards Open/Closed States (Pen Edit Icon format)
-  const [isAssetGroupInfoOpen, setIsAssetGroupInfoOpen] = useState<boolean>(false);
-  const [isBrandGuidelinesMainOpen, setIsBrandGuidelinesMainOpen] = useState<boolean>(false);
-  const [isAssetsSectionOpen, setIsAssetsSectionOpen] = useState<boolean>(false);
-  const [isMoreOptionsCardOpen, setIsMoreOptionsCardOpen] = useState<boolean>(false);
-  const [isAssetOptimizationCardOpen, setIsAssetOptimizationCardOpen] = useState<boolean>(false);
-  const [isSignalsOpen, setIsSignalsOpen] = useState<boolean>(false);
 
   // Brand Guidelines State
   const [showBrandGuidelinesDetails, setShowBrandGuidelinesDetails] = useState<boolean>(false);
@@ -313,13 +381,64 @@ function LeadsPerformanceMaxContent() {
     if (!file) return;
 
     setIsUploadingLogo(true);
-    const localUrl = URL.createObjectURL(file);
-    const cdnUrl = `https://ik.imagekit.io/whatsappdemo/logos/${Date.now()}_${file.name}`;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64Url = reader.result as string;
+      if (!base64Url) {
+        setIsUploadingLogo(false);
+        return;
+      }
 
-    setTimeout(() => {
-      setBrandLogos(prev => [...prev, cdnUrl || localUrl]);
+      // Generate 1:1 Square Logo (1200x1200) for Google Ads LOGO Asset
+      const img = new Image();
+      img.onload = () => {
+        const squareCanvas = document.createElement("canvas");
+        squareCanvas.width = 1200;
+        squareCanvas.height = 1200;
+        const ctx = squareCanvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, 1200, 1200);
+          const minDim = Math.min(img.width, img.height);
+          const sqX = (img.width - minDim) / 2;
+          const sqY = (img.height - minDim) / 2;
+          ctx.drawImage(img, sqX, sqY, minDim, minDim, 0, 0, 1200, 1200);
+          const squareLogoData = squareCanvas.toDataURL("image/jpeg", 0.92);
+          setBrandLogos(prev => {
+            if (prev.includes(squareLogoData) || prev.includes(base64Url)) {
+              alert("Duplicate logo detected. This logo is already added.");
+              return prev;
+            }
+            return [...prev, squareLogoData];
+          });
+        } else {
+          setBrandLogos(prev => {
+            if (prev.includes(base64Url)) {
+              alert("Duplicate logo detected. This logo is already added.");
+              return prev;
+            }
+            return [...prev, base64Url];
+          });
+        }
+        setIsUploadingLogo(false);
+      };
+      img.onerror = () => {
+        setBrandLogos(prev => {
+          if (prev.includes(base64Url)) {
+            alert("Duplicate logo detected. This logo is already added.");
+            return prev;
+          }
+          return [...prev, base64Url];
+        });
+        setIsUploadingLogo(false);
+      };
+      img.src = base64Url;
+    };
+    reader.onerror = () => {
       setIsUploadingLogo(false);
-    }, 400);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   };
   const [headlines, setHeadlines] = useState<string[]>(["", "", ""]);
   const [longHeadlines, setLongHeadlines] = useState<string[]>([""]);
@@ -327,23 +446,47 @@ function LeadsPerformanceMaxContent() {
   const [ctaOption, setCtaOption] = useState<string>("Automated (recommended)");
 
   // Uploaded Media State
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<Array<{ data: string; fieldType: string; name: string }>>([]);
   const [uploadedVideos, setUploadedVideos] = useState<string[]>([]);
   const [uploadedClips, setUploadedClips] = useState<string[]>([]);
+
+  // Marketing Image Cropper State
+  const [cropQueue, setCropQueue] = useState<Array<{ file: File; base64: string; name: string }>>([]);
+  const [currentCropItem, setCurrentCropItem] = useState<{ file: File; base64: string; name: string } | null>(null);
+  const [cropAspectMode, setCropAspectMode] = useState<"LANDSCAPE" | "SQUARE">("LANDSCAPE"); // LANDSCAPE (1.91:1) or SQUARE (1:1)
+  const [cropZoom, setCropZoom] = useState<number>(1);
+  const [cropOffset, setCropOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDraggingCrop, setIsDraggingCrop] = useState<boolean>(false);
+  const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [cropValidationError, setCropValidationError] = useState<string | null>(null);
 
   // Saved Asset Extensions State
   const [savedSitelinks, setSavedSitelinks] = useState<Array<{ text: string; desc1: string; desc2: string; url: string }>>([]);
   const [savedPromotions, setSavedPromotions] = useState<Array<{ occasion: string; item: string; discount: string; url: string }>>([]);
-  const [savedPrices, setSavedPrices] = useState<Array<{ type: string; price: string }>>([]);
+  const [savedPrices, setSavedPrices] = useState<Array<{ type: string; price: string; url?: string }>>([]);
   const [savedMessages, setSavedMessages] = useState<Array<{ platform: string }>>([]);
   const [savedSnippets, setSavedSnippets] = useState<Array<{ header: string; values: string[] }>>([]);
   const [savedLeadForms, setSavedLeadForms] = useState<Array<{ headline: string; business: string }>>([]);
   const [savedCallouts, setSavedCallouts] = useState<string[]>([]);
 
+  // Sitelink validation states
+  const [sitelinkText, setSitelinkText] = useState<string>("");
+  const [sitelinkDesc1, setSitelinkDesc1] = useState<string>("");
+  const [sitelinkDesc2, setSitelinkDesc2] = useState<string>("");
+  const [sitelinkUrl, setSitelinkUrl] = useState<string>("");
+  const [sitelinkDupeError, setSitelinkDupeError] = useState<string | null>(null);
+  const [sitelinkUrlError, setSitelinkUrlError] = useState<string | null>(null);
+  const [sitelinkDescError, setSitelinkDescError] = useState<string | null>(null);
+  const [sitelinkItems, setSitelinkItems] = useState<Array<{ text: string; desc1: string; desc2: string; url: string }>>([{ text: "", desc1: "", desc2: "", url: "" }]);
+
   // Callouts advanced states
   const [modalCalloutTexts, setModalCalloutTexts] = useState<string[]>([]);
   const [newCalloutInput, setNewCalloutInput] = useState<string>("");
   const [calloutStartDateType, setCalloutStartDateType] = useState<"none" | "date">("none");
+  const [calloutStartError, setCalloutStartError] = useState<string | null>(null);
+  const [calloutEndError, setCalloutEndError] = useState<string | null>(null);
+  const [calloutSchedDupeError, setCalloutSchedDupeError] = useState<string | null>(null);
+  const [calloutDupeError, setCalloutDupeError] = useState<string | null>(null);
   const [calloutStartDateValue, setCalloutStartDateValue] = useState<string>("");
   const [calloutEndDateType, setCalloutEndDateType] = useState<"none" | "date">("none");
   const [calloutEndDateValue, setCalloutEndDateValue] = useState<string>("");
@@ -400,6 +543,7 @@ function LeadsPerformanceMaxContent() {
   const [snippetLanguage, setSnippetLanguage] = useState<string>("English");
   const [snippetHeaderType, setSnippetHeaderType] = useState<string>("Amenities");
   const [snippetValues, setSnippetValues] = useState<string[]>(["", "", ""]);
+  const [snippetDupeError, setSnippetDupeError] = useState<string | null>(null);
 
   // Detailed Lead Forms Modal State
   const [lfHeadline, setLfHeadline] = useState<string>("");
@@ -429,7 +573,7 @@ function LeadsPerformanceMaxContent() {
   const [lfLeadScoringQuestion, setLfLeadScoringQuestion] = useState<string>("");
   const [lfPrivacyPolicyUrl, setLfPrivacyPolicyUrl] = useState<string>("");
   const [lfBackgroundImage, setLfBackgroundImage] = useState<string>("");
-
+  
   // Submission Message
   const [lfSubHeadline, setLfSubHeadline] = useState<string>("Thank you.");
   const [lfSubDescription, setLfSubDescription] = useState<string>("We'll contact you soon.");
@@ -446,6 +590,9 @@ function LeadsPerformanceMaxContent() {
 
   // Dates
   const [promoStartDate, setPromoStartDate] = useState<string>("");
+  const [promoStartDateError, setPromoStartDateError] = useState<string | null>(null);
+  const [promoEndDateError, setPromoEndDateError] = useState<string | null>(null);
+  const [promoFinalUrlError, setPromoFinalUrlError] = useState<string | null>(null);
   const [promoEndDate, setPromoEndDate] = useState<string>("");
 
   // URL Options
@@ -460,6 +607,9 @@ function LeadsPerformanceMaxContent() {
   const [promoTermsConditions, setPromoTermsConditions] = useState<string>("");
   const [promoAdditionalTermsLink, setPromoAdditionalTermsLink] = useState<string>("");
   const [assetSchedStartDate, setAssetSchedStartDate] = useState<string>("");
+  const [assetSchedStartError, setAssetSchedStartError] = useState<string | null>(null);
+  const [assetSchedEndError, setAssetSchedEndError] = useState<string | null>(null);
+  const [assetSchedDupeError, setAssetSchedDupeError] = useState<string | null>(null);
   const [assetSchedEndDate, setAssetSchedEndDate] = useState<string>("");
   const [assetSchedules, setAssetSchedules] = useState<Array<{ id: string; day: string; start: string; end: string }>>([
     { id: "as-1", day: "All days", start: "12:00 AM", end: "12:00 AM" }
@@ -489,8 +639,10 @@ function LeadsPerformanceMaxContent() {
   // Signals State
   const [searchThemes, setSearchThemes] = useState<string[]>([]);
   const [searchThemeInput, setSearchThemeInput] = useState<string>("");
-  const [audienceName, setAudienceName] = useState<string>("");
-
+  const [audienceList, setAudienceList] = useState<Array<{ id: string; name: string; resourceName: string; type: string }>>([]);
+  const [isLoadingAudiences, setIsLoadingAudiences] = useState<boolean>(false);
+  const [selectedAudienceResource, setSelectedAudienceResource] = useState<{ resourceName: string; name: string; type: string } | null>(null);
+  
   // Audience Signal states
   const [savedAudienceSignal, setSavedAudienceSignal] = useState<{
     name: string;
@@ -498,7 +650,6 @@ function LeadsPerformanceMaxContent() {
     hasInterests: boolean;
     demographicsCount: number;
   } | null>(null);
-
   const [audienceNameInput, setAudienceNameInput] = useState<string>("");
   const [selectedDataSegments, setSelectedDataSegments] = useState<string[]>([]);
   const [interestsInput, setInterestsInput] = useState<string>("");
@@ -519,6 +670,32 @@ function LeadsPerformanceMaxContent() {
   const [ytPrefill, setYtPrefill] = useState<"prefill" | "empty">("prefill");
   const [ytDescription, setYtDescription] = useState<string>("");
 
+  // Step 0: Campaign Construction & Feeds State
+  const [merchantCenterEnabled, setMerchantCenterEnabled] = useState<boolean>(false);
+  const [merchantCenterId, setMerchantCenterId] = useState<string>("");
+  const [feedLabel, setFeedLabel] = useState<string>("");
+  const [storeLocationsEnabled, setStoreLocationsEnabled] = useState<boolean>(false);
+  const [businessProfileLocationFilter, setBusinessProfileLocationFilter] = useState<string>("ALL");
+  const [dynamicAdsFeedEnabled, setDynamicAdsFeedEnabled] = useState<boolean>(false);
+  const [dynamicFeedId, setDynamicFeedId] = useState<string>("");
+
+  // Value Rules State (Bidding Step)
+  const [isConversionValueRulesOpen, setIsConversionValueRulesOpen] = useState<boolean>(false);
+  const [valueRuleType, setValueRuleType] = useState<"NONE" | "AUDIENCE" | "DEVICE" | "GEO">("NONE");
+  const [valueRuleOperation, setValueRuleOperation] = useState<"MULTIPLY" | "ADD">("MULTIPLY");
+  const [valueRuleValue, setValueRuleValue] = useState<string>("1.2");
+  const [valueRuleConditionValue, setValueRuleConditionValue] = useState<string>("");
+
+  // Third-Party Measurement State (More Settings)
+  const [thirdPartyMeasurementEnabled, setThirdPartyMeasurementEnabled] = useState<boolean>(false);
+  const [thirdPartyVendor, setThirdPartyVendor] = useState<string>("NONE");
+  const [thirdPartyAccountId, setThirdPartyAccountId] = useState<string>("");
+
+  // Page Feeds State (More Settings)
+  const [pageFeedUrls, setPageFeedUrls] = useState<Array<{ id: string; url: string; label: string }>>([]);
+  const [newPageFeedUrlInput, setNewPageFeedUrlInput] = useState<string>("");
+  const [newPageFeedLabelInput, setNewPageFeedLabelInput] = useState<string>("");
+
   // GA4 states
   const [ga4Property, setGa4Property] = useState<string>("");
   const [ga4ImportMetrics, setGa4ImportMetrics] = useState<boolean>(true);
@@ -527,6 +704,8 @@ function LeadsPerformanceMaxContent() {
   // Step 4: Budget State
   const [budgetType, setBudgetType] = useState<"DAILY" | "TOTAL">("DAILY");
   const [dailyBudgetValue, setDailyBudgetValue] = useState<string>("");
+
+  const draftId = searchParams.get("draftId");
 
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -543,14 +722,76 @@ function LeadsPerformanceMaxContent() {
         .catch(() => {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
         });
+
+      setIsLoadingAudiences(true);
+      fetch(`${BACKEND}/api/ads/audiences?orgId=${orgId}&customerId=${customerId}`)
+        .then(r => r.json())
+        .then(data => {
+          const list = Array.isArray(data) ? data : (data.value || []);
+          setAudienceList(list);
+          setIsLoadingAudiences(false);
+        })
+        .catch(() => {
+          setAudienceList([]);
+          setIsLoadingAudiences(false);
+        });
     }
-  }, [customerId]);
+
+    if (draftId) {
+      fetch(`${BACKEND}/api/ads/campaigns/drafts?orgId=${encodeURIComponent(orgId)}${customerId ? `&customerId=${encodeURIComponent(customerId)}` : ""}`)
+        .then(r => r.json())
+        .then(drafts => {
+          if (Array.isArray(drafts)) {
+            const found = drafts.find((d: any) => d.id === draftId || d.campaignId === draftId);
+            if (found) {
+              if (found.name) setCampaignName(found.name);
+              if (found.biddingStrategy) setBiddingFocus(found.biddingStrategy as any);
+              if (found.budget) setDailyBudgetValue(String(found.budget));
+              if (found.startDate) setStartDate(new Date(found.startDate).toISOString().split("T")[0]);
+              if (found.endDate) setEndDate(new Date(found.endDate).toISOString().split("T")[0]);
+              if (found.finalUrl) setFinalUrl(found.finalUrl);
+              if (Array.isArray(found.headlines) && found.headlines.length > 0) setHeadlines(found.headlines);
+              if (Array.isArray(found.descriptions) && found.descriptions.length > 0) setDescriptions(found.descriptions);
+              if (Array.isArray(found.searchThemes) && found.searchThemes.length > 0) setSearchThemes(found.searchThemes);
+              if (Array.isArray(found.languages) && found.languages.length > 0) setSelectedLanguages(found.languages);
+              if (Array.isArray(found.geoTargets) && found.geoTargets.length > 0) {
+                if (found.geoTargets[0] === "ALL" || found.geoTargets[0] === "INDIA") {
+                  setSelectedLocation(found.geoTargets[0]);
+                } else {
+                  setSelectedLocation("CUSTOM");
+                  setCustomLocationInput(found.geoTargets[0]);
+                }
+              }
+              const dData = found.audienceSignal;
+              if (dData && typeof dData === "object") {
+                if (dData.assetGroupName) setAssetGroupName(dData.assetGroupName);
+                if (dData.businessName) setBusinessName(dData.businessName);
+                if (Array.isArray(dData.longHeadlines)) setLongHeadlines(dData.longHeadlines);
+                if (Array.isArray(dData.uploadedImages)) setUploadedImages(dData.uploadedImages);
+                if (Array.isArray(dData.uploadedLogos)) setBrandLogos(dData.uploadedLogos);
+                if (Array.isArray(dData.uploadedVideos)) setUploadedVideos(dData.uploadedVideos);
+                if (dData.ctaOption) setCtaOption(dData.ctaOption);
+              }
+            }
+          }
+        })
+        .catch(err => console.error("Error restoring draft:", err));
+    }
+  }, [customerId, draftId]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ── */}
-      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
-        <div className="flex items-center gap-4">
+      <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-1.5 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 md:hidden cursor-pointer"
+            title="Open steps menu"
+            aria-label="Open steps menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <button
             onClick={() => setShowDraftModal(true)}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
@@ -558,140 +799,280 @@ function LeadsPerformanceMaxContent() {
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-semibold">
-            <span className="text-slate-500">leads</span>
-            <span className="text-slate-600">/</span>
-            <span className="text-slate-800 font-bold flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Performance Max Setup
-            </span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-3 sm:pl-4 text-xs font-semibold">
+            <span className="text-slate-500 hidden sm:inline">Leads</span>
+            <span className="text-slate-600 hidden sm:inline">/</span>
+            <div className="flex items-center gap-1.5 bg-slate-100/80 px-2.5 py-1 rounded-lg border border-slate-200">
+              <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+              <input
+                type="text"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="Campaign Name"
+                className="bg-transparent border-0 text-slate-800 font-bold text-xs focus:outline-none focus:ring-0 max-w-[140px] sm:max-w-[220px]"
+              />
+              <Edit3 className="h-3 w-3 text-slate-400 shrink-0" />
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="font-mono">
+          <span className="font-mono text-[11px] sm:text-xs truncate max-w-[140px] sm:max-w-none">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "779-100-4787 Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900 shrink-0" />
         </div>
       </header>
 
-      {/* ── Main Layout: Sidebar & Content ── */}
-      <div className="flex-1 flex w-full pb-20 overflow-hidden">
+      {/* ── Mobile Sidebar Drawer (Slide-over overlay) ── */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
 
-        {/* Left Sidebar Navigation */}
-        <aside className="w-64 border-r border-slate-200 bg-slate-50/50 hidden md:block shrink-0 overflow-y-auto hidden-scrollbar">
-          <div className="p-6 space-y-6">
-            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-2 text-xs font-semibold text-slate-800">
-              <Sparkles className="h-4 w-4 text-primary shrink-0" />
-              <span>Performance Max</span>
+          {/* Drawer panel */}
+          <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col z-10 border-r border-slate-200 animate-in slide-in-from-left duration-200">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <h2 className="font-bold text-slate-900 text-sm">Performance Max</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            <nav className="space-y-1.5 text-xs font-sans">
+            <div className="p-4 overflow-y-auto flex-1">
+              <nav className="space-y-2 text-xs font-sans">
+                {/* 1. Bidding */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("BIDDING"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "BIDDING"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">1</div>
+                    <span className="font-semibold">Bidding</span>
+                  </div>
+                  {wizardStep === "BIDDING" && (
+                    <div className="ml-7 mt-1 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1 font-medium">
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("bidding"); setIsMobileSidebarOpen(false); }}>Bidding</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("acquisition"); setIsMobileSidebarOpen(false); }}>Customer acquisition</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("retention"); setIsMobileSidebarOpen(false); }}>Customer retention</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("local"); setIsMobileSidebarOpen(false); }}>Local customer optimization</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Campaign settings */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "CAMPAIGN_SETTINGS"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">2</div>
+                    <span className="font-semibold">Campaign settings</span>
+                  </div>
+                  {wizardStep === "CAMPAIGN_SETTINGS" && (
+                    <div className="ml-7 mt-1 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1 font-medium">
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Locations</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Languages</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>EU political ads</div>
+                      <div className="pl-3 border-l border-slate-200 space-y-1 pt-1 pb-1">
+                        <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Ad Schedule</div>
+                        <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Start and end dates</div>
+                        <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Campaign URL options</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Asset group */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "ASSET_GROUP"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">3</div>
+                    <span className="font-semibold">Asset group</span>
+                  </div>
+                  {wizardStep === "ASSET_GROUP" && (
+                    <div className="ml-7 mt-1 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1 font-medium">
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}>Assets &amp; Media</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}>Search themes</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}>Audience signal</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Budget */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("BUDGET"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "BUDGET"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">4</div>
+                    <span className="font-semibold">Budget</span>
+                  </div>
+                </div>
+
+                {/* 5. Summary */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("SUMMARY"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "SUMMARY"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">5</div>
+                    <span className="font-semibold">Summary &amp; Review</span>
+                  </div>
+                </div>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main Layout: Sidebar & Content ── */}
+      <div className="flex-1 flex w-full pb-20 overflow-hidden">
+        
+        {/* Left Sidebar Navigation */}
+        <aside className="w-64 border-r border-slate-200 bg-slate-50/50 hidden md:block shrink-0 overflow-y-auto hidden-scrollbar">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <h2 className="font-bold text-slate-800">Performance Max</h2>
+            </div>
+            <nav className="space-y-1 text-xs font-sans">
               {/* 1. Bidding */}
-              <div className="space-y-1">
+              <div>
                 <div
                   onClick={() => setWizardStep("BIDDING")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${wizardStep === "BIDDING"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-bold"
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                    wizardStep === "BIDDING"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
                       : "text-slate-500 hover:bg-white hover:text-slate-800"
-                    }`}
+                  }`}
                 >
-                  <span>1. Bidding</span>
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">1</div>
+                  <span>Bidding</span>
                 </div>
-                {wizardStep === "BIDDING" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
-                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("bidding")}>Bidding</p>
-                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("acquisition")}>Customer acquisition</p>
-                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("retention")}>Customer retention</p>
-                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("local")}>Local customer optimization</p>
-                  </div>
-                )}
+                <div className="ml-10 mt-1 space-y-2 text-[11px] text-slate-500 font-medium pb-2">
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("bidding"); }}>Bidding</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("acquisition"); }}>Customer acquisition</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("retention"); }}>Customer retention</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("local"); }}>Local customer optimization</div>
+                </div>
               </div>
 
               {/* 2. Campaign settings */}
-              <div className="space-y-1">
+              <div>
                 <div
                   onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${wizardStep === "CAMPAIGN_SETTINGS" ? "bg-primary/10 text-primary border border-primary/30 font-bold" : "text-slate-500 hover:bg-white hover:text-slate-800"}`}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                    wizardStep === "CAMPAIGN_SETTINGS"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
+                  }`}
                 >
-                  <span>2. Campaign settings</span>
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">2</div>
+                  <span>Campaign settings</span>
                 </div>
-                {wizardStep === "CAMPAIGN_SETTINGS" && (
-                  <>
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-100/30 cursor-pointer" onClick={() => setOpenCampaignSettings(!openCampaignSettings)}>
-                      <span className="font-medium text-slate-800">Campaign settings</span>
-                      {openCampaignSettings ? <ChevronUp className="h-4 w-4 text-slate-800" /> : <ChevronDown className="h-4 w-4 text-slate-800" />}
+                <div className="ml-10 mt-1 space-y-2 text-[11px] text-slate-500 font-medium pb-2">
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Locations</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Languages</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>EU political ads</div>
+                  
+                  <div className="pl-3 border-l border-slate-200 space-y-2 pt-1 pb-1">
+                    <div className="text-slate-500 font-semibold cursor-pointer hover:text-slate-900 flex items-center gap-1 transition-colors">
+                      More settings
                     </div>
-                    {openCampaignSettings && (
-                      <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
-                        <p className="hover:text-slate-800 cursor-pointer">Locations</p>
-                        <p className="hover:text-slate-800 cursor-pointer">Languages</p>
-                        <p className="hover:text-slate-800 cursor-pointer">EU political ads</p>
-                        <button onClick={() => setShowMoreCampaignSettings(!showMoreCampaignSettings)} className="mt-1 text-xs text-primary underline">
-                          more settings
-                        </button>
-                        {showMoreCampaignSettings && (
-                          <div className="ml-2 space-y-0.5 text-[10px] text-slate-500">
-                            <p>Ad Schedule</p>
-                            <p>Start and end dates</p>
-                            <p>Campaign URL options</p>
-                            <p>Page Feeds</p>
-                            <p>Devices</p>
-                            <p>Brand exclusions</p>
-                            <p>Demographic exclusions</p>
-                            <p>Audience exclusions</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Ad Schedule</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Start and end dates</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Campaign URL options</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Page Feeds</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Devices</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Brand exclusions</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Demographic exclusions</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Audience exclusions</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Third-party measurement</div>
+                  </div>
+                </div>
               </div>
 
               {/* 3. Asset group */}
-              <div className="space-y-1">
+              <div>
                 <div
                   onClick={() => setWizardStep("ASSET_GROUP")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${wizardStep === "ASSET_GROUP"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-bold"
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                    wizardStep === "ASSET_GROUP"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
                       : "text-slate-500 hover:bg-white hover:text-slate-800"
-                    }`}
+                  }`}
                 >
-                  <span>3. Asset group</span>
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">3</div>
+                  <span>Asset group</span>
                 </div>
-                {wizardStep === "ASSET_GROUP" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
-                    <p className="hover:text-slate-800">Name</p>
-                    <p className="hover:text-slate-800">Final URL</p>
-                    <p className="hover:text-slate-800">Assets</p>
-                    <p className="hover:text-slate-800">Asset optimization</p>
-                    <p className="hover:text-slate-800">Search themes</p>
-                    <p className="hover:text-slate-800">Audience signal</p>
-                  </div>
-                )}
+                <div className="ml-10 mt-1 space-y-2 text-[11px] text-slate-500 font-medium pb-2">
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>Assets &amp; Media</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>Search themes</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>Audience signal</div>
+                </div>
               </div>
 
               {/* 4. Budget */}
-              <div
-                onClick={() => setWizardStep("BUDGET")}
-                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${wizardStep === "BUDGET"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                    : "text-slate-500 hover:bg-white hover:text-slate-800"
+              <div>
+                <div
+                  onClick={() => setWizardStep("BUDGET")}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                    wizardStep === "BUDGET"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
-              >
-                <span>4. Budget</span>
+                >
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">4</div>
+                  <span>Budget</span>
+                </div>
               </div>
 
               {/* 5. Summary */}
-              <div
-                onClick={() => setWizardStep("SUMMARY")}
-                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${wizardStep === "SUMMARY"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                    : "text-slate-500 hover:bg-white hover:text-slate-800"
+              <div>
+                <div
+                  onClick={() => setWizardStep("SUMMARY")}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                    wizardStep === "SUMMARY"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
-              >
-                <span>5. Summary</span>
+                >
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">5</div>
+                  <span>Summary &amp; Review</span>
+                </div>
               </div>
             </nav>
           </div>
@@ -699,7 +1080,7 @@ function LeadsPerformanceMaxContent() {
 
         {/* Main Content Area */}
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-6 max-w-4xl mx-auto pb-28">
-
+          
           {/* STEP 1: BIDDING */}
           {wizardStep === "BIDDING" && (
             <div className="space-y-4 animate-in fade-in duration-200">
@@ -738,9 +1119,16 @@ function LeadsPerformanceMaxContent() {
                             value={targetCpaValue}
                             onChange={(e) => setTargetCpaValue(e.target.value)}
                             placeholder="0.00"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                            className={`w-full bg-slate-50 border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none ${
+                              Number(targetCpaValue) <= 0 && targetCpaValue ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"
+                            }`}
                           />
                         </div>
+                        {Number(targetCpaValue) <= 0 && targetCpaValue && (
+                          <p className="text-[11px] text-rose-500 font-semibold">
+                            Target CPA must be a positive number and cannot be negative or zero.
+                          </p>
+                        )}
                         <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
                           Alternative bid strategies like portfolios are available in settings after you create your campaign
                         </p>
@@ -756,10 +1144,17 @@ function LeadsPerformanceMaxContent() {
                             value={targetRoasValue}
                             onChange={(e) => setTargetRoasValue(e.target.value)}
                             placeholder="200"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                            className={`w-full bg-slate-50 border rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none ${
+                              Number(targetRoasValue) <= 0 && targetRoasValue ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"
+                            }`}
                           />
                           <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">%</span>
                         </div>
+                        {Number(targetRoasValue) <= 0 && targetRoasValue && (
+                          <p className="text-[11px] text-rose-500 font-semibold">
+                            Target ROAS must be a positive percentage (e.g. 200%) and cannot be negative or zero.
+                          </p>
+                        )}
                         <p className="text-[10px] text-amber-500 mt-1 leading-relaxed font-semibold">
                           Before opting into target ROAS, wait until the account that set up conversion tracking has received at least 15 conversions in the last 30 days.
                         </p>
@@ -1001,28 +1396,89 @@ function LeadsPerformanceMaxContent() {
                     <p className="text-slate-500">Select locations for this campaign</p>
                     <div className="space-y-2">
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="radio" name="leadsPmaxLoc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-primary h-4 w-4" />
+                        <input type="radio" name="LeadsPmaxLoc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-primary h-4 w-4" />
                         <span>All countries and territories</span>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="radio" name="leadsPmaxLoc" checked={selectedLocation === "INDIA"} onChange={() => setSelectedLocation("INDIA")} className="text-primary h-4 w-4" />
+                        <input type="radio" name="LeadsPmaxLoc" checked={selectedLocation === "INDIA"} onChange={() => setSelectedLocation("INDIA")} className="text-primary h-4 w-4" />
                         <span>India</span>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="radio" name="leadsPmaxLoc" checked={selectedLocation === "CUSTOM"} onChange={() => setSelectedLocation("CUSTOM")} className="text-primary h-4 w-4" />
+                        <input type="radio" name="LeadsPmaxLoc" checked={selectedLocation === "CUSTOM"} onChange={() => setSelectedLocation("CUSTOM")} className="text-primary h-4 w-4" />
                         <span>Enter another location</span>
                       </label>
                     </div>
 
                     {selectedLocation === "CUSTOM" && (
-                      <div className="pt-2 max-w-md">
-                        <input
-                          type="text"
-                          value={customLocationInput}
-                          onChange={(e) => setCustomLocationInput(e.target.value)}
-                          placeholder="Enter a location (e.g. Mumbai, India)"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
-                        />
+                      <div className="pt-2 max-w-md space-y-2">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={customLocationInput}
+                            onChange={(e) => setCustomLocationInput(e.target.value)}
+                            placeholder="Enter a location to target (e.g. Mumbai, Gujarat, India)"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                          />
+                          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          {isSearchingLocations && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Live Location Search Dropdown Results */}
+                        {locationSearchResults.length > 0 && (
+                          <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 z-10 relative">
+                            {locationSearchResults.map((loc, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  if (!selectedCustomLocations.some(l => l.canonicalName === loc.canonicalName)) {
+                                    setSelectedCustomLocations(prev => [...prev, loc]);
+                                  }
+                                  setCustomLocationInput("");
+                                  setLocationSearchResults([]);
+                                }}
+                                className="p-2.5 hover:bg-primary/10 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                              >
+                                <div>
+                                  <span className="font-semibold text-slate-800 block">{loc.canonicalName || loc.name}</span>
+                                  {loc.id && <span className="text-[10px] text-slate-500 font-mono">ID: {loc.id}</span>}
+                                </div>
+                                <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-medium">
+                                  {loc.targetType || "Location"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Unlisted / Invalid City Warning Message */}
+                        {customLocationInput.trim().length >= 2 && !isSearchingLocations && locationSearchResults.length === 0 && (
+                          <div className="p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 text-xs font-semibold flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                            <span>No matching locations found for "{customLocationInput}". Only verified cities/locations from Google Ads API can be added.</span>
+                          </div>
+                        )}
+
+                        {/* Selected Custom Locations Chips */}
+                        {selectedCustomLocations.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {selectedCustomLocations.map((loc, i) => (
+                              <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary rounded-lg text-xs font-semibold">
+                                {loc.canonicalName || loc.name}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedCustomLocations(prev => prev.filter((_, idx) => idx !== i))}
+                                  className="hover:text-rose-500"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1192,11 +1648,11 @@ function LeadsPerformanceMaxContent() {
                   <div className="space-y-3 pt-1">
                     <p className="text-slate-700">Does your campaign have European Union political ads?</p>
                     <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="radio" name="euPolleads" checked={euPoliticalAds === "YES"} onChange={() => setEuPoliticalAds("YES")} className="text-primary h-4 w-4" />
+                      <input type="radio" name="euPolLeads" checked={euPoliticalAds === "YES"} onChange={() => setEuPoliticalAds("YES")} className="text-primary h-4 w-4" />
                       <span>Yes, this campaign has EU political ads</span>
                     </label>
                     <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="radio" name="euPolleads" checked={euPoliticalAds === "NO"} onChange={() => setEuPoliticalAds("NO")} className="text-primary h-4 w-4" />
+                      <input type="radio" name="euPolLeads" checked={euPoliticalAds === "NO"} onChange={() => setEuPoliticalAds("NO")} className="text-primary h-4 w-4" />
                       <span>No, this campaign doesn't have EU political ads</span>
                     </label>
                     <p className="text-[11px] text-slate-500 pt-1">EU regulation requires Google to ask this question. Learn how an EU political ad is defined</p>
@@ -1239,76 +1695,137 @@ function LeadsPerformanceMaxContent() {
 
                 {showMoreCampaignSettings && (
                 <div className="rounded-2xl border border-slate-200 bg-white/40 divide-y divide-slate-800 overflow-hidden shadow-sm">
-
+                  
                   {/* Ad Schedule Row */}
                   {activeEditSetting === "SCHEDULE" ? (
                     <div className="p-6 bg-white space-y-4 animate-in fade-in duration-150 text-xs">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                         <span className="font-bold text-slate-800">Ad schedule</span>
-                        <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
+                        <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg cursor-pointer">Save</button>
                       </div>
+
+                      {/* Duplicate Schedule Error Banner */}
+                      {(() => {
+                        const seen = new Set<string>();
+                        let hasDuplicate = false;
+                        let duplicateDay = "";
+                        for (const item of adScheduleList) {
+                          const key = `${item.day}_${item.start}_${item.end}`;
+                          if (seen.has(key)) {
+                            hasDuplicate = true;
+                            duplicateDay = item.day;
+                            break;
+                          }
+                          seen.add(key);
+                        }
+                        if (hasDuplicate) {
+                          return (
+                            <div className="p-3 rounded-xl border border-rose-400/40 bg-rose-500/10 text-rose-600 font-medium flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                              <span>Duplicate ad schedule detected for "{duplicateDay}". Please select different days or times.</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
                       <div className="space-y-3">
-                        {adScheduleList.map((sched, idx) => (
-                          <div key={idx} className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                            <select
-                              value={sched.day}
-                              onChange={(e) => {
-                                const updated = [...adScheduleList];
-                                updated[idx].day = e.target.value;
-                                setAdScheduleList(updated);
-                              }}
-                              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
-                            >
-                              {dayOptions.map((day, i) => (
-                                <option key={i} value={day}>{day}</option>
-                              ))}
-                            </select>
+                        {adScheduleList.map((sched, idx) => {
+                          const [startH, startM] = (sched.start || "00:00").split(":").map(Number);
+                          const startTotalMinutes = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM);
 
-                            <select
-                              value={sched.start}
-                              onChange={(e) => {
-                                const updated = [...adScheduleList];
-                                updated[idx].start = e.target.value;
-                                setAdScheduleList(updated);
-                              }}
-                              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
-                            >
-                              {timeOptions.map((t, i) => (
-                                <option key={i} value={t}>{t}</option>
-                              ))}
-                            </select>
+                          return (
+                            <div key={idx} className="space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                <select
+                                  value={sched.day}
+                                  onChange={(e) => {
+                                    const updated = [...adScheduleList];
+                                    updated[idx].day = e.target.value;
+                                    setAdScheduleList(updated);
+                                  }}
+                                  className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
+                                >
+                                  {dayOptions.map((day, i) => (
+                                    <option key={i} value={day}>{day}</option>
+                                  ))}
+                                </select>
 
-                            <span className="text-slate-500">to</span>
+                                <select
+                                  value={sched.start}
+                                  onChange={(e) => {
+                                    const newStart = e.target.value;
+                                    const [newH, newM] = newStart.split(":").map(Number);
+                                    const newStartMin = newH * 60 + newM;
 
-                            <select
-                              value={sched.end}
-                              onChange={(e) => {
-                                const updated = [...adScheduleList];
-                                updated[idx].end = e.target.value;
-                                setAdScheduleList(updated);
-                              }}
-                              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
-                            >
-                              {timeOptions.map((t, i) => (
-                                <option key={i} value={t}>{t}</option>
-                              ))}
-                            </select>
+                                    const nextSlotMin = Math.min(newStartMin + 15, 24 * 60);
+                                    const nextSlotH = String(Math.floor(nextSlotMin / 60)).padStart(2, "0");
+                                    const nextSlotM = String(nextSlotMin % 60).padStart(2, "0");
+                                    const nextSlotStr = `${nextSlotH}:${nextSlotM}`;
 
-                            {adScheduleList.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => setAdScheduleList(prev => prev.filter((_, i) => i !== idx))}
-                                className="p-1.5 text-slate-500 hover:text-rose-400 ml-auto"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                                    const [currEndH, currEndM] = (sched.end || "00:00").split(":").map(Number);
+                                    const currEndMin = (isNaN(currEndH) ? 0 : currEndH) * 60 + (isNaN(currEndM) ? 0 : currEndM);
+
+                                    const updated = [...adScheduleList];
+                                    updated[idx].start = newStart;
+                                    if (currEndMin <= newStartMin) {
+                                      updated[idx].end = nextSlotStr;
+                                    }
+                                    setAdScheduleList(updated);
+                                  }}
+                                  className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
+                                >
+                                  {timeOptions.map((t, i) => (
+                                    <option key={i} value={t}>{t}</option>
+                                  ))}
+                                </select>
+
+                                <span className="text-slate-500">to</span>
+
+                                <select
+                                  value={sched.end}
+                                  onChange={(e) => {
+                                    const updated = [...adScheduleList];
+                                    updated[idx].end = e.target.value;
+                                    setAdScheduleList(updated);
+                                  }}
+                                  className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
+                                >
+                                  {timeOptions.map((t, i) => {
+                                    const [h, m] = t.split(":").map(Number);
+                                    const endMin = (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+                                    if (endMin <= startTotalMinutes && !(sched.start === "00:00" && t === "00:00")) return null;
+                                    return <option key={i} value={t}>{t}</option>;
+                                  })}
+                                </select>
+
+                                {adScheduleList.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAdScheduleList(prev => prev.filter((_, i) => i !== idx))}
+                                    className="p-1.5 text-slate-500 hover:text-rose-400 ml-auto cursor-pointer"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              {sched.start && sched.end && !(sched.start === "00:00" && (sched.end === "00:00" || sched.end === "24:00")) && sched.end <= sched.start && (
+                                <p className="text-[10px] text-rose-500 font-semibold pl-1">
+                                  End time ({sched.end}) must be after start time ({sched.start}).
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
 
                         <button
                           type="button"
-                          onClick={() => setAdScheduleList(prev => [...prev, { day: "All days", start: "00:00", end: "00:00" }])}
+                          onClick={() => {
+                            const existingDays = adScheduleList.map(s => s.day);
+                            const allDays = ["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"];
+                            const unusedDay = allDays.find(d => !existingDays.includes(d)) || "Mondays";
+                            setAdScheduleList(prev => [...prev, { day: unusedDay, start: "09:00", end: "17:00" }]);
+                          }}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/30 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
                         >
                           <Plus className="h-3.5 w-3.5" /> Add ad schedule
@@ -1332,7 +1849,7 @@ function LeadsPerformanceMaxContent() {
                     <div className="p-6 bg-white space-y-4 animate-in fade-in duration-150 text-xs">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                         <span className="font-bold text-slate-800">Start and end dates</span>
-                        <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
+                        <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg cursor-pointer">Save</button>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md">
                         <div className="space-y-1">
@@ -1340,18 +1857,83 @@ function LeadsPerformanceMaxContent() {
                           <input
                             type="date"
                             value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                            min={todayDateString}
+                            onChange={(e) => {
+                              const newStart = e.target.value;
+                              setStartDate(newStart);
+                              if (newStart && endDate) {
+                                const sDate = new Date(newStart);
+                                const eDate = new Date(endDate);
+                                if (eDate <= sDate) {
+                                  const nextDay = new Date(sDate);
+                                  nextDay.setDate(nextDay.getDate() + 1);
+                                  setEndDate(nextDay.toISOString().split("T")[0]);
+                                }
+                              }
+                            }}
+                            className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary ${startDateError ? "border-rose-400" : "border-slate-200"}`}
                           />
+                          {startDateError ? (
+                             <p className="text-[11px] text-rose-500 font-semibold">{startDateError}</p>
+                           ) : (
+                             <span className="text-[10px] text-slate-500">Must be today or a future date</span>
+                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
-                          <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
-                          />
+                          <div className="flex items-center gap-4 mb-2">
+                            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                              <input 
+                                type="radio" 
+                                name="endDateOption" 
+                                checked={endDateOption === "NONE"} 
+                                onChange={() => {
+                                  setEndDateOption("NONE");
+                                  setEndDate("");
+                                }} 
+                                className="text-primary focus:ring-primary h-3.5 w-3.5"
+                              />
+                              None
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                              <input 
+                                type="radio" 
+                                name="endDateOption" 
+                                checked={endDateOption === "SELECT"} 
+                                onChange={() => {
+                                  setEndDateOption("SELECT");
+                                  if (!endDate && startDate) {
+                                    const s = new Date(startDate);
+                                    s.setDate(s.getDate() + 1);
+                                    setEndDate(s.toISOString().split("T")[0]);
+                                  }
+                                }} 
+                                className="text-primary focus:ring-primary h-3.5 w-3.5"
+                              />
+                              Select a date
+                            </label>
+                          </div>
+                          {endDateOption === "SELECT" && (
+                            <>
+                              <input
+                                type="date"
+                                value={endDate}
+                                min={(() => {
+                                  if (!startDate) return todayDateString;
+                                  const s = new Date(startDate);
+                                  s.setDate(s.getDate() + 1);
+                                  return s.toISOString().split("T")[0];
+                                })()}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                              />
+                              {endDateError ? (
+                                 <p className="text-[11px] text-rose-500 font-semibold">{endDateError}</p>
+                               ) : (
+                                 <span className="text-[10px] text-slate-500">Must be after the start date</span>
+                               )}
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1359,7 +1941,7 @@ function LeadsPerformanceMaxContent() {
                     <div onClick={() => setActiveEditSetting("DATES")} className="p-4 hover:bg-slate-50 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
                       <div className="w-1/3 text-slate-500 font-semibold">Start and end dates</div>
                       <div className="w-2/3 text-slate-800 font-bold pr-8">
-                        Start date: {startDate ? new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"}  End date: {endDate ? new Date(endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"}
+                        Start date: {startDate ? new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"} • End date: {endDateOption === "SELECT" && endDate ? new Date(endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "No end date"}
                       </div>
                       <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
                     </div>
@@ -1460,12 +2042,140 @@ function LeadsPerformanceMaxContent() {
                         <span className="font-bold text-slate-800">Page feeds</span>
                         <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
                       </div>
-                      <p className="text-[11px] text-slate-500 leading-relaxed">Add page feeds to specify which URLs to use in your campaign. With Final URL expansion on, you will use all URLs Google knows about your website, including any page feeds. By turning Final URL expansion off, you will only use URLs from your page feeds. Learn more about page feeds</p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">Add page feeds to specify which URLs to use in your campaign. With Final URL expansion on, you will use all URLs Google knows about your website, including any page feeds. By turning Final URL expansion off, you will only use URLs from your page feeds.</p>
+                      
+                      {/* Page Feed URL Adder */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-500">Feed Landing Page URL</label>
+                            <input 
+                              type="url"
+                              value={newPageFeedUrlInput}
+                              onChange={(e) => setNewPageFeedUrlInput(e.target.value)}
+                              placeholder="https://example.com/category"
+                              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-500">Custom Label (Optional)</label>
+                            <div className="flex gap-2">
+                              <input 
+                                type="text"
+                                value={newPageFeedLabelInput}
+                                onChange={(e) => setNewPageFeedLabelInput(e.target.value)}
+                                placeholder="e.g. holiday-promo"
+                                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (newPageFeedUrlInput.trim()) {
+                                    setPageFeedUrls(prev => [
+                                      ...prev, 
+                                      { id: Date.now().toString(), url: newPageFeedUrlInput.trim(), label: newPageFeedLabelInput.trim() }
+                                    ]);
+                                    setNewPageFeedUrlInput("");
+                                    setNewPageFeedLabelInput("");
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-primary text-slate-950 font-bold rounded-lg hover:bg-secondary cursor-pointer shrink-0"
+                              >
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {pageFeedUrls.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t border-slate-200">
+                            <span className="text-[11px] text-slate-500 font-semibold">Configured Page Feeds:</span>
+                            <div className="space-y-1.5">
+                              {pageFeedUrls.map((pf, idx) => (
+                                <div key={pf.id || idx} className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 text-xs">
+                                  <div className="flex items-center gap-2 truncate pr-2">
+                                    <Globe className="h-3.5 w-3.5 text-primary shrink-0" />
+                                    <span className="text-slate-800 font-mono truncate">{pf.url}</span>
+                                    {pf.label && (
+                                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] shrink-0 font-semibold">{pf.label}</span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPageFeedUrls(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-500 hover:text-rose-400 p-1"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div onClick={() => setActiveEditSetting("PAGE_FEEDS")} className="p-4 hover:bg-slate-50 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
                       <div className="w-1/3 text-slate-500 font-semibold">Page feeds</div>
-                      <div className="w-2/3 text-slate-800 font-bold pr-8">No page feeds added</div>
+                      <div className="w-2/3 text-slate-800 font-bold pr-8">{pageFeedUrls.length > 0 ? `${pageFeedUrls.length} page feeds configured` : "No page feeds added"}</div>
+                      <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
+                    </div>
+                  )}
+
+                  {/* Third-Party Measurement Row */}
+                  {activeEditSetting === "THIRD_PARTY_MEASUREMENT" ? (
+                    <div className="p-6 bg-white space-y-4 animate-in fade-in duration-150 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <span className="font-bold text-slate-800">Third-party measurement</span>
+                        <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
+                      </div>
+                      <p className="text-[11px] text-slate-500">Connect third-party verification and measurement providers to verify ad viewability, brand safety, and campaign metrics.</p>
+                      <div className="space-y-3 pt-1">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={thirdPartyMeasurementEnabled}
+                            onChange={(e) => setThirdPartyMeasurementEnabled(e.target.checked)}
+                            className="rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
+                          />
+                          <span className="font-semibold text-slate-800">Enable third-party measurement vendor tracking</span>
+                        </label>
+                        {thirdPartyMeasurementEnabled && (
+                          <div className="ml-6 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-in fade-in duration-150">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="block text-[11px] text-slate-500 font-medium">Measurement Provider</label>
+                                <select 
+                                  value={thirdPartyVendor}
+                                  onChange={(e) => setThirdPartyVendor(e.target.value)}
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900"
+                                >
+                                  <option value="NONE">Select vendor</option>
+                                  <option value="INTEGRAL_AD_SCIENCE">Integral Ad Science (IAS)</option>
+                                  <option value="DOUBLE_VERIFY">DoubleVerify</option>
+                                  <option value="ORACLE_MOAT">Oracle Moat</option>
+                                  <option value="COMSCORE">Comscore</option>
+                                </select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="block text-[11px] text-slate-500 font-medium">Vendor Client / Account ID</label>
+                                <input 
+                                  type="text"
+                                  value={thirdPartyAccountId}
+                                  onChange={(e) => setThirdPartyAccountId(e.target.value)}
+                                  placeholder="e.g. DV-1234567"
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-mono"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div onClick={() => setActiveEditSetting("THIRD_PARTY_MEASUREMENT")} className="p-4 hover:bg-slate-50 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
+                      <div className="w-1/3 text-slate-500 font-semibold">Third-party measurement</div>
+                      <div className="w-2/3 text-slate-800 font-bold pr-8">{thirdPartyMeasurementEnabled && thirdPartyVendor !== "NONE" ? `${thirdPartyVendor} active` : "None configured"}</div>
                       <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
                     </div>
                   )}
@@ -1524,6 +2234,7 @@ function LeadsPerformanceMaxContent() {
                           <Plus className="h-3.5 w-3.5" /> New account-level brand list
                         </button>
                       </div>
+                      {/* Active Excluded Brand Lists */}
                       {createdBrandLists.length > 0 && (
                         <div className="pt-2 space-y-1.5">
                           <span className="text-[11px] text-slate-500 font-semibold">Active Excluded Brand Lists:</span>
@@ -1536,6 +2247,154 @@ function LeadsPerformanceMaxContent() {
                                 </button>
                               </span>
                             ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Brand List Creation Modal */}
+                      {showBrandListModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-xl text-xs max-h-[90vh] overflow-y-auto">
+                            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                              <h3 className="text-base font-semibold text-slate-900">Create new brand list</h3>
+                              <button type="button" onClick={() => setShowBrandListModal(false)} className="text-slate-400 hover:text-slate-600">
+                                <X className="h-5 w-5" />
+                              </button>
+                            </div>
+
+                            <div className="space-y-4">
+                              <div className="space-y-1">
+                                <label className="block text-slate-700 font-semibold">Brand list name <span className="text-rose-500">*</span></label>
+                                <input
+                                  type="text"
+                                  value={newBrandListName}
+                                  onChange={(e) => setNewBrandListName(e.target.value)}
+                                  placeholder="e.g. My Excluded Brands"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                                />
+                                {newBrandListName.trim() && createdBrandLists.some(b => b.name.toLowerCase() === newBrandListName.trim().toLowerCase()) && (
+                                  <p className="text-[11px] text-rose-500 font-semibold">
+                                    A brand list with name "{newBrandListName}" already exists. Duplicate brand list names are not allowed.
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="space-y-2 pt-2 border-t border-slate-200">
+                                <label className="block text-slate-700 font-semibold">Search and add brands</label>
+                                <div className="relative">
+                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                  <input
+                                    type="text"
+                                    value={brandSearchTerm}
+                                    onChange={(e) => setBrandSearchTerm(e.target.value)}
+                                    placeholder="Search brands to exclude (e.g. Amazon, Nike, Apple)"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                                  />
+                                </div>
+
+                                {/* Matching Available Brands List */}
+                                <div className="border border-slate-200 rounded-xl max-h-48 overflow-y-auto divide-y divide-slate-100 bg-slate-50/50">
+                                  {availableBrands
+                                    .filter(b => b.name.toLowerCase().includes(brandSearchTerm.toLowerCase()))
+                                    .slice(0, 20)
+                                    .map((brand, idx) => {
+                                      const isAdded = selectedBrandsList.some(b => b.name.toLowerCase() === brand.name.toLowerCase());
+                                      return (
+                                        <div
+                                          key={idx}
+                                          onClick={() => {
+                                            if (isAdded) {
+                                              setSelectedBrandsList(prev => prev.filter(b => b.name.toLowerCase() !== brand.name.toLowerCase()));
+                                            } else {
+                                              setSelectedBrandsList(prev => [...prev, brand]);
+                                            }
+                                          }}
+                                          className="p-2.5 flex items-center justify-between hover:bg-primary/10 cursor-pointer transition-colors"
+                                        >
+                                          <div>
+                                            <span className="font-semibold text-slate-800 block text-xs">{brand.name}</span>
+                                            <span className="text-[10px] text-slate-500 font-mono">{brand.url}</span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                                              isAdded
+                                                ? "bg-rose-50 text-rose-600 border border-rose-200"
+                                                : "bg-primary/10 text-primary border border-primary/20"
+                                            }`}
+                                          >
+                                            {isAdded ? "Remove" : "+ Add"}
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+
+                                {/* Selected Brands in this list */}
+                                {selectedBrandsList.length > 0 && (
+                                  <div className="space-y-1.5 pt-2">
+                                    <span className="text-[11px] text-slate-500 font-semibold">Selected brands ({selectedBrandsList.length}):</span>
+                                    <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                                      {selectedBrandsList.map((brand, i) => (
+                                        <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/30 text-primary text-xs font-semibold">
+                                          {brand.name}
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedBrandsList(prev => prev.filter((_, idx) => idx !== i))}
+                                          >
+                                            <X className="h-3 w-3 hover:text-rose-500" />
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowBrandListModal(false);
+                                  setSelectedBrandsList([]);
+                                  setNewBrandListName("");
+                                  setBrandSearchTerm("");
+                                }}
+                                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const trimmedName = newBrandListName.trim();
+                                  if (!trimmedName) {
+                                    alert("Please enter a brand list name.");
+                                    return;
+                                  }
+                                  if (createdBrandLists.some(b => b.name.toLowerCase() === trimmedName.toLowerCase())) {
+                                    alert(`A brand list named "${trimmedName}" already exists.`);
+                                    return;
+                                  }
+                                  if (selectedBrandsList.length === 0) {
+                                    alert("Please add at least 1 brand to exclude.");
+                                    return;
+                                  }
+                                  setCreatedBrandLists(prev => [
+                                    ...prev,
+                                    { name: trimmedName, brands: selectedBrandsList.map(b => b.name) }
+                                  ]);
+                                  setShowBrandListModal(false);
+                                  setSelectedBrandsList([]);
+                                  setNewBrandListName("");
+                                  setBrandSearchTerm("");
+                                }}
+                                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer"
+                              >
+                                Save Brand List
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1556,15 +2415,62 @@ function LeadsPerformanceMaxContent() {
                         <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
                       </div>
                       <p className="text-[11px] text-slate-500">Demographic exclusions will override any specific hints that are active on any asset groups within this campaign.</p>
-                      <div className="space-y-2 pt-1">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={turnOnAgeExclusions} onChange={(e) => setTurnOnAgeExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
-                          <span>Turn on age exclusions</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={turnOnGenderExclusions} onChange={(e) => setTurnOnGenderExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
-                          <span>Turn on gender exclusions</span>
-                        </label>
+                      <div className="space-y-4 pt-1">
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={turnOnAgeExclusions} onChange={(e) => setTurnOnAgeExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
+                            <span className="font-semibold text-slate-800">Turn on age exclusions</span>
+                          </label>
+                          {turnOnAgeExclusions && (
+                            <div className="ml-6 space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                              <p className="text-[11px] text-slate-500 mb-3">Select age ranges to exclude from the campaign. Unselected ages will be included.</p>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map((age) => (
+                                  <label key={age} className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={excludedAges.includes(age)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setExcludedAges(prev => [...prev, age]);
+                                        else setExcludedAges(prev => prev.filter(a => a !== age));
+                                      }}
+                                      className="rounded text-primary h-4 w-4" 
+                                    />
+                                    <span className="text-slate-700 text-[11px]">{age}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={turnOnGenderExclusions} onChange={(e) => setTurnOnGenderExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
+                            <span className="font-semibold text-slate-800">Turn on gender exclusions</span>
+                          </label>
+                          {turnOnGenderExclusions && (
+                            <div className="ml-6 space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                              <p className="text-[11px] text-slate-500 mb-3">Select genders to exclude from the campaign. Unselected genders will be included.</p>
+                              <div className="flex flex-wrap gap-4">
+                                {["Female", "Male", "Unknown"].map((gender) => (
+                                  <label key={gender} className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={excludedGenders.includes(gender)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setExcludedGenders(prev => [...prev, gender]);
+                                        else setExcludedGenders(prev => prev.filter(g => g !== gender));
+                                      }}
+                                      className="rounded text-primary h-4 w-4" 
+                                    />
+                                    <span className="text-slate-700 text-[11px]">{gender}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1585,26 +2491,28 @@ function LeadsPerformanceMaxContent() {
                         <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
                       </div>
                       <p className="text-[11px] text-slate-500">Exclude your data segments from this campaign.</p>
-
+                      
                       <div className="border border-slate-200 bg-slate-50 rounded-2xl p-4 space-y-3">
                         <div className="flex border-b border-slate-200">
                           <button
                             type="button"
                             onClick={() => setDataExclusionsTab("SEARCH")}
-                            className={`px-4 py-2 text-xs font-semibold border-b-2 cursor-pointer transition-all ${dataExclusionsTab === "SEARCH"
+                            className={`px-4 py-2 text-xs font-semibold border-b-2 cursor-pointer transition-all ${
+                              dataExclusionsTab === "SEARCH"
                                 ? "border-primary text-primary font-bold"
                                 : "border-transparent text-slate-500 hover:text-slate-800"
-                              }`}
+                            }`}
                           >
                             Search
                           </button>
                           <button
                             type="button"
                             onClick={() => setDataExclusionsTab("BROWSE")}
-                            className={`px-4 py-2 text-xs font-semibold border-b-2 cursor-pointer transition-all ${dataExclusionsTab === "BROWSE"
+                            className={`px-4 py-2 text-xs font-semibold border-b-2 cursor-pointer transition-all ${
+                              dataExclusionsTab === "BROWSE"
                                 ? "border-primary text-primary font-bold"
                                 : "border-transparent text-slate-500 hover:text-slate-800"
-                              }`}
+                            }`}
                           >
                             Browse
                           </button>
@@ -1714,7 +2622,7 @@ function LeadsPerformanceMaxContent() {
                   <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                     <h2 className="text-sm font-semibold text-slate-900">Asset group name & Final URL</h2>
                     <button 
-                      type="button"
+                      type="button" 
                       onClick={() => setIsAssetGroupInfoOpen(false)}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
                     >
@@ -1724,12 +2632,39 @@ function LeadsPerformanceMaxContent() {
                   
                   <div className="space-y-4 pt-1">
                     <div>
-                      <label className="block font-semibold text-slate-700">Asset group name</label>
+                      <div className="flex items-center gap-1">
+                        <label className="block font-semibold text-slate-700">Asset group name</label>
+                        <span className="text-rose-500 font-bold">*</span>
+                      </div>
                       <input type="text" value={assetGroupName} onChange={(e) => setAssetGroupName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-medium focus:border-primary focus:outline-none" />
                     </div>
-                    <div>
-                      <label className="block font-semibold text-slate-700">Final URL</label>
-                      <input type="text" value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://www.example.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono focus:border-primary focus:outline-none" />
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <label className="block font-semibold text-slate-700">Final URL</label>
+                        <span className="text-rose-500 font-bold">*</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={finalUrl}
+                        onChange={(e) => setFinalUrl(e.target.value)}
+                        placeholder="https://www.example.com"
+                        className={`w-full bg-slate-50 border rounded-xl px-4 py-2 text-xs font-mono focus:outline-none ${
+                          finalUrl && !finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")
+                            ? "border-rose-400 focus:border-rose-500"
+                            : "border-slate-200 focus:border-primary"
+                        }`}
+                      />
+                      {finalUrl && !finalUrl.startsWith("http://") && !finalUrl.startsWith("https://") && (
+                        <p className="text-[11px] text-rose-500 font-semibold">
+                          Final URL must start with a valid protocol (e.g. <span className="font-mono">https://www.example.com</span>).
+                        </p>
+                      )}
+                      {finalUrl && (finalUrl.startsWith("http://") || finalUrl.startsWith("https://")) && (
+                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center gap-1.5 mt-1">
+                          <span className="font-semibold text-slate-500">Destination:</span>
+                          <span className="text-primary font-mono truncate">{finalUrl}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1761,7 +2696,7 @@ function LeadsPerformanceMaxContent() {
                       <p className="text-[11px] text-slate-500">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about brand guidelines</a></p>
                     </div>
                     <button 
-                      type="button"
+                      type="button" 
                       onClick={() => setIsBrandGuidelinesMainOpen(false)}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
                     >
@@ -1771,7 +2706,6 @@ function LeadsPerformanceMaxContent() {
 
                   <div className="pt-2">
                     {!showBrandGuidelinesDetails ? (
-                      /* Basic Brand Guidelines View */
                       <div className="space-y-4">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1">
@@ -1789,7 +2723,6 @@ function LeadsPerformanceMaxContent() {
                           <span className="text-[10px] text-slate-500 block">Text is {businessName.length} characters out of 25</span>
                         </div>
 
-                        {/* Logos */}
                         <div className="space-y-2 pt-2 border-t border-slate-200">
                           <div className="flex items-center justify-between">
                             <label className="block text-slate-700 font-semibold">Logos</label>
@@ -1823,7 +2756,6 @@ function LeadsPerformanceMaxContent() {
                           </div>
                         </div>
 
-                        {/* More options button */}
                         <div className="pt-2">
                           <button
                             type="button"
@@ -1836,7 +2768,6 @@ function LeadsPerformanceMaxContent() {
                         </div>
                       </div>
                     ) : (
-                      /* Full Brand Guidelines Expanded Details View */
                       <div className="space-y-6 animate-in fade-in duration-200">
                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                           <h4 className="font-bold text-slate-800 text-xs">Add brand guidelines</h4>
@@ -1850,7 +2781,6 @@ function LeadsPerformanceMaxContent() {
                           </button>
                         </div>
 
-                        {/* Brand Identity */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-slate-700 text-xs">Brand identity</h4>
 
@@ -1904,14 +2834,12 @@ function LeadsPerformanceMaxContent() {
                           </div>
                         </div>
 
-                        {/* Visual Guidelines */}
                         <div className="space-y-4 pt-4 border-t border-slate-200">
                           <div>
                             <h4 className="font-semibold text-slate-700 text-xs">Visual guidelines</h4>
                             <p className="text-[11px] text-slate-500 mt-0.5">Add your brand colors and fonts to help Google AI generate on-brand videos and responsive display ads.</p>
                           </div>
 
-                          {/* Custom Colors */}
                           <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl max-w-md">
                             <span className="text-xs font-semibold text-slate-800 block">Custom colors</span>
                             <div className="grid grid-cols-2 gap-4">
@@ -1955,7 +2883,6 @@ function LeadsPerformanceMaxContent() {
                             </div>
                           </div>
 
-                          {/* Font */}
                           <div className="space-y-1 max-w-md">
                             <label className="block text-slate-700 font-semibold">Font</label>
                             <select
@@ -1977,7 +2904,6 @@ function LeadsPerformanceMaxContent() {
                           </div>
                         </div>
 
-                        {/* Text Guidelines */}
                         <div className="space-y-4 pt-4 border-t border-slate-200">
                           <div>
                             <div className="flex items-center gap-2">
@@ -1987,7 +2913,6 @@ function LeadsPerformanceMaxContent() {
                             <p className="text-[11px] text-slate-500 mt-0.5">Tell Google AI the rules it needs to follow when it creates relevant, on-brand headlines and descriptions for you. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about text guidelines</a></p>
                           </div>
 
-                          {/* Term exclusions */}
                           <div className="space-y-2 max-w-md">
                             <div className="flex justify-between items-center">
                               <label className="block text-slate-700 font-semibold">Term exclusions</label>
@@ -2000,8 +2925,13 @@ function LeadsPerformanceMaxContent() {
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" && termExclusionsInput.trim()) {
                                   e.preventDefault();
+                                  const term = termExclusionsInput.trim();
+                                  if (termExclusionsList.some(t => t.toLowerCase() === term.toLowerCase())) {
+                                    alert(`"${term}" is already in the term exclusions list.`);
+                                    return;
+                                  }
                                   if (termExclusionsList.length < 25) {
-                                    setTermExclusionsList(prev => [...prev, termExclusionsInput.trim()]);
+                                    setTermExclusionsList(prev => [...prev, term]);
                                     setTermExclusionsInput("");
                                   }
                                 }
@@ -2009,6 +2939,11 @@ function LeadsPerformanceMaxContent() {
                               placeholder="For example: Cheap, free shipping, etc. Press Enter after each word or phrase."
                               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                             />
+                            {termExclusionsInput.trim() && termExclusionsList.some(t => t.toLowerCase() === termExclusionsInput.trim().toLowerCase()) && (
+                              <p className="text-[11px] text-rose-500 font-semibold">
+                                "{termExclusionsInput.trim()}" is already in term exclusions. Duplicate terms are not allowed.
+                              </p>
+                            )}
                             {termExclusionsList.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 pt-1">
                                 {termExclusionsList.map((term, i) => (
@@ -2023,46 +2958,57 @@ function LeadsPerformanceMaxContent() {
                             )}
                           </div>
 
-                          {/* Messaging restrictions */}
                           <div className="space-y-3 max-w-md pt-2">
                             <div className="flex justify-between items-center">
                               <label className="block text-slate-700 font-semibold">Messaging restrictions</label>
                               <span className="text-[10px] text-slate-500">{messagingRestrictions.length}/40</span>
                             </div>
-                            {messagingRestrictions.map((restriction, idx) => (
-                              <div key={idx} className="space-y-1">
-                                <div className="relative">
-                                  <textarea
-                                    rows={2}
-                                    maxLength={300}
-                                    value={restriction}
-                                    onChange={(e) => {
-                                      const updated = [...messagingRestrictions];
-                                      updated[idx] = e.target.value;
-                                      setMessagingRestrictions(updated);
-                                    }}
-                                    placeholder={
-                                      idx === 0
-                                        ? "Example: Don't mention competitor names, such as Acme Corp or Plants 4 You"
-                                        : idx === 1
-                                          ? "Example: Don't use specific prices, such as $550 per night or $99 intro offer"
-                                          : "Example: Don't use 'only' or 'just for' language, such as 'for high-performance athletes only'"
-                                    }
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                                  />
-                                  {messagingRestrictions.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setMessagingRestrictions(prev => prev.filter((_, i) => i !== idx))}
-                                      className="absolute top-2 right-2 p-1 text-slate-500 hover:text-rose-400"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                  )}
+                            {messagingRestrictions.map((restriction, idx) => {
+                              const isDuplicate = restriction.trim() && messagingRestrictions.filter((r, i) => i !== idx && r.trim().toLowerCase() === restriction.trim().toLowerCase()).length > 0;
+                              return (
+                                <div key={idx} className="space-y-1">
+                                  <div className="relative">
+                                    <textarea
+                                      rows={2}
+                                      maxLength={300}
+                                      value={restriction}
+                                      onChange={(e) => {
+                                        const updated = [...messagingRestrictions];
+                                        updated[idx] = e.target.value;
+                                        setMessagingRestrictions(updated);
+                                      }}
+                                      placeholder={
+                                        idx === 0
+                                          ? "Example: Don't mention competitor names, such as Acme Corp or Plants 4 You"
+                                          : idx === 1
+                                            ? "Example: Don't use specific prices, such as $550 per night or $99 intro offer"
+                                            : "Example: Don't use 'only' or 'just for' language, such as 'for high-performance athletes only'"
+                                      }
+                                      className={`w-full bg-slate-50 border rounded-xl p-3 text-xs focus:outline-none ${
+                                        isDuplicate ? "border-rose-500 bg-rose-50/20 text-rose-900" : "border-slate-200 text-slate-900 focus:border-primary"
+                                      }`}
+                                    />
+                                    {messagingRestrictions.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setMessagingRestrictions(prev => prev.filter((_, i) => i !== idx))}
+                                        className="absolute top-2 right-2 p-1 text-slate-500 hover:text-rose-400"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="flex justify-between text-[10px]">
+                                    {isDuplicate ? (
+                                      <span className="text-rose-500 font-semibold">Duplicate restriction. Each restriction must be unique.</span>
+                                    ) : (
+                                      <span className="text-slate-500">Text is {restriction.length} characters out of 300</span>
+                                    )}
+                                    <span className="text-slate-500 font-mono">{restriction.length} / 300</span>
+                                  </div>
                                 </div>
-                                <span className="text-[10px] text-slate-500 block text-right font-mono">{restriction.length} / 300 (Text is {restriction.length} characters out of 300)</span>
-                              </div>
-                            ))}
+                              );
+                            })}
 
                             {messagingRestrictions.length < 40 && (
                               <button
@@ -2105,7 +3051,7 @@ function LeadsPerformanceMaxContent() {
                   <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                     <h2 className="text-sm font-semibold text-slate-900">Assets</h2>
                     <button 
-                      type="button"
+                      type="button" 
                       onClick={() => setIsAssetsSectionOpen(false)}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
                     >
@@ -2151,12 +3097,20 @@ function LeadsPerformanceMaxContent() {
                       {/* 2) Headlines */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-700">Headlines ({headlines.length})</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-700">Headlines ({headlines.filter(h => h.trim()).length}/3 min required)</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                            {headlines.filter(h => h.trim()).length < 3 && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                                Need at least 3
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => {
-                                const aiGens = Array.from({ length: headlines.length }, (_, i) => `AI Headline ${i + 1}: leads Boost`);
+                                const aiGens = Array.from({ length: Math.max(headlines.length, 3) }, (_, i) => `AI Headline ${i + 1}: Boost Leads ${i + 1}`);
                                 setHeadlines(aiGens);
                               }}
                               className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
@@ -2166,26 +3120,59 @@ function LeadsPerformanceMaxContent() {
                             <button type="button" onClick={() => setHeadlines(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add headline</button>
                           </div>
                         </div>
-                        {headlines.map((hl, i) => (
-                          <div key={i} className="space-y-1">
-                            <input type="text" value={hl} onChange={(e) => { const u = [...headlines]; u[i] = e.target.value; setHeadlines(u); }} maxLength={30} placeholder="Headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
-                            <div className="flex justify-between text-[10px] text-slate-500">
-                              <span>Text is {hl.length} characters out of 30</span>
-                              <span>{hl.length} / 30</span>
+                        {headlines.map((hl, i) => {
+                          const isDuplicate = hl.trim() && headlines.filter((h, idx) => idx !== i && h.trim().toLowerCase() === hl.trim().toLowerCase()).length > 0;
+                          return (
+                            <div key={i} className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={hl}
+                                  onChange={(e) => { const u = [...headlines]; u[i] = e.target.value; setHeadlines(u); }}
+                                  maxLength={30}
+                                  placeholder={`Headline ${i + 1} (required: 3 min)`}
+                                  className={`w-full bg-slate-50 border rounded-xl px-4 py-2 text-xs focus:outline-none ${isDuplicate ? "border-rose-500 focus:border-rose-600 bg-rose-50/20" : "border-slate-200 focus:border-primary"}`}
+                                />
+                                {headlines.length > 3 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setHeadlines(prev => prev.filter((_, idx) => idx !== i))}
+                                    className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 cursor-pointer transition-all"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              <div className="flex justify-between text-[10px] text-slate-500">
+                                {isDuplicate ? (
+                                  <span className="text-rose-500 font-semibold">Duplicate headline. Each headline must be unique.</span>
+                                ) : (
+                                  <span>Text is {hl.length} characters out of 30</span>
+                                )}
+                                <span>{hl.length} / 30</span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {/* 3) Long Headlines */}
                       <div className="space-y-2 pt-2 border-t border-slate-200">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-700">Long headlines ({longHeadlines.length})</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-700">Long headlines ({longHeadlines.filter(lh => lh.trim()).length}/1 min required)</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                            {longHeadlines.filter(lh => lh.trim()).length < 1 && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                                Need at least 1
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => {
-                                const aiGens = Array.from({ length: longHeadlines.length }, (_, i) => `AI Long Headline ${i + 1}: Comprehensive solutions to grow your audience and revenue.`);
+                                const aiGens = Array.from({ length: Math.max(longHeadlines.length, 1) }, (_, i) => `AI Long Headline ${i + 1}: Comprehensive solutions to grow your audience and revenue.`);
                                 setLongHeadlines(aiGens);
                               }}
                               className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
@@ -2195,26 +3182,59 @@ function LeadsPerformanceMaxContent() {
                             <button type="button" onClick={() => setLongHeadlines(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add long headline</button>
                           </div>
                         </div>
-                        {longHeadlines.map((lh, i) => (
-                          <div key={i} className="space-y-1">
-                            <input type="text" value={lh} onChange={(e) => { const u = [...longHeadlines]; u[i] = e.target.value; setLongHeadlines(u); }} maxLength={90} placeholder="Long headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
-                            <div className="flex justify-between text-[10px] text-slate-500">
-                              <span>Text is {lh.length} characters out of 90</span>
-                              <span>{lh.length} / 90</span>
+                        {longHeadlines.map((lh, i) => {
+                          const isDuplicate = lh.trim() && longHeadlines.filter((l, idx) => idx !== i && l.trim().toLowerCase() === lh.trim().toLowerCase()).length > 0;
+                          return (
+                            <div key={i} className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={lh}
+                                  onChange={(e) => { const u = [...longHeadlines]; u[i] = e.target.value; setLongHeadlines(u); }}
+                                  maxLength={90}
+                                  placeholder={`Long headline ${i + 1} (required: 1 min)`}
+                                  className={`w-full bg-slate-50 border rounded-xl px-4 py-2 text-xs focus:outline-none ${isDuplicate ? "border-rose-500 focus:border-rose-600 bg-rose-50/20" : "border-slate-200 focus:border-primary"}`}
+                                />
+                                {longHeadlines.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setLongHeadlines(prev => prev.filter((_, idx) => idx !== i))}
+                                    className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 cursor-pointer transition-all"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              <div className="flex justify-between text-[10px] text-slate-500">
+                                {isDuplicate ? (
+                                  <span className="text-rose-500 font-semibold">Duplicate long headline. Each long headline must be unique.</span>
+                                ) : (
+                                  <span>Text is {lh.length} characters out of 90</span>
+                                )}
+                                <span>{lh.length} / 90</span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {/* 4) Descriptions */}
                       <div className="space-y-2 pt-2 border-t border-slate-200">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-700">Descriptions ({descriptions.length})</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-700">Descriptions ({descriptions.filter(d => d.trim()).length}/2 min required)</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                            {descriptions.filter(d => d.trim()).length < 2 && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                                Need at least 2
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => {
-                                const aiGens = Array.from({ length: descriptions.length }, (_, i) => `AI Description ${i + 1}: High converting copies tailored for your campaigns.`);
+                                const aiGens = Array.from({ length: Math.max(descriptions.length, 2) }, (_, i) => `AI Description ${i + 1}: High converting copies tailored for your campaigns.`);
                                 setDescriptions(aiGens);
                               }}
                               className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
@@ -2224,15 +3244,40 @@ function LeadsPerformanceMaxContent() {
                             <button type="button" onClick={() => setDescriptions(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add description</button>
                           </div>
                         </div>
-                        {descriptions.map((desc, i) => (
-                          <div key={i} className="space-y-1">
-                            <input type="text" value={desc} onChange={(e) => { const u = [...descriptions]; u[i] = e.target.value; setDescriptions(u); }} maxLength={90} placeholder="Description" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
-                            <div className="flex justify-between text-[10px] text-slate-500">
-                              <span>Text is {desc.length} characters out of 90</span>
-                              <span>{desc.length} / 90</span>
+                        {descriptions.map((desc, i) => {
+                          const isDuplicate = desc.trim() && descriptions.filter((d, idx) => idx !== i && d.trim().toLowerCase() === desc.trim().toLowerCase()).length > 0;
+                          return (
+                            <div key={i} className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={desc}
+                                  onChange={(e) => { const u = [...descriptions]; u[i] = e.target.value; setDescriptions(u); }}
+                                  maxLength={90}
+                                  placeholder={`Description ${i + 1} (required: 2 min)`}
+                                  className={`w-full bg-slate-50 border rounded-xl px-4 py-2 text-xs focus:outline-none ${isDuplicate ? "border-rose-500 focus:border-rose-600 bg-rose-50/20" : "border-slate-200 focus:border-primary"}`}
+                                />
+                                {descriptions.length > 2 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDescriptions(prev => prev.filter((_, idx) => idx !== i))}
+                                    className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 cursor-pointer transition-all"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              <div className="flex justify-between text-[10px] text-slate-500">
+                                {isDuplicate ? (
+                                  <span className="text-rose-500 font-semibold">Duplicate description. Each description must be unique.</span>
+                                ) : (
+                                  <span>Text is {desc.length} characters out of 90</span>
+                                )}
+                                <span>{desc.length} / 90</span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {/* 5) Images, Videos, Animated Clips Uploads */}
@@ -2240,7 +3285,10 @@ function LeadsPerformanceMaxContent() {
                         {/* Images */}
                         <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
                           <ImageIcon className="h-5 w-5 text-primary mx-auto" />
-                          <span className="font-semibold text-slate-800 block text-xs">Images ({uploadedImages.length})</span>
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="font-semibold text-slate-800 block text-xs">Images ({uploadedImages.length})</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                          </div>
                           <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
                             + Add images
                             <input
@@ -2248,18 +3296,105 @@ function LeadsPerformanceMaxContent() {
                               accept="image/*"
                               multiple
                               onChange={(e) => {
-                                if (e.target.files) {
-                                  const filesArr = Array.from(e.target.files).map(f => f.name);
-                                  setUploadedImages(prev => [...prev, ...filesArr]);
+                                if (e.target.files && e.target.files.length > 0) {
+                                  const files = Array.from(e.target.files);
+                                  const newItems: Array<{ file: File; base64: string; name: string }> = [];
+                                  let loadedCount = 0;
+                                  let duplicateFound = false;
+
+                                  files.forEach(file => {
+                                    if (uploadedImages.some(img => img.name.includes(file.name)) || cropQueue.some(q => q.name === file.name)) {
+                                      duplicateFound = true;
+                                      loadedCount++;
+                                      return;
+                                    }
+                                    const reader = new FileReader();
+                                    reader.onload = () => {
+                                      const base64Url = reader.result as string;
+                                      if (base64Url) {
+                                        newItems.push({ file, base64: base64Url, name: file.name });
+                                      }
+                                      loadedCount++;
+                                      if (loadedCount === files.length) {
+                                        if (duplicateFound) {
+                                          alert("Duplicate image(s) ignored. Each image must be unique.");
+                                        }
+                                        if (newItems.length > 0) {
+                                          setCropQueue(prev => {
+                                            const combined = [...prev, ...newItems];
+                                            if (!currentCropItem && combined.length > 0) {
+                                              setCurrentCropItem(combined[0]);
+                                              setCropZoom(1);
+                                              setCropOffset({ x: 0, y: 0 });
+                                              setCropAspectMode("LANDSCAPE");
+                                              setCropValidationError(null);
+                                              return combined.slice(1);
+                                            }
+                                            return combined;
+                                          });
+                                        }
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  });
+                                  e.target.value = "";
                                 }
                               }}
                               className="hidden"
                             />
                           </label>
                           {uploadedImages.length > 0 && (
-                            <div className="flex flex-wrap gap-1 justify-center pt-1">
-                              {uploadedImages.map((img, idx) => (
-                                <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{img}</span>
+                            <div className="flex flex-wrap gap-1.5 justify-center pt-1">
+                              {uploadedImages.map((img: any, idx) => (
+                                <div key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 shadow-xs">
+                                  <span className="truncate max-w-[90px]">{img.name || `Image ${idx + 1}`}</span>
+                                  <span className="text-[9px] px-1 bg-slate-100 rounded text-slate-500 font-mono">
+                                    {img.fieldType === "MARKETING_IMAGE" ? "1.91:1" : "1:1"}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-400 hover:text-rose-500"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Logos */}
+                        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
+                          <ImageIcon className="h-5 w-5 text-primary mx-auto" />
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="font-semibold text-slate-800 block text-xs">Logos ({brandLogos.length})</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                          </div>
+                          <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
+                            + Add logos
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={handleLogoUpload}
+                              className="hidden"
+                            />
+                          </label>
+                          {brandLogos.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 justify-center pt-1">
+                              {brandLogos.map((logo: string, idx: number) => (
+                                <div key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 shadow-xs">
+                                  <span className="truncate max-w-[80px]">Logo {idx + 1}</span>
+                                  <span className="text-[9px] px-1 bg-slate-100 rounded text-slate-500 font-mono">1:1</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setBrandLogos(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-400 hover:text-rose-500"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
                               ))}
                             </div>
                           )}
@@ -2278,7 +3413,14 @@ function LeadsPerformanceMaxContent() {
                               onChange={(e) => {
                                 if (e.target.files) {
                                   const filesArr = Array.from(e.target.files).map(f => f.name);
-                                  setUploadedVideos(prev => [...prev, ...filesArr]);
+                                  const uniqueFiles = filesArr.filter(name => !uploadedVideos.includes(name));
+                                  if (uniqueFiles.length < filesArr.length) {
+                                    alert("Duplicate video(s) ignored. Each video must be unique.");
+                                  }
+                                  if (uniqueFiles.length > 0) {
+                                    setUploadedVideos(prev => [...prev, ...uniqueFiles]);
+                                  }
+                                  e.target.value = "";
                                 }
                               }}
                               className="hidden"
@@ -2287,7 +3429,16 @@ function LeadsPerformanceMaxContent() {
                           {uploadedVideos.length > 0 && (
                             <div className="flex flex-wrap gap-1 justify-center pt-1">
                               {uploadedVideos.map((vid, idx) => (
-                                <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{vid}</span>
+                                <div key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 shadow-xs">
+                                  <span className="truncate max-w-[100px]">{vid}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setUploadedVideos(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-400 hover:text-rose-500"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
                               ))}
                             </div>
                           )}
@@ -2306,7 +3457,14 @@ function LeadsPerformanceMaxContent() {
                               onChange={(e) => {
                                 if (e.target.files) {
                                   const filesArr = Array.from(e.target.files).map(f => f.name);
-                                  setUploadedClips(prev => [...prev, ...filesArr]);
+                                  const uniqueClips = filesArr.filter(name => !uploadedClips.includes(name));
+                                  if (uniqueClips.length < filesArr.length) {
+                                    alert("Duplicate animated clip(s) ignored. Each clip must be unique.");
+                                  }
+                                  if (uniqueClips.length > 0) {
+                                    setUploadedClips(prev => [...prev, ...uniqueClips]);
+                                  }
+                                  e.target.value = "";
                                 }
                               }}
                               className="hidden"
@@ -2315,7 +3473,16 @@ function LeadsPerformanceMaxContent() {
                           {uploadedClips.length > 0 && (
                             <div className="flex flex-wrap gap-1 justify-center pt-1">
                               {uploadedClips.map((clip, idx) => (
-                                <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{clip}</span>
+                                <div key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 shadow-xs">
+                                  <span className="truncate max-w-[100px]">{clip}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setUploadedClips(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-400 hover:text-rose-500"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
                               ))}
                             </div>
                           )}
@@ -2415,24 +3582,6 @@ function LeadsPerformanceMaxContent() {
                             + Callouts {savedCallouts.length > 0 && `(${savedCallouts.length})`}
                           </button>
                         </div>
-
-                        {/* Display active saved extensions */}
-                        {(savedPromotions.length > 0 || savedPrices.length > 0 || savedSnippets.length > 0 || savedCallouts.length > 0) && (
-                          <div className="pt-2 space-y-2">
-                            <span className="text-[11px] text-slate-500 font-semibold block">Added Extensions:</span>
-                            <div className="flex flex-wrap gap-2">
-                              {savedPromotions.map((p, i) => (
-                                <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Promo: {p.item || "Discount"}</span>
-                              ))}
-                              {savedPrices.map((pr, i) => (
-                                <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Price: {pr.price}</span>
-                              ))}
-                              {savedCallouts.map((co, i) => (
-                                <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Callout: {co}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -2465,7 +3614,7 @@ function LeadsPerformanceMaxContent() {
                       <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-semibold">Optional</span>
                     </div>
                     <button 
-                      type="button"
+                      type="button" 
                       onClick={() => setIsMoreOptionsCardOpen(false)}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
                     >
@@ -2478,25 +3627,46 @@ function LeadsPerformanceMaxContent() {
                     <div className="space-y-2">
                       <h3 className="font-semibold text-slate-800 text-xs">Display path</h3>
                       <p className="text-[11px] text-slate-500">Add paths to your display URL to show people where your ad will take them.</p>
-                      <div className="flex items-center gap-2 max-w-md">
-                        <span className="text-xs text-slate-500 font-mono">example.com/</span>
-                        <input
-                          type="text"
-                          maxLength={15}
-                          placeholder="Path 1"
-                          value={displayPath1}
-                          onChange={(e) => setDisplayPath1(e.target.value)}
-                          className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
-                        />
-                        <span className="text-xs text-slate-500">/</span>
-                        <input
-                          type="text"
-                          maxLength={15}
-                          placeholder="Path 2"
-                          value={displayPath2}
-                          onChange={(e) => setDisplayPath2(e.target.value)}
-                          className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
-                        />
+                      <div className="space-y-1.5 max-w-md">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 font-mono">
+                            {finalUrl ? (finalUrl.replace(/^https?:\/\//, "").split("/")[0] || "example.com") : "example.com"}/
+                          </span>
+                          <input
+                            type="text"
+                            maxLength={15}
+                            placeholder="Path 1"
+                            value={displayPath1}
+                            onChange={(e) => setDisplayPath1(e.target.value)}
+                            className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                          />
+                          <span className="text-xs text-slate-500">/</span>
+                          <input
+                            type="text"
+                            maxLength={15}
+                            placeholder="Path 2"
+                            value={displayPath2}
+                            onChange={(e) => setDisplayPath2(e.target.value)}
+                            className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                          />
+                        </div>
+
+                        {/* Live Demo URL Preview */}
+                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center gap-1.5">
+                          <span className="font-semibold text-slate-500">Demo Preview:</span>
+                          <span className="text-primary font-mono truncate">
+                            {finalUrl ? (finalUrl.replace(/^https?:\/\//, "").split("/")[0] || "example.com") : "example.com"}
+                            {displayPath1 ? `/${displayPath1}` : displayPath2 ? `/${displayPath2}` : ""}
+                            {displayPath1 && displayPath2 ? `/${displayPath2}` : ""}
+                          </span>
+                        </div>
+
+                        {/* Immediate Validation Message */}
+                        {displayPath2.trim() && !displayPath1.trim() && (
+                          <p className="text-[11px] text-rose-500 font-semibold pl-0.5">
+                            Path 1 is required when Path 2 is set. Please fill Path 1 or Path 2 will be automatically moved to Path 1.
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -2705,7 +3875,7 @@ function LeadsPerformanceMaxContent() {
                   <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                     <h2 className="text-sm font-semibold text-slate-900">Asset optimization</h2>
                     <button 
-                      type="button"
+                      type="button" 
                       onClick={() => setIsAssetOptimizationCardOpen(false)}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
                     >
@@ -2798,7 +3968,6 @@ function LeadsPerformanceMaxContent() {
                         </div>
                       </div>
 
-                      {/* Image Enhancement Visual Example */}
                       <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
                         <span className="font-semibold text-slate-700 block text-xs">Example of landing page images</span>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2839,7 +4008,6 @@ function LeadsPerformanceMaxContent() {
                         </div>
                       </div>
 
-                      {/* Video Enhancement Examples */}
                       <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
                         <span className="font-semibold text-slate-700 block text-xs">Examples of video enhancement</span>
                         <p className="text-[11px] text-slate-500 leading-relaxed">
@@ -2852,7 +4020,6 @@ function LeadsPerformanceMaxContent() {
                       </div>
                     </div>
 
-                    {/* EU Labeling Footer */}
                     <p className="text-[10px] text-slate-500 border-t border-slate-200 pt-3 leading-relaxed">
                       Ads using image or video assets optimized by these features will be labeled as created or edited with AI when shown in the European Union (EU), India, and New York state, in the US. Text assets on matters of public interest will also be labeled when shown in the EU.{" "}
                       <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more about AI labeling requirements</a>
@@ -2884,7 +4051,7 @@ function LeadsPerformanceMaxContent() {
                   <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                     <h2 className="text-sm font-semibold text-slate-900">Signals</h2>
                     <button 
-                      type="button"
+                      type="button" 
                       onClick={() => setIsSignalsOpen(false)}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
                     >
@@ -2980,7 +4147,7 @@ function LeadsPerformanceMaxContent() {
                 {/* Select Budget Type */}
                 <div className="space-y-3 pt-2">
                   <label className="block font-semibold text-slate-700">Select budget type</label>
-
+                  
                   <div className="space-y-3">
                     {/* Daily Budget Option */}
                     <label className={`block p-4 rounded-xl border transition-all cursor-pointer ${budgetType === "DAILY" ? "bg-primary/10 border-primary" : "bg-slate-50 border-slate-200 hover:border-slate-300"}`}>
@@ -3020,20 +4187,37 @@ function LeadsPerformanceMaxContent() {
 
                 {/* Budget Amount Input */}
                 <div className="space-y-3 pt-3 border-t border-slate-200">
-                  <label className="block font-semibold text-slate-700">
-                    {budgetType === "DAILY" ? "Average daily budget amount" : "Campaign total budget amount"}
-                  </label>
+                  <div className="flex items-center gap-1">
+                    <label className="block font-semibold text-slate-700">
+                      {budgetType === "DAILY" ? "Average daily budget amount" : "Campaign total budget amount"}
+                    </label>
+                    <span className="text-rose-500 font-bold">*</span>
+                  </div>
                   <div className="relative max-w-xs">
                     <span className="absolute left-3.5 top-2.5 font-bold text-slate-500">₹</span>
                     <input
-                      type="text"
+                      type="number"
                       value={dailyBudgetValue}
                       onChange={(e) => setDailyBudgetValue(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-900 font-medium focus:border-primary focus:outline-none"
+                      className={`w-full bg-slate-50 border rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-900 font-medium focus:outline-none ${
+                        !dailyBudgetValue || Number(dailyBudgetValue) <= 0
+                          ? "border-rose-400 focus:border-rose-500"
+                          : "border-slate-200 focus:border-primary"
+                      }`}
                     />
                   </div>
-                  {!dailyBudgetValue && <p className="text-rose-400 font-semibold text-[11px]">Value is required</p>}
+                  {!dailyBudgetValue && <p className="text-rose-500 font-semibold text-[11px]">Value is required.</p>}
+                  {dailyBudgetValue && Number(dailyBudgetValue) <= 0 && (
+                    <p className="text-rose-500 font-semibold text-[11px]">Budget cannot be negative or zero. Please enter a valid positive amount.</p>
+                  )}
+                  {dailyBudgetValue && Number(dailyBudgetValue) > 0 && (
+                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center gap-2 max-w-md">
+                      <span className="font-semibold text-slate-500">Est. Monthly Max:</span>
+                      <span className="font-mono text-primary font-bold">₹{(Number(dailyBudgetValue) * 30.4).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+                      <span className="text-[10px] text-slate-500">(~30.4 days)</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Campaign Dates Card for Campaign Total Budget */}
@@ -3086,19 +4270,283 @@ function LeadsPerformanceMaxContent() {
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
               <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Your campaign is almost ready to publish</h1>
 
-              {/* Issues Card */}
-              <div className="p-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 space-y-3 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-rose-400" />
-                  <h2 className="text-sm font-bold text-rose-200">Issues</h2>
+              {/* Submission Error Card */}
+              {submitError && (
+                <div className="p-4 rounded-2xl border border-rose-500/50 bg-rose-500/10 text-rose-300 flex items-start gap-3 shadow-sm">
+                  <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-rose-200 text-xs">Failed to publish campaign</p>
+                    <p className="text-[11px] text-rose-300 leading-relaxed">{submitError}</p>
+                  </div>
                 </div>
-                <p className="font-semibold text-rose-200">Fix these issues to run your campaign</p>
-                <ul className="space-y-1.5 list-disc list-inside text-[11px] text-rose-300">
-                  <li><strong>Add a budget:</strong> To publish your campaign, enter a budget</li>
-                  <li><strong>Final URL:</strong> Enter a valid URL (ex. https://www.example.com)</li>
-                  <li><strong>Budget:</strong> Value is required</li>
-                </ul>
-              </div>
+              )}
+
+              {/* Issues Card with Individual "Fix it" Buttons */}
+              {(() => {
+                const issues: Array<{ id: string; parameter: string; message: string; onFix: () => void }> = [];
+
+                if (!dailyBudgetValue || isNaN(Number(dailyBudgetValue)) || Number(dailyBudgetValue) <= 0) {
+                  issues.push({
+                    id: "budget",
+                    parameter: "Budget",
+                    message: Number(dailyBudgetValue) <= 0 && dailyBudgetValue ? "Budget cannot be negative or zero" : "Value is required",
+                    onFix: () => {
+                      setWizardStep("BUDGET");
+                    }
+                  });
+                }
+
+                if (!finalUrl || (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://"))) {
+                  issues.push({
+                    id: "finalUrl",
+                    parameter: "Final URL",
+                    message: "Enter a valid URL (ex. https://www.example.com)",
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setIsAssetGroupInfoOpen(true);
+                    }
+                  });
+                }
+
+                if (uploadedImages.length === 0) {
+                  issues.push({
+                    id: "marketingImages",
+                    parameter: "Marketing Images",
+                    message: "Performance Max requires at least 1 marketing image (upload in Asset Group)",
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setIsAssetsSectionOpen(true);
+                    }
+                  });
+                }
+
+                const validH = headlines.filter(h => h && h.trim());
+                const uniqueH = Array.from(new Set(validH.map(h => h.trim().toLowerCase())));
+                if (validH.length < 3) {
+                  issues.push({
+                    id: "headlines",
+                    parameter: "Headlines",
+                    message: `Performance Max requires at least 3 headlines (currently ${validH.length}/3)`,
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setIsAssetsSectionOpen(true);
+                    }
+                  });
+                } else if (uniqueH.length < validH.length) {
+                  issues.push({
+                    id: "duplicateHeadlines",
+                    parameter: "Headlines",
+                    message: "Duplicate headlines detected. Each headline must be unique.",
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setIsAssetsSectionOpen(true);
+                    }
+                  });
+                }
+
+                const validLH = longHeadlines.filter(lh => lh && lh.trim());
+                const uniqueLH = Array.from(new Set(validLH.map(lh => lh.trim().toLowerCase())));
+                if (validLH.length < 1) {
+                  issues.push({
+                    id: "longHeadlines",
+                    parameter: "Long headlines",
+                    message: `Performance Max requires at least 1 long headline (currently ${validLH.length}/1)`,
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setIsAssetsSectionOpen(true);
+                    }
+                  });
+                } else if (uniqueLH.length < validLH.length) {
+                  issues.push({
+                    id: "duplicateLongHeadlines",
+                    parameter: "Long headlines",
+                    message: "Duplicate long headlines detected. Each long headline must be unique.",
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setIsAssetsSectionOpen(true);
+                    }
+                  });
+                }
+
+                const validD = descriptions.filter(d => d && d.trim());
+                const uniqueD = Array.from(new Set(validD.map(d => d.trim().toLowerCase())));
+                if (validD.length < 2) {
+                  issues.push({
+                    id: "descriptions",
+                    parameter: "Descriptions",
+                    message: `Performance Max requires at least 2 descriptions (currently ${validD.length}/2)`,
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setIsAssetsSectionOpen(true);
+                    }
+                  });
+                } else if (uniqueD.length < validD.length) {
+                  issues.push({
+                    id: "duplicateDescriptions",
+                    parameter: "Descriptions",
+                    message: "Duplicate descriptions detected. Each description must be unique.",
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setIsAssetsSectionOpen(true);
+                    }
+                  });
+                }
+
+                if (endDateOption === "SELECT" && endDate && startDate && endDate <= startDate) {
+                  issues.push({
+                    id: "dates",
+                    parameter: "Campaign Dates",
+                    message: `End Date (${endDate}) must be after Start Date (${startDate})`,
+                    onFix: () => {
+                      setWizardStep("CAMPAIGN_SETTINGS");
+                      setShowMoreCampaignSettings(true);
+                      setActiveEditSetting("DATES");
+                    }
+                  });
+                }
+
+                if (adScheduleList.some(s => s.start && s.end && !(s.start === "00:00" && (s.end === "00:00" || s.end === "24:00")) && s.end <= s.start)) {
+                  issues.push({
+                    id: "schedule",
+                    parameter: "Ad Schedule",
+                    message: "End time must not be less than or equal to start time",
+                    onFix: () => {
+                      setWizardStep("CAMPAIGN_SETTINGS");
+                      setShowMoreCampaignSettings(true);
+                      setActiveEditSetting("SCHEDULE");
+                    }
+                  });
+                }
+
+                // Check for duplicate schedules in review issues
+                const schedKeys = new Set<string>();
+                let dupSchedFound = false;
+                let dupSchedDay = "";
+                for (const item of adScheduleList) {
+                  const key = `${item.day}_${item.start}_${item.end}`;
+                  if (schedKeys.has(key)) {
+                    dupSchedFound = true;
+                    dupSchedDay = item.day;
+                    break;
+                  }
+                  schedKeys.add(key);
+                }
+                if (dupSchedFound) {
+                  issues.push({
+                    id: "duplicateSchedule",
+                    parameter: "Ad Schedule",
+                    message: `Duplicate ad schedule detected for "${dupSchedDay}". Please remove or change duplicate entries.`,
+                    onFix: () => {
+                      setWizardStep("CAMPAIGN_SETTINGS");
+                      setShowMoreCampaignSettings(true);
+                      setActiveEditSetting("SCHEDULE");
+                    }
+                  });
+                }
+
+                if (useDiffMobileUrl && mobileFinalUrl && mobileFinalUrl.trim() && !mobileFinalUrl.startsWith("http://") && !mobileFinalUrl.startsWith("https://")) {
+                  issues.push({
+                    id: "mobileFinalUrl",
+                    parameter: "Mobile Final URL",
+                    message: "The protocol (http:// or https://) is missing. Example: https://m.example.com",
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setIsAssetGroupInfoOpen(true);
+                    }
+                  });
+                }
+
+                const invalidSitelink = savedSitelinks.find(s => s.url && s.url.trim() && !s.url.startsWith("http://") && !s.url.startsWith("https://"));
+                if (invalidSitelink) {
+                  issues.push({
+                    id: "sitelinkUrl",
+                    parameter: "Sitelinks",
+                    message: `The protocol (http:// or https://) is missing for "${invalidSitelink.text || "Sitelink"}". Example: https://www.example.com/link`,
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setActiveModal("SITELINKS");
+                    }
+                  });
+                }
+
+                const invalidPromo = savedPromotions.find(p => p.url && p.url.trim() && !p.url.startsWith("http://") && !p.url.startsWith("https://"));
+                if (invalidPromo) {
+                  issues.push({
+                    id: "promoUrl",
+                    parameter: "Promotions",
+                    message: `The protocol (http:// or https://) is missing for "${invalidPromo.item || "Promotion"}". Example: https://www.example.com/promo`,
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setActiveModal("PROMOTIONS");
+                    }
+                  });
+                }
+
+                const invalidPrice = savedPrices.find(p => p.url && p.url.trim() && !p.url.startsWith("http://") && !p.url.startsWith("https://"));
+                if (invalidPrice) {
+                  issues.push({
+                    id: "priceUrl",
+                    parameter: "Prices",
+                    message: `The protocol (http:// or https://) is missing for Price asset "${invalidPrice.type || "Price"}". Example: https://www.example.com/pricing`,
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setActiveModal("PRICES");
+                    }
+                  });
+                }
+
+                // Structured Snippets duplicate values check
+                const snippetWithDupe = savedSnippets.find(sn => {
+                  const lowers = sn.values.map(v => v.trim().toLowerCase());
+                  return lowers.some((v, i) => lowers.indexOf(v) !== i);
+                });
+                if (snippetWithDupe) {
+                  issues.push({
+                    id: "duplicateSnippetValues",
+                    parameter: "Structured Snippets",
+                    message: `Duplicate values in "${snippetWithDupe.header}" snippet. Each value must be unique.`,
+                    onFix: () => {
+                      setWizardStep("ASSET_GROUP");
+                      setActiveModal("SNIPPETS");
+                    }
+                  });
+                }
+
+                if (issues.length === 0) return null;
+
+                return (
+                  <div className="p-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 space-y-3 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-rose-400" />
+                      <h2 className="text-sm font-bold text-rose-200">Issues</h2>
+                    </div>
+                    <p className="font-semibold text-rose-200">Fix these issues to run your campaign</p>
+
+                    <div className="space-y-2 pt-1">
+                      {issues.map((issue) => (
+                        <div
+                          key={issue.id}
+                          className="p-3.5 rounded-xl border border-rose-500/40 bg-white flex items-center justify-between text-rose-900 shadow-sm"
+                        >
+                          <div className="flex items-center gap-2.5 font-medium text-xs">
+                            <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                            <span>
+                              <strong className="text-slate-900">{issue.parameter}:</strong> {issue.message}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={issue.onFix}
+                            className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all cursor-pointer shadow shrink-0"
+                          >
+                            Fix it
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Recommendations Card */}
               <div className="p-6 rounded-2xl border border-blue-500/30 bg-blue-500/10 space-y-2 shadow-sm">
@@ -3124,7 +4572,12 @@ function LeadsPerformanceMaxContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <span className="text-slate-500 block text-[11px]">Campaign name</span>
-                    <span className="font-bold text-slate-900 text-sm">leads-Performance Max-16</span>
+                    <input
+                      type="text"
+                      value={campaignName}
+                      onChange={(e) => setCampaignName(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-900 font-bold text-xs mt-1 w-full focus:outline-none focus:border-primary"
+                    />
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[11px]">Campaign type</span>
@@ -3132,7 +4585,7 @@ function LeadsPerformanceMaxContent() {
                   </div>
                   <div className="md:col-span-2">
                     <span className="text-slate-500 block text-[11px]">Goal</span>
-                    <span className="font-bold text-slate-900">Downloads, Phone call leads</span>
+                    <span className="font-bold text-slate-900">Leads (Downloads, Phone call leads)</span>
                   </div>
                 </div>
               </div>
@@ -3237,7 +4690,7 @@ function LeadsPerformanceMaxContent() {
                     </div>
                     <div>
                       <span className="text-slate-500 block text-[11px]">Audience</span>
-                      <span className="text-slate-500 italic">{audienceName || "No signal provided"}</span>
+                      <span className="text-slate-500 italic">{selectedAudienceResource?.name || "No signal provided"}</span>
                     </div>
                   </div>
                 </div>
@@ -3301,18 +4754,355 @@ function LeadsPerformanceMaxContent() {
             </button>
           ) : (
             <button
+              disabled={isSubmitting}
               onClick={async () => {
-                if (!dailyBudgetValue) {
-                  alert("Please fix issues before publishing: Add a budget (Value is required)");
+                setSubmitError(null);
+
+                // 1. Budget validation (cannot be negative or zero)
+                if (!dailyBudgetValue || isNaN(Number(dailyBudgetValue)) || Number(dailyBudgetValue) <= 0) {
+                  setSubmitError("Budget cannot be negative or zero. Please enter a valid positive amount.");
                   return;
                 }
-                alert(`leads Performance Max campaign "leads-Performance Max-9" published successfully!`);
-                router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+
+                // 2. Final URL validation (must begin with http:// or https://)
+                const trimmedFinalUrl = finalUrl ? finalUrl.trim() : "";
+                if (!trimmedFinalUrl || (!trimmedFinalUrl.startsWith("http://") && !trimmedFinalUrl.startsWith("https://"))) {
+                  setSubmitError("Final URL must start with a valid protocol (http:// or https://). Example: https://www.example.com");
+                  return;
+                }
+
+                // 3. Numeric & percentage fields must not be negative
+                if (biddingFocus === "Target CPA" && targetCpaValue) {
+                  const val = Number(targetCpaValue);
+                  if (isNaN(val) || val <= 0) {
+                    setSubmitError("Target CPA must be a positive number and cannot be negative or zero.");
+                    return;
+                  }
+                }
+                if (biddingFocus === "Target ROAS" && targetRoasValue) {
+                  const val = Number(targetRoasValue);
+                  if (isNaN(val) || val <= 0) {
+                    setSubmitError("Target ROAS percentage must be a positive number (e.g. 200%) and cannot be negative or zero.");
+                    return;
+                  }
+                }
+
+                // 4. Start Date cannot be in the past
+                const todayIsoStr = new Date().toISOString().split("T")[0];
+                if (startDate && startDate < todayIsoStr) {
+                  setSubmitError(`Start Date (${startDate}) cannot be in the past. Please select today (${todayIsoStr}) or a future date.`);
+                  return;
+                }
+
+                // 5. Marketing Images validation
+                if (uploadedImages.length === 0) {
+                  setSubmitError("Performance Max requires at least 1 marketing image in the Asset Group (upload via + Add images).");
+                  return;
+                }
+
+                // 6. Headlines & Descriptions validation
+                const validHeadlines = headlines.filter(h => h && h.trim());
+                if (validHeadlines.length < 3) {
+                  setSubmitError("Please provide at least 3 headlines in the Asset Group (Google Performance Max requirement).");
+                  return;
+                }
+                const uniqueHeadlines = Array.from(new Set(validHeadlines.map(h => h.trim().toLowerCase())));
+                if (uniqueHeadlines.length < validHeadlines.length) {
+                  setSubmitError("Duplicate headlines detected. Every headline in the Asset Group must be unique.");
+                  return;
+                }
+
+                const validLongHeadlines = longHeadlines.filter(lh => lh && lh.trim());
+                if (validLongHeadlines.length < 1) {
+                  setSubmitError("Please provide at least 1 long headline in the Asset Group (Google Performance Max requirement).");
+                  return;
+                }
+                const uniqueLongHeadlines = Array.from(new Set(validLongHeadlines.map(lh => lh.trim().toLowerCase())));
+                if (uniqueLongHeadlines.length < validLongHeadlines.length) {
+                  setSubmitError("Duplicate long headlines detected. Every long headline in the Asset Group must be unique.");
+                  return;
+                }
+
+                const validDescriptions = descriptions.filter(d => d && d.trim());
+                if (validDescriptions.length < 2) {
+                  setSubmitError("Please provide at least 2 descriptions in the Asset Group (Google Performance Max requirement).");
+                  return;
+                }
+                const uniqueDescriptions = Array.from(new Set(validDescriptions.map(d => d.trim().toLowerCase())));
+                if (uniqueDescriptions.length < validDescriptions.length) {
+                  setSubmitError("Duplicate descriptions detected. Every description in the Asset Group must be unique.");
+                  return;
+                }
+
+                // 7. Tracking Templates validation
+                if (trackingTemplate.trim()) {
+                  const hasTag = /\{(?:lpurl|unescapedlpurl|escapedlpurl|lpurlpath|2escapedlpurl)\}/i.test(trackingTemplate.trim());
+                  if (!hasTag) {
+                    setSubmitError("Tracking template must contain a landing page parameter tag (e.g. {lpurl}). Example: https://tracking.example.com/?url={lpurl}");
+                    return;
+                  }
+                }
+                if (assetGroupTrackingTemplate.trim()) {
+                  const hasTag = /\{(?:lpurl|unescapedlpurl|escapedlpurl|lpurlpath|2escapedlpurl)\}/i.test(assetGroupTrackingTemplate.trim());
+                  if (!hasTag) {
+                    setSubmitError("Asset Group Tracking template must contain a landing page parameter tag (e.g. {lpurl}). Example: https://tracking.example.com/?url={lpurl}");
+                    return;
+                  }
+                }
+
+                // 8. Ad Schedule End time and Duplicate validation
+                const checkSchedKeys = new Set<string>();
+                for (const sched of adScheduleList) {
+                  const key = `${sched.day}_${sched.start}_${sched.end}`;
+                  if (checkSchedKeys.has(key)) {
+                    setSubmitError(`Duplicate ad schedule detected for "${sched.day}". Please remove or change duplicate entries before publishing.`);
+                    return;
+                  }
+                  checkSchedKeys.add(key);
+
+                  if (sched.start && sched.end && !(sched.start === "00:00" && (sched.end === "00:00" || sched.end === "24:00"))) {
+                    if (sched.end <= sched.start) {
+                      setSubmitError(`Ad schedule end time (${sched.end}) must not be less than or equal to start time (${sched.start}) for ${sched.day}.`);
+                      return;
+                    }
+                  }
+                }
+
+                // 9. End Date strictly after Start Date validation
+                const effectiveEndDate = endDateOption === "SELECT" && endDate ? endDate : undefined;
+                if (startDate && effectiveEndDate && effectiveEndDate <= startDate) {
+                  setSubmitError(`End Date (${effectiveEndDate}) must be after Start Date (${startDate}). Please select a date starting from the next day.`);
+                  return;
+                }
+
+                // 10. Mobile Number must be 10 digits validation
+                if (callPhone && callPhone.trim()) {
+                  const digits = callPhone.replace(/[^0-9]/g, "");
+                  const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+                  if (clean10.length !== 10) {
+                    setSubmitError("Mobile number must be exactly 10 digits (e.g. 9876543210).");
+                    return;
+                  }
+                }
+
+                // 11. Extension & Sub-Asset URLs Protocol Validation
+                if (useDiffMobileUrl && mobileFinalUrl && mobileFinalUrl.trim()) {
+                  const mfUrl = mobileFinalUrl.trim();
+                  if (!mfUrl.startsWith("http://") && !mfUrl.startsWith("https://")) {
+                    setSubmitError(`Mobile Final URL (${mfUrl}) must start with http:// or https://.`);
+                    return;
+                  }
+                }
+
+                for (let si = 0; si < savedSitelinks.length; si++) {
+                  const st = savedSitelinks[si];
+                  if (st.url && st.url.trim()) {
+                    const cleanUrl = st.url.trim();
+                    if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+                      setSubmitError(`Sitelink "${st.text || si + 1}" Final URL (${cleanUrl}) must start with http:// or https:// (e.g. https://${cleanUrl}).`);
+                      return;
+                    }
+                  }
+                }
+
+                for (let pi = 0; pi < savedPromotions.length; pi++) {
+                  const pr = savedPromotions[pi];
+                  if (pr.url && pr.url.trim()) {
+                    const cleanUrl = pr.url.trim();
+                    if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+                      setSubmitError(`Promotion "${pr.item || pi + 1}" Final URL (${cleanUrl}) must start with http:// or https:// (e.g. https://${cleanUrl}).`);
+                      return;
+                    }
+                  }
+                }
+
+                for (let pri = 0; pri < savedPrices.length; pri++) {
+                  const prc = savedPrices[pri];
+                  if (prc.url && prc.url.trim()) {
+                    const cleanUrl = prc.url.trim();
+                    if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+                      setSubmitError(`Price item "${prc.type || pri + 1}" Final URL (${cleanUrl}) must start with http:// or https:// (e.g. https://${cleanUrl}).`);
+                      return;
+                    }
+                  }
+                }
+
+                // Structured Snippets duplicate guard — zero backend requests if invalid
+                for (const sn of savedSnippets) {
+                  const lowers = sn.values.map(v => v.trim().toLowerCase()).filter(Boolean);
+                  const hasDupe = lowers.some((v, i) => lowers.indexOf(v) !== i);
+                  if (hasDupe) {
+                    setSubmitError(`Duplicate values in "${sn.header}" structured snippet. Each value must be unique. Please edit the snippet and remove duplicates.`);
+                    setWizardStep("ASSET_GROUP");
+                    setActiveModal("SNIPPETS");
+                    return;
+                  }
+                }
+
+                setIsSubmitting(true);
+                try {
+                  const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                  const targetCpaNum = biddingFocus === "Target CPA" && targetCpaValue ? Number(targetCpaValue) : undefined;
+                  const targetRoasNum = biddingFocus === "Target ROAS" && targetRoasValue ? Number(targetRoasValue) : undefined;
+
+                  const payload = {
+                    customerId: customerId || "1234567890",
+                    campaignName: campaignName || "Leads-Performance Max-1",
+                    finalUrl: finalUrl.trim(),
+                    businessName: businessName.trim() || undefined,
+                    biddingFocus: biddingFocus,
+                    targetCpa: targetCpaNum,
+                    targetRoas: targetRoasNum,
+                    onlyNewCustomers: onlyBidNewCustomers,
+                    reengageLapsedCustomers: adjustLapsedCustomers,
+                    startDate: startDate || undefined,
+                    endDate: effectiveEndDate,
+                    locations: selectedLocation === "INDIA"
+                      ? ["India"]
+                      : selectedLocation === "CUSTOM"
+                        ? (selectedCustomLocations.length > 0
+                            ? selectedCustomLocations.map(l => l.canonicalName || l.name)
+                            : (customLocationInput ? [customLocationInput] : ["India"]))
+                        : ["All countries"],
+                    languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
+                    euPolitical: euPoliticalAds,
+                    assetGroupName: assetGroupName || `${campaignName} Asset Group 1`,
+                    headlines: validHeadlines,
+                    longHeadlines: longHeadlines.filter(lh => lh && lh.trim()),
+                    descriptions: descriptions.filter(d => d && d.trim()),
+                    images: uploadedImages,
+                    logos: brandLogos,
+                    searchThemes: searchThemes,
+                    audienceSignal: selectedAudienceResource ? {
+                      resourceName: selectedAudienceResource.resourceName,
+                      name: selectedAudienceResource.name,
+                      type: "AUDIENCE"
+                    } : null,
+                    ctaOption: ctaOption || "Automated (recommended)",
+                    displayPath1: displayPath1.trim() || undefined,
+                    displayPath2: displayPath2.trim() || undefined,
+                    enableFinalUrlExpansion: enableFinalUrlExpansion,
+                    brandGuidelinesEnabled: false,
+                    brandColors: { mainColor, accentColor, font: selectedFont },
+                    deviceSettings: devicesSelection,
+                    trackingTemplate: trackingTemplate.trim() || undefined,
+                    finalUrlSuffix: finalUrlSuffix.trim() || undefined,
+                    customParameters: customParameters.filter(p => p.name.trim() && p.value.trim()),
+                    sitelinks: savedSitelinks.length > 0 ? savedSitelinks : undefined,
+                    callouts: savedCallouts.length > 0 ? savedCallouts : undefined,
+                    callAsset: callPhone ? { countryCode: "IN", phoneNumber: callPhone.trim() } : undefined,
+                    structuredSnippets: savedSnippets.length > 0 ? savedSnippets.map(sn => {
+                      // Sanitize: deduplicate values (case-insensitive, trimmed) before sending
+                      const seen = new Set<string>();
+                      const uniqueVals = sn.values.filter(v => {
+                        const k = v.trim().toLowerCase();
+                        if (!k || seen.has(k)) return false;
+                        seen.add(k);
+                        return true;
+                      });
+                      return { ...sn, values: uniqueVals };
+                    }).filter(sn => sn.values.length > 0) : undefined,
+                    promotions: savedPromotions.length > 0 ? savedPromotions.map(p => ({
+                      promotionTarget: p.item,
+                      percentOff: Number(p.discount) || undefined,
+                      occasion: p.occasion !== "None" ? p.occasion : undefined,
+                      finalUrl: p.url || finalUrl
+                    })) : undefined,
+                    prices: savedPrices.length >= 3 ? savedPrices.map(p => ({
+                      header: p.type,
+                      description: "Service plan",
+                      amountMicros: Number(p.price) * 1_000_000,
+                      currencyCode: "INR",
+                      finalUrl: finalUrl
+                    })) : undefined,
+                    finalMobileUrls: useDiffMobileUrl && mobileFinalUrl ? [mobileFinalUrl.trim()] : undefined,
+                    assetGroupTrackingTemplate: assetGroupTrackingTemplate.trim() || undefined,
+                    assetGroupCustomParameters: assetGroupCustomParameters.filter(p => p.name.trim() && p.value.trim()),
+                    leadForm: lfHeadline ? {
+                      headline: lfHeadline,
+                      businessName: lfBusinessName || businessName,
+                      description: lfDescription,
+                      privacyPolicyUrl: lfPrivacyPolicyUrl
+                    } : undefined,
+                    locationTargetingType: locationTargetingType,
+                    brandExclusions: selectedBrandsList.map(b => b.name),
+                    urlRulesList: urlRulesList.length > 0 ? urlRulesList : undefined,
+                    assetOptimizations: {
+                      enableTextCustomization,
+                      enableImageEnhancement,
+                      enableLandingPageImages,
+                      enableVideoEnhancement
+                    },
+                    youtubeVideos: uploadedVideos.length > 0 ? uploadedVideos : undefined,
+                    messagingRestrictions: messagingRestrictions.filter(m => m.trim()),
+                    ga4Property: ga4Property ? { propertyId: ga4Property, importMetrics: ga4ImportMetrics, importAudiences: ga4ImportAudiences } : undefined,
+                    pageFeeds: pageFeedUrls.length > 0 ? pageFeedUrls.map(pf => ({ url: pf.url, label: pf.label || undefined })) : [],
+                    merchantCenter: merchantCenterEnabled && merchantCenterId ? {
+                      merchantCenterId: merchantCenterId.trim(),
+                      feedLabel: feedLabel.trim() || undefined
+                    } : undefined,
+                    storeLocations: storeLocationsEnabled ? {
+                      enabled: true,
+                      locationFilter: businessProfileLocationFilter
+                    } : undefined,
+                    dynamicAdsFeed: dynamicAdsFeedEnabled && dynamicFeedId ? {
+                      feedId: dynamicFeedId.trim()
+                    } : undefined,
+                    valueRules: valueRuleType !== "NONE" ? {
+                      type: valueRuleType,
+                      conditionValue: valueRuleConditionValue.trim() || undefined,
+                      operation: valueRuleOperation,
+                      value: Number(valueRuleValue) || 1.0
+                    } : undefined,
+                    thirdPartyMeasurement: thirdPartyMeasurementEnabled && thirdPartyVendor !== "NONE" ? {
+                      vendor: thirdPartyVendor,
+                      accountId: thirdPartyAccountId.trim() || undefined
+                    } : undefined,
+                    audienceExclusions: selectedDataExclusions,
+                    ytUserSegment: ytSegmentName ? { name: ytSegmentName, type: ytSegmentType, channel: ytSelectedChannel } : undefined,
+                    assetSchedules: assetSchedules,
+                    promoTerms: promoTermsConditions ? { terms: promoTermsConditions, link: promoAdditionalTermsLink } : undefined,
+                    leadFormWebhook: lfWebhookUrl ? { url: lfWebhookUrl, key: lfWebhookKey } : undefined,
+                    adSchedule: adScheduleList,
+                    budgetType: budgetType,
+                    dailyBudget: Number(dailyBudgetValue)
+                  };
+
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/create-noguidance-pmax-campaign`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "x-organization-id": "demo-org-123"
+                    },
+                    body: JSON.stringify(payload)
+                  });
+
+                  const data = await res.json();
+                  if (!res.ok) {
+                    throw new Error(data.error || "Failed to publish Leads Performance Max campaign.");
+                  }
+
+                  router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                } catch (err: any) {
+                  console.error("Leads PMax campaign submission error:", err);
+                  setSubmitError(err.message || "An unexpected error occurred while publishing.");
+                } finally {
+                  setIsSubmitting(false);
+                }
               }}
-              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
+              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
             >
-              Save & Publish
-              <Check className="h-4 w-4" />
+              {isSubmitting ? (
+                <>
+                  <div className="h-4 w-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  Save & Publish
+                  <Check className="h-4 w-4" />
+                </>
+              )}
             </button>
           )}
         </div>
@@ -3410,7 +5200,7 @@ function LeadsPerformanceMaxContent() {
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => { }}
+                          onChange={() => {}}
                           className="rounded text-primary h-4 w-4 pointer-events-none"
                         />
                       </div>
@@ -3667,14 +5457,20 @@ function LeadsPerformanceMaxContent() {
               </div>
             </div>
             <div className="flex justify-between items-center pt-3 border-t border-slate-200">
-              <button type="button" className="text-primary font-bold text-xs hover:underline">+ Sitelink 2</button>
+              <button type="button" onClick={() => setSitelinkItems(prev => prev.length < 4 ? [...prev, { text: "", desc1: "", desc2: "", url: "" }] : prev)} className="text-primary font-bold text-xs hover:underline cursor-pointer">+ Add another sitelink</button>
               <button
                 type="button"
                 onClick={() => {
                   const txt = (document.getElementById("sitelinkTextInp") as HTMLInputElement)?.value || "Sitelink 1";
                   const d1 = (document.getElementById("sitelinkDesc1Inp") as HTMLInputElement)?.value || "";
                   const d2 = (document.getElementById("sitelinkDesc2Inp") as HTMLInputElement)?.value || "";
-                  const url = (document.getElementById("sitelinkUrlInp") as HTMLInputElement)?.value || "";
+                  let url = (document.getElementById("sitelinkUrlInp") as HTMLInputElement)?.value?.trim() || "";
+                  if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+                    url = `https://${url}`;
+                  }
+                  if (!url) {
+                    url = finalUrl || "https://www.example.com";
+                  }
                   setSavedSitelinks(prev => [...prev, { text: txt, desc1: d1, desc2: d2, url }]);
                   setActiveModal(null);
                 }}
@@ -3983,8 +5779,16 @@ function LeadsPerformanceMaxContent() {
                           <span className="text-[11px] text-slate-500 block mb-1">Start date</span>
                           <input
                             type="date"
+                            min={todayIsoStr}
                             value={assetSchedStartDate}
-                            onChange={(e) => setAssetSchedStartDate(e.target.value)}
+                            onChange={(e) => {
+                              setAssetSchedStartDate(e.target.value);
+                              if (assetSchedEndDate && e.target.value && assetSchedEndDate <= e.target.value) {
+                                const d = new Date(e.target.value);
+                                d.setDate(d.getDate() + 1);
+                                setAssetSchedEndDate(d.toISOString().split("T")[0]);
+                              }
+                            }}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
                           />
                         </div>
@@ -3992,6 +5796,7 @@ function LeadsPerformanceMaxContent() {
                           <span className="text-[11px] text-slate-500 block mb-1">End date</span>
                           <input
                             type="date"
+                            min={assetSchedStartDate ? (() => { const d = new Date(assetSchedStartDate); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; })() : todayIsoStr}
                             value={assetSchedEndDate}
                             onChange={(e) => setAssetSchedEndDate(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
@@ -4081,7 +5886,21 @@ function LeadsPerformanceMaxContent() {
               <button
                 type="button"
                 onClick={() => {
-                  setSavedPromotions(prev => [...prev, { occasion: promoOccasion, item: promoItem || "Special Discount", discount: promoType, url: promoFinalUrl }]);
+                  const itemStr = (promoItem || "Special Discount").trim();
+                  if (savedPromotions.some(p => p.item.toLowerCase() === itemStr.toLowerCase() && p.discount === promoType)) {
+                    alert(`Promotion "${itemStr}" is already saved. Duplicate promotions are not allowed.`);
+                    return;
+                  }
+
+                  let cleanPromoUrl = promoFinalUrl.trim();
+                  if (cleanPromoUrl && !cleanPromoUrl.startsWith("http://") && !cleanPromoUrl.startsWith("https://")) {
+                    alert("Final URL must start with http:// or https://");
+                    return;
+                  }
+                  if (!cleanPromoUrl) {
+                    cleanPromoUrl = finalUrl || "https://www.example.com";
+                  }
+                  setSavedPromotions(prev => [...prev, { occasion: promoOccasion, item: itemStr, discount: promoType, url: cleanPromoUrl }]);
                   setActiveModal(null);
                 }}
                 className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all"
@@ -4183,124 +6002,129 @@ function LeadsPerformanceMaxContent() {
               {/* Price Assets */}
               <div className="space-y-4 pt-2 border-t border-slate-200">
                 <h5 className="font-semibold text-slate-800">Price assets</h5>
-                {priceItems.map((item, idx) => (
-                  <div key={item.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 relative">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-slate-700 text-xs">Price item {idx + 1}</span>
-                      {priceItems.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => setPriceItems(prev => prev.filter((_, i) => i !== idx))}
-                          className="text-slate-500 hover:text-rose-400 p-1"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                {priceItems.map((item, idx) => {
+                  const numVal = parseFloat(item.amount);
+                  const isInvalidPrice = item.amount.trim() !== "" && (isNaN(numVal) || numVal <= 0);
+                  return (
+                    <div key={item.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 relative">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-slate-700 text-xs">Price item {idx + 1}</span>
+                        {priceItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setPriceItems(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-slate-500 hover:text-rose-400 p-1"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] text-slate-500 font-semibold mb-1">Header</label>
+                          <input
+                            type="text"
+                            maxLength={25}
+                            value={item.header}
+                            onChange={(e) => {
+                              const updated = [...priceItems];
+                              updated[idx].header = e.target.value;
+                              setPriceItems(updated);
+                            }}
+                            placeholder="Header"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[11px] text-slate-500 font-semibold mb-1">Price (₹)</label>
+                            <input
+                              type="number"
+                              value={item.amount}
+                              onChange={(e) => {
+                                const updated = [...priceItems];
+                                updated[idx].amount = e.target.value;
+                                setPriceItems(updated);
+                              }}
+                              placeholder="Price"
+                              className={`w-full bg-white border rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono ${isInvalidPrice ? "border-rose-500" : "border-slate-200"}`}
+                            />
+                            {isInvalidPrice && <span className="text-[10px] text-rose-500">Must be positive</span>}
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-500 font-semibold mb-1">Units</label>
+                            <select
+                              value={item.unit}
+                              onChange={(e) => {
+                                const updated = [...priceItems];
+                                updated[idx].unit = e.target.value;
+                                setPriceItems(updated);
+                              }}
+                              className="w-full bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-xs text-slate-900"
+                            >
+                              <option value="No units">No units</option>
+                              <option value="Per hour">Per hour</option>
+                              <option value="Per day">Per day</option>
+                              <option value="Per week">Per week</option>
+                              <option value="Per month">Per month</option>
+                              <option value="Per year">Per year</option>
+                              <option value="Per night">Per night</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
                       <div>
-                        <label className="block text-[11px] text-slate-500 font-semibold mb-1">Header</label>
+                        <label className="block text-[11px] text-slate-500 font-semibold mb-1">Description</label>
                         <input
                           type="text"
                           maxLength={25}
-                          value={item.header}
+                          value={item.description}
                           onChange={(e) => {
                             const updated = [...priceItems];
-                            updated[idx].header = e.target.value;
+                            updated[idx].description = e.target.value;
                             setPriceItems(updated);
                           }}
-                          placeholder="Header"
+                          placeholder="Description"
                           className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900"
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[11px] text-slate-500 font-semibold mb-1">Price (₹)</label>
+                          <label className="block text-[11px] text-slate-500 font-semibold mb-1">Final URL</label>
                           <input
-                            type="text"
-                            value={item.amount}
+                            type="url"
+                            value={item.finalUrl}
                             onChange={(e) => {
                               const updated = [...priceItems];
-                              updated[idx].amount = e.target.value;
+                              updated[idx].finalUrl = e.target.value;
                               setPriceItems(updated);
                             }}
-                            placeholder="Price"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
+                            placeholder="https://example.com"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-900"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-slate-500 font-semibold mb-1">Units</label>
-                          <select
-                            value={item.unit}
+                          <label className="block text-[11px] text-slate-500 font-semibold mb-1">Mobile Final URL (optional)</label>
+                          <input
+                            type="url"
+                            value={item.mobileFinalUrl}
                             onChange={(e) => {
                               const updated = [...priceItems];
-                              updated[idx].unit = e.target.value;
+                              updated[idx].mobileFinalUrl = e.target.value;
                               setPriceItems(updated);
                             }}
-                            className="w-full bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-xs text-slate-900"
-                          >
-                            <option value="No units">No units</option>
-                            <option value="Per hour">Per hour</option>
-                            <option value="Per day">Per day</option>
-                            <option value="Per week">Per week</option>
-                            <option value="Per month">Per month</option>
-                            <option value="Per year">Per year</option>
-                            <option value="Per night">Per night</option>
-                          </select>
+                            placeholder="https://m.example.com"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-900"
+                          />
                         </div>
                       </div>
                     </div>
-
-                    <div>
-                      <label className="block text-[11px] text-slate-500 font-semibold mb-1">Description</label>
-                      <input
-                        type="text"
-                        maxLength={25}
-                        value={item.description}
-                        onChange={(e) => {
-                          const updated = [...priceItems];
-                          updated[idx].description = e.target.value;
-                          setPriceItems(updated);
-                        }}
-                        placeholder="Description"
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] text-slate-500 font-semibold mb-1">Final URL</label>
-                        <input
-                          type="url"
-                          value={item.finalUrl}
-                          onChange={(e) => {
-                            const updated = [...priceItems];
-                            updated[idx].finalUrl = e.target.value;
-                            setPriceItems(updated);
-                          }}
-                          placeholder="https://example.com"
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 font-semibold mb-1">Mobile Final URL (optional)</label>
-                        <input
-                          type="url"
-                          value={item.mobileFinalUrl}
-                          onChange={(e) => {
-                            const updated = [...priceItems];
-                            updated[idx].mobileFinalUrl = e.target.value;
-                            setPriceItems(updated);
-                          }}
-                          placeholder="https://m.example.com"
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-900"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <button
                   type="button"
@@ -4392,9 +6216,25 @@ function LeadsPerformanceMaxContent() {
               <button
                 type="button"
                 onClick={() => {
-                  const firstHeader = priceItems[0]?.header || "Price Extension";
-                  const firstPrice = priceItems[0]?.amount ? `₹${priceItems[0].amount}` : "₹0";
-                  setSavedPrices(prev => [...prev, { type: priceType, price: `${firstHeader} (${firstPrice})` }]);
+                  const firstItem = priceItems[0];
+                  if (!firstItem?.header || !firstItem?.amount || parseFloat(firstItem.amount) <= 0) {
+                    alert("Please provide a valid header and a positive price amount.");
+                    return;
+                  }
+                  if (savedPrices.some(sp => sp.type === priceType && sp.price.includes(firstItem.header))) {
+                    alert("This price asset is already added.");
+                    return;
+                  }
+                  const firstPrice = `₹${firstItem.amount}`;
+                  let itemUrl = firstItem.finalUrl?.trim() || "";
+                  if (itemUrl && !itemUrl.startsWith("http://") && !itemUrl.startsWith("https://")) {
+                    alert("Final URL must start with http:// or https://");
+                    return;
+                  }
+                  if (!itemUrl) {
+                    itemUrl = finalUrl || "https://www.example.com";
+                  }
+                  setSavedPrices(prev => [...prev, { type: priceType, price: `${firstItem.header} (${firstPrice})`, url: itemUrl }]);
                   setActiveModal(null);
                 }}
                 className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all"
@@ -4434,10 +6274,11 @@ function LeadsPerformanceMaxContent() {
                       key={p.key}
                       type="button"
                       onClick={() => setMsgPlatform(p.key as any)}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${msgPlatform === p.key
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                        msgPlatform === p.key
                           ? "border-primary bg-primary/10 text-primary font-bold shadow-md shadow-primary/10"
                           : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-800"
-                        }`}
+                      }`}
                     >
                       <span className="text-base">{p.icon}</span>
                       <span className="text-xs">{p.label}</span>
@@ -4594,34 +6435,57 @@ function LeadsPerformanceMaxContent() {
               {/* Dynamic Values */}
               <div className="space-y-3 pt-2 border-t border-slate-200">
                 <label className="block text-slate-700 font-semibold">Values</label>
-                {snippetValues.map((val, idx) => (
-                  <div key={idx} className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        maxLength={25}
-                        value={val}
-                        onChange={(e) => {
-                          const updated = [...snippetValues];
-                          updated[idx] = e.target.value;
-                          setSnippetValues(updated);
-                        }}
-                        placeholder={`Value ${idx + 1}`}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
-                      />
-                      {snippetValues.length > 3 && (
-                        <button
-                          type="button"
-                          onClick={() => setSnippetValues(prev => prev.filter((_, i) => i !== idx))}
-                          className="text-slate-500 hover:text-rose-400 p-1"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                {snippetValues.map((val, idx) => {
+                  const trimmedLower = val.trim().toLowerCase();
+                  const isDupe = trimmedLower !== "" && snippetValues.some((v, i) => i !== idx && v.trim().toLowerCase() === trimmedLower);
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          maxLength={25}
+                          value={val}
+                          onChange={(e) => {
+                            const updated = [...snippetValues];
+                            updated[idx] = e.target.value;
+                            setSnippetValues(updated);
+                            // Recheck for duplicates across all values
+                            const hasDupe = updated.some((v, i) => {
+                              const tl = v.trim().toLowerCase();
+                              return tl !== "" && updated.findIndex((u, j) => j !== i && u.trim().toLowerCase() === tl) !== -1;
+                            });
+                            setSnippetDupeError(hasDupe ? "Duplicate structured snippet value. Each value must be unique." : null);
+                          }}
+                          placeholder={`Value ${idx + 1}`}
+                          className={`w-full bg-slate-50 border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none ${
+                            isDupe ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"
+                          }`}
+                        />
+                        {snippetValues.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = snippetValues.filter((_, i) => i !== idx);
+                              setSnippetValues(updated);
+                              const hasDupe = updated.some((v, i) => {
+                                const tl = v.trim().toLowerCase();
+                                return tl !== "" && updated.findIndex((u, j) => j !== i && u.trim().toLowerCase() === tl) !== -1;
+                              });
+                              setSnippetDupeError(hasDupe ? "Duplicate structured snippet value. Each value must be unique." : null);
+                            }}
+                            className="text-slate-500 hover:text-rose-400 p-1"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      {isDupe && (
+                        <p className="text-[11px] text-rose-500 font-semibold">Duplicate structured snippet value. Each value must be unique.</p>
                       )}
+                      <span className="text-[10px] text-slate-500 block font-mono">{val.length} / 25 (Text is {val.length} characters out of 25)</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 block font-mono">{val.length} / 25 (Text is {val.length} characters out of 25)</span>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <button
                   type="button"
@@ -4634,15 +6498,39 @@ function LeadsPerformanceMaxContent() {
               </div>
             </div>
 
+            {snippetDupeError && (
+              <div className="px-4 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {snippetDupeError}
+              </div>
+            )}
+
             <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
+                disabled={!!snippetDupeError}
                 onClick={() => {
-                  const filtered = snippetValues.filter(v => v.trim() !== "");
-                  setSavedSnippets(prev => [...prev, { header: snippetHeaderType, values: filtered.length > 0 ? filtered : ["Value 1", "Value 2"] }]);
+                  // Re-check for duplicates before saving
+                  const filled = snippetValues.filter(v => v.trim() !== "");
+                  const lowers = filled.map(v => v.trim().toLowerCase());
+                  const hasDupe = lowers.some((v, i) => lowers.indexOf(v) !== i);
+                  if (hasDupe) {
+                    setSnippetDupeError("Duplicate structured snippet value. Each value must be unique.");
+                    return;
+                  }
+                  // Deduplicate: keep first occurrence only
+                  const seen = new Set<string>();
+                  const unique = filled.filter(v => {
+                    const k = v.trim().toLowerCase();
+                    if (seen.has(k)) return false;
+                    seen.add(k);
+                    return true;
+                  });
+                  setSavedSnippets(prev => [...prev, { header: snippetHeaderType, values: unique.length > 0 ? unique : ["Value 1", "Value 2"] }]);
+                  setSnippetDupeError(null);
                   setActiveModal(null);
                 }}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all"
+                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save Structured Snippet
               </button>
@@ -4667,7 +6555,7 @@ function LeadsPerformanceMaxContent() {
               {/* Create your lead form */}
               <div className="space-y-3">
                 <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Create your lead form</h4>
-
+                
                 <div className="space-y-1">
                   <label className="block text-slate-700 font-semibold">Headline</label>
                   <input
@@ -4895,7 +6783,7 @@ function LeadsPerformanceMaxContent() {
                         <option value="What is your proposed website URL?">What is your proposed website URL?</option>
                         <option value="What is your job role?">What is your job role?</option>
                         <option value="What is your job department?">What is your job department?</option>
-                        <option value="What is your annual leads volume?">What is your annual leads volume?</option>
+                        <option value="What is your annual Leads volume?">What is your annual Leads volume?</option>
                         <option value="How many years have you been in business?">How many years have you been in business?</option>
                         <option value="Do you operate in the EU?">Do you operate in the EU?</option>
                         <option value="Do you have a forwarder or any shipping agent in China?">Do you have a forwarder or any shipping agent in China?</option>
@@ -5038,7 +6926,7 @@ function LeadsPerformanceMaxContent() {
               {/* Form Submission Message */}
               <div className="space-y-3 pt-3 border-t border-slate-200">
                 <h4 className="font-bold text-slate-800 text-xs">Create form submission message</h4>
-
+                
                 <div className="space-y-1">
                   <label className="block text-slate-700 font-semibold">Headline</label>
                   <input
@@ -5250,7 +7138,7 @@ function LeadsPerformanceMaxContent() {
               </div>
               <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
-
+            
             <div className="space-y-4">
               {/* Callout Text Input Section */}
               <div className="space-y-2">
@@ -5429,11 +7317,11 @@ function LeadsPerformanceMaxContent() {
                   if (newCalloutInput.trim()) {
                     finalCallouts.push(newCalloutInput.trim());
                   }
-
+                  
                   if (finalCallouts.length > 0) {
                     setSavedCallouts(prev => [...prev, ...finalCallouts]);
                   }
-
+                  
                   // Reset temporary modal states
                   setModalCalloutTexts([]);
                   setNewCalloutInput("");
@@ -5457,7 +7345,7 @@ function LeadsPerformanceMaxContent() {
       {activeModal === "AUDIENCE_SIGNAL" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
-
+            
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
@@ -5641,7 +7529,7 @@ function LeadsPerformanceMaxContent() {
             {subModal === "GA4_LINK_1" && (
               <div className="space-y-4 animate-in slide-in-from-right-3 duration-200">
                 <span className="font-semibold text-slate-700 block text-xs">Select Google Analytics properties</span>
-
+                
                 <div className="space-y-2">
                   <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 cursor-pointer transition-all">
                     <input
@@ -5681,7 +7569,7 @@ function LeadsPerformanceMaxContent() {
             {subModal === "GA4_LINK_2" && (
               <div className="space-y-4 animate-in slide-in-from-right-3 duration-200">
                 <span className="font-semibold text-slate-700 block text-xs">Configure settings and submit</span>
-
+                
                 <div className="p-4 bg-slate-50/50 rounded-xl border border-slate-200 space-y-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-orange-500/20 border border-orange-500/30 flex items-center justify-center font-bold text-orange-400">GA4</div>
@@ -5694,7 +7582,7 @@ function LeadsPerformanceMaxContent() {
 
                 <div className="space-y-3">
                   <span className="font-semibold text-slate-700 block text-xs uppercase tracking-wider">Data sharing settings</span>
-
+                  
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -5768,13 +7656,13 @@ function LeadsPerformanceMaxContent() {
             {/* Sub-Modal: AVAILABLE SEGMENT TYPES */}
             {subModal === "NEW_SEGMENT" && (
               <div className="space-y-4 animate-in slide-in-from-right-3 duration-200">
-
+                
                 <div className="space-y-3">
                   <div className="flex items-center gap-1">
                     <span className="font-semibold text-slate-800 text-xs">Available segment types</span>
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
                   </div>
-
+                  
                   {/* Interactive Top 2 Segments */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <button
@@ -5809,7 +7697,7 @@ function LeadsPerformanceMaxContent() {
                   <span className="text-[11px] text-slate-500">
                     Create other segment types in <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Audience manager</a>
                   </span>
-
+                  
                   {/* Display-Only Bottom 4 Segments */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="p-4 text-left bg-slate-50/20 border border-slate-850 rounded-xl space-y-2 select-none">
@@ -5858,216 +7746,62 @@ function LeadsPerformanceMaxContent() {
               </div>
             )}
 
-            {/* Main Modal Content: AUDIENCE SIGNAL BUILDER */}
-            {subModal === null && (
-              <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Main Modal Content: GOOGLE ADS AUDIENCES SELECTOR */}
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div>
+                <span className="font-bold text-slate-800 block text-xs">Google Ads Audience</span>
+                <p className="text-[11px] text-slate-500 leading-normal">Select an existing Google Ads Audience resource to guide your Performance Max campaign targeting.</p>
+              </div>
 
-                {/* Your data segment selector */}
-                <div className="space-y-3">
-                  <div>
-                    <span className="font-bold text-slate-800 block text-xs">Your data</span>
-                    <p className="text-[11px] text-slate-500 leading-normal">First-party data can help us reach your customers</p>
+              <div className="bg-slate-50/40 p-4 rounded-xl border border-slate-200 space-y-3">
+                {isLoadingAudiences ? (
+                  <div className="py-6 text-center text-xs text-slate-500">Loading Google Ads Audiences...</div>
+                ) : audienceList.length === 0 ? (
+                  <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-2 text-center">
+                    <p className="text-xs text-amber-400 font-medium">No Google Ads Audiences found for this account.</p>
+                    <p className="text-[11px] text-slate-500">Create an Audience in Google Ads Audience Manager first, then refresh this list. Audience Signal is optional and can be skipped.</p>
                   </div>
-
-                  <div className="bg-slate-50/40 p-4 rounded-xl border border-slate-200 space-y-3">
-                    <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                      <button
-                        type="button"
-                        onClick={() => setDataTab("search")}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg ${dataTab === "search" ? "bg-primary text-slate-950" : "text-slate-500 hover:text-slate-900"}`}
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {audienceList.map((aud) => (
+                      <label
+                        key={aud.resourceName}
+                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                          selectedAudienceResource?.resourceName === aud.resourceName
+                            ? "bg-primary/10 border-primary text-slate-900"
+                            : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                        }`}
                       >
-                        Search
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDataTab("browse")}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg ${dataTab === "browse" ? "bg-primary text-slate-950" : "text-slate-500 hover:text-slate-900"}`}
-                      >
-                        Browse
-                      </button>
-                    </div>
-
-                    {dataTab === "search" ? (
-                      <div className="space-y-2">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-xs block">{aud.name}</span>
+                          <span className="text-[10px] text-slate-500 font-mono block">{aud.resourceName}</span>
+                        </div>
                         <input
-                          type="text"
-                          placeholder="Search your data segments..."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs"
+                          type="radio"
+                          name="selectedAudience"
+                          checked={selectedAudienceResource?.resourceName === aud.resourceName}
+                          onChange={() => setSelectedAudienceResource({ resourceName: aud.resourceName, name: aud.name, type: "AUDIENCE" })}
+                          className="text-primary h-4 w-4"
                         />
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Google-engaged audiences - for Account 6587355041</span>
-                        {["Website visitors", "All converters"].map(item => (
-                          <label key={item} className="flex items-center gap-2.5 cursor-pointer py-0.5">
-                            <input
-                              type="checkbox"
-                              checked={selectedDataSegments.includes(item)}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setSelectedDataSegments(prev => checked ? [...prev, item] : prev.filter(x => x !== item));
-                              }}
-                              className="rounded text-primary h-3.5 w-3.5"
-                            />
-                            <span className="text-xs text-slate-700">{item}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                      <span className="text-[10px] text-slate-500">Add custom segments from GA4, YouTube, or visitor lists.</span>
-                      <button
-                        type="button"
-                        onClick={() => setSubModal("NEW_SEGMENT")}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-700 text-slate-900 rounded-lg font-semibold text-[11px] cursor-pointer"
-                      >
-                        Add your data
-                      </button>
-                    </div>
-
-                    {selectedDataSegments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        {selectedDataSegments.map(item => (
-                          <span key={item} className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-[10px] text-slate-800">
-                            {item}
-                            <button
-                              type="button"
-                              onClick={() => setSelectedDataSegments(prev => prev.filter(x => x !== item))}
-                              className="text-slate-500 hover:text-red-400 ml-1"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                      </label>
+                    ))}
                   </div>
-                </div>
+                )}
+              </div>
 
-                {/* Interests & Detailed Demographics */}
-                <div className="pt-2 border-t border-slate-200 space-y-2">
-                  <div>
-                    <span className="font-bold text-slate-800 block text-xs">Interests & detailed demographics</span>
-                    <p className="text-[11px] text-slate-500">Add any interests, detailed demographics, or life events related to your customers</p>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Add in-market segments, life events, and more"
-                    value={interestsInput}
-                    onChange={(e) => setInterestsInput(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900"
-                  />
-                </div>
-
-                {/* Demographics Checklist Grid */}
-                <div className="pt-2 border-t border-slate-200 space-y-3">
-                  <div>
-                    <span className="font-bold text-slate-800 block text-xs">Demographics</span>
-                    <p className="text-[11px] text-slate-500">People with the following demographics</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 bg-slate-50/20 p-4 rounded-xl border border-slate-200">
-                    {/* Gender */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-700 block text-[11px]">Gender</span>
-                      {["Female", "Male", "Unknown"].map(g => (
-                        <label key={g} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoGenders.includes(g)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoGenders(prev => checked ? [...prev, g] : prev.filter(x => x !== g));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-700">{g}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {/* Age */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-700 block text-[11px]">Age</span>
-                      {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map(a => (
-                        <label key={a} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoAges.includes(a)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoAges(prev => checked ? [...prev, a] : prev.filter(x => x !== a));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-700">{a}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 bg-slate-50/20 p-4 rounded-xl border border-slate-200">
-                    {/* Parental Status */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-700 block text-[11px]">Parental status</span>
-                      {["Parent", "Not a parent", "Unknown"].map(p => (
-                        <label key={p} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoParental.includes(p)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoParental(prev => checked ? [...prev, p] : prev.filter(x => x !== p));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-700">{p}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {/* Household Income */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-700 block text-[11px]">Household income</span>
-                      {["Top 10%", "11-20%", "21-30%", "31-40%", "41-50%", "Lower 50%", "Unknown"].map(i => (
-                        <label key={i} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoIncome.includes(i)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoIncome(prev => checked ? [...prev, i] : prev.filter(x => x !== i));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-700">{i}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <p className="text-[10px] text-slate-500 italic leading-relaxed">
-                    Note: Household income targeting is only available in select countries.{" "}
-                    <a href="#" className="text-primary hover:underline" onClick={(e) => e.preventDefault()}>Learn more</a>
-                  </p>
-                </div>
-
-                {/* Audience Name at bottom (Optional) */}
-                <div className="pt-2 border-t border-slate-200 space-y-1">
-                  <label className="text-[11px] text-slate-500 block font-medium">Audience name</label>
-                  <p className="text-[11px] text-slate-500">Add a name for your audience to save it to your library (optional)</p>
-                  <input
-                    type="text"
-                    placeholder="Enter audience name"
-                    value={audienceNameInput}
-                    onChange={(e) => setAudienceNameInput(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900"
-                  />
-                </div>
-
-                {/* Footer Buttons */}
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              {/* Footer Buttons */}
+              <div className="flex justify-between items-center pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAudienceResource(null);
+                    setActiveModal(null);
+                  }}
+                  className="text-slate-500 hover:text-red-400 text-xs font-semibold"
+                >
+                  Clear Selection
+                </button>
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
@@ -6077,23 +7811,327 @@ function LeadsPerformanceMaxContent() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      const finalName = audienceNameInput.trim() || "Audience Signal";
-                      setSavedAudienceSignal({
-                        name: finalName,
-                        hasYourData: selectedDataSegments.length > 0,
-                        hasInterests: !!interestsInput,
-                        demographicsCount: demoGenders.length + demoAges.length + demoParental.length + demoIncome.length
-                      });
-                      setActiveModal(null);
-                    }}
+                    onClick={() => setActiveModal(null)}
                     className="px-5 py-2 bg-primary text-slate-950 rounded-xl font-bold hover:bg-secondary cursor-pointer"
                   >
-                    Save Audience Signal
+                    Done
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Marketing Image Crop / Edit Modal ── */}
+      {currentCropItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl text-xs">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-200 pb-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Crop className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-bold text-slate-900">Edit & Crop Marketing Image</h3>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {currentCropItem.name} {cropQueue.length > 0 ? `(+${cropQueue.length} more in queue)` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  // Cancel current item and move to next in queue if any
+                  if (cropQueue.length > 0) {
+                    setCurrentCropItem(cropQueue[0]);
+                    setCropQueue(prev => prev.slice(1));
+                    setCropZoom(1);
+                    setCropOffset({ x: 0, y: 0 });
+                    setCropValidationError(null);
+                  } else {
+                    setCurrentCropItem(null);
+                  }
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Aspect Ratio Selector Tabs */}
+            <div className="flex items-center gap-2">
+              <span className="text-slate-600 font-semibold text-[11px]">Required Ratio:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setCropAspectMode("LANDSCAPE");
+                  setCropValidationError(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 ${
+                  cropAspectMode === "LANDSCAPE"
+                    ? "bg-primary text-slate-950 shadow-xs"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                <span className="w-3.5 h-2 rounded-[2px] border border-current inline-block"></span>
+                Landscape (1.91 : 1)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCropAspectMode("SQUARE");
+                  setCropValidationError(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 ${
+                  cropAspectMode === "SQUARE"
+                    ? "bg-primary text-slate-950 shadow-xs"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                <span className="w-2.5 h-2.5 rounded-[2px] border border-current inline-block"></span>
+                Square (1 : 1)
+              </button>
+            </div>
+
+            {/* Interactive Crop Preview Canvas Container */}
+            <div className="relative bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center p-4 min-h-[320px] max-h-[400px] select-none">
+              
+              {/* Image with zoom and offset */}
+              <div
+                className="relative overflow-hidden cursor-grab active:cursor-grabbing border-2 border-dashed border-primary/80 shadow-2xl flex items-center justify-center bg-black/40"
+                style={{
+                  width: cropAspectMode === "LANDSCAPE" ? "420px" : "280px",
+                  height: cropAspectMode === "LANDSCAPE" ? "220px" : "280px",
+                }}
+                onMouseDown={(e) => {
+                  setIsDraggingCrop(true);
+                  setDragStartPos({ x: e.clientX - cropOffset.x, y: e.clientY - cropOffset.y });
+                }}
+                onMouseMove={(e) => {
+                  if (isDraggingCrop) {
+                    setCropOffset({
+                      x: e.clientX - dragStartPos.x,
+                      y: e.clientY - dragStartPos.y
+                    });
+                  }
+                }}
+                onMouseUp={() => setIsDraggingCrop(false)}
+                onMouseLeave={() => setIsDraggingCrop(false)}
+              >
+                <img
+                  src={currentCropItem.base64}
+                  alt="Crop preview"
+                  draggable={false}
+                  className="max-w-none transition-transform pointer-events-none"
+                  style={{
+                    transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})`,
+                    transformOrigin: "center center"
+                  }}
+                />
+                <div className="absolute inset-0 border border-primary/30 pointer-events-none grid grid-cols-3 grid-rows-3">
+                  <div className="border-r border-b border-white/20"></div>
+                  <div className="border-r border-b border-white/20"></div>
+                  <div className="border-b border-white/20"></div>
+                  <div className="border-r border-b border-white/20"></div>
+                  <div className="border-r border-b border-white/20"></div>
+                  <div className="border-b border-white/20"></div>
+                  <div className="border-r border-white/20"></div>
+                  <div className="border-r border-white/20"></div>
+                  <div></div>
+                </div>
+              </div>
+
+              <div className="absolute bottom-2 left-3 bg-slate-900/80 px-2 py-1 rounded text-[10px] text-slate-300 backdrop-blur-xs font-mono">
+                {cropAspectMode === "LANDSCAPE" ? "Target: 1200 × 628 px (1.91:1)" : "Target: 1200 × 1200 px (1:1)"}
+              </div>
+            </div>
+
+            {/* Interactive Controls (Zoom, Reset, Pan Instructions) */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-3">
+                <span className="text-slate-600 font-semibold text-xs flex items-center gap-1">
+                  <ZoomIn className="h-3.5 w-3.5 text-primary" /> Zoom:
+                </span>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="3"
+                  step="0.05"
+                  value={cropZoom}
+                  onChange={(e) => setCropZoom(parseFloat(e.target.value))}
+                  className="w-32 accent-primary cursor-pointer"
+                />
+                <span className="font-mono text-[11px] text-slate-700 w-10">
+                  {Math.round(cropZoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCropZoom(1);
+                    setCropOffset({ x: 0, y: 0 });
+                  }}
+                  className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-700 cursor-pointer flex items-center gap-1"
+                >
+                  <RotateCcw className="h-3 w-3" /> Reset
+                </button>
+              </div>
+
+              <span className="text-[11px] text-slate-500">
+                Tip: Click and drag inside the frame to reposition
+              </span>
+            </div>
+
+            {cropValidationError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <p className="text-xs">{cropValidationError}</p>
+              </div>
             )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  if (cropQueue.length > 0) {
+                    setCurrentCropItem(cropQueue[0]);
+                    setCropQueue(prev => prev.slice(1));
+                    setCropZoom(1);
+                    setCropOffset({ x: 0, y: 0 });
+                    setCropValidationError(null);
+                  } else {
+                    setCurrentCropItem(null);
+                  }
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Skip / Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!currentCropItem) return;
+
+                  // Render final cropped image using HTML5 Canvas
+                  const targetWidth = cropAspectMode === "LANDSCAPE" ? 1200 : 1200;
+                  const targetHeight = cropAspectMode === "LANDSCAPE" ? 628 : 1200;
+                  const fieldType = cropAspectMode === "LANDSCAPE" ? "MARKETING_IMAGE" : "SQUARE_MARKETING_IMAGE";
+
+                  const canvas = document.createElement("canvas");
+                  canvas.width = targetWidth;
+                  canvas.height = targetHeight;
+                  const ctx = canvas.getContext("2d");
+
+                  if (!ctx) {
+                    setCropValidationError("Failed to initialize canvas context for cropping.");
+                    return;
+                  }
+
+                  const img = new Image();
+                  img.onload = () => {
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+                    // Calculate scale & offset relative to crop container
+                    const containerWidth = cropAspectMode === "LANDSCAPE" ? 420 : 280;
+                    const containerHeight = cropAspectMode === "LANDSCAPE" ? 220 : 280;
+
+                    const scaleFactor = targetWidth / containerWidth;
+
+                    ctx.save();
+                    // Move to center of canvas
+                    ctx.translate(targetWidth / 2, targetHeight / 2);
+                    // Apply offset scaled to target dimensions
+                    ctx.translate(cropOffset.x * scaleFactor, cropOffset.y * scaleFactor);
+                    // Apply zoom
+                    ctx.scale(cropZoom, cropZoom);
+
+                    // Compute draw dimensions maintaining original aspect ratio
+                    const naturalWidth = img.naturalWidth || img.width;
+                    const naturalHeight = img.naturalHeight || img.height;
+                    const aspect = naturalWidth / naturalHeight;
+
+                    let drawW = targetWidth;
+                    let drawH = targetWidth / aspect;
+                    if (drawH < targetHeight) {
+                      drawH = targetHeight;
+                      drawW = targetHeight * aspect;
+                    }
+
+                    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+                    ctx.restore();
+
+                    // 1. Generate primary chosen aspect ratio image
+                    const croppedDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+
+                    // 2. Also generate complementary aspect ratio version so user always has both MARKETING_IMAGE & SQUARE_MARKETING_IMAGE
+                    const compCanvas = document.createElement("canvas");
+                    const compWidth = cropAspectMode === "LANDSCAPE" ? 1200 : 1200;
+                    const compHeight = cropAspectMode === "LANDSCAPE" ? 1200 : 628;
+                    const compFieldType = cropAspectMode === "LANDSCAPE" ? "SQUARE_MARKETING_IMAGE" : "MARKETING_IMAGE";
+                    compCanvas.width = compWidth;
+                    compCanvas.height = compHeight;
+                    const compCtx = compCanvas.getContext("2d");
+                    let compDataUrl = "";
+                    if (compCtx) {
+                      compCtx.fillStyle = "#ffffff";
+                      compCtx.fillRect(0, 0, compWidth, compHeight);
+                      const naturalW = img.naturalWidth || img.width;
+                      const naturalH = img.naturalHeight || img.height;
+                      const aspect = naturalW / naturalH;
+                      let dW = compWidth;
+                      let dH = compWidth / aspect;
+                      if (dH < compHeight) {
+                        dH = compHeight;
+                        dW = compHeight * aspect;
+                      }
+                      compCtx.drawImage(img, (compWidth - dW) / 2, (compHeight - dH) / 2, dW, dH);
+                      compDataUrl = compCanvas.toDataURL("image/jpeg", 0.92);
+                    }
+
+                    // Save both validated images, deduplicating by data URL
+                    // to prevent Google Ads API "duplicated asset group asset" error
+                    setUploadedImages(prev => {
+                      const existingDataSet = new Set(prev.map(img => img.data));
+                      const toAdd: typeof prev = [];
+                      if (!existingDataSet.has(croppedDataUrl)) {
+                        toAdd.push({
+                          data: croppedDataUrl,
+                          fieldType: fieldType,
+                          name: `${currentCropItem.name.replace(/\.[^/.]+$/, "")} (${cropAspectMode === "LANDSCAPE" ? "Landscape 1.91:1" : "Square 1:1"})`
+                        });
+                      }
+                      if (compDataUrl && !existingDataSet.has(compDataUrl)) {
+                        toAdd.push({
+                          data: compDataUrl,
+                          fieldType: compFieldType,
+                          name: `${currentCropItem.name.replace(/\.[^/.]+$/, "")} (${compFieldType === "MARKETING_IMAGE" ? "Landscape 1.91:1" : "Square 1:1"})`
+                        });
+                      }
+                      return [...prev, ...toAdd];
+                    });
+
+                    // Advance queue
+                    if (cropQueue.length > 0) {
+                      setCurrentCropItem(cropQueue[0]);
+                      setCropQueue(prev => prev.slice(1));
+                      setCropZoom(1);
+                      setCropOffset({ x: 0, y: 0 });
+                      setCropValidationError(null);
+                    } else {
+                      setCurrentCropItem(null);
+                    }
+                  };
+                  img.src = currentCropItem.base64;
+                }}
+                className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-primary hover:bg-secondary transition-all shadow-md shadow-primary/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Check className="h-4 w-4" /> Use Image & Save
+              </button>
+            </div>
+
           </div>
         </div>
       )}
@@ -6110,14 +8148,14 @@ function LeadsPerformanceMaxContent() {
               <button
                 type="button"
                 onClick={() => setShowDraftModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
-              Your campaign progress will be saved as a draft so you can resume anytime.
+              Your campaign draft will be saved so you can resume and publish whenever you are ready.
             </p>
 
             <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200">

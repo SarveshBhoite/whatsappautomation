@@ -6,12 +6,12 @@ import prisma from "./utils/prisma";
 
 async function executeFreshLiveDisplayTest() {
   console.log("============================================================================");
-  console.log("=== EXECUTING FRESH LIVE SALES -> DISPLAY TEST: Atharva-Display-Test-01 ===");
+  console.log("=== EXECUTING FRESH LIVE SALES -> DISPLAY TEST: searchs-Display-Test-01 ===");
   console.log("============================================================================");
 
   const orgId = "demo-org-123";
   const customerId = "6587355041";
-  const campaignName = "Atharva-Display-Test-01";
+  const campaignName = "searchs-Display-Test-01";
 
   // Check duplicate
   const existingCamp = await prisma.googleAdCampaign.findFirst({
@@ -23,7 +23,7 @@ async function executeFreshLiveDisplayTest() {
 
   const payload = {
     campaignName,
-    finalUrl: "https://www.atharva-automation.com",
+    finalUrl: "https://www.searchs-automation.com",
     amountMicros: 500 * 1_000_000,
     biddingFocus: "MAXIMIZE_CONVERSIONS",
     headlines: [

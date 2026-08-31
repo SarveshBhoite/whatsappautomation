@@ -1,4 +1,5 @@
 "use client";
+import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -26,6 +27,7 @@ export default function DisplayCampaignCreatePage() {
   // Languages API search state
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
+  
   const [isSearchingLanguages, setIsSearchingLanguages] = useState<boolean>(false);
   const [languageSearchResults, setLanguageSearchResults] = useState<string[]>([]);
 

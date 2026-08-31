@@ -1,4 +1,5 @@
 "use client";
+import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -7,12 +8,13 @@ import {
   Search, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, MoreVertical, Settings, Sparkles, Image as ImageIcon, Video as VideoIcon, Edit3
 } from "lucide-react";
 
-export default function  NoGuidanceDisplayPage() {
+export default function NoGuidanceDisplayPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [displayCampaignName, setDisplayCampaignName] = useState<string>(`NoGuidance-Display-${Date.now().toString().slice(-4)}`);
 
   // Flow Step: "CAMPAIGN_SETTINGS" | "BUDGET_BIDDING" | "TARGETING" | "ADS" | "REVIEW"
   const [displayStep, setDisplayStep] = useState<"CAMPAIGN_SETTINGS" | "BUDGET_BIDDING" | "TARGETING" | "ADS" | "REVIEW">("CAMPAIGN_SETTINGS");
@@ -20,12 +22,72 @@ export default function  NoGuidanceDisplayPage() {
   // 1. Campaign Settings Detailed States
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
+  const [selectedCustomLocations, setSelectedCustomLocations] = useState<Array<{ name: string; canonicalName?: string; targetType?: string; id?: string }>>([]);
+  const [isSearchingLocations, setIsSearchingLocations] = useState<boolean>(false);
+  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ name: string; canonicalName?: string; targetType?: string; id?: string }>>([]);
   const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
   const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
+
+  // Live Location API Search
+  useEffect(() => {
+    if (customLocationInput.trim().length >= 1) {
+      setIsSearchingLocations(true);
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "6587355041";
+
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`${BACKEND}/api/ads/geo-targets/search?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}&q=${encodeURIComponent(customLocationInput.trim())}`);
+          if (res.ok) {
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : (data.results || data.data || []);
+            const formatted = list.map((item: any) => ({
+              id: item.id || item.geoTargetConstant?.id || item.resourceName?.split("/").pop(),
+              name: item.name || item.geoTargetConstant?.name || item.canonicalName || item.geoTargetConstant?.canonicalName,
+              canonicalName: item.canonicalName || item.geoTargetConstant?.canonicalName || item.name,
+              targetType: item.targetType || item.geoTargetConstant?.targetType || "Location"
+            }));
+            setLocationSearchResults(formatted);
+          } else {
+            // Fallback list of locations
+            const localFallback = [
+              { name: "Mumbai", canonicalName: "Mumbai, Maharashtra, India", targetType: "City" },
+              { name: "Delhi", canonicalName: "Delhi, India", targetType: "Union territory" },
+              { name: "Bengaluru", canonicalName: "Bengaluru, Karnataka, India", targetType: "City" },
+              { name: "Hyderabad", canonicalName: "Hyderabad, Telangana, India", targetType: "City" },
+              { name: "Ahmedabad", canonicalName: "Ahmedabad, Gujarat, India", targetType: "City" },
+              { name: "Chennai", canonicalName: "Chennai, Tamil Nadu, India", targetType: "City" },
+              { name: "Kolkata", canonicalName: "Kolkata, West Bengal, India", targetType: "City" },
+              { name: "Pune", canonicalName: "Pune, Maharashtra, India", targetType: "City" },
+              { name: "Surat", canonicalName: "Surat, Gujarat, India", targetType: "City" },
+              { name: "Jaipur", canonicalName: "Jaipur, Rajasthan, India", targetType: "City" },
+              { name: "United States", canonicalName: "United States", targetType: "Country" },
+              { name: "United Kingdom", canonicalName: "United Kingdom", targetType: "Country" },
+              { name: "Canada", canonicalName: "Canada", targetType: "Country" },
+              { name: "Australia", canonicalName: "Australia", targetType: "Country" },
+              { name: "United Arab Emirates", canonicalName: "United Arab Emirates", targetType: "Country" }
+            ].filter(loc => loc.canonicalName.toLowerCase().includes(customLocationInput.toLowerCase()));
+            setLocationSearchResults(localFallback);
+          }
+        } catch (err) {
+          console.error("Location search error:", err);
+          setLocationSearchResults([]);
+        } finally {
+          setIsSearchingLocations(false);
+        }
+      }, 200);
+      return () => clearTimeout(timer);
+    } else {
+      setLocationSearchResults([]);
+      setIsSearchingLocations(false);
+    }
+  }, [customLocationInput, customerId]);
 
   // Languages API search state
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
+  
   const [isSearchingLanguages, setIsSearchingLanguages] = useState<boolean>(false);
   const [languageSearchResults, setLanguageSearchResults] = useState<string[]>([]);
 
@@ -77,7 +139,8 @@ export default function  NoGuidanceDisplayPage() {
 
   const [useDynamicFeed, setUseDynamicFeed] = useState<boolean>(false);
   const [activeEditSetting, setActiveEditSetting] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState<string>("2026-08-11");
+  const todayFormattedStr = new Date().toISOString().split("T")[0];
+  const [startDate, setStartDate] = useState<string>(todayFormattedStr);
   const [endDate, setEndDate] = useState<string>("");
   const [includeViewThrough, setIncludeViewThrough] = useState<boolean>(false);
 
@@ -177,7 +240,7 @@ export default function  NoGuidanceDisplayPage() {
 
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     if (customerId) {
       fetch(`${BACKEND}/api/ads/customer-info?orgId=${orgId}&customerId=${customerId}`)
         .then(r => r.json())
@@ -388,17 +451,67 @@ export default function  NoGuidanceDisplayPage() {
                       </label>
 
                       {selectedLocation === "CUSTOM" && (
-                        <div className="ml-7 pt-2 space-y-2 animate-in fade-in duration-200">
-                          <div className="relative max-w-md">
-                            <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
+                        <div className="ml-7 pt-2 space-y-2 max-w-md animate-in fade-in duration-200">
+                          <div className="relative">
+                            <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
                             <input
                               type="text"
                               value={customLocationInput}
                               onChange={(e) => setCustomLocationInput(e.target.value)}
-                              placeholder="Enter a location to target or exclude"
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                              placeholder="Enter a location to target (e.g. Mumbai, Maharashtra)"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-medium"
                             />
+                            {isSearchingLocations && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                              </div>
+                            )}
                           </div>
+
+                          {/* Live Location Search Dropdown Suggestions */}
+                          {locationSearchResults.length > 0 && (
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 z-10 relative">
+                              {locationSearchResults.map((loc, idx) => (
+                                <div
+                                  key={idx}
+                                  onClick={() => {
+                                    if (!selectedCustomLocations.some(l => l.canonicalName === loc.canonicalName)) {
+                                      setSelectedCustomLocations(prev => [...prev, loc]);
+                                    }
+                                    setCustomLocationInput(loc.canonicalName || loc.name);
+                                    setLocationSearchResults([]);
+                                  }}
+                                  className="p-2.5 hover:bg-primary/10 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                                >
+                                  <div>
+                                    <span className="font-semibold text-slate-800 block">{loc.canonicalName || loc.name}</span>
+                                    {loc.id && <span className="text-[10px] text-slate-500 font-mono">ID: {loc.id}</span>}
+                                  </div>
+                                  <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-medium">
+                                    {loc.targetType || "Location"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Selected Custom Locations Chips */}
+                          {selectedCustomLocations.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {selectedCustomLocations.map((loc, i) => (
+                                <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary rounded-lg text-xs font-semibold">
+                                  {loc.canonicalName || loc.name}
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedCustomLocations(prev => prev.filter((_, idx) => idx !== i))}
+                                    className="hover:text-rose-400"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -452,7 +565,7 @@ export default function  NoGuidanceDisplayPage() {
                 ) : (
                   <div
                     onClick={() => setOpenCampaignSetting("locations")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -462,7 +575,18 @@ export default function  NoGuidanceDisplayPage() {
                         {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : customLocationInput || "Custom location"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("locations");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -527,7 +651,7 @@ export default function  NoGuidanceDisplayPage() {
                 ) : (
                   <div
                     onClick={() => setOpenCampaignSetting("languages")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -537,7 +661,18 @@ export default function  NoGuidanceDisplayPage() {
                         {selectedLanguages.length === 0 ? "All languages" : selectedLanguages.join(", ")}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("languages");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -589,7 +724,7 @@ export default function  NoGuidanceDisplayPage() {
                 ) : (
                   <div
                     onClick={() => setOpenCampaignSetting("euPolitical")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -599,7 +734,18 @@ export default function  NoGuidanceDisplayPage() {
                         {euPoliticalAds === "YES" ? "Yes, EU political ads" : "No, this campaign doesn't have EU political ads"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("euPolitical");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -700,7 +846,7 @@ export default function  NoGuidanceDisplayPage() {
                 ) : (
                   <div
                     onClick={() => setOpenCampaignSetting("urlOptions")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -710,7 +856,18 @@ export default function  NoGuidanceDisplayPage() {
                         {trackingTemplate || finalUrlSuffix || customParamsList.some(p => p.name || p.value) ? "Custom URL options set" : "No options set"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("urlOptions");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -779,83 +936,143 @@ export default function  NoGuidanceDisplayPage() {
                       <div className="p-6 bg-white space-y-4 animate-in fade-in duration-150 text-xs">
                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                           <span className="font-bold text-slate-800">Ad schedule</span>
-                          <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
+                          <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg cursor-pointer">Save</button>
                         </div>
+
+                        {/* Duplicate Day/Time Validation Banner */}
+                        {(() => {
+                          const seen = new Set<string>();
+                          let hasDuplicate = false;
+                          let duplicateDay = "";
+                          for (const item of adScheduleList) {
+                            const key = `${item.day}_${item.start}_${item.end}`;
+                            if (seen.has(key)) {
+                              hasDuplicate = true;
+                              duplicateDay = item.day;
+                              break;
+                            }
+                            seen.add(key);
+                          }
+                          if (hasDuplicate) {
+                            return (
+                              <div className="p-3 rounded-xl border border-rose-400/40 bg-rose-500/10 text-rose-600 font-medium flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                                <span>Duplicate ad schedule detected for "{duplicateDay}". Please select different days or times.</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+
                         <div className="space-y-3">
-                          {adScheduleList.map((item, index) => (
-                            <div key={item.id} className="flex flex-wrap items-center gap-3">
-                              <select
-                                value={item.day}
-                                onChange={(e) => {
-                                  const updated = [...adScheduleList];
-                                  updated[index].day = e.target.value;
-                                  setAdScheduleList(updated);
-                                }}
-                                className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary"
-                              >
-                                <option value="All days">All days</option>
-                                <option value="Mondays - Fridays">Mondays - Fridays</option>
-                                <option value="Saturdays - Sundays">Saturdays - Sundays</option>
-                                <option value="Mondays">Mondays</option>
-                                <option value="Tuesdays">Tuesdays</option>
-                                <option value="Wednesdays">Wednesdays</option>
-                                <option value="Thursdays">Thursdays</option>
-                                <option value="Fridays">Fridays</option>
-                                <option value="Saturdays">Saturdays</option>
-                                <option value="Sundays">Sundays</option>
-                              </select>
+                          {adScheduleList.map((item, index) => {
+                            // Convert HH:MM to minute index
+                            const [startH, startM] = item.start.split(":").map(Number);
+                            const startTotalMinutes = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM);
 
-                              <select
-                                value={item.start}
-                                onChange={(e) => {
-                                  const updated = [...adScheduleList];
-                                  updated[index].start = e.target.value;
-                                  setAdScheduleList(updated);
-                                }}
-                                className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary"
-                              >
-                                {Array.from({ length: 96 }).map((_, i) => {
-                                  const h = String(Math.floor(i / 4)).padStart(2, "0");
-                                  const m = String((i % 4) * 15).padStart(2, "0");
-                                  const t = `${h}:${m}`;
-                                  return <option key={`disp-s-${t}`} value={t}>{t}</option>;
-                                })}
-                              </select>
-
-                              <span className="text-slate-500 font-medium">to</span>
-
-                              <select
-                                value={item.end}
-                                onChange={(e) => {
-                                  const updated = [...adScheduleList];
-                                  updated[index].end = e.target.value;
-                                  setAdScheduleList(updated);
-                                }}
-                                className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary"
-                              >
-                                {Array.from({ length: 96 }).map((_, i) => {
-                                  const h = String(Math.floor(i / 4)).padStart(2, "0");
-                                  const m = String((i % 4) * 15).padStart(2, "0");
-                                  const t = `${h}:${m}`;
-                                  return <option key={`disp-e-${t}`} value={t}>{t}</option>;
-                                })}
-                              </select>
-
-                              {adScheduleList.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setAdScheduleList(prev => prev.filter(s => s.id !== item.id))}
-                                  className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-100 cursor-pointer"
+                            return (
+                              <div key={item.id} className="flex flex-wrap items-center gap-3">
+                                <select
+                                  value={item.day}
+                                  onChange={(e) => {
+                                    const updated = [...adScheduleList];
+                                    updated[index].day = e.target.value;
+                                    setAdScheduleList(updated);
+                                  }}
+                                  className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary"
                                 >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                                  <option value="All days">All days</option>
+                                  <option value="Mondays - Fridays">Mondays - Fridays</option>
+                                  <option value="Saturdays - Sundays">Saturdays - Sundays</option>
+                                  <option value="Mondays">Mondays</option>
+                                  <option value="Tuesdays">Tuesdays</option>
+                                  <option value="Wednesdays">Wednesdays</option>
+                                  <option value="Thursdays">Thursdays</option>
+                                  <option value="Fridays">Fridays</option>
+                                  <option value="Saturdays">Saturdays</option>
+                                  <option value="Sundays">Sundays</option>
+                                </select>
+
+                                {/* Start Time Select */}
+                                <select
+                                  value={item.start}
+                                  onChange={(e) => {
+                                    const newStart = e.target.value;
+                                    const [newH, newM] = newStart.split(":").map(Number);
+                                    const newStartMin = newH * 60 + newM;
+
+                                    // Next valid 15-minute slot for end time
+                                    const nextSlotMin = Math.min(newStartMin + 15, 24 * 60);
+                                    const nextSlotH = String(Math.floor(nextSlotMin / 60)).padStart(2, "0");
+                                    const nextSlotM = String(nextSlotMin % 60).padStart(2, "0");
+                                    const nextSlotStr = `${nextSlotH}:${nextSlotM}`;
+
+                                    const [currEndH, currEndM] = item.end.split(":").map(Number);
+                                    const currEndMin = (isNaN(currEndH) ? 0 : currEndH) * 60 + (isNaN(currEndM) ? 0 : currEndM);
+
+                                    const updated = [...adScheduleList];
+                                    updated[index].start = newStart;
+                                    if (currEndMin <= newStartMin) {
+                                      updated[index].end = nextSlotStr;
+                                    }
+                                    setAdScheduleList(updated);
+                                  }}
+                                  className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary"
+                                >
+                                  {Array.from({ length: 96 }).map((_, i) => {
+                                    const h = String(Math.floor(i / 4)).padStart(2, "0");
+                                    const m = String((i % 4) * 15).padStart(2, "0");
+                                    const t = `${h}:${m}`;
+                                    return <option key={`disp-s-${t}`} value={t}>{t}</option>;
+                                  })}
+                                </select>
+
+                                <span className="text-slate-500 font-medium">to</span>
+
+                                {/* End Time Select: Only show times strictly after start time */}
+                                <select
+                                  value={item.end}
+                                  onChange={(e) => {
+                                    const updated = [...adScheduleList];
+                                    updated[index].end = e.target.value;
+                                    setAdScheduleList(updated);
+                                  }}
+                                  className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary"
+                                >
+                                  {Array.from({ length: 97 }).map((_, i) => {
+                                    const h = String(Math.floor(i / 4)).padStart(2, "0");
+                                    const m = String((i % 4) * 15).padStart(2, "0");
+                                    const t = `${h}:${m}`;
+                                    const totalMin = Math.floor(i / 4) * 60 + (i % 4) * 15;
+                                    // End time must be strictly greater than start time
+                                    if (totalMin <= startTotalMinutes) return null;
+                                    return <option key={`disp-e-${t}`} value={t}>{t}</option>;
+                                  })}
+                                </select>
+
+                                {adScheduleList.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAdScheduleList(prev => prev.filter(s => s.id !== item.id))}
+                                    className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-100 cursor-pointer"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
 
                           <button
                             type="button"
-                            onClick={() => setAdScheduleList(prev => [...prev, { id: Date.now().toString(), day: "Mondays", start: "09:00", end: "17:00" }])}
+                            onClick={() => {
+                              const newId = Date.now().toString();
+                              // Pick next day or time
+                              const existingDays = adScheduleList.map(s => s.day);
+                              const allDays = ["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"];
+                              const unusedDay = allDays.find(d => !existingDays.includes(d)) || "Mondays";
+                              setAdScheduleList(prev => [...prev, { id: newId, day: unusedDay, start: "09:00", end: "17:00" }]);
+                            }}
                             className="text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer pt-1"
                           >
                             <Plus className="h-3.5 w-3.5" /> Add schedule
@@ -942,26 +1159,48 @@ export default function  NoGuidanceDisplayPage() {
                       <div className="p-6 bg-white space-y-4 animate-in fade-in duration-150 text-xs">
                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                           <span className="font-bold text-slate-800">Start and end dates</span>
-                          <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
+                          <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg cursor-pointer">Save</button>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-1.5">
                             <label className="block text-slate-700 font-semibold">Start date</label>
                             <input
                               type="date"
+                              min={todayFormattedStr}
                               value={startDate}
-                              onChange={(e) => setStartDate(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900"
+                              onChange={(e) => {
+                                const newStart = e.target.value;
+                                setStartDate(newStart);
+                                // If end date is <= newStart, adjust end date to day after newStart
+                                if (newStart && endDate) {
+                                  const sDate = new Date(newStart);
+                                  const eDate = new Date(endDate);
+                                  if (eDate <= sDate) {
+                                    const nextDay = new Date(sDate);
+                                    nextDay.setDate(nextDay.getDate() + 1);
+                                    setEndDate(nextDay.toISOString().split("T")[0]);
+                                  }
+                                }
+                              }}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                             />
+                            <span className="text-[10px] text-slate-500">Must be today or a future date</span>
                           </div>
                           <div className="space-y-1.5">
-                            <label className="block text-slate-700 font-semibold">End date</label>
+                            <label className="block text-slate-700 font-semibold">End date (optional)</label>
                             <input
                               type="date"
+                              min={(() => {
+                                if (!startDate) return todayFormattedStr;
+                                const s = new Date(startDate);
+                                s.setDate(s.getDate() + 1);
+                                return s.toISOString().split("T")[0];
+                              })()}
                               value={endDate}
                               onChange={(e) => setEndDate(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                             />
+                            <span className="text-[10px] text-slate-500">Must be after the start date</span>
                           </div>
                         </div>
                       </div>
@@ -969,7 +1208,7 @@ export default function  NoGuidanceDisplayPage() {
                       <div onClick={() => setActiveEditSetting("DATES")} className="p-4 hover:bg-slate-50 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
                         <div className="w-1/3 text-slate-500 font-semibold">Start and end dates</div>
                         <div className="w-2/3 text-slate-800 font-bold pr-8">
-                          Start date: {startDate ? new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"}  End date: {endDate ? new Date(endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"}
+                          Start date: {startDate ? new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"} • End date: {endDate ? new Date(endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "No end date"}
                         </div>
                         <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
                       </div>
@@ -1101,11 +1340,13 @@ export default function  NoGuidanceDisplayPage() {
                       onClick={() => setOpenBudgetBiddingSetting(null)}
                       className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
                     >
-                      <h2 className="text-sm font-semibold text-slate-900">Budget</h2>
+                      <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-1">
+                        Budget <span className="text-rose-500 font-bold">*</span>
+                      </h2>
                       <ChevronUp className="h-4 w-4 text-slate-500" />
                     </div>
 
-                    <p className="text-xs font-semibold text-slate-800">Set your average daily budget for this campaign</p>
+                    <p className="text-xs font-semibold text-slate-800">Set your average daily budget for this campaign <span className="text-rose-500 font-bold">*</span></p>
 
                     <div className="relative max-w-xs text-xs">
                       <span className="absolute left-3.5 top-2.5 text-xs font-semibold text-slate-500">₹</span>
@@ -1125,17 +1366,30 @@ export default function  NoGuidanceDisplayPage() {
                 ) : (
                   <div
                     onClick={() => setOpenBudgetBiddingSetting("budget")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
-                        <span className="font-bold text-slate-800">Budget</span>
+                        <span className="font-bold text-slate-800 flex items-center gap-1">
+                          Budget <span className="text-rose-500 font-bold">*</span>
+                        </span>
                       </div>
                       <div className="text-[11px] text-slate-500 font-mono">
                         {dailyBudget ? `₹${dailyBudget} / day` : "Not set"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenBudgetBiddingSetting("budget");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1355,7 +1609,7 @@ export default function  NoGuidanceDisplayPage() {
                 ) : (
                   <div
                     onClick={() => setOpenBudgetBiddingSetting("bidding")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1368,7 +1622,18 @@ export default function  NoGuidanceDisplayPage() {
                         }
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenBudgetBiddingSetting("bidding");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1434,7 +1699,7 @@ export default function  NoGuidanceDisplayPage() {
                       ) : (
                         <div
                           onClick={() => setOpenTargetingSetting("audienceSegments")}
-                          className="flex items-center justify-between cursor-pointer select-none text-xs"
+                          className="flex items-center justify-between cursor-pointer select-none text-xs group"
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-56">
@@ -1444,7 +1709,18 @@ export default function  NoGuidanceDisplayPage() {
                               {selectedAudiences.length > 0 ? `Selected segments (${selectedAudiences.length})` : "None selected"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-500" />
+                          <button
+                            type="button"
+                            aria-label="Edit"
+                            title="Edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenTargetingSetting("audienceSegments");
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1537,7 +1813,7 @@ export default function  NoGuidanceDisplayPage() {
                       ) : (
                         <div
                           onClick={() => setOpenTargetingSetting("demographics")}
-                          className="flex items-center justify-between cursor-pointer select-none text-xs"
+                          className="flex items-center justify-between cursor-pointer select-none text-xs group"
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-56">
@@ -1547,7 +1823,18 @@ export default function  NoGuidanceDisplayPage() {
                               Configured demographic specifications
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-500" />
+                          <button
+                            type="button"
+                            aria-label="Edit"
+                            title="Edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenTargetingSetting("demographics");
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1653,7 +1940,7 @@ export default function  NoGuidanceDisplayPage() {
                       ) : (
                         <div
                           onClick={() => setOpenTargetingSetting("keywords")}
-                          className="flex items-center justify-between cursor-pointer select-none text-xs"
+                          className="flex items-center justify-between cursor-pointer select-none text-xs group"
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-56">
@@ -1663,7 +1950,18 @@ export default function  NoGuidanceDisplayPage() {
                               {enteredKeywordsText ? "Custom keywords active" : "None configured"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-500" />
+                          <button
+                            type="button"
+                            aria-label="Edit"
+                            title="Edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenTargetingSetting("keywords");
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1731,7 +2029,7 @@ export default function  NoGuidanceDisplayPage() {
                       ) : (
                         <div
                           onClick={() => setOpenTargetingSetting("topics")}
-                          className="flex items-center justify-between cursor-pointer select-none text-xs"
+                          className="flex items-center justify-between cursor-pointer select-none text-xs group"
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-56">
@@ -1741,7 +2039,18 @@ export default function  NoGuidanceDisplayPage() {
                               {selectedTopics.length > 0 ? `Selected topics (${selectedTopics.length})` : "None selected"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-500" />
+                          <button
+                            type="button"
+                            aria-label="Edit"
+                            title="Edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenTargetingSetting("topics");
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1798,7 +2107,7 @@ export default function  NoGuidanceDisplayPage() {
                       ) : (
                         <div
                           onClick={() => setOpenTargetingSetting("placements")}
-                          className="flex items-center justify-between cursor-pointer select-none text-xs"
+                          className="flex items-center justify-between cursor-pointer select-none text-xs group"
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-56">
@@ -1808,7 +2117,18 @@ export default function  NoGuidanceDisplayPage() {
                               {selectedPlacements.length > 0 ? `Selected placements (${selectedPlacements.length})` : "None selected"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-500" />
+                          <button
+                            type="button"
+                            aria-label="Edit"
+                            title="Edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenTargetingSetting("placements");
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1843,7 +2163,7 @@ export default function  NoGuidanceDisplayPage() {
                       ) : (
                         <div
                           onClick={() => setOpenTargetingSetting("optimizedTargeting")}
-                          className="flex items-center justify-between cursor-pointer select-none text-xs"
+                          className="flex items-center justify-between cursor-pointer select-none text-xs group"
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-56">
@@ -1853,7 +2173,18 @@ export default function  NoGuidanceDisplayPage() {
                               {useOptimizedTargeting ? "Turned on" : "Turned off"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-500" />
+                          <button
+                            type="button"
+                            aria-label="Edit"
+                            title="Edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenTargetingSetting("optimizedTargeting");
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1919,7 +2250,7 @@ export default function  NoGuidanceDisplayPage() {
                   ) : (
                     <div
                       onClick={() => setOpenAdSetting("identity")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56">
@@ -1929,7 +2260,18 @@ export default function  NoGuidanceDisplayPage() {
                           {finalUrl || "https://"} • {businessName || "No business name"}
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenAdSetting("identity");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1942,7 +2284,9 @@ export default function  NoGuidanceDisplayPage() {
                         onClick={() => setOpenAdSetting(null)}
                         className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer select-none"
                       >
-                        <h4 className="font-bold text-slate-800">Assets (Images, Logos, Videos)</h4>
+                        <h4 className="font-bold text-slate-800 flex items-center gap-1">
+                          Assets (Images, Logos, Videos) <span className="text-rose-500 font-bold">*</span>
+                        </h4>
                         <ChevronUp className="h-4 w-4 text-slate-500" />
                       </div>
 
@@ -1950,7 +2294,9 @@ export default function  NoGuidanceDisplayPage() {
                         {/* Images Card */}
                         <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                           <div className="flex items-center justify-between">
-                            <h3 className="font-semibold text-slate-800">Images</h3>
+                            <h3 className="font-semibold text-slate-800 flex items-center gap-1">
+                              Images <span className="text-rose-500 font-bold">*</span>
+                            </h3>
                             <label className="text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer">
                               <Plus className="h-3.5 w-3.5" /> Add images
                               <input
@@ -1971,7 +2317,7 @@ export default function  NoGuidanceDisplayPage() {
                               />
                             </label>
                           </div>
-                          <p className="text-[11px] text-slate-500">Add up to 15 images. At least 1 landscape image and 1 square image required. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline">Learn more</a></p>
+                          <p className="text-[11px] text-slate-500">Add up to 15 images. At least 1 landscape image and 1 square image required <span className="text-rose-500 font-bold">*</span>. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline">Learn more</a></p>
 
                           {imagesList.length > 0 && (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
@@ -2104,17 +2450,30 @@ export default function  NoGuidanceDisplayPage() {
                   ) : (
                     <div
                       onClick={() => setOpenAdSetting("assets")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56">
-                          <span className="font-bold text-slate-800">Assets</span>
+                          <span className="font-bold text-slate-800 flex items-center gap-1">
+                            Assets <span className="text-rose-500 font-bold">*</span>
+                          </span>
                         </div>
                         <div className="text-[11px] text-slate-500">
                           {imagesList.length} Image(s), {logosList.length} Logo(s), {videosList.length} Video(s)
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenAdSetting("assets");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2169,7 +2528,7 @@ export default function  NoGuidanceDisplayPage() {
                   ) : (
                     <div
                       onClick={() => setOpenAdSetting("headlines")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56">
@@ -2179,7 +2538,18 @@ export default function  NoGuidanceDisplayPage() {
                           {headlines.filter(h => h).length} headline(s) added
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenAdSetting("headlines");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2234,7 +2604,7 @@ export default function  NoGuidanceDisplayPage() {
                   ) : (
                     <div
                       onClick={() => setOpenAdSetting("longHeadlines")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56">
@@ -2244,7 +2614,18 @@ export default function  NoGuidanceDisplayPage() {
                           {longHeadlines.filter(h => h).length} long headline(s) added
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenAdSetting("longHeadlines");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2299,7 +2680,7 @@ export default function  NoGuidanceDisplayPage() {
                   ) : (
                     <div
                       onClick={() => setOpenAdSetting("descriptions")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56">
@@ -2309,7 +2690,18 @@ export default function  NoGuidanceDisplayPage() {
                           {descriptions.filter(d => d).length} description(s) added
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenAdSetting("descriptions");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2376,7 +2768,7 @@ export default function  NoGuidanceDisplayPage() {
                   ) : (
                     <div
                       onClick={() => setOpenAdSetting("assetOptimization")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56">
@@ -2386,7 +2778,18 @@ export default function  NoGuidanceDisplayPage() {
                           Enhancements: {useAssetEnhancements ? "Yes" : "No"} • Auto Video: {useAutoGeneratedVideo ? "Yes" : "No"} • Native: {useNativeFormats ? "Yes" : "No"}
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenAdSetting("assetOptimization");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2499,7 +2902,7 @@ export default function  NoGuidanceDisplayPage() {
                   ) : (
                     <div
                       onClick={() => setOpenAdSetting("adUrlOptions")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56">
@@ -2509,7 +2912,18 @@ export default function  NoGuidanceDisplayPage() {
                           CTA: {enableCallToAction ? callToActionText : "Default"} • Custom Colors: {enableCustomColors ? "Yes" : "No"}
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenAdSetting("adUrlOptions");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2589,7 +3003,8 @@ export default function  NoGuidanceDisplayPage() {
                       <span className="text-slate-500 font-medium">Campaign name</span>
                       <input
                         type="text"
-                        defaultValue="Sales-Display-3"
+                        value={displayCampaignName}
+                        onChange={(e) => setDisplayCampaignName(e.target.value)}
                         className="bg-white border border-slate-300 rounded-lg px-3 py-1 text-slate-900 font-semibold focus:outline-none focus:border-primary text-right"
                       />
                     </div>
@@ -2601,7 +3016,7 @@ export default function  NoGuidanceDisplayPage() {
 
                     <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50">
                       <span className="text-slate-500 font-medium">Objective</span>
-                      <span className="font-semibold text-slate-800">Sales</span>
+                      <span className="font-semibold text-slate-800">NoGuidance</span>
                     </div>
 
                     <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50">
@@ -2748,13 +3163,81 @@ export default function  NoGuidanceDisplayPage() {
 
           {displayStep === "REVIEW" && (
             <button
-              onClick={() => {
-                if (!dailyBudget) {
-                  alert("Budget: Value is required");
+              onClick={async () => {
+                // 1. Validation
+                const cleanHeadlines = headlines.filter(h => h && h.trim().length > 0);
+                const cleanDescriptions = descriptions.filter(d => d && d.trim().length > 0);
+                const numBudget = Number(dailyBudget);
+
+                if (!dailyBudget || isNaN(numBudget) || numBudget <= 0) {
+                  alert("Daily Budget must be a positive number greater than 0.");
+                  setDisplayStep("BUDGET_BIDDING");
                   return;
                 }
-                alert("Display campaign published successfully!");
-                router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+
+                if (cleanHeadlines.length === 0) {
+                  alert("At least 1 Headline is required for Display campaigns.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                if (cleanDescriptions.length === 0) {
+                  alert("At least 1 Description is required for Display campaigns.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                try {
+                  const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                  const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+                  const targetCid = customerId || "6587355041";
+
+                  const payloadToLaunch = {
+                    orgId,
+                    customerId: targetCid,
+                    campaignName: displayCampaignName.trim() || `NoGuidance-Display-${Date.now()}`,
+                    channelType: "DISPLAY",
+                    biddingStrategy: conversionBiddingType === "TARGET_CPA" ? "TARGET_CPA" : "MAXIMIZE_CONVERSIONS",
+                    budget: numBudget,
+                    targetCpa: conversionBiddingType === "TARGET_CPA" && targetCpaValue ? Number(targetCpaValue) : undefined,
+                    startDate: startDate || new Date().toISOString().split("T")[0],
+                    endDate: endDate || undefined,
+                    finalUrl: finalUrl.trim() || "https://www.JDS-automation.com",
+                    businessName: businessName.trim() || "JDS",
+                    headlines: cleanHeadlines.length > 0 ? cleanHeadlines : ["Grow Your Business Online", "Digital Marketing Solutions", "Smart Business Automation"],
+                    descriptions: cleanDescriptions.length > 0 ? cleanDescriptions : [
+                      "Get powerful digital marketing and automation solutions for your business.",
+                      "Generate more leads and grow your business with smart automation."
+                    ],
+                    images: imagesList.length > 0 ? imagesList : [
+                      "https://ik.imagekit.io/automationjds/gads_dg_image_1787574968684_aimaths_YX-Kb7zvI.jpg"
+                    ],
+                    logos: logosList.length > 0 ? logosList : [
+                      "https://ik.imagekit.io/automationjds/gads_dg_logo_1787574973938_google_ads_logo_FJndWjppS.jpg"
+                    ],
+                    locations: selectedLocation === "INDIA" ? ["India"] : ["All countries and territories"],
+                    languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
+                    euPolitical: euPoliticalAds
+                  };
+
+                  console.log("[NoGuidance -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));
+
+                  const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payloadToLaunch)
+                  });
+
+                  if (res.ok) {
+                    alert("Display campaign published successfully!");
+                    router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                  } else {
+                    const errData = await res.json().catch(() => ({}));
+                    alert(`Failed to publish Display campaign: ${errData.message || errData.error || "Unknown error"}`);
+                  }
+                } catch (err: any) {
+                  alert(`Backend error: ${err.message}`);
+                }
               }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
             >

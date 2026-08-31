@@ -1,4 +1,5 @@
 "use client";
+import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -208,8 +209,61 @@ export default function SalesVideoPage() {
   // Location & Language Level States
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("INDIA");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
+  const [isSearchingLocations, setIsSearchingLocations] = useState<boolean>(false);
+  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ id?: string; name: string; canonicalName: string; targetType: string; reach?: string }>>([]);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
-  const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
+  
+
+  // Live Location Search from Google Ads Geo Targets API
+  useEffect(() => {
+    if (customLocationInput.trim().length >= 2) {
+      setIsSearchingLocations(true);
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "6587355041";
+
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`${BACKEND}/api/ads/geo-targets/search?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}&q=${encodeURIComponent(customLocationInput.trim())}`);
+          if (res.ok) {
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : (data.results || data.data || []);
+            const formatted = list.map((item: any) => ({
+              id: item.id || item.geoTargetConstant?.id || item.resourceName?.split("/").pop(),
+              name: item.name || item.geoTargetConstant?.name || item.canonicalName || item.geoTargetConstant?.canonicalName,
+              canonicalName: item.canonicalName || item.geoTargetConstant?.canonicalName || item.name,
+              targetType: item.targetType || item.geoTargetConstant?.targetType || "Location"
+            }));
+            setLocationSearchResults(formatted);
+          } else {
+            const localFallback = [
+              { name: "Mumbai", canonicalName: "Mumbai, Maharashtra, India", targetType: "City" },
+              { name: "Delhi", canonicalName: "Delhi, India", targetType: "Union territory" },
+              { name: "Bengaluru", canonicalName: "Bengaluru, Karnataka, India", targetType: "City" },
+              { name: "Hyderabad", canonicalName: "Hyderabad, Telangana, India", targetType: "City" },
+              { name: "Ahmedabad", canonicalName: "Ahmedabad, Gujarat, India", targetType: "City" },
+              { name: "Chennai", canonicalName: "Chennai, Tamil Nadu, India", targetType: "City" },
+              { name: "Kolkata", canonicalName: "Kolkata, West Bengal, India", targetType: "City" },
+              { name: "Pune", canonicalName: "Pune, Maharashtra, India", targetType: "City" },
+              { name: "Surat", canonicalName: "Surat, Gujarat, India", targetType: "City" },
+              { name: "Jaipur", canonicalName: "Jaipur, Rajasthan, India", targetType: "City" },
+              { name: "United States", canonicalName: "United States", targetType: "Country" }
+            ].filter(loc => loc.name.toLowerCase().includes(customLocationInput.toLowerCase()) || loc.canonicalName.toLowerCase().includes(customLocationInput.toLowerCase()));
+            setLocationSearchResults(localFallback);
+          }
+        } catch {
+          setLocationSearchResults([]);
+        } finally {
+          setIsSearchingLocations(false);
+        }
+      }, 200);
+
+      return () => clearTimeout(timer);
+    } else {
+      setLocationSearchResults([]);
+      setIsSearchingLocations(false);
+    }
+  }, [customLocationInput, customerId]);
 
   // Channels Selection State
   const [selectedChannels, setSelectedChannels] = useState<string[]>(["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"]);
@@ -661,6 +715,22 @@ export default function SalesVideoPage() {
           parameter: "Business name",
           message: "Business name is required.",
           step: "AD"
+        });
+      }
+    }
+
+    // 12. Tracking Template validation
+    const effectiveTrackingTemplate = trackingTemplate || agTrackingTemplate || adTrackingTemplate;
+    if (effectiveTrackingTemplate && effectiveTrackingTemplate.trim()) {
+      const hasTag = /\{(?:lpurl|unescapedlpurl|escapedlpurl|lpurlpath|2escapedlpurl)\}/i.test(effectiveTrackingTemplate.trim());
+      if (!hasTag) {
+        issues.push({
+          id: "camp-tracking-template",
+          level: "Campaign",
+          parameter: "Tracking template",
+          message: "Tracking template must contain a landing page parameter tag (e.g. {lpurl}). Example: https://tracking.example.com/?url={lpurl}",
+          step: "CAMPAIGN_SETTINGS",
+          settingKey: "urlOptions"
         });
       }
     }
@@ -1213,9 +1283,46 @@ export default function SalesVideoPage() {
                               value={customLocationInput}
                               onChange={(e) => setCustomLocationInput(e.target.value)}
                               placeholder="Enter a location to target or exclude"
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                             />
+                            {isSearchingLocations && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                              </div>
+                            )}
                           </div>
+
+                          {/* Live Location Search Dropdown Results */}
+                          {locationSearchResults.length > 0 && (
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 max-w-md z-10 relative">
+                              {locationSearchResults.map((loc, idx) => (
+                                <div
+                                  key={idx}
+                                  onClick={() => {
+                                    setCustomLocationInput(loc.canonicalName || loc.name);
+                                    setLocationSearchResults([]);
+                                  }}
+                                  className="p-2.5 hover:bg-primary/10 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                                >
+                                  <div>
+                                    <span className="font-semibold text-slate-800 block">{loc.canonicalName || loc.name}</span>
+                                    {loc.id && <span className="text-[10px] text-slate-500 font-mono">ID: {loc.id}</span>}
+                                  </div>
+                                  <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-medium">
+                                    {loc.targetType || "Location"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Unlisted / Invalid City Warning Message */}
+                          {customLocationInput.trim().length >= 2 && !isSearchingLocations && locationSearchResults.length === 0 && (
+                            <div className="p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 text-xs font-semibold flex items-center gap-2 max-w-md">
+                              <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                              <span>No matching locations found for "{customLocationInput}". Only verified cities/locations from Google Ads API can be added.</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1266,49 +1373,7 @@ export default function SalesVideoPage() {
 
                     <p className="text-xs text-slate-500">Select the languages your customers speak.</p>
 
-                    <div className="space-y-3">
-                      <div className="relative max-w-md">
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            if (e.target.value && !selectedLanguages.includes(e.target.value)) {
-                              setSelectedLanguages(prev => [...prev, e.target.value]);
-                            }
-                            e.target.value = "";
-                          }}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
-                        >
-                          <option value="">-- Add language --</option>
-                          {[
-                            "All languages", "Arabic", "Bengali", "Bulgarian", "Catalan", "Chinese (simplified)", "Chinese (traditional)",
-                            "Croatian", "Czech", "Danish", "Dutch", "English", "Estonian", "Filipino", "Finnish", "French",
-                            "German", "Greek", "Gujarati", "Hebrew", "Hindi", "Hungarian", "Icelandic", "Indonesian", "Italian",
-                            "Japanese", "Kannada", "Korean", "Latvian", "Lithuanian", "Malay", "Malayalam", "Marathi", "Norwegian",
-                            "Persian", "Polish", "Portuguese", "Punjabi", "Romanian", "Russian", "Serbian", "Slovak", "Slovenian",
-                            "Spanish", "Swedish", "Tamil", "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese"
-                          ].map((lang) => (
-                            <option key={lang} value={lang}>{lang}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <span className="px-3 py-1 rounded-full bg-slate-100 border border-slate-300 text-xs text-slate-700 font-medium">
-                          All languages
-                        </span>
-                        {selectedLanguages.map((lang, idx) => (
-                          <span key={idx} className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold hover:bg-rose-500/30 transition-all cursor-pointer">
-                            <button 
-                              onClick={() => setSelectedLanguages(prev => prev.filter((_, i) => i !== idx))}
-                              title={`Remove ${lang}`}
-                              type="button"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                    <LanguageDropdown selectedLanguages={selectedLanguages} setSelectedLanguages={setSelectedLanguages} customerId={customerId || "6587355041"} />
                   </>
                 ) : (
                   <div 
@@ -1722,7 +1787,7 @@ export default function SalesVideoPage() {
                       <ChevronUp className="h-4 w-4 text-slate-500" />
                     </div>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                      Save time by using Google AI to draft a Demand Gen campaign with settings & assets from an existing campaign. You can modify any setting before publishing. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
+                      Save time by using Google AI to draft a Video campaign with settings & assets from an existing campaign. You can modify any setting before publishing. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
                     </p>
                     <div className="flex items-center justify-between text-xs pt-1">
                       <div className="flex items-center gap-2">

@@ -462,6 +462,7 @@ router.post("/campaign/launch", async (req, res) => {
       orgId = DEFAULT_ORG_ID, customerId, campaignName, budget,
       channelType, biddingStrategy, targetCpa, targetRoas,
       startDate, endDate, finalUrl, headlines, descriptions, keywords,
+      campaignSubtype,
       geoTargetIds, locations, locationTargetingType, languages,
       euPolitical, enableAiMax, enableTextCustomization, enableFinalUrlExpansion,
       urlExpansionOptOut, trackingUrlTemplate, trackingTemplate, finalUrlSuffix,
@@ -519,14 +520,18 @@ router.post("/campaign/launch", async (req, res) => {
       }
     }
 
-    if (endDate && String(endDate).trim()) {
-      const endStr = String(endDate).trim().split("T")[0];
+    let finalEndDate = endDate && String(endDate).trim() ? String(endDate).trim().split("T")[0] : undefined;
+    if (finalEndDate) {
       const startStr = startDate ? String(startDate).trim().split("T")[0] : todayStr;
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(endStr)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(finalEndDate)) {
         return res.status(400).json({ error: "Invalid endDate format. Expected YYYY-MM-DD." });
       }
-      if (endStr < startStr) {
-        return res.status(400).json({ error: `End Date (${endStr}) cannot be earlier than Start Date (${startStr}).` });
+      if (finalEndDate < startStr) {
+        return res.status(400).json({ error: `End Date (${finalEndDate}) cannot be earlier than Start Date (${startStr}).` });
+      }
+      const MAX_ALLOWED_DATE = "2037-12-30";
+      if (finalEndDate > MAX_ALLOWED_DATE) {
+        finalEndDate = MAX_ALLOWED_DATE; // Clamp to Google Ads max allowed date
       }
     }
 
@@ -575,10 +580,10 @@ router.post("/campaign/launch", async (req, res) => {
           organizationId: orgId, customerId,
           campaignName, budget: Number(budget),
           biddingStrategy: biddingStrategy || "MAXIMIZE_CONVERSIONS",
-          targetCpa: targetCpa ? Number(targetCpa) : undefined,
+          targetCpa: (biddingStrategy === "TARGET_CPA" && targetCpa) ? Number(targetCpa) : undefined,
           targetRoas: targetRoas ? Number(targetRoas) : undefined,
           startDate: startDate || new Date().toISOString().split("T")[0],
-          endDate, finalUrl, headlines, descriptions,
+          endDate: finalEndDate, finalUrl, headlines, descriptions,
           images: images || []
         });
       } else if (channelType === "DEMAND_GEN") {
@@ -587,7 +592,7 @@ router.post("/campaign/launch", async (req, res) => {
           finalUrl,
           amountMicros: Math.round(Number(budget) * 1_000_000),
           campaignGoal: biddingStrategy || "MAXIMIZE_CONVERSIONS",
-          targetCpaMicros: targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined,
+          targetCpaMicros: (biddingStrategy === "TARGET_CPA" && targetCpa) ? Math.round(Number(targetCpa) * 1_000_000) : undefined,
           headlines,
           descriptions,
           images: Array.isArray(images) ? images.map((i: any) => typeof i === "string" ? i : (i.url || i.data || "")) : []
@@ -598,32 +603,62 @@ router.post("/campaign/launch", async (req, res) => {
           finalUrl,
           amountMicros: Math.round(Number(budget) * 1_000_000),
           biddingFocus: biddingStrategy || "MAXIMIZE_CONVERSIONS",
-          targetCpaMicros: targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined,
+          targetCpaMicros: (biddingStrategy === "TARGET_CPA" && targetCpa) ? Math.round(Number(targetCpa) * 1_000_000) : undefined,
           headlines,
           longHeadline: headlines?.[1] || headlines?.[0] || "Grow Your Business With Smart Digital Marketing Solutions",
           descriptions,
           images: Array.isArray(images) ? images.map((i: any) => typeof i === "string" ? i : (i.url || i.data || "")) : []
         });
       } else if (channelType === "VIDEO") {
+        const SUBTYPE_MAP: Record<string, string> = {
+          "9": "VIDEO_OUTSTREAM",
+          "10": "VIDEO_ACTION",
+          "11": "VIDEO_NON_SKIPPABLE",
+          "17": "VIDEO_SEQUENCE",
+          "19": "VIDEO_REACH_TARGET_FREQUENCY"
+        };
+        
+        let mappedCampaignSubtype = campaignSubtype ? String(campaignSubtype).trim() : "VIDEO_ACTION";
+        mappedCampaignSubtype = SUBTYPE_MAP[mappedCampaignSubtype] || mappedCampaignSubtype;
+
+        // Certain subtypes do NOT support targetCpa (e.g., REACH campaigns expect targetCpm or maximizeReach)
+        const supportsTargetCpa = mappedCampaignSubtype === "VIDEO_ACTION";
+        const finalTargetCpaMicros = (supportsTargetCpa && biddingStrategy === "TARGET_CPA" && targetCpa)
+          ? Math.round(Number(targetCpa) * 1_000_000)
+          : undefined;
+
+        console.log("[DEBUG] Video Campaign Subtype mapped to:", mappedCampaignSubtype);
+
+        // Pre-flight Validation
+        const finalEndDate = endDate ? (endDate > "2037-12-30" ? "2037-12-30" : endDate) : undefined;
+        if (!budget || Number(budget) <= 0) {
+          return res.status(400).json({ success: false, message: "Invalid budget amount." });
+        }
+        if (biddingStrategy === "TARGET_CPA" && supportsTargetCpa && (!targetCpa || Number(targetCpa) <= 0)) {
+          return res.status(400).json({ success: false, message: "Invalid Target CPA amount." });
+        }
+
         result = await GoogleAdsService.createNoGuidanceVideoCampaign(orgId, customerId, {
           campaignName,
-          campaignSubtype: "VIDEO_ACTION",
+          campaignSubtype: mappedCampaignSubtype,
           videoUrl: (images && images[0]) || "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
           finalUrl,
           amountMicros: Math.round(Number(budget) * 1_000_000),
           biddingFocus: biddingStrategy || "MAXIMIZE_CONVERSIONS",
-          targetCpaMicros: targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined,
+          targetCpaMicros: finalTargetCpaMicros,
           headline: headlines?.[0] || "Watch Video",
-          description: descriptions?.[0] || "Explore our videos"
+          description: descriptions?.[0] || "Explore our videos",
+          startDate: startDate || new Date().toISOString().split("T")[0],
+          endDate: finalEndDate
         });
       } else {
         result = await GoogleAdsService.launchLocalSearchCampaign({
           organizationId: orgId, customerId,
           campaignName, budget: Number(budget),
-          channelType, biddingStrategy, targetCpa: targetCpa ? Number(targetCpa) : undefined,
+          channelType, biddingStrategy, targetCpa: (biddingStrategy === "TARGET_CPA" && targetCpa) ? Number(targetCpa) : undefined,
           targetRoas: targetRoas ? Number(targetRoas) : undefined,
           startDate: startDate || new Date().toISOString().split("T")[0],
-          endDate, finalUrl, headlines, descriptions, keywords: keywords || [],
+          endDate: finalEndDate, finalUrl, headlines, descriptions, keywords: keywords || [],
           geoTargetIds: resolvedGeoTargets,
           networkDisplay,
           locationTargetingType,
@@ -2672,6 +2707,19 @@ router.get("/geo-targets/search", async (req, res) => {
     const query = req.query.q as string;
     if (!customerId || !query) return res.status(400).json({ error: "customerId and q required" });
     const results = await GoogleAdsService.searchGeoTargets(orgId, customerId, query);
+    res.status(200).json(results);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// GET /api/ads/languages
+router.get("/languages", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+    const results = await GoogleAdsService.getLanguageConstants(orgId, customerId);
     res.status(200).json(results);
   } catch (error: any) {
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });

@@ -6,12 +6,12 @@ import prisma from "./utils/prisma";
 
 async function verifyVideoCampaign() {
   console.log("============================================================================");
-  console.log("=== STARTING CONTROLLED LIVE VIDEO VERIFICATION: Atharva-Sales-Video-Verification-01 ===");
+  console.log("=== STARTING CONTROLLED LIVE VIDEO VERIFICATION: JDS-Sales-Video-Verification-01 ===");
   console.log("============================================================================");
 
   const orgId = "demo-org-123";
   const customerId = "6587355041";
-  const campaignName = "Atharva-Sales-Video-Verification-01";
+  const campaignName = "JDS-Sales-Video-Verification-01";
 
   // Check account
   const accounts = await prisma.googleAdAccount.findMany({
@@ -23,11 +23,11 @@ async function verifyVideoCampaign() {
     campaignName,
     campaignSubtype: "VIDEO_ACTION",
     videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    finalUrl: "https://www.atharva-automation.com",
+    finalUrl: "https://www.JDS-automation.com",
     amountMicros: 500 * 1_000_000,
     biddingFocus: "MAXIMIZE_CONVERSIONS",
     targetCpaMicros: 50 * 1_000_000,
-    headline: "Atharva Video Ads",
+    headline: "JDS Video Ads",
     description: "Transform your customer outreach with automated video marketing."
   };
 

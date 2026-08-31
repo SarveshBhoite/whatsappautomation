@@ -1,4 +1,5 @@
 "use client";
+import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -381,8 +382,9 @@ export default function CampaignCreatePage() {
   const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
   const [locationIncludeOption, setLocationIncludeOption] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE");
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
-  const [audienceTab, setAudienceTab] = useState<"SEARCH" | "BROWSE">("SEARCH");
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
+  const [audienceTab, setAudienceTab] = useState<"SEARCH" | "BROWSE">("SEARCH");
+  
   const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
   const [audienceSegments, setAudienceSegments] = useState<string[]>([]);
   const [audienceSearchInput, setAudienceSearchInput] = useState<string>("");

@@ -13,7 +13,16 @@ export class GoogleAdsService {
   // ─────────────────────────────────────────────────────────────────────────
   // CORE: Build Ads API headers (MCC-aware)
   // ─────────────────────────────────────────────────────────────────────────
+  private static headersCache: Map<string, { data: any, expiresAt: number }> = new Map();
+
   public static async getAdsHeaders(organizationId: string, customerId?: string) {
+    const cacheKey = `${organizationId}_${customerId || 'default'}`;
+    const cached = this.headersCache.get(cacheKey);
+    // Cache for 45 minutes to avoid token expiration and DB overload
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
     const config = await prisma.googleBusinessConfig.findUnique({
       where: { organizationId }
     });
@@ -59,7 +68,9 @@ export class GoogleAdsService {
       ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {})
     };
 
-    return { headers, customerId: cid, accessToken, managerId: loginCustomerId };
+    const result = { headers, customerId: cid, accessToken, managerId: loginCustomerId };
+    this.headersCache.set(cacheKey, { data: result, expiresAt: Date.now() + 45 * 60 * 1000 });
+    return result;
   }
 
   /** Build headers for manager-level calls (accessible-customers, sub-account listing) */
@@ -987,13 +998,36 @@ export class GoogleAdsService {
     "urdu": "1041"
   };
 
+  public static async getLanguageConstants(organizationId: string, customerId: string) {
+    const query = `
+      SELECT 
+        language_constant.id, 
+        language_constant.code, 
+        language_constant.name, 
+        language_constant.targetable 
+      FROM language_constant 
+      WHERE language_constant.targetable = TRUE
+    `;
+    const rows = await this.gaqlSearch(organizationId, customerId, query);
+    return rows.map((r: any) => ({
+      id: r.languageConstant?.id,
+      code: r.languageConstant?.code,
+      name: r.languageConstant?.name,
+      targetable: r.languageConstant?.targetable
+    }));
+  }
+
   public static async addLanguages(organizationId: string, customerId: string, campaignResourceName: string, languageNames: string[]) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
     const operations: any[] = [];
 
     for (const lang of languageNames) {
       const normalized = (lang || "").trim().toLowerCase();
-      const constantId = this.LANGUAGE_CONSTANT_MAP[normalized];
+      let constantId = this.LANGUAGE_CONSTANT_MAP[normalized];
+      if (!constantId && /^\d+$/.test(lang)) {
+        constantId = lang;
+      }
+      
       if (!constantId) {
         throw new Error(`Unsupported or unmapped CRM language: "${lang}". Please select a valid language.`);
       }
@@ -1731,7 +1765,8 @@ export class GoogleAdsService {
               status: "PAUSED",
               advertisingChannelType: "PERFORMANCE_MAX",
               campaignBudget: budgetRef,
-              ...(params.targetCpaMicros ? { targetCpa: { targetCpaMicros: params.targetCpaMicros } } : {})
+              audienceSetting: { useAudienceGrouped: true },
+              ...(params.targetCpaMicros ? { maximizeConversions: { targetCpaMicros: String(params.targetCpaMicros) } } : {})
             }
           }
         ]
@@ -1882,6 +1917,7 @@ export class GoogleAdsService {
               status: "PAUSED",
               advertisingChannelType: "PERFORMANCE_MAX",
               campaignBudget: budgetRef,
+              audienceSetting: { useAudienceGrouped: true },
               brandGuidelinesEnabled: params.brandGuidelinesEnabled ?? false,
               containsEuPoliticalAdvertising: euPoliticalValue,
               ...(params.positiveGeoTargetType ? {
@@ -1928,7 +1964,7 @@ export class GoogleAdsService {
       const headlineAssetRefs: string[] = [];
       for (const hText of validHeadlines) {
         const ref = await this.createTextAsset(organizationId, customerId, hText.trim());
-        if (ref) headlineAssetRefs.push(ref);
+        if (ref && !headlineAssetRefs.includes(ref)) headlineAssetRefs.push(ref);
       }
 
       // B. Long Headlines (LONG_HEADLINE)
@@ -1936,7 +1972,7 @@ export class GoogleAdsService {
       const longHeadlineAssetRefs: string[] = [];
       for (const lhText of validLongHeadlines) {
         const ref = await this.createTextAsset(organizationId, customerId, lhText.trim());
-        if (ref) longHeadlineAssetRefs.push(ref);
+        if (ref && !longHeadlineAssetRefs.includes(ref)) longHeadlineAssetRefs.push(ref);
       }
 
       // C. Descriptions (DESCRIPTION)
@@ -1944,7 +1980,7 @@ export class GoogleAdsService {
       const descriptionAssetRefs: string[] = [];
       for (const dText of validDescriptions) {
         const ref = await this.createTextAsset(organizationId, customerId, dText.trim());
-        if (ref) descriptionAssetRefs.push(ref);
+        if (ref && !descriptionAssetRefs.includes(ref)) descriptionAssetRefs.push(ref);
       }
 
       // D. Business Name (BUSINESS_NAME)
@@ -2011,11 +2047,16 @@ export class GoogleAdsService {
       const tempAssetGroupRef = `customers/${cid}/assetGroups/-1`;
       const assetGroupName = (params.assetGroupName || "").trim() || `${params.campaignName} Asset Group 1`;
 
+      let cleanFinalUrl = (params.finalUrl || "").trim();
+      if (cleanFinalUrl && !cleanFinalUrl.startsWith("http://") && !cleanFinalUrl.startsWith("https://")) {
+        cleanFinalUrl = `https://${cleanFinalUrl}`;
+      }
+
       const assetGroupCreateBody: any = {
         resourceName: tempAssetGroupRef,
         campaign: campaignRef,
         name: assetGroupName,
-        finalUrls: [params.finalUrl],
+        finalUrls: [cleanFinalUrl || "https://www.example.com"],
         status: "PAUSED"
       };
       const p1 = (params.path1 || params.displayPath1 || "").trim();
@@ -2476,7 +2517,7 @@ export class GoogleAdsService {
               status: "PAUSED",
               advertisingChannelType: "SEARCH",
               campaignBudget: budgetRef,
-              ...(params.targetCpaMicros ? { targetCpa: { targetCpaMicros: params.targetCpaMicros } } : {})
+              ...(params.targetCpaMicros ? { maximizeConversions: { targetCpaMicros: String(params.targetCpaMicros) } } : {})
             }
           }
         ]
@@ -2534,7 +2575,8 @@ export class GoogleAdsService {
               status: "PAUSED",
               advertisingChannelType: "DEMAND_GEN",
               campaignBudget: budgetRef,
-              ...(params.targetCpaMicros ? { targetCpa: { targetCpaMicros: params.targetCpaMicros } } : {})
+              audienceSetting: { useAudienceGrouped: true },
+              ...(params.targetCpaMicros ? { maximizeConversions: { targetCpaMicros: String(params.targetCpaMicros) } } : {})
             }
           }
         ]
@@ -2655,6 +2697,8 @@ export class GoogleAdsService {
       targetCpaMicros?: number;
       headline?: string;
       description?: string;
+      startDate?: string;
+      endDate?: string;
     }
   ) {
     const budgetRef = await this.createBudget(organizationId, customerId, {
@@ -2665,13 +2709,27 @@ export class GoogleAdsService {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
     const cid = (customerId || "").replace(/-/g, "").trim();
 
-    // Determine bidding strategy for Video
+    // Determine bidding strategy for Video based on Subtype
+    let biddingConfig: any = { maximizeConversions: {} };
     const isTargetCpa = params.targetCpaMicros && params.targetCpaMicros > 0;
-    const biddingConfig = isTargetCpa
-      ? { targetCpa: { targetCpaMicros: String(params.targetCpaMicros) } }
-      : params.biddingFocus === "MANUAL_CPV" || params.biddingFocus === "Maximum CPV"
-      ? { manualCpv: {} }
-      : { maximizeConversions: {} };
+    
+    if (params.campaignSubtype === "VIDEO_REACH_TARGET_FREQUENCY" || params.campaignSubtype === "VIDEO_NON_SKIPPABLE") {
+      biddingConfig = { targetCpm: {} }; // Reach campaigns require Target CPM
+    } else if (isTargetCpa) {
+      biddingConfig = { maximizeConversions: { targetCpaMicros: String(params.targetCpaMicros) } };
+    } else if (params.biddingFocus === "MANUAL_CPV" || params.biddingFocus === "Maximum CPV") {
+      biddingConfig = { manualCpv: {} };
+    }
+    // Enforce Google Ads maximum end date constraint
+    const todayIso = new Date().toISOString().split("T")[0];
+    let cleanStartDate = params.startDate ? params.startDate.split("T")[0].split(" ")[0] : todayIso;
+    if (cleanStartDate < todayIso) cleanStartDate = todayIso;
+    const startDateTime = `${cleanStartDate} 00:00:00`;
+
+    let cleanEndDate = params.endDate ? params.endDate.split("T")[0].split(" ")[0] : undefined;
+    if (cleanEndDate && cleanEndDate < cleanStartDate) cleanEndDate = cleanStartDate;
+    if (cleanEndDate && cleanEndDate > "2037-12-30") cleanEndDate = "2037-12-30";
+    const endDateTime = cleanEndDate ? `${cleanEndDate} 23:59:59` : undefined;
 
     const campaignPayload = {
       operations: [
@@ -2680,13 +2738,20 @@ export class GoogleAdsService {
             name: params.campaignName,
             status: "PAUSED",
             advertisingChannelType: "VIDEO",
+            advertisingChannelSubType: params.campaignSubtype,
             campaignBudget: budgetRef,
             containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            startDateTime,
+            ...(endDateTime ? { endDateTime } : {}),
             ...biddingConfig
           }
         }
       ]
     };
+
+    console.log("=== VIDEO CAMPAIGN MUTATE PAYLOAD ===");
+    console.log(JSON.stringify(campaignPayload.operations[0].create, null, 2));
+    console.log("=====================================");
 
     const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
     const campaignRef = res.data?.results?.[0]?.resourceName;

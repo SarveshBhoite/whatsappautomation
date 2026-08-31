@@ -6,12 +6,12 @@ import prisma from "./utils/prisma";
 
 async function executeFreshLiveVideoTest() {
   console.log("============================================================================");
-  console.log("=== EXECUTING FRESH LIVE SALES -> VIDEO TEST: Atharva-Video-Test-02 ===");
+  console.log("=== EXECUTING FRESH LIVE SALES -> VIDEO TEST: searchs-Video-Test-02 ===");
   console.log("============================================================================");
 
   const orgId = "demo-org-123";
   const customerId = "6587355041";
-  const campaignName = "Atharva-Video-Test-02";
+  const campaignName = "searchs-Video-Test-02";
 
   // Pre-check duplicate in DB or live
   const existingCamp = await prisma.googleAdCampaign.findFirst({
@@ -26,11 +26,11 @@ async function executeFreshLiveVideoTest() {
     campaignName,
     campaignSubtype: "VIDEO_ACTION",
     videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    finalUrl: "https://www.atharva-automation.com",
+    finalUrl: "https://www.searchs-automation.com",
     amountMicros: 500 * 1_000_000,
     biddingFocus: "MAXIMIZE_CONVERSIONS",
     targetCpaMicros: 50 * 1_000_000,
-    headline: "Atharva Video Ads",
+    headline: "searchs Video Ads",
     description: "Discover automated marketing solutions."
   };
 

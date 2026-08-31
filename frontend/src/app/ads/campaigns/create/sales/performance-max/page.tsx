@@ -437,13 +437,26 @@ function SalesPerformanceMaxContent() {
   const [cropValidationError, setCropValidationError] = useState<string | null>(null);
 
   // Saved Asset Extensions State
-  const [savedSitelinks, setSavedSitelinks] = useState<Array<{ text: string; desc1: string; desc2: string; url: string }>>([]);
+  const [savedSitelinks, setSavedSitelinks] = useState<Array<{ text: string; desc1: string; desc2: string; url: string; mobileUrl: string; tracking: string; suffix: string; customParams: Array<{id: string, name: string, value: string}>; schedules: Array<{id: string, day: string, start: string, end: string, startDate: string, endDate: string}> }>>([]);
+  const [sitelinkText, setSitelinkText] = useState("");
+  const [sitelinkDesc1, setSitelinkDesc1] = useState("");
+  const [sitelinkDesc2, setSitelinkDesc2] = useState("");
+  const [sitelinkUrl, setSitelinkUrl] = useState("");
+  const [showSitelinkUrlOptions, setShowSitelinkUrlOptions] = useState(false);
+  const [showSitelinkAdvancedOptions, setShowSitelinkAdvancedOptions] = useState(false);
+  const [sitelinkMobileUrl, setSitelinkMobileUrl] = useState("");
+  const [useSitelinkMobileUrl, setUseSitelinkMobileUrl] = useState(false);
+  const [sitelinkTracking, setSitelinkTracking] = useState("");
+  const [sitelinkSuffix, setSitelinkSuffix] = useState("");
+  const [sitelinkCustomParams, setSitelinkCustomParams] = useState<Array<{id: string, name: string, value: string}>>([]);
+  const [sitelinkSchedules, setSitelinkSchedules] = useState<Array<{id: string, day: string, start: string, end: string, startDate: string, endDate: string}>>([]);
   const [savedPromotions, setSavedPromotions] = useState<Array<{ occasion: string; item: string; discount: string; url: string }>>([]);
   const [savedPrices, setSavedPrices] = useState<Array<{ type: string; price: string }>>([]);
   const [savedMessages, setSavedMessages] = useState<Array<{ platform: string }>>([]);
   const [savedSnippets, setSavedSnippets] = useState<Array<{ header: string; values: string[] }>>([]);
   const [savedLeadForms, setSavedLeadForms] = useState<Array<{ headline: string; business: string }>>([]);
   const [savedCallouts, setSavedCallouts] = useState<string[]>([]);
+  const [savedCalls, setSavedCalls] = useState<Array<{ country: string; phone: string }>>([]);
 
   // Callouts advanced states
   const [modalCalloutTexts, setModalCalloutTexts] = useState<string[]>([]);
@@ -1907,75 +1920,7 @@ function SalesPerformanceMaxContent() {
                       </div>
                       <p className="text-[11px] text-slate-500 leading-relaxed">Add page feeds to specify which URLs to use in your campaign. With Final URL expansion on, you will use all URLs Google knows about your website, including any page feeds. By turning Final URL expansion off, you will only use URLs from your page feeds.</p>
                       
-                      {/* Page Feed URL Adder */}
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="block text-[11px] text-slate-500">Feed Landing Page URL</label>
-                            <input 
-                              type="url"
-                              value={newPageFeedUrlInput}
-                              onChange={(e) => setNewPageFeedUrlInput(e.target.value)}
-                              placeholder="https://example.com/category"
-                              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-[11px] text-slate-500">Custom Label (Optional)</label>
-                            <div className="flex gap-2">
-                              <input 
-                                type="text"
-                                value={newPageFeedLabelInput}
-                                onChange={(e) => setNewPageFeedLabelInput(e.target.value)}
-                                placeholder="e.g. holiday-promo"
-                                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (newPageFeedUrlInput.trim()) {
-                                    setPageFeedUrls(prev => [
-                                      ...prev, 
-                                      { id: Date.now().toString(), url: newPageFeedUrlInput.trim(), label: newPageFeedLabelInput.trim() }
-                                    ]);
-                                    setNewPageFeedUrlInput("");
-                                    setNewPageFeedLabelInput("");
-                                  }
-                                }}
-                                className="px-3 py-1.5 bg-primary text-slate-950 font-bold rounded-lg hover:bg-secondary cursor-pointer shrink-0"
-                              >
-                                Add
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {pageFeedUrls.length > 0 && (
-                          <div className="space-y-2 pt-2 border-t border-slate-200">
-                            <span className="text-[11px] text-slate-500 font-semibold">Configured Page Feeds:</span>
-                            <div className="space-y-1.5">
-                              {pageFeedUrls.map((pf, idx) => (
-                                <div key={pf.id || idx} className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 text-xs">
-                                  <div className="flex items-center gap-2 truncate pr-2">
-                                    <Globe className="h-3.5 w-3.5 text-primary shrink-0" />
-                                    <span className="text-slate-800 font-mono truncate">{pf.url}</span>
-                                    {pf.label && (
-                                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] shrink-0 font-semibold">{pf.label}</span>
-                                    )}
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setPageFeedUrls(prev => prev.filter((_, i) => i !== idx))}
-                                    className="text-slate-500 hover:text-rose-400 p-1"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      {/* Page feeds input removed as requested */}
                     </div>
                   ) : (
                     <div onClick={() => setActiveEditSetting("PAGE_FEEDS")} className="p-4 hover:bg-slate-50 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
@@ -1985,63 +1930,6 @@ function SalesPerformanceMaxContent() {
                     </div>
                   )}
 
-                  {/* Third-Party Measurement Row */}
-                  {activeEditSetting === "THIRD_PARTY_MEASUREMENT" ? (
-                    <div className="p-6 bg-white space-y-4 animate-in fade-in duration-150 text-xs">
-                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                        <span className="font-bold text-slate-800">Third-party measurement</span>
-                        <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
-                      </div>
-                      <p className="text-[11px] text-slate-500">Connect third-party verification and measurement providers to verify ad viewability, brand safety, and campaign metrics.</p>
-                      <div className="space-y-3 pt-1">
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={thirdPartyMeasurementEnabled}
-                            onChange={(e) => setThirdPartyMeasurementEnabled(e.target.checked)}
-                            className="rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
-                          />
-                          <span className="font-semibold text-slate-800">Enable third-party measurement vendor tracking</span>
-                        </label>
-                        {thirdPartyMeasurementEnabled && (
-                          <div className="ml-6 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-in fade-in duration-150">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <label className="block text-[11px] text-slate-500 font-medium">Measurement Provider</label>
-                                <select 
-                                  value={thirdPartyVendor}
-                                  onChange={(e) => setThirdPartyVendor(e.target.value)}
-                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900"
-                                >
-                                  <option value="NONE">Select vendor</option>
-                                  <option value="INTEGRAL_AD_SCIENCE">Integral Ad Science (IAS)</option>
-                                  <option value="DOUBLE_VERIFY">DoubleVerify</option>
-                                  <option value="ORACLE_MOAT">Oracle Moat</option>
-                                  <option value="COMSCORE">Comscore</option>
-                                </select>
-                              </div>
-                              <div className="space-y-1">
-                                <label className="block text-[11px] text-slate-500 font-medium">Vendor Client / Account ID</label>
-                                <input 
-                                  type="text"
-                                  value={thirdPartyAccountId}
-                                  onChange={(e) => setThirdPartyAccountId(e.target.value)}
-                                  placeholder="e.g. DV-1234567"
-                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-mono"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div onClick={() => setActiveEditSetting("THIRD_PARTY_MEASUREMENT")} className="p-4 hover:bg-slate-50 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
-                      <div className="w-1/3 text-slate-500 font-semibold">Third-party measurement</div>
-                      <div className="w-2/3 text-slate-800 font-bold pr-8">{thirdPartyMeasurementEnabled && thirdPartyVendor !== "NONE" ? `${thirdPartyVendor} active` : "None configured"}</div>
-                      <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
-                    </div>
-                  )}
 
                   {/* Devices Row */}
                   {activeEditSetting === "DEVICES" ? (
@@ -2126,7 +2014,17 @@ function SalesPerformanceMaxContent() {
                     <div className="p-6 bg-white space-y-4 animate-in fade-in duration-150 text-xs">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                         <span className="font-bold text-slate-800">Demographic exclusions</span>
-                        <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
+                        <button 
+                          type="button" 
+                          disabled={
+                            (turnOnAgeExclusions && ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"].every(a => excludedAges.includes(a))) || 
+                            (turnOnGenderExclusions && ["Female", "Male"].every(g => excludedGenders.includes(g)))
+                          }
+                          onClick={() => setActiveEditSetting(null)} 
+                          className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Save
+                        </button>
                       </div>
                       <p className="text-[11px] text-slate-500">Demographic exclusions will override any specific hints that are active on any asset groups within this campaign.</p>
                       <div className="space-y-4 pt-1">
@@ -2154,6 +2052,9 @@ function SalesPerformanceMaxContent() {
                                   </label>
                                 ))}
                               </div>
+                              {["18-24", "25-34", "35-44", "45-54", "55-64", "65+"].every(a => excludedAges.includes(a)) && (
+                                <p className="text-[11px] text-rose-500 font-semibold pt-1">You are excluding all age ranges. You must allow at least one age range.</p>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2182,6 +2083,9 @@ function SalesPerformanceMaxContent() {
                                   </label>
                                 ))}
                               </div>
+                              {["Female", "Male"].every(g => excludedGenders.includes(g)) && (
+                                <p className="text-[11px] text-rose-500 font-semibold pt-1">At least one gender has to be included.</p>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2249,7 +2153,6 @@ function SalesPerformanceMaxContent() {
                             ) : (
                               <div className="space-y-1.5 max-h-48 overflow-y-auto">
                                 {[
-                                  "Website visitors",
                                   "All converters",
                                   `Google-engaged audiences - for Account ${customerId || "6587355041"}`
                                 ]
@@ -2282,7 +2185,6 @@ function SalesPerformanceMaxContent() {
                         {dataExclusionsTab === "BROWSE" && (
                           <div className="space-y-2 pt-1">
                             {[
-                              "Website visitors",
                               "All converters",
                               `Google-engaged audiences - for Account ${customerId || "6587355041"}`
                             ].map((category, idx) => {
@@ -2632,22 +2534,50 @@ function SalesPerformanceMaxContent() {
                               <label className="block text-slate-700 font-semibold">Term exclusions</label>
                               <span className="text-[10px] text-slate-500">{termExclusionsList.length}/25</span>
                             </div>
-                            <input
-                              type="text"
-                              value={termExclusionsInput}
-                              onChange={(e) => setTermExclusionsInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && termExclusionsInput.trim()) {
-                                  e.preventDefault();
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                maxLength={30}
+                                value={termExclusionsInput}
+                                onChange={(e) => setTermExclusionsInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && termExclusionsInput.trim()) {
+                                    e.preventDefault();
+                                    const term = termExclusionsInput.trim();
+                                    if (termExclusionsList.some(t => t.toLowerCase() === term.toLowerCase())) return;
+                                    if (termExclusionsList.length < 25) {
+                                      setTermExclusionsList(prev => [...prev, term]);
+                                      setTermExclusionsInput("");
+                                    }
+                                  }
+                                }}
+                                placeholder="For example: Cheap, free shipping, etc."
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const term = termExclusionsInput.trim();
+                                  if (!term) return;
+                                  if (termExclusionsList.some(t => t.toLowerCase() === term.toLowerCase())) return;
                                   if (termExclusionsList.length < 25) {
-                                    setTermExclusionsList(prev => [...prev, termExclusionsInput.trim()]);
+                                    setTermExclusionsList(prev => [...prev, term]);
                                     setTermExclusionsInput("");
                                   }
-                                }
-                              }}
-                              placeholder="For example: Cheap, free shipping, etc. Press Enter after each word or phrase."
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                            />
+                                }}
+                                className="px-4 py-2 bg-slate-100 text-slate-900 rounded-xl font-semibold hover:bg-slate-200 cursor-pointer text-xs"
+                              >
+                                Add
+                              </button>
+                            </div>
+                            <div className="flex justify-between items-start px-1 mt-1">
+                              <div>
+                                {termExclusionsList.some(t => t.toLowerCase() === termExclusionsInput.trim().toLowerCase()) && termExclusionsInput.trim() !== "" && (
+                                  <p className="text-[11px] text-rose-500 font-semibold">This term has already been added.</p>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-500 font-mono">{termExclusionsInput.length} / 30</span>
+                            </div>
                             {termExclusionsList.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 pt-1">
                                 {termExclusionsList.map((term, i) => (
@@ -2686,19 +2616,30 @@ function SalesPerformanceMaxContent() {
                                           ? "Example: Don't use specific prices, such as $550 per night or $99 intro offer"
                                           : "Example: Don't use 'only' or 'just for' language, such as 'for high-performance athletes only'"
                                     }
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                                    className={`w-full bg-slate-50 border rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary ${
+                                      messagingRestrictions.some((r, i) => i !== idx && r.trim() !== "" && r.toLowerCase() === restriction.trim().toLowerCase()) 
+                                        ? "border-rose-300 bg-rose-50" 
+                                        : "border-slate-200"
+                                    }`}
                                   />
                                   {messagingRestrictions.length > 1 && (
                                     <button
                                       type="button"
                                       onClick={() => setMessagingRestrictions(prev => prev.filter((_, i) => i !== idx))}
-                                      className="absolute top-2 right-2 p-1 text-slate-500 hover:text-rose-400"
+                                      className="absolute top-2 right-2 p-1 text-slate-500 hover:text-rose-400 bg-white/80 rounded-md"
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                   )}
                                 </div>
-                                <span className="text-[10px] text-slate-500 block text-right font-mono">{restriction.length} / 300</span>
+                                <div className="flex justify-between items-start px-1">
+                                  <div>
+                                    {messagingRestrictions.some((r, i) => i !== idx && r.trim() !== "" && r.toLowerCase() === restriction.trim().toLowerCase()) && (
+                                      <p className="text-[11px] text-rose-500 font-semibold">Duplicate restriction.</p>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-slate-500 font-mono">{restriction.length} / 300</span>
+                                </div>
                               </div>
                             ))}
 
@@ -3807,21 +3748,36 @@ function SalesPerformanceMaxContent() {
                         <label className="block text-[11px] text-slate-500 font-semibold">Start date</label>
                         <input
                           type="date"
+                          min={new Date().toISOString().split('T')[0]}
                           value={startDate}
                           onChange={(e) => setStartDate(e.target.value)}
                           onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                          className={`w-full bg-white border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none cursor-pointer ${
+                            startDate && startDate < new Date().toISOString().split('T')[0] ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"
+                          }`}
                         />
+                        {startDate && startDate < new Date().toISOString().split('T')[0] && (
+                          <p className="text-[11px] text-rose-500 font-semibold mt-1">Start date cannot be in the past.</p>
+                        )}
                       </div>
                       <div className="space-y-1">
                         <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
                         <input
                           type="date"
+                          min={startDate || new Date().toISOString().split('T')[0]}
                           value={endDate}
                           onChange={(e) => setEndDate(e.target.value)}
                           onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                          className={`w-full bg-white border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none cursor-pointer ${
+                            (endDate && startDate && endDate <= startDate) || (endDate && startDate && (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 3600 * 24) < 3) ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"
+                          }`}
                         />
+                        {endDate && startDate && endDate <= startDate && (
+                          <p className="text-[11px] text-rose-500 font-semibold mt-1">End date must be after start date.</p>
+                        )}
+                        {endDate && startDate && endDate > startDate && (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 3600 * 24) < 3 && (
+                          <p className="text-[11px] text-rose-500 font-semibold mt-1">Campaign duration must be at least 3 days.</p>
+                        )}
                       </div>
                     </div>
 
@@ -4383,8 +4339,11 @@ function SalesPerformanceMaxContent() {
                 value={newBrandListName}
                 onChange={(e) => setNewBrandListName(e.target.value)}
                 placeholder="Enter list name"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none ${newBrandListName.trim() && createdBrandLists.some(bl => bl.name.trim().toLowerCase() === newBrandListName.trim().toLowerCase()) ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"}`}
               />
+              {newBrandListName.trim() && createdBrandLists.some(bl => bl.name.trim().toLowerCase() === newBrandListName.trim().toLowerCase()) && (
+                <p className="text-[11px] text-rose-500 font-semibold pt-1">A brand list with this name already exists.</p>
+              )}
             </div>
 
             {/* Search & Brands Selection */}
@@ -4473,9 +4432,9 @@ function SalesPerformanceMaxContent() {
               </button>
               <button
                 type="button"
-                disabled={!newBrandListName.trim() || selectedBrandsList.length === 0}
+                disabled={!newBrandListName.trim() || selectedBrandsList.length === 0 || createdBrandLists.some(bl => bl.name.trim().toLowerCase() === newBrandListName.trim().toLowerCase())}
                 onClick={() => {
-                  if (newBrandListName.trim() && selectedBrandsList.length > 0) {
+                  if (newBrandListName.trim() && selectedBrandsList.length > 0 && !createdBrandLists.some(bl => bl.name.trim().toLowerCase() === newBrandListName.trim().toLowerCase())) {
                     setCreatedBrandLists(prev => [...prev, { name: newBrandListName, brands: selectedBrandsList.map(sb => sb.name) }]);
                     setNewBrandListName("");
                     setSelectedBrandsList([]);
@@ -4520,11 +4479,13 @@ function SalesPerformanceMaxContent() {
                     onChange={(e) => setCallCountry(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
                   >
-                    <option value="United States">United States</option>
-                    <option value="India (+91)">India (+91)</option>
-                    <option value="United Kingdom (+44)">United Kingdom (+44)</option>
-                    <option value="Canada (+1)">Canada (+1)</option>
-                    <option value="Australia (+61)">Australia (+61)</option>
+                    {[
+                      "United States (+1)", "India (+91)", "United Kingdom (+44)", "Canada (+1)", "Australia (+61)",
+                      "Germany (+49)", "France (+33)", "Italy (+39)", "Spain (+34)", "Brazil (+55)",
+                      "Mexico (+52)", "Japan (+81)", "China (+86)", "South Korea (+82)", "South Africa (+27)",
+                      "New Zealand (+64)", "Singapore (+65)", "United Arab Emirates (+971)", "Saudi Arabia (+966)",
+                      "Netherlands (+31)", "Sweden (+46)", "Switzerland (+41)", "Ireland (+353)", "Israel (+972)"
+                    ].map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
 
@@ -4534,9 +4495,12 @@ function SalesPerformanceMaxContent() {
                     type="text"
                     value={callPhone}
                     onChange={(e) => setCallPhone(e.target.value)}
-                    placeholder="Example: (201) 555-0123"
+                    placeholder="Example: 555-0123"
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                   />
+                  {callPhone.trim() && callPhone.replace(/\D/g, '').length !== 10 && (
+                    <p className="text-[11px] text-rose-500 font-semibold">Phone number must be exactly 10 digits.</p>
+                  )}
                 </div>
               </div>
 
@@ -4551,7 +4515,6 @@ function SalesPerformanceMaxContent() {
                   <option value="Use account settings (Calls from ads)">Use account settings (Calls from ads)</option>
                   <option value="Calls from ads">Calls from ads</option>
                   <option value="None">None</option>
-                  <option value="Manage conversions">Manage conversions</option>
                 </select>
               </div>
 
@@ -4560,67 +4523,75 @@ function SalesPerformanceMaxContent() {
                 <h5 className="font-semibold text-slate-700">Advanced options</h5>
                 <label className="block text-[11px] text-slate-500 font-semibold">Days and hours</label>
 
-                {callSchedules.map((sched, idx) => (
-                  <div key={sched.id} className="flex flex-wrap items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200">
-                    <select
-                      value={sched.day}
-                      onChange={(e) => {
-                        const updated = [...callSchedules];
-                        updated[idx].day = e.target.value;
-                        setCallSchedules(updated);
-                      }}
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
-                    >
-                      {dayOptions.map((d, i) => (
-                        <option key={i} value={d}>{d}</option>
-                      ))}
-                    </select>
+                {callSchedules.map((sched, idx) => {
+                  const isInvalidTime = sched.start >= sched.end && sched.end !== "00:00";
+                  const isDuplicate = callSchedules.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === sched.end);
+                  return (
+                    <div key={sched.id} className="space-y-1">
+                      <div className={`flex flex-wrap items-center gap-3 bg-white p-2.5 rounded-xl border ${isInvalidTime || isDuplicate ? 'border-rose-300 bg-rose-50' : 'border-slate-200'}`}>
+                        <select
+                          value={sched.day}
+                          onChange={(e) => {
+                            const updated = [...callSchedules];
+                            updated[idx].day = e.target.value;
+                            setCallSchedules(updated);
+                          }}
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
+                        >
+                          {dayOptions.map((d, i) => (
+                            <option key={i} value={d}>{d}</option>
+                          ))}
+                        </select>
 
-                    <select
-                      value={sched.start}
-                      onChange={(e) => {
-                        const updated = [...callSchedules];
-                        updated[idx].start = e.target.value;
-                        setCallSchedules(updated);
-                      }}
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
-                    >
-                      {timeOptions.map((t, i) => (
-                        <option key={i} value={t}>{t}</option>
-                      ))}
-                    </select>
+                        <select
+                          value={sched.start}
+                          onChange={(e) => {
+                            const updated = [...callSchedules];
+                            updated[idx].start = e.target.value;
+                            setCallSchedules(updated);
+                          }}
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
+                        >
+                          {timeOptions.map((t, i) => (
+                            <option key={i} value={t}>{t}</option>
+                          ))}
+                        </select>
 
-                    <span className="text-slate-500">to</span>
+                        <span className="text-slate-500">to</span>
 
-                    <select
-                      value={sched.end}
-                      onChange={(e) => {
-                        const updated = [...callSchedules];
-                        updated[idx].end = e.target.value;
-                        setCallSchedules(updated);
-                      }}
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
-                    >
-                      {timeOptions.map((t, i) => (
-                        <option key={i} value={t}>{t}</option>
-                      ))}
-                    </select>
+                        <select
+                          value={sched.end}
+                          onChange={(e) => {
+                            const updated = [...callSchedules];
+                            updated[idx].end = e.target.value;
+                            setCallSchedules(updated);
+                          }}
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
+                        >
+                          {timeOptions.map((t, i) => (
+                            <option key={i} value={t}>{t}</option>
+                          ))}
+                        </select>
 
-                    {callSchedules.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setCallSchedules(prev => prev.filter((_, i) => i !== idx))}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 ml-auto"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                        {callSchedules.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setCallSchedules(prev => prev.filter((_, i) => i !== idx))}
+                            className="p-1.5 text-slate-500 hover:text-rose-400 ml-auto bg-white/50 rounded-md"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      {isInvalidTime && <p className="text-[11px] text-rose-500 font-semibold px-1">End time must be after start time.</p>}
+                      {isDuplicate && <p className="text-[11px] text-rose-500 font-semibold px-1">Duplicate schedule found.</p>}
+                    </div>
+                  );
+                })}
 
                 <button
                   type="button"
-                  onClick={() => setCallSchedules(prev => [...prev, { id: Date.now().toString(), day: "All days", start: "00:00", end: "00:00" }])}
+                  onClick={() => setCallSchedules(prev => [...prev, { id: Date.now().toString(), day: "All days", start: "00:00", end: "23:45" }])}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/30 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -4645,16 +4616,6 @@ function SalesPerformanceMaxContent() {
               <p className="text-[10px] text-slate-500 leading-relaxed">Previews shown here are examples and don't include all possible formats. You're responsible for the content of your ads. Please make sure that your provided assets don't violate any Google policies or applicable laws.</p>
             </div>
 
-            {/* Account-level calls */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-              <h4 className="font-semibold text-slate-800">Account-level calls</h4>
-              <p className="text-[11px] text-slate-500">The following calls are from your account and will be used in this campaign.</p>
-              <div className="flex items-center gap-2 pt-1 font-mono text-slate-800 font-bold text-xs">
-                <Phone className="h-3.5 w-3.5 text-primary" />
-                <span>077099 36965</span>
-              </div>
-            </div>
-
             {/* Modal Actions */}
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
               <button
@@ -4666,11 +4627,18 @@ function SalesPerformanceMaxContent() {
               </button>
               <button
                 type="button"
+                disabled={
+                  !callPhone.trim() || 
+                  callPhone.replace(/\D/g, '').length !== 10 || 
+                  callSchedules.some(s => s.start >= s.end && s.end !== "00:00") ||
+                  callSchedules.some((s1, i) => callSchedules.findIndex(s2 => s1.day === s2.day && s1.start === s2.start && s1.end === s2.end) !== i)
+                }
                 onClick={() => {
-                  alert(`Call asset saved for ${callPhone || "account level call"}`);
+                  setSavedCalls(prev => [...prev, { country: callCountry, phone: callPhone }]);
+                  setCallPhone("");
                   setActiveModal(null);
                 }}
-                className="px-5 py-2 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary transition-all shadow-md shadow-primary/20 cursor-pointer"
+                className="px-5 py-2 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary transition-all shadow-md shadow-primary/20 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Save Call Asset
               </button>
@@ -4688,43 +4656,225 @@ function SalesPerformanceMaxContent() {
               <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4">
-              <h4 className="font-bold text-slate-800">Sitelink 1</h4>
+              <h4 className="font-bold text-slate-800">Sitelink {savedSitelinks.length + 1}</h4>
               <div className="space-y-1">
                 <label className="block text-slate-700 font-semibold">Sitelink text</label>
-                <input id="sitelinkTextInp" type="text" maxLength={25} placeholder="Sitelink text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
-                <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 25</span>
+                <input type="text" value={sitelinkText} onChange={(e) => setSitelinkText(e.target.value)} maxLength={25} placeholder="Sitelink text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary" />
+                <span className="text-[10px] text-slate-500 block">Text is {sitelinkText.length} characters out of 25</span>
               </div>
               <div className="space-y-1">
                 <label className="block text-slate-700 font-semibold">Description line 1 (recommended)</label>
-                <input id="sitelinkDesc1Inp" type="text" maxLength={35} placeholder="Description line 1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
-                <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 35</span>
+                <input type="text" value={sitelinkDesc1} onChange={(e) => setSitelinkDesc1(e.target.value)} maxLength={35} placeholder="Description line 1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary" />
+                <span className="text-[10px] text-slate-500 block">Text is {sitelinkDesc1.length} characters out of 35</span>
               </div>
               <div className="space-y-1">
                 <label className="block text-slate-700 font-semibold">Description line 2 (recommended)</label>
-                <input id="sitelinkDesc2Inp" type="text" maxLength={35} placeholder="Description line 2" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
-                <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 35</span>
+                <input type="text" value={sitelinkDesc2} onChange={(e) => setSitelinkDesc2(e.target.value)} maxLength={35} placeholder="Description line 2" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary" />
+                <span className="text-[10px] text-slate-500 block">Text is {sitelinkDesc2.length} characters out of 35</span>
               </div>
               <div className="space-y-1">
                 <label className="block text-slate-700 font-semibold">Final URL</label>
-                <input id="sitelinkUrlInp" type="text" placeholder="https://www.example.com/sitelink1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono" />
+                <input type="text" value={sitelinkUrl} onChange={(e) => setSitelinkUrl(e.target.value)} placeholder="https://www.example.com/sitelink1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary" />
+              </div>
+
+              {/* Sitelink URL options */}
+              <div className="pt-2">
+                <button type="button" onClick={() => setShowSitelinkUrlOptions(!showSitelinkUrlOptions)} className="flex items-center gap-1 text-slate-700 font-semibold hover:text-primary">
+                  {showSitelinkUrlOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />} Sitelink URL options
+                </button>
+                {showSitelinkUrlOptions && (
+                  <div className="mt-3 space-y-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="space-y-1">
+                      <label className="block text-slate-700 font-semibold">Tracking template</label>
+                      <input type="text" value={sitelinkTracking} onChange={(e) => setSitelinkTracking(e.target.value)} placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-slate-700 font-semibold">Final URL suffix</label>
+                      <input type="text" value={sitelinkSuffix} onChange={(e) => setSitelinkSuffix(e.target.value)} placeholder="Example: param1=value1&param2=value2" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-slate-700 font-semibold">Custom parameter</label>
+                      {sitelinkCustomParams.map((param, idx) => (
+                        <div key={param.id} className="flex items-center gap-2">
+                          <span className="text-slate-500 font-mono">{'{_'}</span>
+                          <input type="text" value={param.name} onChange={(e) => {
+                            const updated = [...sitelinkCustomParams];
+                            updated[idx].name = e.target.value;
+                            setSitelinkCustomParams(updated);
+                          }} placeholder="Name" className="w-1/3 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs" />
+                          <span className="text-slate-500 font-mono">{'}'} =</span>
+                          <input type="text" value={param.value} onChange={(e) => {
+                            const updated = [...sitelinkCustomParams];
+                            updated[idx].value = e.target.value;
+                            setSitelinkCustomParams(updated);
+                          }} placeholder="Value" className="w-1/3 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs" />
+                          <button type="button" onClick={() => setSitelinkCustomParams(prev => prev.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-1">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setSitelinkCustomParams(prev => [...prev, { id: Date.now().toString(), name: "", value: "" }])} className="text-primary font-bold hover:underline">+ Add custom parameter</button>
+                    </div>
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={useSitelinkMobileUrl} onChange={(e) => setUseSitelinkMobileUrl(e.target.checked)} className="rounded text-primary h-4 w-4" />
+                        <span className="text-slate-700 font-semibold">Use a different final URL for mobile</span>
+                      </label>
+                      {useSitelinkMobileUrl && (
+                        <input type="text" value={sitelinkMobileUrl} onChange={(e) => setSitelinkMobileUrl(e.target.value)} placeholder="m.example.com" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono" />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Advanced options */}
+              <div className="pt-2 border-t border-slate-200">
+                <button type="button" onClick={() => setShowSitelinkAdvancedOptions(!showSitelinkAdvancedOptions)} className="flex items-center gap-1 text-slate-700 font-semibold hover:text-primary">
+                  {showSitelinkAdvancedOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />} Advanced options
+                </button>
+                {showSitelinkAdvancedOptions && (
+                  <div className="mt-3 space-y-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="block text-slate-700 font-semibold">Start date</label>
+                        <input 
+                          type="date" 
+                          value={sitelinkSchedules[0]?.startDate || ""} 
+                          min={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            if (sitelinkSchedules.length === 0) {
+                              setSitelinkSchedules([{ id: "s-1", day: "All days", start: "00:00", end: "23:45", startDate: e.target.value, endDate: "" }]);
+                            } else {
+                              const updated = [...sitelinkSchedules];
+                              updated[0].startDate = e.target.value;
+                              setSitelinkSchedules(updated);
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-medium" 
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-slate-700 font-semibold">End date</label>
+                        <input 
+                          type="date" 
+                          value={sitelinkSchedules[0]?.endDate || ""} 
+                          min={sitelinkSchedules[0]?.startDate || new Date().toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            if (sitelinkSchedules.length === 0) {
+                              setSitelinkSchedules([{ id: "s-1", day: "All days", start: "00:00", end: "23:45", startDate: "", endDate: e.target.value }]);
+                            } else {
+                              const updated = [...sitelinkSchedules];
+                              updated[0].endDate = e.target.value;
+                              setSitelinkSchedules(updated);
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-medium" 
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="block text-slate-700 font-semibold">Days and hours</label>
+                      {sitelinkSchedules.map((sched, idx) => {
+                        const isInvalidTime = sched.start >= sched.end && sched.end !== "00:00";
+                        const isDuplicate = sitelinkSchedules.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === sched.end);
+                        return (
+                          <div key={sched.id} className="space-y-1">
+                            <div className={`flex flex-wrap items-center gap-2 bg-white p-2 rounded-lg border ${isInvalidTime || isDuplicate ? 'border-rose-300' : 'border-slate-200'}`}>
+                              <select value={sched.day} onChange={(e) => {
+                                const updated = [...sitelinkSchedules];
+                                updated[idx].day = e.target.value;
+                                setSitelinkSchedules(updated);
+                              }} className="bg-slate-50 border border-slate-200 rounded flex-1 px-2 py-1 text-xs text-slate-900 font-medium">
+                                {dayOptions.map((d, i) => <option key={i} value={d}>{d}</option>)}
+                              </select>
+                              <select value={sched.start} onChange={(e) => {
+                                const updated = [...sitelinkSchedules];
+                                updated[idx].start = e.target.value;
+                                setSitelinkSchedules(updated);
+                              }} className="bg-slate-50 border border-slate-200 rounded w-20 px-1 py-1 text-xs text-slate-900 font-mono">
+                                {timeOptions.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                              </select>
+                              <span className="text-slate-500">to</span>
+                              <select value={sched.end} onChange={(e) => {
+                                const updated = [...sitelinkSchedules];
+                                updated[idx].end = e.target.value;
+                                setSitelinkSchedules(updated);
+                              }} className="bg-slate-50 border border-slate-200 rounded w-20 px-1 py-1 text-xs text-slate-900 font-mono">
+                                {timeOptions.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                              </select>
+                              {sitelinkSchedules.length > 1 && (
+                                <button type="button" onClick={() => setSitelinkSchedules(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-500 hover:text-rose-400">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                            {isInvalidTime && <p className="text-[11px] text-rose-500 font-semibold px-1">End time must be after start time.</p>}
+                            {isDuplicate && <p className="text-[11px] text-rose-500 font-semibold px-1">Duplicate schedule found.</p>}
+                          </div>
+                        );
+                      })}
+                      <button type="button" onClick={() => setSitelinkSchedules(prev => [...prev, { id: `ss-${Date.now()}`, day: "All days", start: "00:00", end: "23:45", startDate: prev[0]?.startDate || "", endDate: prev[0]?.endDate || "" }])} className="text-primary font-bold hover:underline mt-1 block">
+                        + Add schedule
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            <div className="flex justify-between items-center pt-3 border-t border-slate-200">
-              <button type="button" className="text-primary font-bold text-xs hover:underline">+ Sitelink 2</button>
-              <button
-                type="button"
+
+            <div className="flex justify-between items-center pt-4 border-t border-slate-200">
+              <button 
+                type="button" 
+                disabled={!sitelinkText.trim() || !sitelinkUrl.trim() || sitelinkSchedules.some(s => s.start >= s.end && s.end !== "00:00") || sitelinkSchedules.some((s1, i) => sitelinkSchedules.findIndex(s2 => s1.day === s2.day && s1.start === s2.start && s1.end === s2.end) !== i)}
                 onClick={() => {
-                  const txt = (document.getElementById("sitelinkTextInp") as HTMLInputElement)?.value || "Sitelink 1";
-                  const d1 = (document.getElementById("sitelinkDesc1Inp") as HTMLInputElement)?.value || "";
-                  const d2 = (document.getElementById("sitelinkDesc2Inp") as HTMLInputElement)?.value || "";
-                  const url = (document.getElementById("sitelinkUrlInp") as HTMLInputElement)?.value || "";
-                  setSavedSitelinks(prev => [...prev, { text: txt, desc1: d1, desc2: d2, url }]);
-                  setActiveModal(null);
+                  const newEntry = { text: sitelinkText, desc1: sitelinkDesc1, desc2: sitelinkDesc2, url: sitelinkUrl, mobileUrl: sitelinkMobileUrl, tracking: sitelinkTracking, suffix: sitelinkSuffix, customParams: sitelinkCustomParams, schedules: sitelinkSchedules };
+                  const identicalCount = savedSitelinks.filter(s => s.text === sitelinkText && s.url === sitelinkUrl).length;
+                  if (identicalCount >= 2) {
+                    alert("You cannot save more than two identical sitelinks.");
+                    return;
+                  }
+                  setSavedSitelinks(prev => [...prev, newEntry]);
+                  setSitelinkText("");
+                  setSitelinkDesc1("");
+                  setSitelinkDesc2("");
+                  setSitelinkUrl("");
+                  setSitelinkMobileUrl("");
+                  setSitelinkTracking("");
+                  setSitelinkSuffix("");
+                  setSitelinkCustomParams([]);
+                  setSitelinkSchedules([]);
+                  setUseSitelinkMobileUrl(false);
+                  setShowSitelinkUrlOptions(false);
+                  setShowSitelinkAdvancedOptions(false);
                 }}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
-                Save Sitelinks
+                <Plus className="h-3.5 w-3.5" />
+                Add another sitelink
               </button>
+              
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] text-slate-500 font-medium mr-2">{savedSitelinks.length} saved</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // if form has data, attempt to save it too
+                    if (sitelinkText.trim() && sitelinkUrl.trim()) {
+                      const newEntry = { text: sitelinkText, desc1: sitelinkDesc1, desc2: sitelinkDesc2, url: sitelinkUrl, mobileUrl: sitelinkMobileUrl, tracking: sitelinkTracking, suffix: sitelinkSuffix, customParams: sitelinkCustomParams, schedules: sitelinkSchedules };
+                      const identicalCount = savedSitelinks.filter(s => s.text === sitelinkText && s.url === sitelinkUrl).length;
+                      if (identicalCount < 2) {
+                        setSavedSitelinks(prev => [...prev, newEntry]);
+                      }
+                    }
+                    setActiveModal(null);
+                  }}
+                  className="px-6 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all shadow-md shadow-primary/20"
+                >
+                  Save Sitelinks
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -5022,86 +5172,93 @@ function SalesPerformanceMaxContent() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
-                        <div>
+                        <div className="space-y-1">
                           <span className="text-[11px] text-slate-500 block mb-1">Start date</span>
                           <input
                             type="date"
+                            min={new Date().toISOString().split('T')[0]}
                             value={assetSchedStartDate}
                             onChange={(e) => setAssetSchedStartDate(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
                           />
                         </div>
-                        <div>
+                        <div className="space-y-1">
                           <span className="text-[11px] text-slate-500 block mb-1">End date</span>
                           <input
                             type="date"
+                            min={assetSchedStartDate || new Date().toISOString().split('T')[0]}
                             value={assetSchedEndDate}
                             onChange={(e) => setAssetSchedEndDate(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
                           />
+                          {assetSchedEndDate && assetSchedStartDate && assetSchedEndDate <= assetSchedStartDate && (
+                            <p className="text-[11px] text-rose-500 font-semibold px-1">End date must be after start date.</p>
+                          )}
                         </div>
                       </div>
 
                       {/* Days and hours */}
                       <div className="space-y-2 pt-2 border-t border-slate-200">
                         <label className="block text-slate-700 font-semibold">Days and hours</label>
-                        {assetSchedules.map((sch, idx) => (
-                          <div key={sch.id} className="flex items-center gap-2">
-                            <select
-                              value={sch.day}
-                              onChange={(e) => {
-                                const updated = [...assetSchedules];
-                                updated[idx].day = e.target.value;
-                                setAssetSchedules(updated);
-                              }}
-                              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                            >
-                              <option value="All days">All days</option>
-                              <option value="Mondays">Mondays</option>
-                              <option value="Tuesdays">Tuesdays</option>
-                              <option value="Wednesdays">Wednesdays</option>
-                              <option value="Thursdays">Thursdays</option>
-                              <option value="Fridays">Fridays</option>
-                              <option value="Saturdays">Saturdays</option>
-                              <option value="Sundays">Sundays</option>
-                              <option value="Mondays to Fridays">Mondays to Fridays</option>
-                            </select>
-                            <input
-                              type="time"
-                              value={sch.start}
-                              onChange={(e) => {
-                                const updated = [...assetSchedules];
-                                updated[idx].start = e.target.value;
-                                setAssetSchedules(updated);
-                              }}
-                              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
-                            />
-                            <span className="text-slate-500">to</span>
-                            <input
-                              type="time"
-                              value={sch.end}
-                              onChange={(e) => {
-                                const updated = [...assetSchedules];
-                                updated[idx].end = e.target.value;
-                                setAssetSchedules(updated);
-                              }}
-                              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
-                            />
-                            {assetSchedules.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => setAssetSchedules(prev => prev.filter((_, i) => i !== idx))}
-                                className="text-slate-500 hover:text-rose-400 p-1"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                        {assetSchedules.map((sch, idx) => {
+                          const isInvalidTime = sch.start >= sch.end && sch.end !== "00:00" && sch.end !== "12:00 AM";
+                          const isDuplicate = assetSchedules.some((s, i) => i !== idx && s.day === sch.day && s.start === sch.start && s.end === sch.end);
+                          return (
+                            <div key={sch.id} className="space-y-1">
+                              <div className={`flex flex-wrap items-center gap-2 p-2 rounded-xl border ${isInvalidTime || isDuplicate ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-slate-50'}`}>
+                                <select
+                                  value={sch.day}
+                                  onChange={(e) => {
+                                    const updated = [...assetSchedules];
+                                    updated[idx].day = e.target.value;
+                                    setAssetSchedules(updated);
+                                  }}
+                                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900 flex-1"
+                                >
+                                  {dayOptions.map((d, i) => <option key={i} value={d}>{d}</option>)}
+                                </select>
+                                <select
+                                  value={sch.start}
+                                  onChange={(e) => {
+                                    const updated = [...assetSchedules];
+                                    updated[idx].start = e.target.value;
+                                    setAssetSchedules(updated);
+                                  }}
+                                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900 font-mono w-24"
+                                >
+                                  {timeOptions.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                                </select>
+                                <span className="text-slate-500">to</span>
+                                <select
+                                  value={sch.end}
+                                  onChange={(e) => {
+                                    const updated = [...assetSchedules];
+                                    updated[idx].end = e.target.value;
+                                    setAssetSchedules(updated);
+                                  }}
+                                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900 font-mono w-24"
+                                >
+                                  {timeOptions.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                                </select>
+                                {assetSchedules.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAssetSchedules(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-500 hover:text-rose-400 p-1 bg-white/50 rounded-md"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              {isInvalidTime && <p className="text-[11px] text-rose-500 font-semibold px-1">End time must be after start time.</p>}
+                              {isDuplicate && <p className="text-[11px] text-rose-500 font-semibold px-1">Duplicate schedule found.</p>}
+                            </div>
+                          );
+                        })}
 
                         <button
                           type="button"
-                          onClick={() => setAssetSchedules(prev => [...prev, { id: `as-${Date.now()}`, day: "All days", start: "12:00 AM", end: "12:00 AM" }])}
+                          onClick={() => setAssetSchedules(prev => [...prev, { id: `as-${Date.now()}`, day: "All days", start: "00:00", end: "23:45" }])}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all mt-1"
                         >
                           <Plus className="h-3.5 w-3.5" />
@@ -5123,11 +5280,18 @@ function SalesPerformanceMaxContent() {
             <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
+                disabled={
+                  !promoFinalUrl || 
+                  (promoFinalUrl && !/^https?:\/\/.+/.test(promoFinalUrl)) || 
+                  (assetSchedStartDate && assetSchedEndDate && assetSchedEndDate <= assetSchedStartDate) ||
+                  assetSchedules.some(s => s.start >= s.end && s.end !== "00:00" && s.end !== "12:00 AM") ||
+                  assetSchedules.some((s1, i) => assetSchedules.findIndex(s2 => s1.day === s2.day && s1.start === s2.start && s1.end === s2.end) !== i)
+                }
                 onClick={() => {
                   setSavedPromotions(prev => [...prev, { occasion: promoOccasion, item: promoItem || "Special Discount", discount: promoType, url: promoFinalUrl }]);
                   setActiveModal(null);
                 }}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all"
+                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save Promotion
               </button>
