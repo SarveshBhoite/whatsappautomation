@@ -131,9 +131,10 @@ export default function OverviewDashboardPage() {
 
   const getOrgId = () => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("organization_id") || "";
+      const stored = localStorage.getItem("organization_id");
+      if (stored) return stored;
     }
-    return "";
+    return "demo-org-123";
   };
 
   const fetchOverview = async (isManual = false) => {

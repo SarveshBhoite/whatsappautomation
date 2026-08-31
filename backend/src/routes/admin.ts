@@ -7,11 +7,11 @@ import { generateFlow } from "../services/aiFlowGenerator";
 import { io } from "../index";
 
 const router = Router();
-const DEFAULT_ORG_ID = "";
+const DEFAULT_ORG_ID = "demo-org-123";
 
 // Helper to resolve org ID from request headers
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || "";
+  return (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
 };
 
 // POST: Authenticate user credentials against PostgreSQL database
