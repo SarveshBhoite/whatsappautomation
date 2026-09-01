@@ -2103,7 +2103,7 @@ export default function SalesShoppingPage() {
                       return;
                     }
 
-                    const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                    const res = await fetch(`${BACKEND}/api/ads/campaigns/sales/shopping`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify(payloadToLaunch)

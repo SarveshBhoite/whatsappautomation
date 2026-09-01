@@ -930,7 +930,7 @@ export default function SalesSearchPage() {
 
       let res: Response;
       try {
-        res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+        res = await fetch(`${BACKEND}/api/ads/campaigns/sales/search`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)

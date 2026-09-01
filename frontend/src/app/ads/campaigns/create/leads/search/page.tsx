@@ -929,7 +929,7 @@ export default function LeadsSearchPage() {
 
       let res: Response;
       try {
-        res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+        res = await fetch(`${BACKEND}/api/ads/campaigns/leads/search`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)

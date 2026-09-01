@@ -5148,7 +5148,7 @@ function NoGuidancePerformanceMaxContent() {
                     dailyBudget: Number(dailyBudgetValue)
                   };
 
-                  const res = await fetch(`${BACKEND}/api/ads/campaigns/create-noguidance-pmax-campaign`, {
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/no-guidance/performance-max`, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",

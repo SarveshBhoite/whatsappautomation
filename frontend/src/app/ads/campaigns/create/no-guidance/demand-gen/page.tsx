@@ -5958,7 +5958,7 @@ export default function NoGuidanceDemandGenPage() {
                   const validHeadlines = adHeadlines.filter(h => h && h.trim().length > 0);
                   const validDescriptions = adDescriptions.filter(d => d && d.trim().length > 0);
 
-                  const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/no-guidance/demand-gen`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

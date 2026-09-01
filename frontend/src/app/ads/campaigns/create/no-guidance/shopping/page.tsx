@@ -1070,7 +1070,7 @@ export default function NoGuidanceShoppingPage() {
               setIsPublishing(true);
               try {
                 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-                await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                await fetch(`${BACKEND}/api/ads/campaigns/no-guidance/shopping`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({

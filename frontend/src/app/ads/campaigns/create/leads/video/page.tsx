@@ -6197,7 +6197,7 @@ export default function LeadsVideoPage() {
                   console.log("[VIDEO DEBUG] targetCpaVideo", targetCpaVideo);
                   console.log("[VIDEO DEBUG] videoGoal", videoGoal);
 
-                  const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/leads/video`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payloadToLaunch)

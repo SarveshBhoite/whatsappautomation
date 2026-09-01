@@ -6197,7 +6197,7 @@ export default function WebsiteTrafficVideoPage() {
                   console.log("[VIDEO DEBUG] targetCpaVideo", targetCpaVideo);
                   console.log("[VIDEO DEBUG] videoGoal", videoGoal);
 
-                  const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/website-traffic/video`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payloadToLaunch)

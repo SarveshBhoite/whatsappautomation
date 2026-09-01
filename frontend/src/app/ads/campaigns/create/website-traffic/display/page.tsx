@@ -3222,7 +3222,7 @@ export default function WebsiteTrafficDisplayPage() {
 
                   console.log("[WebsiteTraffic -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));
 
-                  const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/website-traffic/display`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payloadToLaunch)

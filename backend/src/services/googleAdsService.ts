@@ -1290,115 +1290,6 @@ export class GoogleAdsService {
   // FULL CAMPAIGN LAUNCH (orchestrates all steps)
   // ─────────────────────────────────────────────────────────────────────────
 
-  public static async launchLocalSearchCampaign(params: {
-    organizationId: string; customerId: string;
-    campaignName: string; budget: number;
-    channelType?: string; biddingStrategy?: string;
-    targetCpa?: number; targetRoas?: number;
-    startDate: string; endDate?: string;
-    finalUrl: string; headlines: string[]; descriptions: string[]; keywords: string[];
-    geoTargetIds?: string[]; networkDisplay?: boolean;
-    locationTargetingType?: string;
-    languages?: string[];
-    urlExpansionOptOut?: boolean;
-    trackingUrlTemplate?: string;
-    finalUrlSuffix?: string;
-    adSchedules?: Array<{ day: string; start: string; end: string }>;
-    brandInclusions?: string[];
-    brandExclusions?: string[];
-    onlyBidNewCustomers?: boolean;
-    adjustLapsedCustomers?: boolean;
-    maxCpcLimit?: number | string;
-    impressionShareLocation?: string;
-    targetImpressionSharePercent?: number | string;
-    maxCpcImpressionShare?: number | string;
-    conversionGoals?: Array<{ category: string; origin: string; biddable?: boolean }>;
-    conversionValueRules?: any[];
-    euPolitical?: string;
-  }) {
-    const { organizationId, customerId } = params;
-
-    // 1. Create Budget
-    const budgetRef = await this.createBudget(organizationId, customerId, {
-      name: `${params.campaignName} Budget`,
-      amountPerDay: params.budget
-    });
-
-    // 2. Create Campaign (Parameters 19, 21, 22, 24, 25, 26)
-    const campaignRef = await this.createCampaign(organizationId, customerId, {
-      name: params.campaignName,
-      budgetResourceName: budgetRef,
-      channelType: params.channelType || "SEARCH",
-      biddingStrategy: params.biddingStrategy || "MANUAL_CPC",
-      targetCpaMicros: params.targetCpa ? Math.round(params.targetCpa * 1_000_000) : undefined,
-      targetRoas: params.targetRoas,
-      startDate: params.startDate,
-      endDate: params.endDate,
-      networkDisplay: params.networkDisplay || false,
-      locationTargetingType: params.locationTargetingType,
-      urlExpansionOptOut: params.urlExpansionOptOut,
-      trackingUrlTemplate: params.trackingUrlTemplate,
-      finalUrlSuffix: params.finalUrlSuffix,
-      euPolitical: (params as any).euPolitical,
-      onlyBidNewCustomers: params.onlyBidNewCustomers,
-      adjustLapsedCustomers: params.adjustLapsedCustomers,
-      maxCpcLimit: params.maxCpcLimit,
-      impressionShareLocation: params.impressionShareLocation,
-      targetImpressionSharePercent: params.targetImpressionSharePercent,
-      maxCpcImpressionShare: params.maxCpcImpressionShare
-    } as any);
-
-    // 3. Create Ad Group
-    const adGroupRef = await this.createAdGroup(organizationId, customerId, {
-      name: `${params.campaignName} - Ad Group 1`,
-      campaignResourceName: campaignRef
-    });
-
-    // 4. Create RSA
-    await this.createAd(organizationId, customerId, {
-      adGroupResourceName: adGroupRef,
-      finalUrls: [params.finalUrl],
-      headlines: params.headlines.slice(0, 15).map(h => ({ text: h.substring(0, 30) })),
-      descriptions: params.descriptions.slice(0, 4).map(d => ({ text: d.substring(0, 90) }))
-    });
-
-    // 5. Add Keywords
-    if (params.keywords.length > 0) {
-      await this.addKeywords(organizationId, customerId, adGroupRef, params.keywords.map(kw => ({ text: kw })));
-    }
-
-    // 6. Geo targets (Parameter 13)
-    if (params.geoTargetIds && params.geoTargetIds.length > 0) {
-      await this.addGeoTargets(organizationId, customerId, campaignRef, params.geoTargetIds);
-    }
-
-    // 7. Languages (Parameter 15)
-    if (params.languages && params.languages.length > 0) {
-      await this.addLanguages(organizationId, customerId, campaignRef, params.languages);
-    }
-
-    // 8. Ad Schedules (Parameter 20)
-    if (params.adSchedules && params.adSchedules.length > 0) {
-      const isCustomSchedule = params.adSchedules.some(
-        s => s.day !== "All days" || s.start !== "00:00" || s.end !== "00:00"
-      );
-      if (isCustomSchedule) {
-        await this.addAdSchedules(organizationId, customerId, campaignRef, params.adSchedules);
-      }
-    }
-
-    // 9. Campaign Conversion Goals (Parameter 23)
-    if (params.conversionGoals && params.conversionGoals.length > 0) {
-      await this.setCampaignConversionGoals(organizationId, customerId, campaignRef, params.conversionGoals);
-    }
-
-    return {
-      campaignResourceName: campaignRef,
-      adGroupResourceName: adGroupRef,
-      budgetResourceName: budgetRef,
-      campaignId: campaignRef.split("/").pop()
-    };
-  }
 
   public static async setCampaignConversionGoals(
     organizationId: string,
@@ -1528,80 +1419,6 @@ export class GoogleAdsService {
     return res.data.results?.[0]?.resourceName;
   }
 
-  public static async launchPerformanceMaxCampaign(params: {
-    organizationId: string; customerId: string;
-    campaignName: string; budget: number;
-    biddingStrategy?: string; targetCpa?: number; targetRoas?: number;
-    startDate: string; endDate?: string;
-    finalUrl: string; headlines: string[]; descriptions: string[];
-    images?: Array<{ name: string; base64: string }>;
-  }) {
-    const { organizationId, customerId } = params;
-
-    // 1. Create Budget
-    const budgetRef = await this.createBudget(organizationId, customerId, {
-      name: `${params.campaignName} PMax Budget`,
-      amountPerDay: params.budget
-    });
-
-    // 2. Create Campaign
-    const campaignRef = await this.createCampaign(organizationId, customerId, {
-      name: params.campaignName,
-      budgetResourceName: budgetRef,
-      channelType: "PERFORMANCE_MAX",
-      biddingStrategy: params.biddingStrategy || "MAXIMIZE_CONVERSIONS",
-      targetCpaMicros: params.targetCpa ? Math.round(params.targetCpa * 1_000_000) : undefined,
-      targetRoas: params.targetRoas,
-      startDate: params.startDate,
-      endDate: params.endDate
-    });
-
-    // 3. Create Asset Group
-    const assetGroupRef = await this.createAssetGroup(organizationId, customerId, {
-      campaignResourceName: campaignRef,
-      name: `${params.campaignName} Asset Group 1`,
-      finalUrls: [params.finalUrl]
-    });
-
-    // 4. Create Headlines and link them
-    for (const text of params.headlines.slice(0, 5)) {
-      const assetRef = await this.createTextAsset(organizationId, customerId, text);
-      await this.linkAssetToAssetGroup(organizationId, customerId, {
-        assetGroupResourceName: assetGroupRef,
-        assetResourceName: assetRef,
-        fieldType: "HEADLINE"
-      });
-    }
-
-    // 5. Create Descriptions and link them
-    for (const text of params.descriptions.slice(0, 4)) {
-      const assetRef = await this.createTextAsset(organizationId, customerId, text);
-      await this.linkAssetToAssetGroup(organizationId, customerId, {
-        assetGroupResourceName: assetGroupRef,
-        assetResourceName: assetRef,
-        fieldType: "DESCRIPTION"
-      });
-    }
-
-    // 6. Handle custom images if uploaded
-    if (params.images && params.images.length > 0) {
-      for (const img of params.images) {
-        const assetRef = await this.uploadImageAsset(organizationId, customerId, img.name, img.base64);
-        await this.linkAssetToAssetGroup(organizationId, customerId, {
-          assetGroupResourceName: assetGroupRef,
-          assetResourceName: assetRef,
-          fieldType: "MARKETING_IMAGE"
-        });
-      }
-    }
-
-    return {
-      campaignResourceName: campaignRef,
-      assetGroupResourceName: assetGroupRef,
-      budgetResourceName: budgetRef,
-      campaignId: campaignRef.split("/").pop()
-    };
-  }
 
   /**
    * High-level helper for launching an App Promotion Campaign
@@ -2583,21 +2400,71 @@ export class GoogleAdsService {
       };
 
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-demandgen-${Date.now()}`;
+      const campaignRef = res.data?.results?.[0]?.resourceName;
+      if (!campaignRef) {
+        throw new Error(`Google Ads API returned no campaign resource name in mutate response: ${JSON.stringify(res.data)}`);
+      }
       const campaignId = campaignRef.split("/").pop();
+
+      // 1. Create the Demand Gen Ad Group
+      let adGroupRef: string | undefined;
+      try {
+        const agPayload = {
+          operations: [{
+            create: {
+              campaign: campaignRef,
+              name: `${params.campaignName} - Ad Group`,
+              status: "ENABLED"
+            }
+          }]
+        };
+        const agRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroups:mutate`, agPayload, { headers });
+        adGroupRef = agRes.data?.results?.[0]?.resourceName;
+        console.log(`[GoogleAds API] Created Demand Gen Ad Group: ${adGroupRef}`);
+      } catch (agErr: any) {
+        console.warn("[GoogleAds API] Demand Gen Ad Group creation warning:", agErr?.response?.data || agErr.message);
+      }
+
+      // 2. Create the Demand Gen Ad (Multi-Asset)
+      if (adGroupRef) {
+        try {
+          const adPayload = {
+            operations: [{
+              create: {
+                adGroup: adGroupRef,
+                status: "ENABLED",
+                ad: {
+                  finalUrls: [params.finalUrl],
+                  demandGenMultiAssetAd: {
+                    headlines: (params.headlines || ["Discover Demand Gen"]).slice(0, 5).map((h: string) => ({
+                      text: h.substring(0, 30)
+                    })),
+                    descriptions: (params.descriptions || ["Explore our products with Demand Gen"]).slice(0, 5).map((d: string) => ({
+                      text: d.substring(0, 90)
+                    }))
+                    // Note: Images require Asset linking via marketingImages.
+                    // This is skipped for basic generation unless standard Image Assets are already uploaded.
+                  }
+                }
+              }
+            }]
+          };
+          await axios.post(`${ADS_BASE}/customers/${cid}/adGroupAds:mutate`, adPayload, { headers });
+          console.log(`[GoogleAds API] Created Demand Gen Ad in group ${adGroupRef}`);
+        } catch (adErr: any) {
+          console.warn("[GoogleAds API] Demand Gen Ad creation warning:", adErr?.response?.data || adErr.message);
+        }
+      }
 
       return {
         campaignResourceName: campaignRef,
         budgetResourceName: budgetRef,
+        adGroupResourceName: adGroupRef,
         campaignId
       };
     } catch (err: any) {
-      console.warn("Google Ads No Guidance Demand Gen REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-demandgen-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `demandgen-${Date.now()}`
-      };
+      console.error("Google Ads No Guidance Demand Gen REST call failed:", err?.response?.data || err.message);
+      throw err; // Fail explicitly so the frontend knows it failed
     }
   }
 
@@ -2760,9 +2627,57 @@ export class GoogleAdsService {
     }
     const campaignId = campaignRef.split("/").pop();
 
+    // 1. Create the Video Ad Group
+    let adGroupRef: string | undefined;
+    try {
+      const agPayload = {
+        operations: [{
+          create: {
+            campaign: campaignRef,
+            name: `${params.campaignName} - Ad Group`,
+            status: "ENABLED",
+            type: params.campaignSubtype === "VIDEO_ACTION" ? "VIDEO_RESPONSIVE_AD_GROUP" : undefined
+          }
+        }]
+      };
+      const agRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroups:mutate`, agPayload, { headers });
+      adGroupRef = agRes.data?.results?.[0]?.resourceName;
+      console.log(`[GoogleAds API] Created Video Ad Group: ${adGroupRef}`);
+    } catch (agErr: any) {
+      console.warn("[GoogleAds API] Video Ad Group creation warning:", agErr?.response?.data || agErr.message);
+    }
+
+    // 2. Create the Video Ad
+    if (adGroupRef) {
+      try {
+        const adPayload = {
+          operations: [{
+            create: {
+              adGroup: adGroupRef,
+              status: "ENABLED",
+              ad: {
+                finalUrls: params.finalUrl ? [params.finalUrl] : [],
+                videoResponsiveAd: {
+                  headlines: params.headline ? [{ text: params.headline.substring(0, 30) }] : undefined,
+                  longHeadlines: params.description ? [{ text: params.description.substring(0, 90) }] : undefined,
+                  descriptions: params.description ? [{ text: params.description.substring(0, 90) }] : undefined,
+                  // Video linking requires an uploaded Asset. A proper implementation would link the video asset here.
+                }
+              }
+            }
+          }]
+        };
+        await axios.post(`${ADS_BASE}/customers/${cid}/adGroupAds:mutate`, adPayload, { headers });
+        console.log(`[GoogleAds API] Created Video Ad in group ${adGroupRef}`);
+      } catch (adErr: any) {
+        console.warn("[GoogleAds API] Video Ad creation warning:", adErr?.response?.data || adErr.message);
+      }
+    }
+
     return {
       campaignResourceName: campaignRef,
       budgetResourceName: budgetRef,
+      adGroupResourceName: adGroupRef,
       campaignId
     };
   }

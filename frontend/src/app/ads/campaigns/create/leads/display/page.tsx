@@ -3222,7 +3222,7 @@ export default function LeadsDisplayPage() {
 
                   console.log("[Leads -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));
 
-                  const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/leads/display`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payloadToLaunch)

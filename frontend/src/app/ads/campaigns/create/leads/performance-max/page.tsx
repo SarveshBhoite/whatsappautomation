@@ -185,6 +185,48 @@ function LeadsPerformanceMaxContent() {
   const [showMoreCampaignSettings, setShowMoreCampaignSettings] = useState<boolean>(false);
   const [activeEditSetting, setActiveEditSetting] = useState<string | null>(null);
 
+  // Fetch existing campaigns and auto-generate Campaign Name
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCampaigns = async () => {
+      if (!customerId) return;
+      try {
+        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+        const res = await fetch(`${BACKEND}/api/ads/campaigns?customerId=${encodeURIComponent(customerId)}`, {
+          headers: {
+            "x-organization-id": orgId
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const campaigns = Array.isArray(data) ? data : (data.campaigns || []);
+          const pmaxCampaigns = campaigns.filter((c: any) => 
+            c.name && c.name.startsWith("leads-Performance Max-")
+          );
+          
+          let maxN = 0;
+          for (const c of pmaxCampaigns) {
+            const match = c.name.match(/^leads-Performance Max-(\d+)$/);
+            if (match) {
+              const n = parseInt(match[1], 10);
+              if (n > maxN) maxN = n;
+            }
+          }
+          
+          if (isMounted) {
+            setCampaignName(`leads-Performance Max-${maxN + 1}`);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch campaigns for naming:", err);
+      }
+    };
+    
+    fetchCampaigns();
+    return () => { isMounted = false; };
+  }, [customerId]);
+
   // Dynamic Ad Schedules State
   const [adScheduleList, setAdScheduleList] = useState<Array<{ day: string; start: string; end: string }>>([
     { day: "All days", start: "00:00", end: "00:00" }
@@ -5068,7 +5110,7 @@ function LeadsPerformanceMaxContent() {
                     dailyBudget: Number(dailyBudgetValue)
                   };
 
-                  const res = await fetch(`${BACKEND}/api/ads/campaigns/create-noguidance-pmax-campaign`, {
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/leads/performance-max`, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
@@ -5077,7 +5119,15 @@ function LeadsPerformanceMaxContent() {
                     body: JSON.stringify(payload)
                   });
 
-                  const data = await res.json();
+                  let data;
+                  const contentType = res.headers.get("content-type");
+                  if (contentType && contentType.includes("application/json")) {
+                    data = await res.json();
+                  } else {
+                    const text = await res.text();
+                    throw new Error(`API returned a non-JSON response (Status ${res.status}): ${text.substring(0, 100)}...`);
+                  }
+
                   if (!res.ok) {
                     throw new Error(data.error || "Failed to publish Leads Performance Max campaign.");
                   }

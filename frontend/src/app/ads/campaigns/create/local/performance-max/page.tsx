@@ -25,6 +25,8 @@ function LocalPerformanceMaxContent() {
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
 
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY">("BIDDING");
   const [campaignName, setCampaignName] = useState<string>("Local-Performance Max-1");
@@ -3326,6 +3328,12 @@ function LocalPerformanceMaxContent() {
         </button>
 
         <div className="flex items-center gap-3">
+          {publishError && (
+            <div className="text-rose-500 text-[11px] font-semibold flex items-center gap-1 bg-rose-50 px-3 py-2 rounded-lg border border-rose-200">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {publishError}
+            </div>
+          )}
           {wizardStep !== "SUMMARY" ? (
             <button
               onClick={() => {
@@ -3346,12 +3354,41 @@ function LocalPerformanceMaxContent() {
                   alert("Please fix issues before publishing: Add a budget (Value is required)");
                   return;
                 }
-                alert(`Local store visits and promotions Performance Max campaign "Local store visits and promotions-Performance Max-9" published successfully!`);
-                router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                setIsPublishing(true);
+                setPublishError("");
+                try {
+                  const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                  
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/store-visits/performance-max`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "",
+                      customerId: customerId || "6587355041",
+                      campaignName: "Local store visits and promotions-Performance Max-9",
+                      biddingFocus: biddingFocus || "Maximize conversions",
+                      targetCpa: Number(targetCpaValue) || 25,
+                      finalUrl: typeof finalUrl !== "undefined" ? finalUrl : "https://www.example.com",
+                      headlines: typeof headlines !== "undefined" && headlines?.filter ? headlines.filter((h: string) => h.trim().length > 0) : ["Visit Our Store"],
+                      descriptions: typeof descriptions !== "undefined" && descriptions?.filter ? descriptions.filter((d: string) => d.trim().length > 0) : ["Great deals inside"],
+                      dailyBudget: Number(dailyBudgetValue.replace(/,/g, "")) || 1000,
+                      assetGroupName: typeof assetGroupName !== "undefined" ? assetGroupName : "Asset Group 1"
+                    })
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || "Failed to publish campaign");
+                  alert(`Local store visits and promotions Performance Max campaign "Local store visits and promotions-Performance Max-9" published successfully!`);
+                  router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                } catch (err: any) {
+                  setPublishError(err.message);
+                } finally {
+                  setIsPublishing(false);
+                }
               }}
-              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
+              disabled={isPublishing}
+              className={`px-6 py-2.5 text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer ${isPublishing ? "bg-emerald-300 text-slate-950/50 shadow-none cursor-not-allowed" : "bg-emerald-400 text-slate-950 hover:bg-emerald-300 shadow-emerald-400/20"}`}
             >
-              Save & Publish
+              {isPublishing ? "Publishing..." : "Save & Publish"}
               <Check className="h-4 w-4" />
             </button>
           )}

@@ -25,7 +25,7 @@ function WebsiteTrafficPerformanceMaxContent() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY">("BIDDING");
-  const [campaignName, setCampaignName] = useState<string>("WebsiteTraffic-Performance Max-1");
+  const [campaignName, setCampaignName] = useState<string>(`WebsiteTraffic-Performance Max-${Math.floor(Math.random() * 10000)}`);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showDraftModal, setShowDraftModal] = useState<boolean>(false);
@@ -366,6 +366,7 @@ function WebsiteTrafficPerformanceMaxContent() {
   const [businessName, setBusinessName] = useState<string>("");
 
   // Brand Guidelines State
+  const [enableBrandGuidelines, setEnableBrandGuidelines] = useState<boolean>(false);
   const [showBrandGuidelinesDetails, setShowBrandGuidelinesDetails] = useState<boolean>(false);
   const [brandLogos, setBrandLogos] = useState<string[]>([]);
   const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
@@ -2705,6 +2706,19 @@ function WebsiteTrafficPerformanceMaxContent() {
                   </div>
 
                   <div className="pt-2">
+                    <div className="flex items-center gap-2 mb-4 pb-4 border-b border-slate-200">
+                      <input 
+                        type="checkbox" 
+                        id="enableBrandGuidelinesToggle"
+                        checked={enableBrandGuidelines}
+                        onChange={(e) => setEnableBrandGuidelines(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <label htmlFor="enableBrandGuidelinesToggle" className="text-xs font-semibold text-slate-800 cursor-pointer">
+                        Enable Brand Guidelines
+                      </label>
+                    </div>
+
                     {!showBrandGuidelinesDetails ? (
                       <div className="space-y-4">
                         <div className="space-y-1">
@@ -5019,6 +5033,13 @@ function WebsiteTrafficPerformanceMaxContent() {
                   return;
                 }
 
+                if (brandLogos.length === 0) {
+                  setSubmitError("At least one square logo is required. Please upload a logo in the Asset Group section (Brand Guidelines).");
+                  setWizardStep("ASSET_GROUP");
+                  setIsAssetGroupInfoOpen(true);
+                  return;
+                }
+
                 setIsSubmitting(true);
                 try {
                   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -5062,7 +5083,7 @@ function WebsiteTrafficPerformanceMaxContent() {
                     displayPath1: displayPath1.trim() || undefined,
                     displayPath2: displayPath2.trim() || undefined,
                     enableFinalUrlExpansion: enableFinalUrlExpansion,
-                    brandGuidelinesEnabled: false,
+                    brandGuidelinesEnabled: enableBrandGuidelines,
                     brandColors: { mainColor, accentColor, font: selectedFont },
                     deviceSettings: devicesSelection,
                     trackingTemplate: trackingTemplate.trim() || undefined,
@@ -5147,8 +5168,7 @@ function WebsiteTrafficPerformanceMaxContent() {
                     budgetType: budgetType,
                     dailyBudget: Number(dailyBudgetValue)
                   };
-
-                  const res = await fetch(`${BACKEND}/api/ads/campaigns/create-noguidance-pmax-campaign`, {
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/website-traffic/performance-max`, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
@@ -5165,7 +5185,35 @@ function WebsiteTrafficPerformanceMaxContent() {
                   router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
                 } catch (err: any) {
                   console.error("WebsiteTraffic PMax campaign submission error:", err);
-                  setSubmitError(err.message || "An unexpected error occurred while publishing.");
+                  
+                  let errorMessage = err.message || "An unexpected error occurred while publishing.";
+                  try {
+                    // Backend returns Google Ads API response as a JSON string inside the message
+                    const parsed = JSON.parse(errorMessage);
+                    if (parsed && parsed.error && parsed.error.details) {
+                      const failure = parsed.error.details.find((d: any) => d["@type"]?.includes("GoogleAdsFailure"));
+                      if (failure && failure.errors && failure.errors.length > 0) {
+                        const googleErrors = failure.errors.map((e: any) => {
+                          const code = Object.values(e.errorCode || {})[0] || "";
+                          return `${e.message} (${code})`;
+                        });
+                        
+                        const isNotEnoughAssets = failure.errors.some((e: any) => 
+                          e.errorCode?.assetGroupError?.includes("NOT_ENOUGH")
+                        );
+                        
+                        errorMessage = `Google Ads API Error: ${googleErrors.join(" | ")}`;
+                        
+                        if (isNotEnoughAssets) {
+                          errorMessage += ` - Please ensure you have met the minimum asset requirements for Performance Max campaigns. See official documentation: https://developers.google.com/google-ads/api/performance-max/assets`;
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    // Not a JSON string or couldn't parse, fall back to original message
+                  }
+                  
+                  setSubmitError(errorMessage);
                 } finally {
                   setIsSubmitting(false);
                 }

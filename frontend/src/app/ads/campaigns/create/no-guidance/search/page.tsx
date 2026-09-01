@@ -929,7 +929,7 @@ export default function NoGuidanceSearchPage() {
 
       let res: Response;
       try {
-        res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+        res = await fetch(`${BACKEND}/api/ads/campaigns/no-guidance/search`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)

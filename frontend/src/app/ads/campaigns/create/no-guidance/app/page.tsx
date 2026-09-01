@@ -106,6 +106,8 @@ export default function  NoGuidanceAppPage()  {
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
 
   // Wizard Step State: "CAMPAIGN_SETTINGS" | "AD_GROUP" | "BIDDING_BUDGET" | "SUMMARY"
   const [wizardStep, setWizardStep] = useState<"CAMPAIGN_SETTINGS" | "AD_GROUP" | "BIDDING_BUDGET" | "SUMMARY">("CAMPAIGN_SETTINGS");
@@ -2748,6 +2750,12 @@ export default function  NoGuidanceAppPage()  {
         </button>
 
         <div className="flex items-center gap-3">
+          {publishError && (
+            <div className="text-rose-500 text-[11px] font-semibold flex items-center gap-1 bg-rose-50 px-3 py-2 rounded-lg border border-rose-200">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {publishError}
+            </div>
+          )}
           {wizardStep !== "SUMMARY" ? (
             <button
               onClick={() => {
@@ -2763,12 +2771,45 @@ export default function  NoGuidanceAppPage()  {
           ) : (
             <button
               onClick={async () => {
-                alert(`App campaign "${adGroupName}" published successfully!`);
-                router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                setIsPublishing(true);
+                setPublishError("");
+                try {
+                  const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                  const activeBudgetValue = selectedPresetBudget === "CUSTOM"
+                    ? Number(customBudgetValue.replace(/,/g, "")) || 1000
+                    : Number(selectedPresetBudget) || 1000;
+                  
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/no-guidance/app`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "",
+                      customerId: customerId || "6587355041",
+                      campaignName: campaignName || "No Guidance App",
+                      appId: selectedMobileApp?.packageName || "com.example.app",
+                      appStore: mobileAppPlatform === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE",
+                      targetCpa: Number(targetCpaValue) || 1.5,
+                      locations: targetLocations.map(l => l.name) || ["India"],
+                      languages: selectedLanguages || ["English"],
+                      headlines: headlines?.filter(h => h.trim().length > 0) || ["Great App"],
+                      descriptions: descriptions?.filter(d => d.trim().length > 0) || ["Download now"],
+                      dailyBudget: activeBudgetValue
+                    })
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || "Failed to publish campaign");
+                  alert(`App campaign "${campaignName}" published successfully!`);
+                  router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                } catch (err: any) {
+                  setPublishError(err.message);
+                } finally {
+                  setIsPublishing(false);
+                }
               }}
-              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
+              disabled={isPublishing}
+              className={`px-6 py-2.5 text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer ${isPublishing ? "bg-emerald-300 text-slate-950/50 shadow-none cursor-not-allowed" : "bg-emerald-400 text-slate-950 hover:bg-emerald-300 shadow-emerald-400/20"}`}
             >
-              Save & Publish
+              {isPublishing ? "Publishing..." : "Save & Publish"}
               <Check className="h-4 w-4" />
             </button>
           )}

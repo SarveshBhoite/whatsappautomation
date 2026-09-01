@@ -3819,28 +3819,78 @@ function SalesPerformanceMaxContent() {
                     <h2 className="text-sm font-bold text-rose-200">Issues</h2>
                   </div>
                   <p className="font-semibold text-rose-200">Fix these issues to run your campaign</p>
-                  <ul className="space-y-1.5 list-disc list-inside text-[11px] text-rose-300">
+                  <ul className="space-y-2 text-[11px] text-rose-300">
                     {(!dailyBudgetValue || Number(dailyBudgetValue) <= 0) && (
-                      <li><strong>Budget:</strong> {Number(dailyBudgetValue) <= 0 && dailyBudgetValue ? "Budget cannot be negative or zero" : "Value is required"}</li>
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Budget:</strong> {Number(dailyBudgetValue) <= 0 && dailyBudgetValue ? "Budget cannot be negative or zero" : "Value is required"}</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("BUDGET")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
                     )}
-                    {!finalUrl && <li><strong>Final URL:</strong> Enter a valid URL (ex. https://www.example.com)</li>}
+                    {!finalUrl && (
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Final URL:</strong> Enter a valid URL (ex. https://www.example.com)</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("ASSET_GROUP")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
+                    )}
                     {endDateOption === "SELECT" && endDate && startDate && endDate < startDate && (
-                      <li><strong>Campaign Dates:</strong> End Date ({endDate}) cannot be earlier than Start Date ({startDate})</li>
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Campaign Dates:</strong> End Date ({endDate}) cannot be earlier than Start Date ({startDate})</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("BUDGET")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
                     )}
                     {adScheduleList.some(s => s.start && s.end && !(s.start === "00:00" && (s.end === "00:00" || s.end === "24:00")) && s.end <= s.start) && (
-                      <li><strong>Ad Schedule:</strong> End time must not be less than or equal to start time</li>
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Ad Schedule:</strong> End time must not be less than or equal to start time</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
                     )}
                     {uploadedImages.length === 0 && (
-                      <li><strong>Marketing Images:</strong> Performance Max requires at least 1 marketing image (upload in Asset Group)</li>
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Marketing Images:</strong> Performance Max requires at least 1 marketing image (upload in Asset Group)</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("ASSET_GROUP")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
                     )}
                     {headlines.filter(h => h && h.trim()).length < 3 && (
-                      <li><strong>Headlines:</strong> Performance Max requires at least 3 headlines (currently {headlines.filter(h => h && h.trim()).length}/3)</li>
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Headlines:</strong> Performance Max requires at least 3 headlines (currently {headlines.filter(h => h && h.trim()).length}/3)</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("ASSET_GROUP")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
                     )}
                     {longHeadlines.filter(lh => lh && lh.trim()).length < 1 && (
-                      <li><strong>Long headlines:</strong> Performance Max requires at least 1 long headline (currently {longHeadlines.filter(lh => lh && lh.trim()).length}/1)</li>
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Long headlines:</strong> Performance Max requires at least 1 long headline (currently {longHeadlines.filter(lh => lh && lh.trim()).length}/1)</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("ASSET_GROUP")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
                     )}
                     {descriptions.filter(d => d && d.trim()).length < 2 && (
-                      <li><strong>Descriptions:</strong> Performance Max requires at least 2 descriptions (currently {descriptions.filter(d => d && d.trim()).length}/2)</li>
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Descriptions:</strong> Performance Max requires at least 2 descriptions (currently {descriptions.filter(d => d && d.trim()).length}/2)</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("ASSET_GROUP")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
                     )}
                   </ul>
                 </div>
@@ -4274,10 +4324,11 @@ function SalesPerformanceMaxContent() {
                     leadFormWebhook: lfWebhookUrl ? { url: lfWebhookUrl, key: lfWebhookKey } : undefined,
                     adSchedule: adScheduleList,
                     budgetType: budgetType,
-                    dailyBudget: Number(dailyBudgetValue)
+                    dailyBudget: Number(dailyBudgetValue),
+                    objective: "Sales"
                   };
 
-                  const res = await fetch(`${BACKEND}/api/ads/campaigns/create-noguidance-pmax-campaign`, {
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/sales/performance-max`, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
