@@ -240,7 +240,7 @@ function LinkedInPageContent() {
   const fetchContentIdeas = async () => {
     try {
       setAiIdeasLoading(true);
-      const orgId = getActiveOrgId();
+      const orgId = activeTab === "profile" ? "crm1" : getActiveOrgId();
       const res = await fetch(`${API_BASE_URL}/api/linkedin/ai/ideas`, {
         headers: { "x-organization-id": orgId }
       });
@@ -331,7 +331,7 @@ function LinkedInPageContent() {
   // Fetch CRM1 LinkedIn Configuration, Profile & Logs
   const fetchConfig = async () => {
     try {
-      const orgId = getActiveOrgId();
+      const orgId = "crm1";
       const res = await fetch(`${API_BASE_URL}/api/linkedin/config`, {
         headers: { "x-organization-id": orgId }
       });
@@ -379,7 +379,7 @@ function LinkedInPageContent() {
   // Fetch Profile details directly
   const fetchProfile = async () => {
     try {
-      const orgId = getActiveOrgId();
+      const orgId = "crm1";
       const res = await fetch(`${API_BASE_URL}/api/linkedin/profile`, {
         headers: { "x-organization-id": orgId }
       });
@@ -399,7 +399,7 @@ function LinkedInPageContent() {
   // Fetch Member Posts
   const fetchPosts = async () => {
     try {
-      const orgId = getActiveOrgId();
+      const orgId = "crm1";
       const res = await fetch(`${API_BASE_URL}/api/linkedin/posts`, {
         headers: { "x-organization-id": orgId }
       });
@@ -416,7 +416,7 @@ function LinkedInPageContent() {
   // Fetch Drafts
   const fetchDrafts = async () => {
     try {
-      const orgId = getActiveOrgId();
+      const orgId = "crm1";
       const res = await fetch(`${API_BASE_URL}/api/linkedin/drafts`, {
         headers: { "x-organization-id": orgId }
       });
@@ -432,7 +432,7 @@ function LinkedInPageContent() {
   // Fetch Scheduled Posts
   const fetchScheduled = async () => {
     try {
-      const orgId = getActiveOrgId();
+      const orgId = "crm1";
       const res = await fetch(`${API_BASE_URL}/api/linkedin/scheduled`, {
         headers: { "x-organization-id": orgId }
       });
@@ -464,8 +464,10 @@ function LinkedInPageContent() {
 
   useEffect(() => {
     if (activeTab === "company") {
+      setActiveOrgId(getActiveOrgId());
       fetchOrgConfig();
     } else if (activeTab === "profile") {
+      setActiveOrgId("crm1");
       fetchConfig();
       fetchProfile();
       fetchPosts();
@@ -509,7 +511,7 @@ function LinkedInPageContent() {
   }, []);
 
   const handleConnectOAuth = () => {
-    const orgId = getActiveOrgId();
+    const orgId = "crm1";
     window.location.href = `${API_BASE_URL}/api/linkedin/auth?orgId=${orgId}&redirect=/linkedin?tab=profile`;
   };
 
@@ -522,7 +524,7 @@ function LinkedInPageContent() {
     setSyncing(true);
     setStatusMessage(null);
     try {
-      const orgId = getActiveOrgId();
+      const orgId = "crm1";
       const res = await fetch(`${API_BASE_URL}/api/linkedin/sync`, {
         method: "POST",
         headers: { "x-organization-id": orgId }
@@ -556,7 +558,7 @@ function LinkedInPageContent() {
     if (!confirm("Are you sure you want to disconnect your Personal LinkedIn account?")) return;
 
     try {
-      const orgId = getActiveOrgId();
+      const orgId = "crm1";
       const res = await fetch(`${API_BASE_URL}/api/linkedin/disconnect`, {
         method: "POST",
         headers: { "x-organization-id": orgId }
