@@ -15,7 +15,7 @@ import {
   Trash2,
   Link2
 } from "lucide-react";
-import { MediaPreview } from "./MediaPreview";
+import { MediaPreview } from "./linkedIns/MediaPreview";
 
 export interface MediaAttachment {
   id: string;
@@ -426,11 +426,10 @@ export function LinkedInMediaComposer({
         }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all max-w-2xl mx-auto ${
-          isDragOver
+        className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all max-w-2xl mx-auto ${isDragOver
             ? "border-[#0A66C2] bg-blue-50/60"
             : "border-slate-300 bg-slate-50/60 hover:border-slate-400 hover:bg-slate-100/50"
-        }`}
+          }`}
       >
         <div className="flex flex-col items-center justify-center gap-1.5">
           <Upload className={`h-6 w-6 ${isDragOver ? "text-[#0A66C2] animate-bounce" : "text-slate-400"}`} />

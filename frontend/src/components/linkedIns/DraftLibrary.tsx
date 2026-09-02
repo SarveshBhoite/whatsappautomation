@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { FileText, Send, Trash2, Edit3, Copy, RefreshCw, Eye, X, Image as ImageIcon, Video as VideoIcon, ChevronDown, ChevronUp } from "lucide-react";
-import { MediaPreview, detectMediaType } from "./MediaPreview";
+import { MediaPreview, detectMediaType } from "@/components/linkedIns/MediaPreview";
 
 export interface DraftItem {
   id: string;

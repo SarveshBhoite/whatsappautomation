@@ -2,9 +2,11 @@ import { Router, Request, Response, NextFunction } from "express";
 import prisma from "../utils/prisma";
 import {
   LinkedInService,
+  LinkedInOrgService,
   LinkedInSyncService,
   LinkedInProviderFactory,
-  getLinkedInCredentials
+  getLinkedInCredentials,
+  getLinkedInOrgCredentials
 } from "../services/linkedinService";
 
 const router = Router();
@@ -14,7 +16,7 @@ const DEFAULT_ORG_ID = "";
 console.log("");
 console.log("========== EXPRESS ROUTER REGISTRATION TREE ==========");
 console.log("Mounted Router Path: /api/linkedin");
-console.log("Registered Routes:");
+console.log("Registered CRM1 Personal Routes:");
 console.log("  GET  /api/linkedin/auth/login        -> handleOAuthConnect");
 console.log("  GET  /api/linkedin/auth             -> handleOAuthConnect");
 console.log("  GET  /api/linkedin/auth/callback    -> handleOAuthCallback");
@@ -23,24 +25,22 @@ console.log("  GET  /api/linkedin/config");
 console.log("  GET  /api/linkedin/profile");
 console.log("  GET  /api/linkedin/posts");
 console.log("  POST /api/linkedin/share");
-console.log("  GET  /api/linkedin/activity");
-console.log("  POST /api/linkedin/sync");
 console.log("  POST /api/linkedin/disconnect");
-console.log("  GET  /api/linkedin/drafts");
-console.log("  POST /api/linkedin/draft");
-console.log("  PUT  /api/linkedin/draft");
-console.log("  DELETE /api/linkedin/draft");
-console.log("  GET  /api/linkedin/scheduled");
-console.log("  POST /api/linkedin/schedule");
-console.log("  PUT  /api/linkedin/schedule");
-console.log("  DELETE /api/linkedin/schedule");
-console.log("  POST /api/linkedin/publish-now");
-console.log("  POST /api/linkedin/ai/generate");
-console.log("  POST /api/linkedin/ai/rewrite");
-console.log("  POST /api/linkedin/ai/hashtags");
-console.log("  POST /api/linkedin/ai/grammar");
-console.log("  POST /api/linkedin/ai/cta");
-console.log("  GET  /api/linkedin/ai/history");
+console.log("Registered CRM3 Organization Routes:");
+console.log("  GET  /api/linkedin/auth/org/login    -> handleOrgOAuthConnect");
+console.log("  GET  /api/linkedin/auth/org/callback -> handleOrgOAuthCallback");
+console.log("  GET  /api/linkedin/org/config");
+console.log("  GET  /api/linkedin/org/profile");
+console.log("  GET  /api/linkedin/org/posts");
+console.log("  POST /api/linkedin/org/share");
+console.log("  DELETE /api/linkedin/org/posts/:postId");
+console.log("  GET  /api/linkedin/org/comments/:postUrn");
+console.log("  POST /api/linkedin/org/comments/:postUrn");
+console.log("  DELETE /api/linkedin/org/comments/:commentUrn");
+console.log("  GET  /api/linkedin/org/reactions/:postUrn");
+console.log("  GET  /api/linkedin/org/analytics/followers");
+console.log("  GET  /api/linkedin/org/analytics/page");
+console.log("  POST /api/linkedin/org/disconnect");
 console.log("======================================================");
 console.log("");
 
@@ -475,14 +475,14 @@ const handleOAuthCallback = async (req: Request, res: Response) => {
   console.log("===========================================");
   console.log("");
 
-  let orgId = DEFAULT_ORG_ID;
-  let redirectPath = "/linkedin";
+    let orgId = DEFAULT_ORG_ID;
+  let targetPath = "/linkedin";
 
   if (stateStr) {
     try {
       const parsed = JSON.parse(stateStr);
       orgId = parsed.orgId || DEFAULT_ORG_ID;
-      redirectPath = parsed.redirect || "/linkedin";
+      targetPath = parsed.redirect || "/linkedin";
     } catch {
       orgId = stateStr;
     }
@@ -490,6 +490,21 @@ const handleOAuthCallback = async (req: Request, res: Response) => {
 
   const { redirectUri } = getLinkedInCredentials();
   const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").trim();
+
+  // Helper to build clean redirection URL without duplicate tab query parameters
+  const buildPersonalRedirect = (params: Record<string, string>) => {
+    try {
+      const baseUrl = targetPath.startsWith("http") ? targetPath : `${frontendUrl}${targetPath.startsWith("/") ? "" : "/"}${targetPath}`;
+      const urlObj = new URL(baseUrl);
+      urlObj.searchParams.set("tab", "profile");
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) urlObj.searchParams.set(k, v);
+      });
+      return urlObj.toString();
+    } catch {
+      return `${frontendUrl}/linkedin?tab=profile&${new URLSearchParams(params).toString()}`;
+    }
+  };
 
   if (oauthError) {
     // Task 10: Error Analysis
@@ -515,13 +530,23 @@ const handleOAuthCallback = async (req: Request, res: Response) => {
     console.error("");
 
     await LinkedInSyncService.logSyncEvent(orgId, "OAuth Rejected", "FAILED", `Error: ${oauthError} - ${oauthErrorDesc || ""}`);
-    return res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=overview&oauth=error&error=${encodeURIComponent(oauthError)}&description=${encodeURIComponent(oauthErrorDesc || "")}&platform=linkedin`);
+    return res.redirect(buildPersonalRedirect({
+      oauth: "error",
+      error: oauthError,
+      description: oauthErrorDesc || "",
+      platform: "linkedin"
+    }));
   }
 
   if (!code) {
     console.error("[LINKEDIN TASK 10 FAIL] Missing OAuth Code in callback URL query params.");
     await LinkedInSyncService.logSyncEvent(orgId, "OAuth Failed", "FAILED", "Missing authorization code");
-    return res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=overview&oauth=error&error=missing_code&description=${encodeURIComponent("No authorization code provided.")}&platform=linkedin`);
+    return res.redirect(buildPersonalRedirect({
+      oauth: "error",
+      error: "missing_code",
+      description: "No authorization code provided.",
+      platform: "linkedin"
+    }));
   }
 
   try {
@@ -642,7 +667,10 @@ const handleOAuthCallback = async (req: Request, res: Response) => {
       return res.status(200).json(jsonResponseData);
     }
 
-    const redirectUrl = `${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=overview&oauth=success&platform=linkedin`;
+    const redirectUrl = buildPersonalRedirect({
+      oauth: "success",
+      platform: "linkedin"
+    });
     console.log(`[LINKEDIN] Redirecting to frontend: ${redirectUrl}`);
     return res.redirect(redirectUrl);
 
@@ -659,9 +687,604 @@ const handleOAuthCallback = async (req: Request, res: Response) => {
     console.log("========================================================");
     console.log("");
 
-    return res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=overview&oauth=error&error=api_error&description=${encodeURIComponent(errorMsg)}&platform=linkedin`);
+    return res.redirect(buildPersonalRedirect({
+      oauth: "error",
+      error: "api_error",
+      description: errorMsg,
+      platform: "linkedin"
+    }));
   }
 };
+
+// ─── CRM3 ORGANIZATION OAUTH HANDLERS ─────────────────────────────────────────
+
+const handleOrgOAuthConnect = (req: Request, res: Response) => {
+  try {
+    const orgId = getOrgId(req);
+    const redirectPath = (req.query.redirect as string) || "/linkedin";
+    const authUrl = LinkedInOrgService.generateOrgAuthUrl(orgId, redirectPath);
+    return res.redirect(authUrl);
+  } catch (error: any) {
+    console.error("[LINKEDIN ORG] OAuth Connect Error:", error.message);
+    return res.status(400).json({
+      error: "LinkedIn Organization OAuth Validation Error",
+      message: error.message
+    });
+  }
+};
+
+const handleOrgOAuthCallback = async (req: Request, res: Response) => {
+  const code = req.query.code as string;
+  const stateStr = req.query.state as string;
+  const oauthError = req.query.error as string;
+  const oauthErrorDesc = req.query.error_description as string;
+
+  console.log("");
+  console.log("========== LINKEDIN CRM3 ORG OAUTH CALLBACK ==========");
+  console.log(`Received Code: ${code ? "[EXISTS]" : "NONE"}`);
+  console.log(`Query Error: ${oauthError || "NONE"}`);
+  console.log("======================================================");
+  console.log("");
+
+  let orgId = DEFAULT_ORG_ID;
+  let targetPath = "/linkedin";
+
+  if (stateStr) {
+    try {
+      const parsed = JSON.parse(stateStr);
+      orgId = parsed.orgId || DEFAULT_ORG_ID;
+      targetPath = parsed.redirect || "/linkedin";
+    } catch {
+      orgId = stateStr;
+    }
+  }
+
+  const { redirectUri } = getLinkedInOrgCredentials();
+  const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").trim();
+
+  // Helper to build clean redirection URL without duplicate tab query parameters
+  const buildOrgRedirect = (params: Record<string, string>) => {
+    try {
+      const baseUrl = targetPath.startsWith("http") ? targetPath : `${frontendUrl}${targetPath.startsWith("/") ? "" : "/"}${targetPath}`;
+      const urlObj = new URL(baseUrl);
+      urlObj.searchParams.set("tab", "company");
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) urlObj.searchParams.set(k, v);
+      });
+      return urlObj.toString();
+    } catch {
+      return `${frontendUrl}/linkedin?tab=company&${new URLSearchParams(params).toString()}`;
+    }
+  };
+
+  if (oauthError) {
+    await LinkedInSyncService.logSyncEvent(orgId, "Org OAuth Rejected", "FAILED", `Error: ${oauthError} - ${oauthErrorDesc || ""}`);
+    return res.redirect(buildOrgRedirect({
+      oauth: "error",
+      error: oauthError,
+      description: oauthErrorDesc || "",
+      platform: "linkedin_org"
+    }));
+  }
+
+  if (!code) {
+    await LinkedInSyncService.logSyncEvent(orgId, "Org OAuth Failed", "FAILED", "Missing authorization code");
+    return res.redirect(buildOrgRedirect({
+      oauth: "error",
+      error: "missing_code",
+      description: "No authorization code provided.",
+      platform: "linkedin_org"
+    }));
+  }
+
+  try {
+    const tokenData = await LinkedInOrgService.exchangeOrgCodeForToken(code, redirectUri);
+    const accessToken = tokenData.access_token;
+    const refreshToken = tokenData.refresh_token || "";
+    const expiresIn = tokenData.expires_in || 5184000;
+    const tokenExpiry = new Date(Date.now() + expiresIn * 1000);
+    const scopes = tokenData.scope || "";
+
+    if (!accessToken) {
+      throw new Error("No access_token returned in CRM3 organization token response.");
+    }
+
+    // Ensure Organization record exists in DB
+    await prisma.organization.upsert({
+      where: { id: orgId },
+      update: {},
+      create: { id: orgId, name: `Organization ${orgId}` }
+    });
+
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    console.log("[CRM3] Fetching admin organizations for token...");
+    const adminOrgs = await orgProvider.getAdminOrganizations(accessToken);
+    console.log(`[CRM3] Admin organizations retrieved: ${adminOrgs.length}`);
+
+    const primaryOrg = adminOrgs.length > 0 ? adminOrgs[0] : null;
+
+    const companyId = primaryOrg?.companyId || primaryOrg?.id || "";
+    const companyName = primaryOrg?.companyName || primaryOrg?.name || "";
+    const vanityName = primaryOrg?.vanityName || "";
+    const companyLogo = primaryOrg?.companyLogo || primaryOrg?.logo || "";
+    const website = primaryOrg?.website || "";
+    const industry = primaryOrg?.industry || "";
+    const description = primaryOrg?.description || "";
+    const authorUrn = primaryOrg?.organizationUrn || (companyId ? `urn:li:organization:${companyId}` : "");
+
+    console.log(`[CRM3] Primary Organization Identified: ${companyName || "N/A"} (${companyId || "N/A"})`);
+    console.log(`[CRM3] Logo URL: ${companyLogo ? "[EXISTS]" : "NONE"}`);
+    console.log(`[CRM3] Website: ${website || "NONE"}`);
+
+    // Fetch initial followers count
+    let followersCount = 0;
+    let organicFollowers = 0;
+    let paidFollowers = 0;
+    if (authorUrn) {
+      try {
+        const followerStats = await orgProvider.getFollowers(accessToken, authorUrn);
+        followersCount = followerStats.totalFollowers || 0;
+        organicFollowers = followerStats.organicFollowers || 0;
+        paidFollowers = followerStats.paidFollowers || 0;
+      } catch (fErr: any) {
+        console.warn("[LINKEDIN ORG] Initial follower fetch notice:", fErr.message);
+      }
+    }
+
+    // Persist CRM3 Company token & company profile directly to database
+    const orgConfig = await prisma.linkedInConfig.upsert({
+      where: { organizationId: orgId },
+      update: {
+        accessToken,
+        refreshToken: refreshToken || undefined,
+        expiresIn,
+        tokenExpiry,
+        companyId,
+        companyName,
+        vanityName,
+        companyLogo,
+        website,
+        industry,
+        description,
+        authorUrn,
+        updatedAt: new Date()
+      },
+      create: {
+        organizationId: orgId,
+        accessToken,
+        refreshToken: refreshToken || "",
+        expiresIn,
+        tokenExpiry,
+        companyId,
+        companyName,
+        vanityName,
+        companyLogo,
+        website,
+        industry,
+        description,
+        authorUrn
+      }
+    });
+
+    if (companyId || companyName) {
+      await prisma.linkedInProfile.upsert({
+        where: { organizationId: orgId },
+        update: {
+          name: companyName || "Company Page",
+          headline: industry ? `${industry} • LinkedIn Company Page` : "LinkedIn Company Page",
+          picture: companyLogo || "",
+          locale: "en_US",
+          updatedAt: new Date()
+        },
+        create: {
+          organizationId: orgId,
+          configId: orgConfig.id,
+          name: companyName || "Company Page",
+          headline: industry ? `${industry} • LinkedIn Company Page` : "LinkedIn Company Page",
+          picture: companyLogo || "",
+          locale: "en_US"
+        }
+      });
+    }
+
+    await LinkedInSyncService.logSyncEvent(orgId, "Org OAuth Success", "SUCCESS", `Connected LinkedIn Company Page: ${companyName} (${companyId || "Pending"})`);
+
+    if (req.headers.accept?.includes("application/json") || req.query.format === "json") {
+      return res.status(200).json({
+        success: true,
+        connected: true,
+        companyName,
+        companyId,
+        companyLogo
+      });
+    }
+
+    const redirectUrl = buildOrgRedirect({
+      oauth: "success",
+      platform: "linkedin_org"
+    });
+    return res.redirect(redirectUrl);
+  } catch (error: any) {
+    const errorMsg = error?.response?.data?.error_description || error?.response?.data?.message || error.message;
+    console.error("[LINKEDIN ORG] OAuth Callback Exception:", errorMsg);
+    await LinkedInSyncService.logSyncEvent(orgId, "Org API Error", "FAILED", `Org OAuth exchange failed: ${errorMsg}`);
+    return res.redirect(buildOrgRedirect({
+      oauth: "error",
+      error: "api_error",
+      description: errorMsg,
+      platform: "linkedin_org"
+    }));
+  }
+};
+
+// ─── CRM3 ORGANIZATION API ROUTES ─────────────────────────────────────────────
+
+// 1. GET /api/linkedin/org/config
+router.get("/org/config", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    await prisma.organization.upsert({
+      where: { id: organizationId },
+      update: {},
+      create: { id: organizationId, name: `Organization ${organizationId}` }
+    });
+
+    let config = await prisma.linkedInConfig.findUnique({
+      where: { organizationId },
+      include: { profile: true }
+    });
+
+    if (!config) {
+      config = await prisma.linkedInConfig.create({
+        data: {
+          organizationId,
+          accessToken: "",
+          refreshToken: "",
+          companyId: "",
+          companyName: "",
+          authorUrn: ""
+        },
+        include: { profile: true }
+      });
+    }
+
+    const isConnected = Boolean(config.accessToken && config.accessToken.trim().length > 10 && config.companyId);
+    
+    // Synthesize dedicated organization profile format
+    const orgProfile = isConnected ? {
+      id: config.companyId,
+      companyId: config.companyId,
+      companyName: config.companyName || config.profile?.name || "",
+      vanityName: config.vanityName || "",
+      companyLogo: config.companyLogo || config.profile?.picture || "",
+      website: config.website || "",
+      industry: config.industry || "",
+      description: config.description || "",
+      followersCount: 0
+    } : null;
+
+    console.log(`[CRM3] /api/linkedin/org/config requested for org ${organizationId}. Connected: ${isConnected}, Company: ${config.companyName || "None"}`);
+
+    return res.status(200).json({
+      connected: isConnected,
+      config,
+      profile: orgProfile
+    });
+  } catch (err: any) {
+    console.error("[LINKEDIN ORG] Fetch org config error:", err);
+    return res.status(500).json({ error: "Failed to fetch organization config", details: err.message });
+  }
+});
+
+// 2. GET /api/linkedin/org/profile
+router.get("/org/profile", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const config = await prisma.linkedInConfig.findUnique({
+      where: { organizationId },
+      include: { profile: true }
+    });
+
+    if (!config || !config.accessToken || !config.companyId) {
+      return res.status(200).json({ connected: false, profile: null, config: null });
+    }
+
+    // Try to fetch latest live details if available or return stored DB fields
+    let followersCount = 0;
+    let organicFollowers = 0;
+    let paidFollowers = 0;
+
+    const orgUrn = config.authorUrn || `urn:li:organization:${config.companyId}`;
+    try {
+      const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+      const stats = await orgProvider.getFollowers(config.accessToken, orgUrn);
+      followersCount = stats.totalFollowers || 0;
+      organicFollowers = stats.organicFollowers || 0;
+      paidFollowers = stats.paidFollowers || 0;
+    } catch (fErr: any) {
+      console.warn("[LINKEDIN ORG] Follower stats notice:", fErr.message);
+    }
+
+    const orgProfile = {
+      id: config.companyId,
+      companyId: config.companyId,
+      companyName: config.companyName || config.profile?.name || "",
+      vanityName: config.vanityName || "",
+      companyLogo: config.companyLogo || config.profile?.picture || "",
+      website: config.website || "",
+      industry: config.industry || "",
+      description: config.description || "",
+      followersCount,
+      organicFollowers,
+      paidFollowers
+    };
+
+    console.log(`[CRM3] /api/linkedin/org/profile requested for org ${organizationId}. Company: ${orgProfile.companyName}, Followers: ${followersCount}`);
+
+    return res.status(200).json({
+      connected: true,
+      profile: orgProfile,
+      config
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to fetch organization profile", details: err.message });
+  }
+});
+
+// 3. GET /api/linkedin/org/posts
+router.get("/org/posts", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const result = await orgProvider.getPosts(organizationId);
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to fetch organization posts", details: err.message });
+  }
+});
+
+// 4. POST /api/linkedin/org/share - Publish company post
+router.post("/org/share", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { text, commentary, mediaUrl } = req.body;
+    const content = (text || commentary || "").trim();
+
+    if (!content) {
+      return res.status(400).json({ error: "Post content text is required." });
+    }
+
+    const config = await prisma.linkedInConfig.findUnique({
+      where: { organizationId }
+    });
+
+    if (!config || !config.accessToken || !config.companyId) {
+      return res.status(401).json({ error: "LinkedIn Company Page is not connected. Please authenticate first." });
+    }
+
+    const orgUrn = config.authorUrn || `urn:li:organization:${config.companyId}`;
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const result = await orgProvider.publishPost(config.accessToken, orgUrn, content, mediaUrl);
+
+    // Save to CRM database
+    const savedPost = await prisma.linkedInPost.create({
+      data: {
+        organizationId,
+        author: config.companyName || "LinkedIn Company Page",
+        authorUrn: orgUrn,
+        summary: content,
+        commentary: content,
+        mediaUrl: mediaUrl || null,
+        mediaType: result.mediaCategory || "NONE",
+        visibility: "PUBLIC",
+        publishedAt: new Date()
+      }
+    });
+
+    await LinkedInSyncService.logSyncEvent(organizationId, "Org Post Published", "SUCCESS", `Published company post (${result.id || result.urn})`);
+
+    return res.status(200).json({
+      success: true,
+      post: savedPost,
+      urn: result.urn
+    });
+  } catch (err: any) {
+    console.error("[LINKEDIN ORG] Publish error:", err);
+    return res.status(500).json({ error: "Failed to publish company post", details: err.message });
+  }
+});
+
+// 5. DELETE /api/linkedin/org/posts/:postId
+router.delete("/org/posts/:postId", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postId = (req.params.postId as string) || "";
+
+    const config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+    if (config?.accessToken) {
+      const personalProvider = LinkedInProviderFactory.getPersonalProvider();
+      try {
+        await personalProvider.deletePost(config.accessToken, postId);
+      } catch (delErr: any) {
+        console.warn("[LINKEDIN ORG] Live post deletion notice:", delErr.message);
+      }
+    }
+
+    await prisma.linkedInPost.deleteMany({
+      where: {
+        organizationId,
+        OR: [{ id: postId }, { postId }]
+      }
+    });
+
+    await LinkedInSyncService.logSyncEvent(organizationId, "Org Post Deleted", "SUCCESS", `Deleted company post ${postId}`);
+    return res.status(200).json({ success: true, message: "Company post deleted successfully." });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to delete company post", details: err.message });
+  }
+});
+
+// 6. GET /api/linkedin/org/comments/:postUrn
+router.get("/org/comments/:postUrn", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postUrn = (req.params.postUrn as string) || "";
+    const config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+
+    if (!config || !config.accessToken) {
+      return res.status(200).json({ comments: [] });
+    }
+
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const comments = await orgProvider.getComments(config.accessToken, postUrn);
+    return res.status(200).json({ success: true, comments });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to fetch comments", details: err.message });
+  }
+});
+
+// 7. POST /api/linkedin/org/comments/:postUrn - Reply as company
+router.post("/org/comments/:postUrn", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postUrn = (req.params.postUrn as string) || "";
+    const { message } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "Comment message is required." });
+    }
+
+    const config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+    if (!config || !config.accessToken || !config.companyId) {
+      return res.status(401).json({ error: "LinkedIn Company Page is not connected." });
+    }
+
+    const orgUrn = config.authorUrn || `urn:li:organization:${config.companyId}`;
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const result = await orgProvider.replyToComment(config.accessToken, postUrn, orgUrn, message.trim());
+
+    return res.status(200).json({ success: true, result });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to post comment", details: err.message });
+  }
+});
+
+// 8. DELETE /api/linkedin/org/comments/:postUrn/:commentUrn
+router.delete("/org/comments/:postUrn/:commentUrn", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postUrn = (req.params.postUrn as string) || "";
+    const commentUrn = (req.params.commentUrn as string) || "";
+    const config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+
+    if (!config || !config.accessToken) {
+      return res.status(401).json({ error: "LinkedIn Company Page not connected." });
+    }
+
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const result = await orgProvider.deleteComment(config.accessToken, postUrn, commentUrn);
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to delete comment", details: err.message });
+  }
+});
+
+// 9. GET /api/linkedin/org/reactions/:postUrn
+router.get("/org/reactions/:postUrn", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postUrn = (req.params.postUrn as string) || "";
+    const config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+
+    if (!config || !config.accessToken) {
+      return res.status(200).json({ totalLikes: 0, likes: [] });
+    }
+
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const result = await orgProvider.getReactions(config.accessToken, postUrn);
+    return res.status(200).json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to fetch reactions", details: err.message });
+  }
+});
+
+// 10. GET /api/linkedin/org/analytics/followers
+router.get("/org/analytics/followers", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+
+    if (!config || !config.accessToken || !config.companyId) {
+      return res.status(200).json({ totalFollowers: 0, organicFollowers: 0, paidFollowers: 0 });
+    }
+
+    const orgUrn = config.authorUrn || `urn:li:organization:${config.companyId}`;
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const stats = await orgProvider.getFollowers(config.accessToken, orgUrn);
+    return res.status(200).json({ success: true, stats });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to fetch follower analytics", details: err.message });
+  }
+});
+
+// 11. GET /api/linkedin/org/analytics/page
+router.get("/org/analytics/page", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+
+    if (!config || !config.accessToken || !config.companyId) {
+      return res.status(200).json({ views: 0, uniqueViews: 0, clicks: 0 });
+    }
+
+    const orgUrn = config.authorUrn || `urn:li:organization:${config.companyId}`;
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const stats = await orgProvider.getAnalytics(config.accessToken, orgUrn);
+    return res.status(200).json({ success: true, stats });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to fetch page analytics", details: err.message });
+  }
+});
+
+// 12. POST /api/linkedin/org/disconnect
+router.post("/org/disconnect", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    await prisma.linkedInProfile.deleteMany({ where: { organizationId } });
+
+    const config = await prisma.linkedInConfig.upsert({
+      where: { organizationId },
+      update: {
+        accessToken: "",
+        refreshToken: "",
+        expiresIn: null,
+        tokenExpiry: null,
+        companyId: "",
+        companyName: "",
+        vanityName: "",
+        companyLogo: "",
+        website: "",
+        industry: "",
+        description: "",
+        authorUrn: ""
+      },
+      create: {
+        organizationId,
+        accessToken: "",
+        refreshToken: "",
+        companyId: "",
+        companyName: "",
+        authorUrn: ""
+      }
+    });
+
+    await LinkedInSyncService.logSyncEvent(organizationId, "Company Page Disconnected", "SUCCESS", "Cleared CRM3 Organization tokens and company profile details");
+    return res.status(200).json({ message: "LinkedIn Company Page disconnected successfully", data: config });
+  } catch (error: any) {
+    console.error("[LINKEDIN ORG] API Error - Disconnect:", error);
+    return res.status(500).json({ error: "Failed to disconnect LinkedIn Company Page", details: error.message });
+  }
+});
 
 // POST /api/linkedin/link-preview - Extract OpenGraph / metadata for link preview card
 router.post("/link-preview", async (req: Request, res: Response) => {
@@ -1595,12 +2218,16 @@ router.post(
   }
 );
 
-// Task 3: Router Registration
+// CRM1 Personal OAuth Registration
 router.get("/auth/login", handleOAuthConnect);
 router.get("/auth", handleOAuthConnect);
 router.get("/oauth/connect", handleOAuthConnect);
-
 router.get("/auth/callback", handleOAuthCallback);
 router.get("/callback", handleOAuthCallback);
+
+// CRM3 Organization OAuth Registration
+router.get("/auth/org/login", handleOrgOAuthConnect);
+router.get("/auth/org", handleOrgOAuthConnect);
+router.get("/auth/org/callback", handleOrgOAuthCallback);
 
 export default router;

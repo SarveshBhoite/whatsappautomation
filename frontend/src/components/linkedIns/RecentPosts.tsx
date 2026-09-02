@@ -12,7 +12,7 @@ import {
   Sparkles,
   ExternalLink
 } from "lucide-react";
-import { MediaPreview } from "./MediaPreview";
+import { MediaPreview } from "@/components/linkedIns/MediaPreview";
 
 export interface PostItem {
   id: string;

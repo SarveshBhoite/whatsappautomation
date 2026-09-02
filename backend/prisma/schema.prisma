@@ -20,6 +20,7 @@ model Organization {
   ytConfigs           YouTubeConfig[]
   gmbConfigs          GoogleBusinessConfig[]
   linkedInConfig      LinkedInConfig?
+  linkedInOrgConfig   LinkedInOrgConfig?
   linkedInPosts       LinkedInPost[]
   linkedInSchedules   LinkedInSchedule[]
   aiContentHistories  AIContentHistory[]
@@ -155,6 +156,72 @@ model LinkedInProfile {
   locale         String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+}
+
+model LinkedInOrgConfig {
+  id                 String              @id @default(uuid())
+  organizationId     String              @unique
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  authorUrn          String?             @default("")
+  companyId          String?
+  companyName        String?
+  vanityName         String?
+  companyLogo        String?
+  website            String?
+  industry           String?
+  description        String?
+  followersCount     Int?                @default(0)
+  scopes             String?             @default("")
+  expiresIn          Int?
+  accessToken        String
+  refreshToken       String?
+  tokenExpiry        DateTime?
+  expiresAt          DateTime?
+  profile            LinkedInOrgProfile?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model LinkedInOrgProfile {
+  id                 String             @id @default(uuid())
+  organizationId     String             @unique
+  configId           String?            @unique
+  linkedInOrgConfig  LinkedInOrgConfig? @relation(fields: [configId], references: [id])
+  companyId          String?
+  companyName        String?
+  vanityName         String?
+  companyLogo        String?
+  website            String?
+  industry           String?
+  description        String?
+  localizedName      String?
+  followersCount     Int?               @default(0)
+  organicFollowers   Int?               @default(0)
+  paidFollowers      Int?               @default(0)
+  staffCountRange    String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+model LinkedInOrgPost {
+  id                 String             @id @default(uuid())
+  organizationId     String
+  postId             String             @default(uuid()) @unique
+  linkedinPostId     String?            @unique
+  authorUrn          String?            @default("")
+  companyName        String?
+  commentary         String?            @default("")
+  summary            String?
+  mediaUrl           String?
+  mediaType          String?            @default("NONE") // NONE, IMAGE, VIDEO, DOCUMENT
+  visibility         String?            @default("PUBLIC")
+  lifecycleState     String?            @default("PUBLISHED")
+  publishedAt        DateTime?          @default(now())
+  likesCount         Int?               @default(0)
+  commentsCount      Int?               @default(0)
+  sharesCount        Int?               @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @default(now())
 }
 
 model LinkedInSyncLog {

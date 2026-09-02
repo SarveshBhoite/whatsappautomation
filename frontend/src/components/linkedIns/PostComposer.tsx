@@ -2,9 +2,9 @@
 
 import React, { useState } from "react";
 import { Send, RefreshCw, X, Image as ImageIcon, Sparkles, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Bookmark, Bot } from "lucide-react";
-import { PostPreview } from "./PostPreview";
-import { AIAssistantModal } from "./AIAssistantModal";
-import { LinkedInMediaComposer, MediaAttachment } from "./LinkedInMediaComposer";
+import { PostPreview } from "@/components/linkedIns/PostPreview";
+import { AIAssistantModal } from "@/components/linkedIns/AIAssistantModal";
+import { LinkedInMediaComposer, MediaAttachment } from "@/components/linkedIns/LinkedInMediaComposer";
 
 interface PostComposerProps {
   organizationId?: string;
@@ -12,6 +12,9 @@ interface PostComposerProps {
   authorPicture?: string;
   headline?: string;
   draftToEdit?: { id: string; summary: string; mediaUrl?: string | null } | null;
+  publishEndpoint?: string;
+  scheduleEndpoint?: string;
+  draftEndpoint?: string;
   onPostPublished?: (newPost: any) => void;
   onDraftSaved?: () => void;
   onPostScheduled?: () => void;
@@ -25,6 +28,9 @@ export function PostComposer({
   authorPicture = "",
   headline = "LinkedIn Member Profile",
   draftToEdit = null,
+  publishEndpoint = "/api/linkedin/share",
+  scheduleEndpoint = "/api/linkedin/schedule",
+  draftEndpoint = "/api/linkedin/draft",
   onPostPublished,
   onDraftSaved,
   onPostScheduled
@@ -111,7 +117,7 @@ export function PostComposer({
 
       // If already saved as draft in this session, update it instead of creating a duplicate
       if (currentDraftId) {
-        const res = await fetch(`/api/linkedin/draft`, {
+        const res = await fetch(draftEndpoint, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -132,7 +138,7 @@ export function PostComposer({
         }
       } else {
         // Create new draft once and save draft ID to prevent duplicates on subsequent clicks
-        const res = await fetch(`/api/linkedin/draft`, {
+        const res = await fetch(draftEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -182,7 +188,7 @@ export function PostComposer({
     setStatusMessage(null);
 
     try {
-      const res = await fetch(`/api/linkedin/schedule`, {
+      const res = await fetch(scheduleEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -238,7 +244,7 @@ export function PostComposer({
     setPublishing(true);
 
     try {
-      const res = await fetch(`/api/linkedin/share`, {
+      const res = await fetch(publishEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -292,18 +298,16 @@ export function PostComposer({
           <button
             type="button"
             onClick={() => setIsScheduling(!isScheduling)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
-              isScheduling ? "bg-amber-600 border-amber-600 text-white shadow-xs" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${isScheduling ? "bg-amber-600 border-amber-600 text-white shadow-xs" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              }`}
           >
             <Clock className="h-3.5 w-3.5" /> {isScheduling ? "Scheduling Mode" : "Schedule Post"}
           </button>
           <button
             type="button"
             onClick={() => setShowPreview(!showPreview)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
-              showPreview ? "bg-[#0A66C2] border-[#0A66C2] text-white shadow-xs" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${showPreview ? "bg-[#0A66C2] border-[#0A66C2] text-white shadow-xs" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              }`}
           >
             <Eye className="h-3.5 w-3.5" /> {showPreview ? "Hide Preview" : "Live Preview"}
           </button>
@@ -312,11 +316,10 @@ export function PostComposer({
 
       {statusMessage && (
         <div
-          className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between shadow-xs ${
-            statusMessage.type === "success"
+          className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between shadow-xs ${statusMessage.type === "success"
               ? "bg-emerald-50 text-emerald-800 border-emerald-200"
               : "bg-red-50 text-red-800 border-red-200"
-          }`}
+            }`}
         >
           <div className="flex items-center gap-2">
             {statusMessage.type === "success" ? (
@@ -424,11 +427,10 @@ export function PostComposer({
           <button
             type="submit"
             disabled={publishing || !content.trim() || isOverLimit}
-            className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-sm disabled:opacity-50 transition-all cursor-pointer ${
-              isScheduling
+            className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-sm disabled:opacity-50 transition-all cursor-pointer ${isScheduling
                 ? "bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/20"
                 : "bg-[#0A66C2] hover:bg-[#084e96] text-white shadow-blue-600/20"
-            }`}
+              }`}
           >
             {publishing ? (
               <>

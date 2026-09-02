@@ -76,6 +76,7 @@ interface LinkedInProfileDashboardProps {
   onDisconnect?: () => void;
   onOpenAIAssistant?: () => void;
   onApplyContent?: (text: string) => void;
+  onSwitchToCompany?: () => void;
 }
 
 export function LinkedInProfileDashboard({
@@ -88,7 +89,8 @@ export function LinkedInProfileDashboard({
   onRefreshProfile,
   onDisconnect,
   onOpenAIAssistant,
-  onApplyContent
+  onApplyContent,
+  onSwitchToCompany
 }: LinkedInProfileDashboardProps) {
   const isConnected = Boolean(config.accessToken && config.accessToken.trim().length > 10);
   const isExpired = Boolean(config.tokenExpiry && new Date() > new Date(config.tokenExpiry));
@@ -192,6 +194,14 @@ export function LinkedInProfileDashboard({
           >
             <Calendar className="h-3.5 w-3.5 text-amber-600" /> 📅 Schedule Post
           </button>
+          {onSwitchToCompany && (
+            <button
+              onClick={onSwitchToCompany}
+              className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0A66C2] border border-blue-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+            >
+              <Building2 className="h-3.5 w-3.5 text-blue-600" /> Go to Company Page
+            </button>
+          )}
           {onRefreshProfile && (
             <button
               onClick={async () => {

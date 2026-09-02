@@ -5,6 +5,7 @@ import { Image as ImageIcon, Video as VideoIcon, FileText as DocumentIcon, Exter
 
 interface MediaPreviewProps {
   mediaUrl?: string | null;
+  url?: string | null;
   className?: string;
 }
 
@@ -237,11 +238,12 @@ function SingleMediaItem({ url }: { url: string }) {
   );
 }
 
-export function MediaPreview({ mediaUrl, className = "" }: MediaPreviewProps) {
-  if (!mediaUrl || !mediaUrl.trim()) return null;
+export function MediaPreview({ mediaUrl, url: propUrl, className = "" }: MediaPreviewProps) {
+  const targetUrl = mediaUrl || propUrl;
+  if (!targetUrl || !targetUrl.trim()) return null;
 
   let urlList: string[] = [];
-  const trimmed = mediaUrl.trim();
+  const trimmed = targetUrl.trim();
 
   if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
     try {
