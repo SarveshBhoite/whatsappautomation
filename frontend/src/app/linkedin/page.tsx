@@ -1004,18 +1004,20 @@ function LinkedInPageContent() {
             {activeTab === "company" && (
               <div className="flex-1 flex flex-col overflow-hidden">
                 {isOrgConnected ? (
-                  <CompanyPageDashboard
-                    organizationId={activeOrgId}
-                    profile={orgProfile}
-                    config={orgConfig}
-                    scheduledPosts={scheduledPosts}
-                    drafts={drafts}
-                    onRefresh={fetchOrgConfig}
-                    onRefreshDrafts={fetchDrafts}
-                    onRefreshScheduled={fetchScheduled}
-                    onDisconnect={handleDisconnectOrg}
-                    onSwitchToPersonal={() => navigateToTab("profile")}
-                  />
+                  <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
+                    <CompanyPageDashboard
+                      organizationId={activeOrgId}
+                      profile={orgProfile}
+                      config={orgConfig}
+                      scheduledPosts={scheduledPosts}
+                      drafts={drafts}
+                      onRefresh={fetchOrgConfig}
+                      onRefreshDrafts={fetchDrafts}
+                      onRefreshScheduled={fetchScheduled}
+                      onDisconnect={handleDisconnectOrg}
+                      onSwitchToPersonal={() => navigateToTab("profile")}
+                    />
+                  </div>
                 ) : (
                   /* Company Connect UI */
                   <div className="flex-1 overflow-y-auto p-6 sm:p-8">

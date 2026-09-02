@@ -993,27 +993,48 @@ router.get("/org/profile", async (req: Request, res: Response) => {
     let followersCount = 0;
     let organicFollowers = 0;
     let paidFollowers = 0;
+    let liveCompanyDetails: any = null;
 
     const orgUrn = config.authorUrn || `urn:li:organization:${config.companyId}`;
     try {
       const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+      
+      // Fetch dynamic company profile data
+      liveCompanyDetails = await orgProvider.getCompanyDetails(config.accessToken, config.companyId);
+
+      // Fetch dynamic follower stats
       const stats = await orgProvider.getFollowers(config.accessToken, orgUrn);
       followersCount = stats.totalFollowers || 0;
       organicFollowers = stats.organicFollowers || 0;
       paidFollowers = stats.paidFollowers || 0;
-    } catch (fErr: any) {
-      console.warn("[LINKEDIN ORG] Follower stats notice:", fErr.message);
+
+      // Update the config in DB to keep it fresh
+      if (liveCompanyDetails) {
+        await prisma.linkedInConfig.update({
+          where: { organizationId },
+          data: {
+            companyName: liveCompanyDetails.companyName || config.companyName,
+            vanityName: liveCompanyDetails.vanityName || config.vanityName,
+            companyLogo: liveCompanyDetails.companyLogo || config.companyLogo,
+            website: liveCompanyDetails.website || config.website,
+            industry: liveCompanyDetails.industry || config.industry,
+            description: liveCompanyDetails.description || config.description
+          }
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[LINKEDIN ORG] Live data fetch notice:", apiErr.message);
     }
 
     const orgProfile = {
       id: config.companyId,
       companyId: config.companyId,
-      companyName: config.companyName || config.profile?.name || "",
-      vanityName: config.vanityName || "",
-      companyLogo: config.companyLogo || config.profile?.picture || "",
-      website: config.website || "",
-      industry: config.industry || "",
-      description: config.description || "",
+      companyName: liveCompanyDetails?.companyName || config.companyName || config.profile?.name || "",
+      vanityName: liveCompanyDetails?.vanityName || config.vanityName || "",
+      companyLogo: liveCompanyDetails?.companyLogo || config.companyLogo || config.profile?.picture || "",
+      website: liveCompanyDetails?.website || config.website || "",
+      industry: liveCompanyDetails?.industry || config.industry || "",
+      description: liveCompanyDetails?.description || config.description || "",
       followersCount,
       organicFollowers,
       paidFollowers

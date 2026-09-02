@@ -727,6 +727,7 @@ export class OrganizationProvider implements ILinkedInProvider {
   private static getHeaders(accessToken: string) {
     return {
       Authorization: `Bearer ${accessToken}`,
+      "LinkedIn-Version": "202607",
       "X-Restli-Protocol-Version": "2.0.0"
     };
   }
@@ -898,40 +899,90 @@ export class OrganizationProvider implements ILinkedInProvider {
       const response = await axios.get(url, { headers, timeout: 8000 });
       const elements = response.data?.elements || [];
 
-      const posts: any[] = elements.map((p: any) => {
-        const commentary = p.commentary || "";
-        let mediaUrl: string | null = null;
-        let mediaType: "NONE" | "IMAGE" | "VIDEO" | "DOCUMENT" = "NONE";
+      const posts: any[] = await Promise.all(
+        elements.map(async (p: any) => {
+          const commentary = p.commentary || "";
+          let mediaUrl: string | null = null;
+          let mediaType: "NONE" | "IMAGE" | "VIDEO" | "DOCUMENT" = "NONE";
 
-        if (p.content?.media?.id) {
-          mediaType = "IMAGE";
-          mediaUrl = p.content.media.id;
-        } else if (p.content?.article?.source) {
-          mediaUrl = p.content.article.source;
-          mediaType = "NONE";
-        }
+          const mediaId = p.content?.media?.id || p.content?.multiImage?.images?.[0]?.id;
 
-        return {
-          id: p.id,
-          organizationId,
-          postId: p.id,
-          linkedinPostId: p.id,
-          authorUrn: orgUrn,
-          author: config.companyName || "LinkedIn Company Page",
-          companyName: config.companyName || "LinkedIn Company Page",
-          commentary,
-          summary: commentary,
-          mediaUrl,
-          mediaType,
-          visibility: p.visibility || "PUBLIC",
-          lifecycleState: p.lifecycleState || "PUBLISHED",
-          publishedAt: p.createdAt ? new Date(p.createdAt) : new Date(),
-          likesCount: 0,
-          commentsCount: 0,
-          createdAt: p.createdAt ? new Date(p.createdAt) : new Date(),
-          updatedAt: p.lastModifiedAt ? new Date(p.lastModifiedAt) : new Date()
-        };
-      });
+          if (mediaId) {
+            if (mediaId.includes("urn:li:image:")) {
+              mediaType = "IMAGE";
+              try {
+                const imgRes = await axios.get(`https://api.linkedin.com/rest/images/${encodeURIComponent(mediaId)}`, { headers, timeout: 4000 });
+                mediaUrl = imgRes.data?.downloadUrl || imgRes.data?.url || mediaId;
+              } catch {
+                mediaUrl = mediaId;
+              }
+            } else if (mediaId.includes("urn:li:video:")) {
+              mediaType = "VIDEO";
+              try {
+                const vidRes = await axios.get(`https://api.linkedin.com/rest/videos/${encodeURIComponent(mediaId)}`, { headers, timeout: 4000 });
+                mediaUrl = vidRes.data?.downloadUrl || vidRes.data?.url || mediaId;
+              } catch {
+                mediaUrl = mediaId;
+              }
+            } else if (mediaId.includes("urn:li:document:")) {
+              mediaType = "DOCUMENT";
+              try {
+                const docRes = await axios.get(`https://api.linkedin.com/rest/documents/${encodeURIComponent(mediaId)}`, { headers, timeout: 4000 });
+                mediaUrl = docRes.data?.downloadUrl || docRes.data?.url || mediaId;
+              } catch {
+                mediaUrl = mediaId;
+              }
+            } else {
+              mediaUrl = mediaId;
+            }
+          } else if (p.content?.article?.source) {
+            mediaUrl = p.content.article.source;
+            mediaType = "NONE";
+          }
+
+          // Fetch engagement counts for this post
+          let likesCount = 0;
+          let commentsCount = 0;
+          try {
+            const encodedPostUrn = encodeURIComponent(p.id);
+            const smUrl = `https://api.linkedin.com/rest/socialMetadata/${encodedPostUrn}`;
+            const smRes = await axios.get(smUrl, { headers, timeout: 4000 });
+            if (smRes.data?.reactionSummaries) {
+              likesCount = Object.values(smRes.data.reactionSummaries).reduce((acc: number, item: any) => acc + (item.count || 0), 0);
+            } else if (smRes.data?.likesSummary?.totalLikes !== undefined) {
+              likesCount = Number(smRes.data.likesSummary.totalLikes) || 0;
+            }
+            if (smRes.data?.commentsSummary?.totalComments !== undefined) {
+              commentsCount = Number(smRes.data.commentsSummary.totalComments) || 0;
+            } else if (smRes.data?.commentSummary?.count !== undefined) {
+              commentsCount = Number(smRes.data.commentSummary.count) || 0;
+            }
+          } catch {
+            // Non-blocking fallback
+          }
+
+          return {
+            id: p.id,
+            organizationId,
+            postId: p.id,
+            linkedinPostId: p.id,
+            authorUrn: orgUrn,
+            author: config.companyName || "LinkedIn Company Page",
+            companyName: config.companyName || "LinkedIn Company Page",
+            commentary,
+            summary: commentary,
+            mediaUrl,
+            mediaType,
+            visibility: p.visibility || "PUBLIC",
+            lifecycleState: p.lifecycleState || "PUBLISHED",
+            publishedAt: p.createdAt ? new Date(p.createdAt) : new Date(),
+            likesCount,
+            commentsCount,
+            createdAt: p.createdAt ? new Date(p.createdAt) : new Date(),
+            updatedAt: p.lastModifiedAt ? new Date(p.lastModifiedAt) : new Date()
+          };
+        })
+      );
 
       return {
         permissionGranted: true,
