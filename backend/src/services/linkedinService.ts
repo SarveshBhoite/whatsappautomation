@@ -716,20 +716,87 @@ export class PersonalProvider implements ILinkedInProvider {
 /**
  * Phase 2: Organization LinkedIn Provider (CRM3 Community Management Integration)
  * Full implementation of LinkedIn Community Management REST APIs for Organization / Company Pages.
+ * Includes in-memory TTL caching, in-flight request deduplication, and Retry-After exponential backoff.
  */
 export class OrganizationProvider implements ILinkedInProvider {
-  // In-memory cache for privacy budget to prevent LinkedIn HTTP 429 TABLE_MAX_PRIVACY_COST_EXCEEDED
-  private static analyticsCache: Map<string, { data: any; expiresAt: number }> = new Map();
+  // In-memory cache for all CRM3 LinkedIn API data
+  private static cache: Map<string, { data: any; expiresAt: number }> = new Map();
+  // In-flight promises to deduplicate concurrent identical requests
+  private static inFlightRequests: Map<string, Promise<any>> = new Map();
 
   /**
    * Helper to build LinkedIn REST API headers
    */
-  private static getHeaders(accessToken: string) {
+  public static getHeaders(accessToken: string) {
     return {
       Authorization: `Bearer ${accessToken}`,
       "LinkedIn-Version": "202607",
       "X-Restli-Protocol-Version": "2.0.0"
     };
+  }
+
+  /**
+   * Execute or reuse in-flight / cached request with max 1 gentle Retry-After backoff on HTTP 429
+   */
+  private static async executeWithDeduplication<T>(
+    cacheKey: string,
+    ttlMs: number,
+    fetcher: () => Promise<T>,
+    fallbackValue: T
+  ): Promise<T> {
+    // 1. Return from TTL cache if valid
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data as T;
+    }
+
+    // 2. Return in-flight promise if currently running
+    if (this.inFlightRequests.has(cacheKey)) {
+      return this.inFlightRequests.get(cacheKey) as Promise<T>;
+    }
+
+    // 3. Dispatch fetch with single gentle retry on HTTP 429
+    const taskPromise = (async () => {
+      try {
+        const data = await fetcher();
+        this.cache.set(cacheKey, { data, expiresAt: Date.now() + ttlMs });
+        return data;
+      } catch (err: any) {
+        const status = err?.response?.status;
+        const retryAfterHeader = err?.response?.headers?.["retry-after"];
+
+        if (status === 429) {
+          let waitMs = 2000;
+          if (retryAfterHeader) {
+            const parsedSeconds = parseInt(retryAfterHeader, 10);
+            if (!isNaN(parsedSeconds) && parsedSeconds > 0 && parsedSeconds <= 10) {
+              waitMs = parsedSeconds * 1000;
+            }
+          }
+          console.warn(`[LINKEDIN ORG 429 BACKOFF] Rate limit hit for ${cacheKey}. Backing off for ${waitMs}ms (Retry-After)...`);
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+
+          try {
+            const retryData = await fetcher();
+            this.cache.set(cacheKey, { data: retryData, expiresAt: Date.now() + ttlMs });
+            return retryData;
+          } catch (retryErr: any) {
+            console.warn(`[LINKEDIN ORG 429 RETRY FAILED] Fallback used for ${cacheKey}:`, retryErr?.response?.data?.message || retryErr.message);
+            // Cache fallback for a shorter cooldown (60s) to avoid hammer loops
+            this.cache.set(cacheKey, { data: fallbackValue, expiresAt: Date.now() + 60 * 1000 });
+            return fallbackValue;
+          }
+        }
+
+        console.warn(`[LINKEDIN ORG NOTICE] Error on ${cacheKey}:`, err?.response?.data?.message || err.message);
+        return fallbackValue;
+      } finally {
+        this.inFlightRequests.delete(cacheKey);
+      }
+    })();
+
+    this.inFlightRequests.set(cacheKey, taskPromise);
+    return taskPromise;
   }
 
   /**
@@ -747,56 +814,57 @@ export class OrganizationProvider implements ILinkedInProvider {
    * Find organizations where user has administrative roles
    */
   public async getAdminOrganizations(accessToken: string): Promise<any[]> {
-    const headers = OrganizationProvider.getHeaders(accessToken);
+    const cacheKey = `admin_orgs_${accessToken.substring(accessToken.length - 12)}`;
+    // Cache for 10 minutes
+    return OrganizationProvider.executeWithDeduplication<any[]>(
+      cacheKey,
+      10 * 60 * 1000,
+      async () => {
+        const headers = OrganizationProvider.getHeaders(accessToken);
+        console.log("[LINKEDIN ORG] Fetching organization ACLs...");
 
-    console.log("[LINKEDIN ORG] Fetching organization ACLs...");
-    try {
-      // 1. Fetch organizational ACLs to find managed organization URNs
-      // Try /rest/organizationalEntityAcls first, then fallback to /v2/organizationalEntityAcls
-      let aclRes;
-      try {
-        aclRes = await axios.get("https://api.linkedin.com/rest/organizationalEntityAcls?q=roleAssignee", {
-          headers,
-          timeout: 8000
-        });
-      } catch (restErr: any) {
-        console.warn("[LINKEDIN ORG] /rest/organizationalEntityAcls failed, trying /v2/organizationalEntityAcls:", restErr.message);
-        aclRes = await axios.get("https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          timeout: 8000
-        });
-      }
-
-      const elements = aclRes?.data?.elements || [];
-      const orgUrns: string[] = elements
-        .map((el: any) => el.organizationalTarget || el.organizationTarget || el.organization)
-        .filter((urn: string) => Boolean(urn && (urn.includes("urn:li:organization:") || urn.includes("urn:li:organizationBrand:"))));
-
-      console.log(`[LINKEDIN ORG] Found ${orgUrns.length} organization targets in ACL:`, orgUrns);
-
-      if (orgUrns.length === 0) {
-        return [];
-      }
-
-      // 2. Fetch metadata for each organization URN
-      const orgDetailsList: any[] = [];
-      for (const orgUrn of orgUrns) {
+        let aclRes;
         try {
-          const orgId = orgUrn.replace("urn:li:organization:", "").replace("urn:li:organizationBrand:", "");
-          const details = await this.getCompanyDetails(accessToken, orgId);
-          if (details) {
-            orgDetailsList.push(details);
-          }
-        } catch (detailErr: any) {
-          console.warn(`[LINKEDIN ORG] Notice fetching details for ${orgUrn}:`, detailErr.message);
+          aclRes = await axios.get("https://api.linkedin.com/rest/organizationalEntityAcls?q=roleAssignee", {
+            headers,
+            timeout: 8000
+          });
+        } catch (restErr: any) {
+          console.warn("[LINKEDIN ORG] /rest/organizationalEntityAcls notice, trying /v2/organizationalEntityAcls:", restErr.message);
+          aclRes = await axios.get("https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED", {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            timeout: 8000
+          });
         }
-      }
 
-      return orgDetailsList;
-    } catch (err: any) {
-      console.error("[LINKEDIN ORG] Error fetching organization ACLs:", err?.response?.data || err.message);
-      return [];
-    }
+        const elements = aclRes?.data?.elements || [];
+        const orgUrns: string[] = elements
+          .map((el: any) => el.organizationalTarget || el.organizationTarget || el.organization)
+          .filter((urn: string) => Boolean(urn && (urn.includes("urn:li:organization:") || urn.includes("urn:li:organizationBrand:"))));
+
+        console.log(`[LINKEDIN ORG] Found ${orgUrns.length} organization targets in ACL:`, orgUrns);
+
+        if (orgUrns.length === 0) {
+          return [];
+        }
+
+        const orgDetailsList: any[] = [];
+        for (const orgUrn of orgUrns) {
+          try {
+            const orgId = orgUrn.replace("urn:li:organization:", "").replace("urn:li:organizationBrand:", "");
+            const details = await this.getCompanyDetails(accessToken, orgId);
+            if (details) {
+              orgDetailsList.push(details);
+            }
+          } catch (detailErr: any) {
+            console.warn(`[LINKEDIN ORG] Notice fetching details for ${orgUrn}:`, detailErr.message);
+          }
+        }
+
+        return orgDetailsList;
+      },
+      []
+    );
   }
 
   /**
@@ -805,75 +873,189 @@ export class OrganizationProvider implements ILinkedInProvider {
   public async getCompanyDetails(accessToken: string, orgId?: string): Promise<any> {
     if (!orgId) return null;
     const cleanOrgId = orgId.replace("urn:li:organization:", "").replace("urn:li:organizationBrand:", "");
-    console.log(`[LINKEDIN ORG] Fetching company details for ${cleanOrgId}`);
+    const cacheKey = `company_details_${cleanOrgId}`;
 
-    let data: any = null;
-    try {
-      const response = await axios.get(`https://api.linkedin.com/rest/organizations/${cleanOrgId}`, {
-        headers: OrganizationProvider.getHeaders(accessToken),
-        timeout: 8000
-      });
-      data = response.data;
-    } catch (restErr: any) {
-      console.warn(`[LINKEDIN ORG] /rest/organizations/${cleanOrgId} failed, trying /v2/organizations:`, restErr.message);
-      try {
-        const v2Res = await axios.get(`https://api.linkedin.com/v2/organizations/${cleanOrgId}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          timeout: 8000
-        });
-        data = v2Res.data;
-      } catch (v2Err: any) {
-        console.error(`[LINKEDIN ORG] Error fetching /organizations/${cleanOrgId}:`, v2Err?.response?.data || v2Err.message);
-      }
-    }
+    // Cache for 10 minutes
+    return OrganizationProvider.executeWithDeduplication<any>(
+      cacheKey,
+      10 * 60 * 1000,
+      async () => {
+        console.log(`[LINKEDIN ORG] Fetching company details for ${cleanOrgId}`);
+        let data: any = null;
 
-    if (data) {
-      const localizedName = data.localizedName || data.name?.localized?.en_US || data.vanityName || `Organization ${cleanOrgId}`;
-      const vanityName = data.vanityName || "";
-      const website = data.localizedWebsite || data.website?.localized?.en_US || (typeof data.website === "string" ? data.website : "");
-      const description = data.localizedDescription || data.description?.localized?.en_US || (typeof data.description === "string" ? data.description : "");
-      const industry = data.industries?.[0] || data.primaryOrganizationType || "Organization / Enterprise";
+        try {
+          const response = await axios.get(`https://api.linkedin.com/rest/organizations/${cleanOrgId}`, {
+            headers: OrganizationProvider.getHeaders(accessToken),
+            timeout: 8000
+          });
+          data = response.data;
+        } catch (restErr: any) {
+          console.warn(`[LINKEDIN ORG] /rest/organizations/${cleanOrgId} failed, trying /v2/organizations:`, restErr.message);
+          try {
+            const v2Res = await axios.get(`https://api.linkedin.com/v2/organizations/${cleanOrgId}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+              timeout: 8000
+            });
+            data = v2Res.data;
+          } catch (v2Err: any) {
+            console.error(`[LINKEDIN ORG] Error fetching /organizations/${cleanOrgId}:`, v2Err?.response?.data || v2Err.message);
+          }
+        }
 
-      // Logo extraction
-      let logoUrl = "";
-      if (data.logoV2?.["cropped~"]?.elements?.[0]?.identifiers?.[0]?.identifier) {
-        logoUrl = data.logoV2["cropped~"].elements[0].identifiers[0].identifier;
-      } else if (data.logoV2?.original) {
-        logoUrl = data.logoV2.original;
-      }
+        if (data) {
+          const localizedName = data.localizedName || data.name?.localized?.en_US || data.vanityName || `Organization ${cleanOrgId}`;
+          const vanityName = data.vanityName || "";
+          const vanityUrl = vanityName ? `https://www.linkedin.com/company/${vanityName}` : "";
+          const website = data.localizedWebsite || data.website?.localized?.en_US || (typeof data.website === "string" ? data.website : "");
+          const description = data.localizedDescription || data.description?.localized?.en_US || (typeof data.description === "string" ? data.description : "");
+          const industry = data.industries?.[0] || data.primaryOrganizationType || "Organization / Enterprise";
 
-      return {
+          // Headquarters location extraction
+          let headquarters = "";
+          const loc = data.locations?.[0]?.address || data.headquarterAddress;
+          if (loc) {
+            const parts = [loc.city, loc.geographicArea, loc.country].filter(Boolean);
+            headquarters = parts.join(", ");
+          }
+
+          // Specialties extraction
+          const specialties = Array.isArray(data.specialties) ? data.specialties : (data.localizedSpecialties || []);
+
+          // Logo extraction
+          let logoUrl = "";
+          if (data.logoV2?.["cropped~"]?.elements?.[0]?.identifiers?.[0]?.identifier) {
+            logoUrl = data.logoV2["cropped~"].elements[0].identifiers[0].identifier;
+          } else if (data.logoV2?.original) {
+            logoUrl = data.logoV2.original;
+          }
+
+          return {
+            id: cleanOrgId,
+            companyId: cleanOrgId,
+            organizationUrn: `urn:li:organization:${cleanOrgId}`,
+            name: localizedName,
+            companyName: localizedName,
+            vanityName,
+            vanityUrl,
+            website,
+            description,
+            industry,
+            logo: logoUrl,
+            companyLogo: logoUrl,
+            staffCountRange: data.staffCountRange || "",
+            headquarters,
+            specialties
+          };
+        }
+
+        return {
+          id: cleanOrgId,
+          companyId: cleanOrgId,
+          organizationUrn: `urn:li:organization:${cleanOrgId}`,
+          name: `Organization ${cleanOrgId}`,
+          companyName: `Organization ${cleanOrgId}`,
+          vanityName: "",
+          vanityUrl: "",
+          website: "",
+          description: "",
+          industry: "Organization",
+          headquarters: "",
+          specialties: []
+        };
+      },
+      {
         id: cleanOrgId,
         companyId: cleanOrgId,
         organizationUrn: `urn:li:organization:${cleanOrgId}`,
-        name: localizedName,
-        companyName: localizedName,
-        vanityName,
-        website,
-        description,
-        industry,
-        logo: logoUrl,
-        companyLogo: logoUrl,
-        staffCountRange: data.staffCountRange || ""
-      };
-    }
+        name: `Organization ${cleanOrgId}`,
+        companyName: `Organization ${cleanOrgId}`,
+        vanityName: "",
+        website: "",
+        description: "",
+        industry: "Organization"
+      }
+    );
+  }
 
-    return {
-      id: cleanOrgId,
-      companyId: cleanOrgId,
-      organizationUrn: `urn:li:organization:${cleanOrgId}`,
-      name: `Organization ${cleanOrgId}`,
-      companyName: `Organization ${cleanOrgId}`,
-      vanityName: "",
-      website: "",
-      description: "",
-      industry: "Organization"
-    };
+  /**
+   * Fetch Total Follower Count using GET /rest/networkSizes/{organizationUrn}?edgeType=COMPANY_FOLLOWED_BY_MEMBER
+   * Uses firstDegreeSize for real-time total follower count without privacy cost table consumption.
+   */
+  public async getFollowers(accessToken: string, orgUrn: string): Promise<any> {
+    const formattedOrgUrn = orgUrn.startsWith("urn:li:organization:") ? orgUrn : `urn:li:organization:${orgUrn}`;
+    const cacheKey = `network_followers_${formattedOrgUrn}`;
+
+    // Cache for 5 minutes
+    return OrganizationProvider.executeWithDeduplication<any>(
+      cacheKey,
+      5 * 60 * 1000,
+      async () => {
+        const headers = OrganizationProvider.getHeaders(accessToken);
+        const encodedOrgUrn = encodeURIComponent(formattedOrgUrn);
+        const edgeType = "COMPANY_FOLLOWED_BY_MEMBER";
+        const networkSizesUrl = `https://api.linkedin.com/rest/networkSizes/${encodedOrgUrn}?edgeType=${edgeType}`;
+
+        console.log(`\n======================================================`);
+        console.log(`[LINKEDIN NETWORK SIZES REQUEST]`);
+        console.log(`Organization URN : ${formattedOrgUrn}`);
+        console.log(`Edge Type        : ${edgeType}`);
+        console.log(`Endpoint URL     : ${networkSizesUrl}`);
+
+        const response = await axios.get(networkSizesUrl, { headers, timeout: 8000 });
+        const firstDegreeSize = response.data?.firstDegreeSize ?? 0;
+
+        console.log(`[LINKEDIN NETWORK SIZES RESPONSE]`);
+        console.log(`firstDegreeSize  : ${firstDegreeSize}`);
+        console.log(`totalFollowers   : ${firstDegreeSize}`);
+        console.log(`Raw Body         : ${JSON.stringify(response.data)}`);
+        console.log(`======================================================\n`);
+
+        return {
+          totalFollowers: firstDegreeSize,
+          organicFollowers: firstDegreeSize,
+          paidFollowers: 0,
+          raw: response.data
+        };
+      },
+      { totalFollowers: 0, organicFollowers: 0, paidFollowers: 0 }
+    );
+  }
+
+  /**
+   * Company Page Statistics: /rest/organizationPageStatistics
+   * Cached for 10 minutes to respect privacy budget and rate limits.
+   */
+  public async getAnalytics(accessToken: string, orgUrn: string): Promise<any> {
+    const formattedOrgUrn = orgUrn.startsWith("urn:li:organization:") ? orgUrn : `urn:li:organization:${orgUrn}`;
+    const cacheKey = `page_analytics_${formattedOrgUrn}`;
+
+    // Cache for 10 minutes
+    return OrganizationProvider.executeWithDeduplication<any>(
+      cacheKey,
+      10 * 60 * 1000,
+      async () => {
+        const headers = OrganizationProvider.getHeaders(accessToken);
+        const encodedOrgUrn = encodeURIComponent(formattedOrgUrn);
+        const url = `https://api.linkedin.com/rest/organizationPageStatistics?q=organization&organization=${encodedOrgUrn}`;
+
+        const response = await axios.get(url, { headers, timeout: 8000 });
+        const pageStats = response.data?.elements?.[0]?.totalPageStatistics || {};
+
+        return {
+          views: pageStats.views || 0,
+          uniqueViews: pageStats.uniqueViews || 0,
+          clicks: pageStats.clicks || 0,
+          raw: response.data
+        };
+      },
+      { views: 0, uniqueViews: 0, clicks: 0 }
+    );
   }
 
   /**
    * Fetch company posts from LinkedIn REST Posts API
    * /rest/posts?author=urn:li:organization:{id}&q=author
+   * Cached for 2 minutes with in-flight deduplication.
    */
   public async getPosts(organizationId: string): Promise<any> {
     const config = await prisma.linkedInConfig.findUnique({
@@ -889,18 +1071,48 @@ export class OrganizationProvider implements ILinkedInProvider {
     }
 
     const orgUrn = config.authorUrn || `urn:li:organization:${config.companyId}`;
-    const headers = OrganizationProvider.getHeaders(config.accessToken);
+    const cacheKey = `org_posts_${orgUrn}`;
 
-    try {
-      console.log(`[LINKEDIN ORG] Fetching organization posts for author=${orgUrn}`);
-      const encodedAuthor = encodeURIComponent(orgUrn);
-      const url = `https://api.linkedin.com/rest/posts?author=${encodedAuthor}&q=author&count=25&sortBy=LAST_MODIFIED`;
+    // Cache posts for 2 minutes
+    return OrganizationProvider.executeWithDeduplication<any>(
+      cacheKey,
+      2 * 60 * 1000,
+      async () => {
+        const headers = OrganizationProvider.getHeaders(config.accessToken);
+        const encodedAuthor = encodeURIComponent(orgUrn);
+        console.log(`[LINKEDIN ORG] Starting exhaustive post fetch for author=${orgUrn}`);
 
-      const response = await axios.get(url, { headers, timeout: 8000 });
-      const elements = response.data?.elements || [];
+        const allElements: any[] = [];
+        let start = 0;
+        const count = 100;
+        let hasMore = true;
 
-      const posts: any[] = await Promise.all(
-        elements.map(async (p: any) => {
+        while (hasMore) {
+          const pageUrl = `https://api.linkedin.com/rest/posts?author=${encodedAuthor}&q=author&count=${count}&start=${start}&sortBy=LAST_MODIFIED`;
+          console.log(`[LINKEDIN ORG] Fetching posts page: start=${start}, count=${count}`);
+
+          const response = await axios.get(pageUrl, { headers, timeout: 10000 });
+          const elements = response.data?.elements || [];
+
+          if (elements.length === 0) {
+            hasMore = false;
+            break;
+          }
+
+          allElements.push(...elements);
+          console.log(`[LINKEDIN ORG] Retrieved ${elements.length} posts (accumulated: ${allElements.length})`);
+
+          // Check if response has fewer elements than requested, indicating the end
+          if (elements.length < count) {
+            hasMore = false;
+          } else {
+            start += count;
+          }
+        }
+
+        console.log(`[LINKEDIN ORG] Completed post fetch: Total ${allElements.length} posts retrieved.`);
+
+        const posts: any[] = allElements.map((p: any) => {
           const commentary = p.commentary || "";
           let mediaUrl: string | null = null;
           let mediaType: "NONE" | "IMAGE" | "VIDEO" | "DOCUMENT" = "NONE";
@@ -910,55 +1122,15 @@ export class OrganizationProvider implements ILinkedInProvider {
           if (mediaId) {
             if (mediaId.includes("urn:li:image:")) {
               mediaType = "IMAGE";
-              try {
-                const imgRes = await axios.get(`https://api.linkedin.com/rest/images/${encodeURIComponent(mediaId)}`, { headers, timeout: 4000 });
-                mediaUrl = imgRes.data?.downloadUrl || imgRes.data?.url || mediaId;
-              } catch {
-                mediaUrl = mediaId;
-              }
             } else if (mediaId.includes("urn:li:video:")) {
               mediaType = "VIDEO";
-              try {
-                const vidRes = await axios.get(`https://api.linkedin.com/rest/videos/${encodeURIComponent(mediaId)}`, { headers, timeout: 4000 });
-                mediaUrl = vidRes.data?.downloadUrl || vidRes.data?.url || mediaId;
-              } catch {
-                mediaUrl = mediaId;
-              }
             } else if (mediaId.includes("urn:li:document:")) {
               mediaType = "DOCUMENT";
-              try {
-                const docRes = await axios.get(`https://api.linkedin.com/rest/documents/${encodeURIComponent(mediaId)}`, { headers, timeout: 4000 });
-                mediaUrl = docRes.data?.downloadUrl || docRes.data?.url || mediaId;
-              } catch {
-                mediaUrl = mediaId;
-              }
-            } else {
-              mediaUrl = mediaId;
             }
+            mediaUrl = mediaId;
           } else if (p.content?.article?.source) {
             mediaUrl = p.content.article.source;
             mediaType = "NONE";
-          }
-
-          // Fetch engagement counts for this post
-          let likesCount = 0;
-          let commentsCount = 0;
-          try {
-            const encodedPostUrn = encodeURIComponent(p.id);
-            const smUrl = `https://api.linkedin.com/rest/socialMetadata/${encodedPostUrn}`;
-            const smRes = await axios.get(smUrl, { headers, timeout: 4000 });
-            if (smRes.data?.reactionSummaries) {
-              likesCount = Object.values(smRes.data.reactionSummaries).reduce((acc: number, item: any) => acc + (item.count || 0), 0);
-            } else if (smRes.data?.likesSummary?.totalLikes !== undefined) {
-              likesCount = Number(smRes.data.likesSummary.totalLikes) || 0;
-            }
-            if (smRes.data?.commentsSummary?.totalComments !== undefined) {
-              commentsCount = Number(smRes.data.commentsSummary.totalComments) || 0;
-            } else if (smRes.data?.commentSummary?.count !== undefined) {
-              commentsCount = Number(smRes.data.commentSummary.count) || 0;
-            }
-          } catch {
-            // Non-blocking fallback
           }
 
           return {
@@ -976,34 +1148,28 @@ export class OrganizationProvider implements ILinkedInProvider {
             visibility: p.visibility || "PUBLIC",
             lifecycleState: p.lifecycleState || "PUBLISHED",
             publishedAt: p.createdAt ? new Date(p.createdAt) : new Date(),
-            likesCount,
-            commentsCount,
+            likesCount: 0,
+            commentsCount: 0,
             createdAt: p.createdAt ? new Date(p.createdAt) : new Date(),
             updatedAt: p.lastModifiedAt ? new Date(p.lastModifiedAt) : new Date()
           };
-        })
-      );
+        });
 
-      return {
-        permissionGranted: true,
-        message: `Successfully fetched ${posts.length} company posts from LinkedIn API.`,
-        posts
-      };
-    } catch (err: any) {
-      console.warn(`[LINKEDIN ORG] Live posts fetch notice (HTTP ${err?.response?.status}):`, err?.response?.data || err.message);
-
-      // Fallback to CRM-stored organization posts
-      const cachedPosts = await prisma.linkedInPost.findMany({
-        where: { organizationId },
-        orderBy: { publishedAt: "desc" }
-      });
-
-      return {
+        return {
+          permissionGranted: true,
+          message: `Successfully fetched ${posts.length} company posts from LinkedIn API.`,
+          posts
+        };
+      },
+      {
         permissionGranted: true,
         message: "Showing posts stored in CRM database.",
-        posts: cachedPosts
-      };
-    }
+        posts: await prisma.linkedInPost.findMany({
+          where: { organizationId },
+          orderBy: { publishedAt: "desc" }
+        })
+      }
+    );
   }
 
   /**
@@ -1198,6 +1364,9 @@ export class OrganizationProvider implements ILinkedInProvider {
     const postRes = await axios.post("https://api.linkedin.com/rest/posts", payload, { headers });
     const postId = postRes.headers["x-restli-id"] || postRes.data?.id || `urn:li:post:org-${Date.now()}`;
 
+    // Invalidate posts cache so subsequent load gets fresh list
+    OrganizationProvider.cache.delete(`org_posts_${author}`);
+
     console.log(`[LINKEDIN ORG POST SUCCESS] Created Post URN: ${postId}`);
     return {
       success: true,
@@ -1210,29 +1379,33 @@ export class OrganizationProvider implements ILinkedInProvider {
 
   /**
    * Read comments for a post: /rest/socialActions/{target}/comments
+   * Cached for 1 minute with in-flight deduplication.
    */
   public async getComments(accessToken: string, postUrn: string): Promise<any[]> {
-    const headers = OrganizationProvider.getHeaders(accessToken);
-
     const encodedUrn = encodeURIComponent(postUrn);
-    const url = `https://api.linkedin.com/rest/socialActions/${encodedUrn}/comments?count=50`;
+    const cacheKey = `comments_${encodedUrn}`;
 
-    try {
-      const response = await axios.get(url, { headers, timeout: 6000 });
-      const elements = response.data?.elements || [];
-      return elements.map((c: any) => ({
-        id: c.id || c.urn,
-        commentUrn: c.id || c.urn,
-        actorUrn: c.actor || c.actorUrn,
-        actorName: c.actorName || "LinkedIn User",
-        message: c.message?.text || c.message || "",
-        createdAt: c.created?.time ? new Date(c.created.time) : new Date(),
-        likesCount: c.likesSummary?.totalLikes || 0
-      }));
-    } catch (err: any) {
-      console.warn(`[LINKEDIN ORG] Get comments notice for ${postUrn}:`, err?.response?.data || err.message);
-      return [];
-    }
+    return OrganizationProvider.executeWithDeduplication<any[]>(
+      cacheKey,
+      60 * 1000,
+      async () => {
+        const headers = OrganizationProvider.getHeaders(accessToken);
+        const url = `https://api.linkedin.com/rest/socialActions/${encodedUrn}/comments?count=50`;
+
+        const response = await axios.get(url, { headers, timeout: 6000 });
+        const elements = response.data?.elements || [];
+        return elements.map((c: any) => ({
+          id: c.id || c.urn,
+          commentUrn: c.id || c.urn,
+          actorUrn: c.actor || c.actorUrn,
+          actorName: c.actorName || "LinkedIn User",
+          message: c.message?.text || c.message || "",
+          createdAt: c.created?.time ? new Date(c.created.time) : new Date(),
+          likesCount: c.likesSummary?.totalLikes || 0
+        }));
+      },
+      []
+    );
   }
 
   /**
@@ -1253,6 +1426,8 @@ export class OrganizationProvider implements ILinkedInProvider {
     };
 
     const response = await axios.post(url, payload, { headers });
+    // Invalidate comments cache for this post
+    OrganizationProvider.cache.delete(`comments_${encodedUrn}`);
     return response.data;
   }
 
@@ -1267,121 +1442,173 @@ export class OrganizationProvider implements ILinkedInProvider {
     const url = `https://api.linkedin.com/rest/socialActions/${encodedPostUrn}/comments/${encodedCommentUrn}`;
 
     const response = await axios.delete(url, { headers });
+    OrganizationProvider.cache.delete(`comments_${encodedPostUrn}`);
     return { success: true, status: response.status };
   }
 
   /**
    * Read reactions / likes: /rest/socialActions/{target}/likes
+   * Cached for 1 minute with in-flight deduplication.
    */
   public async getReactions(accessToken: string, postUrn: string): Promise<any> {
-    const headers = OrganizationProvider.getHeaders(accessToken);
-
     const encodedUrn = encodeURIComponent(postUrn);
-    const url = `https://api.linkedin.com/rest/socialActions/${encodedUrn}/likes?count=50`;
+    const cacheKey = `reactions_${encodedUrn}`;
 
-    try {
-      const response = await axios.get(url, { headers, timeout: 6000 });
-      return {
-        totalLikes: response.data?.paging?.total || response.data?.elements?.length || 0,
-        likes: response.data?.elements || []
-      };
-    } catch (err: any) {
-      console.warn(`[LINKEDIN ORG] Get likes notice for ${postUrn}:`, err?.response?.data || err.message);
-      return { totalLikes: 0, likes: [] };
-    }
+    return OrganizationProvider.executeWithDeduplication<any>(
+      cacheKey,
+      60 * 1000,
+      async () => {
+        const headers = OrganizationProvider.getHeaders(accessToken);
+        const url = `https://api.linkedin.com/rest/socialActions/${encodedUrn}/likes?count=50`;
+
+        const response = await axios.get(url, { headers, timeout: 6000 });
+        return {
+          totalLikes: response.data?.paging?.total || response.data?.elements?.length || 0,
+          likes: response.data?.elements || []
+        };
+      },
+      { totalLikes: 0, likes: [] }
+    );
+  }
+  /**
+   * Fetch live Social Metadata (Reactions count & Comments count) for a post URN
+   * Uses commentSummary.count and sums all reactionSummaries.*.count
+   * Cached for 2 minutes to prevent rate limiting.
+   */
+  public async getSocialMetadata(accessToken: string, postUrn: string): Promise<{ likesCount: number; commentsCount: number }> {
+    if (!postUrn) return { likesCount: 0, commentsCount: 0 };
+    const encodedUrn = encodeURIComponent(postUrn);
+    const cacheKey = `social_meta_${encodedUrn}`;
+
+    return OrganizationProvider.executeWithDeduplication<{ likesCount: number; commentsCount: number }>(
+      cacheKey,
+      2 * 60 * 1000,
+      async () => {
+        const headers = OrganizationProvider.getHeaders(accessToken);
+        let commentsCount = 0;
+        let likesCount = 0;
+
+        // Try /rest/socialMetadata/{urn}
+        try {
+          const res = await axios.get(`https://api.linkedin.com/rest/socialMetadata/${encodedUrn}`, { headers, timeout: 6000 });
+          const data = res.data;
+          if (data) {
+            // Extract comments count
+            if (typeof data.commentSummary?.count === "number") {
+              commentsCount = data.commentSummary.count;
+            } else if (typeof data.comments?.count === "number") {
+              commentsCount = data.comments.count;
+            }
+
+            // Extract reactions / likes count by summing reactionSummaries
+            if (data.reactionSummaries && typeof data.reactionSummaries === "object") {
+              likesCount = Object.values(data.reactionSummaries).reduce((acc: number, val: any) => {
+                const count = typeof val?.count === "number" ? val.count : (typeof val === "number" ? val : 0);
+                return acc + count;
+              }, 0);
+            } else if (typeof data.likesSummary?.totalLikes === "number") {
+              likesCount = data.likesSummary.totalLikes;
+            }
+          }
+        } catch (metaErr: any) {
+          // Fallback to /rest/socialActions/{urn}/comments and /likes if socialMetadata endpoint is not accessible
+          try {
+            const commentsRes = await axios.get(`https://api.linkedin.com/rest/socialActions/${encodedUrn}/comments?count=1`, { headers, timeout: 4000 });
+            commentsCount = commentsRes.data?.paging?.total || commentsRes.data?.elements?.length || 0;
+          } catch (cErr) {}
+
+          try {
+            const likesRes = await axios.get(`https://api.linkedin.com/rest/socialActions/${encodedUrn}/likes?count=1`, { headers, timeout: 4000 });
+            likesCount = likesRes.data?.paging?.total || likesRes.data?.elements?.length || 0;
+          } catch (lErr) {}
+        }
+
+        console.log(`[LINKEDIN ORG SOCIAL] Post ${postUrn} => Likes: ${likesCount}, Comments: ${commentsCount}`);
+        return { likesCount, commentsCount };
+      },
+      { likesCount: 0, commentsCount: 0 }
+    );
   }
 
   /**
-   * Company Follower Statistics: /rest/organizationalEntityFollowerStatistics
-   * With caching & 429 TABLE_MAX_PRIVACY_COST_EXCEEDED graceful handling
+   * Resolve LinkedIn Media Asset URN (images, videos, documents) to a playable/displayable download URL
+   * Cached for 1 hour to prevent redundant API calls
    */
-  public async getFollowers(accessToken: string, orgUrn: string): Promise<any> {
-    const cacheKey = `followers_${orgUrn}`;
-    const cached = OrganizationProvider.analyticsCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.data;
+  public async resolveMediaAsset(accessToken: string, mediaUrn: string): Promise<{ url: string | null; mediaType: "IMAGE" | "VIDEO" | "DOCUMENT" | "NONE" }> {
+    if (!mediaUrn || !mediaUrn.startsWith("urn:li:")) {
+      return { url: null, mediaType: "NONE" };
     }
 
-    const headers = OrganizationProvider.getHeaders(accessToken);
+    const cacheKey = `media_asset_${encodeURIComponent(mediaUrn)}`;
+    return OrganizationProvider.executeWithDeduplication<{ url: string | null; mediaType: "IMAGE" | "VIDEO" | "DOCUMENT" | "NONE" }>(
+      cacheKey,
+      60 * 60 * 1000,
+      async () => {
+        const headers = OrganizationProvider.getHeaders(accessToken);
+        const encodedUrn = encodeURIComponent(mediaUrn);
 
-    const encodedOrgUrn = encodeURIComponent(orgUrn.startsWith("urn:li:organization:") ? orgUrn : `urn:li:organization:${orgUrn}`);
-    const url = `https://api.linkedin.com/rest/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity=${encodedOrgUrn}`;
+        if (mediaUrn.includes("urn:li:image:") || mediaUrn.includes("urn:li:digitalmediaAsset:")) {
+          try {
+            let downloadUrl: string | null = null;
+            try {
+              const res = await axios.get(`https://api.linkedin.com/rest/images/${encodedUrn}`, { headers, timeout: 6000 });
+              downloadUrl = res.data?.downloadUrl || res.data?.url || res.data?.elements?.[0]?.identifiers?.[0]?.identifier || null;
+            } catch (restImgErr) {
+              // Try digitalmediaAssets endpoint
+              const cleanAssetUrn = mediaUrn.replace("urn:li:image:", "urn:li:digitalmediaAsset:");
+              const v2Res = await axios.get(`https://api.linkedin.com/v2/digitalmediaAssets/${encodeURIComponent(cleanAssetUrn)}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                timeout: 6000
+              });
+              const artifacts = v2Res.data?.elements?.[0]?.artifacts || v2Res.data?.artifacts || [];
+              if (artifacts.length > 0) {
+                downloadUrl = artifacts[artifacts.length - 1]?.fileIdentifyingUrlPathSegment || artifacts[0]?.fileIdentifyingUrlPathSegment || null;
+              }
+            }
 
-    try {
-      const response = await axios.get(url, { headers, timeout: 8000 });
-      const stats = response.data?.elements?.[0]?.followerCountsByAssociationType || {};
-      const organicFollowers = stats.organicFollowerCount || 0;
-      const paidFollowers = stats.paidFollowerCount || 0;
-      const totalFollowers = organicFollowers + paidFollowers;
+            return { url: downloadUrl, mediaType: "IMAGE" };
+          } catch (err: any) {
+            console.warn(`[LINKEDIN ORG MEDIA] Image URN resolution notice for ${mediaUrn}:`, err?.response?.data?.message || err.message);
+            return { url: null, mediaType: "IMAGE" };
+          }
+        } else if (mediaUrn.includes("urn:li:video:") || mediaUrn.includes("urn:li:ugcPost:")) {
+          try {
+            let downloadUrl: string | null = null;
+            try {
+              const res = await axios.get(`https://api.linkedin.com/rest/videos/${encodedUrn}`, { headers, timeout: 6000 });
+              downloadUrl = res.data?.downloadUrl || res.data?.url || res.data?.elements?.[0]?.identifiers?.[0]?.identifier || null;
+            } catch (restVidErr) {
+              const cleanAssetUrn = mediaUrn.replace("urn:li:video:", "urn:li:digitalmediaAsset:");
+              const v2Res = await axios.get(`https://api.linkedin.com/v2/digitalmediaAssets/${encodeURIComponent(cleanAssetUrn)}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                timeout: 6000
+              });
+              const artifacts = v2Res.data?.elements?.[0]?.artifacts || v2Res.data?.artifacts || [];
+              if (artifacts.length > 0) {
+                downloadUrl = artifacts[artifacts.length - 1]?.fileIdentifyingUrlPathSegment || artifacts[0]?.fileIdentifyingUrlPathSegment || null;
+              }
+            }
 
-      const result = {
-        totalFollowers,
-        organicFollowers,
-        paidFollowers,
-        raw: response.data
-      };
+            return { url: downloadUrl, mediaType: "VIDEO" };
+          } catch (err: any) {
+            console.warn(`[LINKEDIN ORG MEDIA] Video URN resolution notice for ${mediaUrn}:`, err?.response?.data?.message || err.message);
+            return { url: null, mediaType: "VIDEO" };
+          }
+        } else if (mediaUrn.includes("urn:li:document:")) {
+          try {
+            const res = await axios.get(`https://api.linkedin.com/rest/documents/${encodedUrn}`, { headers, timeout: 6000 });
+            const downloadUrl = res.data?.downloadUrl || res.data?.url || res.data?.elements?.[0]?.identifiers?.[0]?.identifier || null;
+            return { url: downloadUrl, mediaType: "DOCUMENT" };
+          } catch (err: any) {
+            console.warn(`[LINKEDIN ORG MEDIA] Document URN resolution notice for ${mediaUrn}:`, err?.response?.data?.message || err.message);
+            return { url: null, mediaType: "DOCUMENT" };
+          }
+        }
 
-      // Cache for 15 minutes to respect privacy budget
-      OrganizationProvider.analyticsCache.set(cacheKey, {
-        data: result,
-        expiresAt: Date.now() + 15 * 60 * 1000
-      });
-
-      return result;
-    } catch (err: any) {
-      const status = err?.response?.status;
-      if (status === 429 || err?.response?.data?.message?.includes("TABLE_MAX_PRIVACY_COST_EXCEEDED")) {
-        console.warn(`[LINKEDIN ORG PRIVACY BUDGET] Follower stats rate limit/privacy cost exceeded (HTTP 429). Using fallback.`);
-      } else {
-        console.warn(`[LINKEDIN ORG] Follower stats notice:`, err?.response?.data || err.message);
-      }
-      return { totalFollowers: 0, organicFollowers: 0, paidFollowers: 0 };
-    }
-  }
-
-  /**
-   * Company Page Statistics: /rest/organizationPageStatistics
-   * With caching & 429 privacy cost handling
-   */
-  public async getAnalytics(accessToken: string, orgUrn: string): Promise<any> {
-    const cacheKey = `page_analytics_${orgUrn}`;
-    const cached = OrganizationProvider.analyticsCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.data;
-    }
-
-    const headers = OrganizationProvider.getHeaders(accessToken);
-
-    const encodedOrgUrn = encodeURIComponent(orgUrn.startsWith("urn:li:organization:") ? orgUrn : `urn:li:organization:${orgUrn}`);
-    const url = `https://api.linkedin.com/rest/organizationPageStatistics?q=organization&organization=${encodedOrgUrn}`;
-
-    try {
-      const response = await axios.get(url, { headers, timeout: 8000 });
-      const pageStats = response.data?.elements?.[0]?.totalPageStatistics || {};
-
-      const result = {
-        views: pageStats.views || 0,
-        uniqueViews: pageStats.uniqueViews || 0,
-        clicks: pageStats.clicks || 0,
-        raw: response.data
-      };
-
-      // Cache for 15 minutes
-      OrganizationProvider.analyticsCache.set(cacheKey, {
-        data: result,
-        expiresAt: Date.now() + 15 * 60 * 1000
-      });
-
-      return result;
-    } catch (err: any) {
-      const status = err?.response?.status;
-      if (status === 429 || err?.response?.data?.message?.includes("TABLE_MAX_PRIVACY_COST_EXCEEDED")) {
-        console.warn(`[LINKEDIN ORG PRIVACY BUDGET] Page stats privacy cost limit reached (HTTP 429). Returning cached/empty metrics.`);
-      } else {
-        console.warn(`[LINKEDIN ORG] Page statistics notice:`, err?.response?.data || err.message);
-      }
-      return { views: 0, uniqueViews: 0, clicks: 0 };
-    }
+        return { url: null, mediaType: "NONE" };
+      },
+      { url: null, mediaType: "NONE" }
+    );
   }
 
   public async createScheduledPost(organizationId: string, postData: any) {

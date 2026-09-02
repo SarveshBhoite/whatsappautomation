@@ -54,14 +54,17 @@ export interface CompanyProfile {
   companyId?: string;
   companyName?: string;
   vanityName?: string;
+  vanityUrl?: string;
   companyLogo?: string;
   website?: string;
   industry?: string;
   description?: string;
+  headquarters?: string;
+  specialties?: string[];
+  staffCountRange?: string;
   followersCount?: number;
   organicFollowers?: number;
   paidFollowers?: number;
-  staffCountRange?: string;
 }
 
 export interface CompanyPost {
@@ -111,6 +114,7 @@ export function CompanyPageDashboard({
   >("overview");
   const [editingDraft, setEditingDraft] = useState<DraftItem | null>(null);
   const [posts, setPosts] = useState<CompanyPost[]>([]);
+  const [postTypeFilter, setPostTypeFilter] = useState<"ALL" | "IMAGE" | "VIDEO" | "DOCUMENT" | "ARTICLE">("ALL");
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [postText, setPostText] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
@@ -134,10 +138,14 @@ export function CompanyPageDashboard({
   const companyName = profile?.companyName || config?.companyName || "";
   const companyId = profile?.companyId || config?.companyId || "";
   const vanityName = profile?.vanityName || config?.vanityName || "";
+  const vanityUrl = profile?.vanityUrl || (vanityName ? `https://www.linkedin.com/company/${vanityName}` : "");
   const companyLogo = profile?.companyLogo || config?.companyLogo || "";
   const website = profile?.website || config?.website || "";
   const industry = profile?.industry || config?.industry || "";
   const description = profile?.description || config?.description || "";
+  const headquarters = profile?.headquarters || "";
+  const specialties = profile?.specialties || [];
+  const staffCountRange = profile?.staffCountRange || "";
   const followersCount = profile?.followersCount ?? config?.followersCount;
 
   // Fetch company posts
@@ -153,6 +161,55 @@ export function CompanyPageDashboard({
         console.log(`[CRM3] Posts response:`, data);
         if (Array.isArray(data.posts)) {
           setPosts(data.posts);
+
+          // Asynchronously enrich recent posts with live reactions and comment counts
+          const visiblePosts = data.posts.slice(0, 30);
+          Promise.allSettled(
+            visiblePosts.map(async (p: CompanyPost) => {
+              const postUrn = p.linkedinPostId || p.id;
+              if (!postUrn) return null;
+              try {
+                const metaRes = await fetch(`${API_BASE_URL}/api/linkedin/org/social-metadata?postUrn=${encodeURIComponent(postUrn)}`, {
+                  headers: { "x-organization-id": organizationId }
+                });
+                if (metaRes.ok) {
+                  const metaData = await metaRes.json();
+                  return {
+                    id: p.id,
+                    likesCount: metaData.likesCount || 0,
+                    commentsCount: metaData.commentsCount || 0
+                  };
+                }
+              } catch (err) {}
+              return null;
+            })
+          ).then((results) => {
+            const updates: Record<string, { likesCount: number; commentsCount: number }> = {};
+            results.forEach((r) => {
+              if (r.status === "fulfilled" && r.value) {
+                updates[r.value.id] = {
+                  likesCount: r.value.likesCount,
+                  commentsCount: r.value.commentsCount
+                };
+              }
+            });
+
+            if (Object.keys(updates).length > 0) {
+              setPosts((currentPosts) =>
+                currentPosts.map((p) => {
+                  const update = updates[p.id];
+                  if (update) {
+                    return {
+                      ...p,
+                      likesCount: update.likesCount,
+                      commentsCount: update.commentsCount
+                    };
+                  }
+                  return p;
+                })
+              );
+            }
+          });
         }
       }
     } catch (err) {
@@ -293,7 +350,17 @@ export function CompanyPageDashboard({
       });
       if (res.ok) {
         const data = await res.json();
-        setComments(data.comments || []);
+        const loadedComments = data.comments || [];
+        setComments(loadedComments);
+
+        // Keep post comments count synchronized in state
+        setPosts((current) =>
+          current.map((p) =>
+            (p.id === post.id || p.postId === post.postId)
+              ? { ...p, commentsCount: Math.max(p.commentsCount || 0, loadedComments.length) }
+              : p
+          )
+        );
       }
     } catch (err) {
       console.error("[LINKEDIN ORG] Error loading comments:", err);
@@ -354,34 +421,33 @@ export function CompanyPageDashboard({
   return (
     <div className="space-y-6 font-sans">
       {/* 1. Header Banner & Switcher */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#0A66C2] overflow-hidden shrink-0 shadow-xs">
+            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-blue-50 to-slate-100 border border-slate-200 flex items-center justify-center text-[#0A66C2] overflow-hidden shrink-0 shadow-xs relative">
               {companyLogo ? (
-                <img src={companyLogo} alt={companyName} className="h-full w-full object-cover" />
+                <img
+                  src={companyLogo}
+                  alt={companyName || "Company Logo"}
+                  className="h-full w-full object-contain p-1"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = "none";
+                  }}
+                />
               ) : (
-                <Building2 className="h-8 w-8" />
+                <Building2 className="h-8 w-8 text-[#0A66C2]" />
               )}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{companyName}</h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold uppercase">
-                  Verified Page
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{companyName || "LinkedIn Organization"}</h1>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Verified Page
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap font-medium">
-                {industry && <span>{industry}</span>}
-                {companyId && <span>• Organization ID: <code className="text-slate-700">{companyId}</code></span>}
-                {website && (
-                  <>
-                    <span>•</span>
-                    <a href={website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 font-semibold">
-                      <Globe className="h-3 w-3" /> Website <ExternalLink className="h-2.5 w-2.5" />
-                    </a>
-                  </>
-                )}
+                {industry && <span className="font-semibold text-slate-700">{industry}</span>}
+                {companyId && <span>• ID: <code className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-mono text-[11px]">{companyId}</code></span>}
               </p>
             </div>
           </div>
@@ -420,6 +486,86 @@ export function CompanyPageDashboard({
             )}
           </div>
         </div>
+
+        {/* Company Overview Description (Rendered only when API provides it) */}
+        {description && (
+          <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-4.5">
+            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed max-w-4xl">
+              {description}
+            </p>
+          </div>
+        )}
+
+        {/* Responsive Company Overview Information Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {industry && (
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Industry</span>
+              <p className="text-xs font-bold text-slate-900 truncate">{industry}</p>
+            </div>
+          )}
+
+          {staffCountRange && (
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Company Size</span>
+              <p className="text-xs font-bold text-slate-900 truncate">{staffCountRange} employees</p>
+            </div>
+          )}
+
+          {headquarters && (
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Headquarters</span>
+              <p className="text-xs font-bold text-slate-900 truncate">{headquarters}</p>
+            </div>
+          )}
+
+          {website && (
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Website</span>
+              <a
+                href={website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 truncate"
+              >
+                <Globe className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{website.replace(/^https?:\/\//, "")}</span>
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </a>
+            </div>
+          )}
+
+          {vanityUrl && (
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LinkedIn URL</span>
+              <a
+                href={vanityUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold text-[#0A66C2] hover:underline flex items-center gap-1 truncate"
+              >
+                <LinkedInIcon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">linkedin.com/company/{vanityName || "page"}</span>
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Specialties Tags */}
+        {specialties && specialties.length > 0 && (
+          <div className="pt-2 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Specialties:</span>
+            {specialties.map((spec, idx) => (
+              <span
+                key={idx}
+                className="px-2.5 py-0.5 rounded-lg bg-slate-100 border border-slate-200/80 text-slate-700 text-[11px] font-medium"
+              >
+                {spec}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* 2. Key Metrics Widgets */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6">
@@ -593,18 +739,42 @@ export function CompanyPageDashboard({
 
           {/* Company Posts Feed Preview */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="font-extrabold text-base text-slate-900 tracking-tight">Recent Company Posts & Moderation</h3>
                 <p className="text-xs text-slate-500">Live posts published to your organization feed</p>
               </div>
-              <button
-                type="button"
-                onClick={fetchOrgPosts}
-                className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${loadingPosts ? "animate-spin" : ""}`} /> Refresh Feed
-              </button>
+
+              {/* Content Type Filter Pills */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(["ALL", "IMAGE", "VIDEO", "DOCUMENT", "ARTICLE"] as const).map((type) => {
+                  const isActive = postTypeFilter === type;
+                  const label = type === "ALL" ? "All" : type === "IMAGE" ? "Images" : type === "VIDEO" ? "Videos" : type === "DOCUMENT" ? "Documents" : "Articles";
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setPostTypeFilter(type)}
+                      className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-slate-900 text-white shadow-2xs"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={fetchOrgPosts}
+                  className="p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-bold cursor-pointer ml-1"
+                  title="Refresh Feed"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loadingPosts ? "animate-spin" : ""}`} />
+                </button>
+              </div>
             </div>
 
             {loadingPosts ? (
@@ -617,7 +787,17 @@ export function CompanyPageDashboard({
               </div>
             ) : (
               <div className="space-y-4">
-                {posts.slice(0, 3).map((post) => (
+                {posts
+                  .filter((p) => {
+                    if (postTypeFilter === "ALL") return true;
+                    if (postTypeFilter === "IMAGE") return p.mediaType === "IMAGE" || p.mediaUrl?.match(/\.(jpg|jpeg|png|webp)/i);
+                    if (postTypeFilter === "VIDEO") return p.mediaType === "VIDEO" || p.mediaUrl?.match(/\.(mp4|mov|avi|webm)/i);
+                    if (postTypeFilter === "DOCUMENT") return p.mediaType === "DOCUMENT" || p.mediaUrl?.match(/\.pdf/i);
+                    if (postTypeFilter === "ARTICLE") return p.mediaType === "NONE" && p.mediaUrl?.startsWith("http");
+                    return true;
+                  })
+                  .slice(0, 5)
+                  .map((post) => (
                   <div
                     key={post.id || post.postId}
                     className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 hover:border-slate-300 transition-all"
@@ -654,9 +834,7 @@ export function CompanyPageDashboard({
                     </p>
 
                     {post.mediaUrl && (
-                      <div className="rounded-xl overflow-hidden max-h-80 bg-black/5">
-                        <MediaPreview url={post.mediaUrl} />
-                      </div>
+                      <MediaPreview mediaUrl={post.mediaUrl} organizationId={organizationId} className="w-full" />
                     )}
 
                     <div className="flex items-center justify-between border-t border-slate-200 pt-3">
@@ -676,13 +854,14 @@ export function CompanyPageDashboard({
                   </div>
                 ))}
 
-                {posts.length > 3 && (
+                {posts.length > 5 && (
                   <button
                     type="button"
                     onClick={() => setActiveSection("posts")}
-                    className="w-full py-2 text-center text-xs font-bold text-[#0A66C2] hover:underline"
+                    className="w-full py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-[#0A66C2] flex items-center justify-center gap-1.5 transition-all shadow-2xs"
                   >
-                    View all {posts.length} Company Posts →
+                    <span>View All {posts.length} Company Posts</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
@@ -716,15 +895,37 @@ export function CompanyPageDashboard({
         />
       )}
 
-      {/* Sub-Section 3: COMPANY POSTS FEED & MODERATION */}
+      {/* Sub-Section 3: POSTS & FEED */}
       {activeSection === "posts" && (
         <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <h3 className="font-extrabold text-base text-slate-900 tracking-tight">Organization Posts Feed</h3>
-              <p className="text-xs text-slate-500">Manage and moderate all updates published to your company feed</p>
+              <p className="text-xs text-slate-500">Manage, filter, and moderate all updates published to your company feed</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Content Type Filter Pills */}
+              <div className="flex items-center gap-1.5">
+                {(["ALL", "IMAGE", "VIDEO", "DOCUMENT", "ARTICLE"] as const).map((type) => {
+                  const isActive = postTypeFilter === type;
+                  const label = type === "ALL" ? "All" : type === "IMAGE" ? "Images" : type === "VIDEO" ? "Videos" : type === "DOCUMENT" ? "Documents" : "Articles";
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setPostTypeFilter(type)}
+                      className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-slate-900 text-white shadow-2xs"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               <button
                 type="button"
                 onClick={() => setActiveSection("composer")}
@@ -752,7 +953,16 @@ export function CompanyPageDashboard({
             </div>
           ) : (
             <div className="space-y-4">
-              {posts.map((post) => (
+              {posts
+                .filter((p) => {
+                  if (postTypeFilter === "ALL") return true;
+                  if (postTypeFilter === "IMAGE") return p.mediaType === "IMAGE" || p.mediaUrl?.match(/\.(jpg|jpeg|png|webp)/i);
+                  if (postTypeFilter === "VIDEO") return p.mediaType === "VIDEO" || p.mediaUrl?.match(/\.(mp4|mov|avi|webm)/i);
+                  if (postTypeFilter === "DOCUMENT") return p.mediaType === "DOCUMENT" || p.mediaUrl?.match(/\.pdf/i);
+                  if (postTypeFilter === "ARTICLE") return p.mediaType === "NONE" && p.mediaUrl?.startsWith("http");
+                  return true;
+                })
+                .map((post) => (
                 <div
                   key={post.id || post.postId}
                   className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 hover:border-slate-300 transition-all"
@@ -789,9 +999,7 @@ export function CompanyPageDashboard({
                   </p>
 
                   {post.mediaUrl && (
-                    <div className="rounded-xl overflow-hidden max-h-80 bg-black/5">
-                      <MediaPreview url={post.mediaUrl} />
-                    </div>
+                    <MediaPreview mediaUrl={post.mediaUrl} organizationId={organizationId} className="w-full" />
                   )}
 
                   <div className="flex items-center justify-between border-t border-slate-200 pt-3">

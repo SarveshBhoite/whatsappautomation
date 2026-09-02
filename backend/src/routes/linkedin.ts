@@ -1031,14 +1031,20 @@ router.get("/org/profile", async (req: Request, res: Response) => {
       companyId: config.companyId,
       companyName: liveCompanyDetails?.companyName || config.companyName || config.profile?.name || "",
       vanityName: liveCompanyDetails?.vanityName || config.vanityName || "",
+      vanityUrl: liveCompanyDetails?.vanityUrl || "",
       companyLogo: liveCompanyDetails?.companyLogo || config.companyLogo || config.profile?.picture || "",
       website: liveCompanyDetails?.website || config.website || "",
       industry: liveCompanyDetails?.industry || config.industry || "",
       description: liveCompanyDetails?.description || config.description || "",
+      staffCountRange: liveCompanyDetails?.staffCountRange || "",
+      headquarters: liveCompanyDetails?.headquarters || "",
+      specialties: liveCompanyDetails?.specialties || [],
       followersCount,
       organicFollowers,
       paidFollowers
     };
+
+    console.log(`[CRM3 PROFILE RUNTIME] /api/linkedin/org/profile response: Company="${orgProfile.companyName}", Followers=${followersCount} (organic=${organicFollowers}, paid=${paidFollowers})`);
 
     console.log(`[CRM3] /api/linkedin/org/profile requested for org ${organizationId}. Company: ${orgProfile.companyName}, Followers: ${followersCount}`);
 
@@ -1145,6 +1151,40 @@ router.delete("/org/posts/:postId", async (req: Request, res: Response) => {
   }
 });
 
+// 5.1 GET /api/linkedin/org/media-asset - Resolve media URN to playable/displayable download URL
+router.get("/org/media-asset", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const mediaUrn = (req.query.urn as string) || "";
+
+    if (!mediaUrn) {
+      return res.status(400).json({ error: "Media URN is required" });
+    }
+
+    let config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+    if (!config || !config.accessToken) {
+      config = await prisma.linkedInConfig.findFirst({
+        where: {
+          accessToken: { not: "" },
+          companyId: { not: null }
+        },
+        orderBy: { updatedAt: "desc" }
+      });
+    }
+
+    if (!config || !config.accessToken) {
+      return res.status(401).json({ error: "Not authorized or missing LinkedIn access token" });
+    }
+
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const result = await orgProvider.resolveMediaAsset(config.accessToken, mediaUrn);
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to resolve media asset", details: err.message });
+  }
+});
+
 // 6. GET /api/linkedin/org/comments/:postUrn
 router.get("/org/comments/:postUrn", async (req: Request, res: Response) => {
   try {
@@ -1226,6 +1266,36 @@ router.get("/org/reactions/:postUrn", async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, ...result });
   } catch (err: any) {
     return res.status(500).json({ error: "Failed to fetch reactions", details: err.message });
+  }
+});
+
+// 9.1 GET /api/linkedin/org/social-metadata - Get total reaction count and comment count
+router.get("/org/social-metadata", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postUrn = (req.query.postUrn as string) || "";
+
+    if (!postUrn) {
+      return res.status(400).json({ error: "postUrn is required" });
+    }
+
+    let config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+    if (!config || !config.accessToken) {
+      config = await prisma.linkedInConfig.findFirst({
+        where: { accessToken: { not: "" }, companyId: { not: null } },
+        orderBy: { updatedAt: "desc" }
+      });
+    }
+
+    if (!config || !config.accessToken) {
+      return res.status(200).json({ likesCount: 0, commentsCount: 0 });
+    }
+
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const metadata = await orgProvider.getSocialMetadata(config.accessToken, postUrn);
+    return res.status(200).json({ success: true, ...metadata });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to fetch social metadata", details: err.message });
   }
 });
 

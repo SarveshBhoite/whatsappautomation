@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Image as ImageIcon, Video as VideoIcon, FileText as DocumentIcon, ExternalLink, Globe, Link2 } from "lucide-react";
+import { Image as ImageIcon, Video as VideoIcon, FileText as DocumentIcon, ExternalLink, Globe, Link2, X, ZoomIn } from "lucide-react";
 
 interface MediaPreviewProps {
   mediaUrl?: string | null;
   url?: string | null;
+  organizationId?: string;
   className?: string;
 }
 
@@ -19,6 +20,11 @@ export interface LinkMetadata {
 
 export function detectMediaType(url?: string | null): "IMAGE" | "VIDEO" | "DOCUMENT" | "LINK" | "UNKNOWN" {
   if (!url) return "UNKNOWN";
+  if (url.startsWith("urn:li:image:") || url.startsWith("urn:li:digitalmediaAsset:")) return "IMAGE";
+  if (url.startsWith("urn:li:video:") || url.startsWith("urn:li:ugcPost:")) return "VIDEO";
+  if (url.startsWith("urn:li:document:")) return "DOCUMENT";
+  if (url.startsWith("urn:li:")) return "IMAGE";
+
   const cleanUrl = url.toLowerCase().split("?")[0];
 
   if (url.startsWith("link://") || url.startsWith("{") || (url.startsWith("http") && !url.match(/\.(jpg|jpeg|png|webp|gif|svg|mp4|mov|avi|webm|pdf|docx|doc|pptx|ppt)($|\?)/i))) {
@@ -163,82 +169,203 @@ function ArticleLinkCard({ url }: { url: string }) {
   );
 }
 
-function SingleMediaItem({ url }: { url: string }) {
+function SingleMediaItem({ url, organizationId }: { url: string; organizationId?: string }) {
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(url.startsWith("urn:li:") ? null : url);
+  const [resolvedType, setResolvedType] = useState<"IMAGE" | "VIDEO" | "DOCUMENT" | "LINK" | "UNKNOWN">(
+    url.startsWith("urn:li:image:") ? "IMAGE" : url.startsWith("urn:li:video:") ? "VIDEO" : url.startsWith("urn:li:document:") ? "DOCUMENT" : detectMediaType(url) as any
+  );
+  const [loadingResolution, setLoadingResolution] = useState(url.startsWith("urn:li:"));
   const [imgError, setImgError] = useState(false);
-  const mediaType = detectMediaType(url);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (url.startsWith("urn:li:")) {
+      let isMounted = true;
+      setLoadingResolution(true);
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const effectiveOrgId = organizationId || (typeof window !== "undefined" ? localStorage.getItem("organization_id") || "crm3" : "crm3");
+
+      fetch(`${API_BASE_URL}/api/linkedin/org/media-asset?urn=${encodeURIComponent(url)}`, {
+        headers: { "x-organization-id": effectiveOrgId }
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (isMounted) {
+            if (data.url) {
+              setResolvedUrl(data.url);
+              if (data.mediaType) setResolvedType(data.mediaType);
+            } else {
+              setResolvedUrl(null);
+            }
+          }
+        })
+        .catch(() => {
+          if (isMounted) setResolvedUrl(null);
+        })
+        .finally(() => {
+          if (isMounted) setLoadingResolution(false);
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    } else {
+      setResolvedUrl(url);
+      setResolvedType(detectMediaType(url) as any);
+      setLoadingResolution(false);
+    }
+  }, [url, organizationId]);
+
+  if (loadingResolution) {
+    return (
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-center gap-2 animate-pulse text-xs text-slate-400 font-medium">
+        <div className="h-4 w-4 rounded-full border-2 border-slate-300 border-t-transparent animate-spin" />
+        <span>Loading media...</span>
+      </div>
+    );
+  }
+
+  // If URN could not be resolved to a valid accessible URL, do not render a broken blank frame
+  if (url.startsWith("urn:li:") && !resolvedUrl) {
+    return null;
+  }
+
+  const effectiveUrl = resolvedUrl || url;
+  const mediaType = resolvedType;
 
   if (mediaType === "LINK") {
-    return <ArticleLinkCard url={url} />;
+    return <ArticleLinkCard url={effectiveUrl} />;
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-xs">
-      {/* IMAGE PREVIEW */}
-      {mediaType === "IMAGE" && (
-        <div className="relative group min-h-[160px] max-h-[380px] bg-slate-100 flex items-center justify-center overflow-hidden">
-          {!imgError ? (
-            <img
-              src={url}
-              alt="Uploaded Media Preview"
-              onError={() => setImgError(true)}
-              className="w-full h-full max-h-[380px] object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-            />
-          ) : (
-            <div className="p-6 text-center text-slate-500 text-xs flex flex-col items-center gap-2">
-              <ImageIcon className="h-8 w-8 text-slate-400" />
-              <span>Image preview unavailable</span>
-            </div>
-          )}
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-white/90 hover:bg-white text-slate-700 hover:text-[#0A66C2] border border-slate-200 backdrop-blur-sm transition-all shadow-xs"
-            title="Open Image"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      )}
+    <>
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-900/5 shadow-xs">
+        {/* IMAGE PREVIEW - Object Contain with Natural Proportions */}
+        {mediaType === "IMAGE" && (
+          <div className="relative group min-h-[200px] max-h-[500px] w-full bg-slate-900/90 flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => setIsModalOpen(true)}>
+            {!imgError ? (
+              <img
+                src={effectiveUrl}
+                alt="LinkedIn Post Media"
+                onError={() => setImgError(true)}
+                className="w-full h-auto max-h-[500px] object-contain transition-transform duration-300 group-hover:scale-[1.01]"
+              />
+            ) : (
+              <div className="p-6 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
+                <ImageIcon className="h-8 w-8 text-slate-500" />
+                <span>Image preview unavailable</span>
+              </div>
+            )}
 
-      {/* VIDEO PLAYER */}
-      {mediaType === "VIDEO" && (
-        <div className="relative group bg-slate-900 rounded-2xl overflow-hidden">
-          <video controls preload="metadata" src={url} className="w-full max-h-[360px] rounded-2xl object-contain bg-black">
-            Your browser does not support HTML5 video streaming.
-          </video>
-        </div>
-      )}
-
-      {/* DOCUMENT / PDF PREVIEW */}
-      {mediaType === "DOCUMENT" && (
-        <div className="space-y-2 p-2 bg-white">
-          <div className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800">
-            <div className="flex items-center gap-2 truncate">
-              <DocumentIcon className="h-4 w-4 text-amber-600 shrink-0" />
-              <span className="truncate">{url.split("/").pop()?.split("?")[0] || "Document Preview"}</span>
+            {/* Click to Zoom / Expand Overlay */}
+            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-semibold text-xs backdrop-blur-[2px]">
+              <div className="px-3 py-1.5 rounded-xl bg-black/60 border border-white/20 flex items-center gap-1.5 shadow-lg">
+                <ZoomIn className="h-4 w-4 text-blue-400" />
+                <span>Click to expand image</span>
+              </div>
             </div>
+
             <a
-              href={url}
+              href={effectiveUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-[#0A66C2] border border-slate-200 text-[11px] font-bold flex items-center gap-1 shrink-0 transition-colors shadow-xs"
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-white/90 hover:bg-white text-slate-700 hover:text-[#0A66C2] border border-slate-200 backdrop-blur-sm transition-all shadow-xs z-10"
+              title="Open Image in Full Size"
             >
-              <span>Open Document</span>
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </div>
+        )}
 
-          <div className="w-full h-[280px] rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-            <iframe src={`${url}#toolbar=0&navpanes=0`} title="Document PDF Preview" className="w-full h-full border-none" />
+        {/* VIDEO PLAYER */}
+        {mediaType === "VIDEO" && (
+          <div className="relative group bg-slate-950 rounded-2xl overflow-hidden">
+            <video controls preload="metadata" src={effectiveUrl} className="w-full max-h-[440px] rounded-2xl object-contain bg-black">
+              Your browser does not support HTML5 video streaming.
+            </video>
+          </div>
+        )}
+
+        {/* DOCUMENT / PDF PREVIEW */}
+        {mediaType === "DOCUMENT" && (
+          <div className="space-y-2 p-2 bg-white">
+            <div className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800">
+              <div className="flex items-center gap-2 truncate">
+                <DocumentIcon className="h-4 w-4 text-amber-600 shrink-0" />
+                <span className="truncate">{effectiveUrl.split("/").pop()?.split("?")[0] || "LinkedIn Document Attachment"}</span>
+              </div>
+              <a
+                href={effectiveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-[#0A66C2] border border-slate-200 text-[11px] font-bold flex items-center gap-1 shrink-0 transition-colors shadow-xs"
+              >
+                <span>Open Document</span>
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+
+            <div className="w-full h-[360px] rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+              <iframe src={`${effectiveUrl}#toolbar=0&navpanes=0`} title="Document PDF Preview" className="w-full h-full border-none" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Fullscreen Popup Lightbox Modal */}
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-200"
+          onClick={() => setIsModalOpen(false)}
+        >
+          <div
+            className="relative max-w-5xl max-h-[92vh] w-full flex flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Toolbar */}
+            <div className="w-full flex items-center justify-between pb-3 text-white">
+              <span className="text-xs font-semibold tracking-wide text-slate-300 flex items-center gap-2">
+                <ImageIcon className="h-4 w-4 text-blue-400" /> Full Size Preview
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={effectiveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all text-xs flex items-center gap-1.5 font-bold"
+                  title="Open original in new tab"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span className="hidden sm:inline">Original Tab</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-red-500/80 text-white transition-all cursor-pointer"
+                  title="Close (Esc)"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Image Display */}
+            <div className="relative w-full max-h-[82vh] overflow-hidden rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center shadow-2xl p-2">
+              <img
+                src={effectiveUrl}
+                alt="Enlarged Post View"
+                className="max-h-[80vh] w-auto max-w-full object-contain rounded-xl"
+              />
+            </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
-export function MediaPreview({ mediaUrl, url: propUrl, className = "" }: MediaPreviewProps) {
+export function MediaPreview({ mediaUrl, url: propUrl, organizationId, className = "" }: MediaPreviewProps) {
   const targetUrl = mediaUrl || propUrl;
   if (!targetUrl || !targetUrl.trim()) return null;
 
@@ -269,7 +396,7 @@ export function MediaPreview({ mediaUrl, url: propUrl, className = "" }: MediaPr
     <div className={`space-y-3 ${className}`}>
       <div className={`grid gap-3 ${urlList.length > 1 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
         {urlList.map((url, idx) => (
-          <SingleMediaItem key={`${url}-${idx}`} url={url} />
+          <SingleMediaItem key={`${url}-${idx}`} url={url} organizationId={organizationId} />
         ))}
       </div>
     </div>

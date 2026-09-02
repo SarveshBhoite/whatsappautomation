@@ -140,6 +140,7 @@ interface LinkedInOrgProfileData {
   companyId?: string;
   companyName?: string;
   vanityName?: string;
+  vanityUrl?: string;
   companyLogo?: string;
   website?: string;
   industry?: string;
@@ -149,6 +150,8 @@ interface LinkedInOrgProfileData {
   organicFollowers?: number;
   paidFollowers?: number;
   staffCountRange?: string;
+  headquarters?: string;
+  specialties?: string[];
 }
 
 // -------------------------------------------------------------
@@ -350,26 +353,14 @@ function LinkedInPageContent() {
   const fetchOrgConfig = async () => {
     try {
       const orgId = getActiveOrgId();
-      const res = await fetch(`${API_BASE_URL}/api/linkedin/org/config`, {
+      const res = await fetch(`${API_BASE_URL}/api/linkedin/org/profile`, {
         headers: { "x-organization-id": orgId }
       });
       if (res.ok) {
         const data = await res.json();
-        console.log("[CRM3] /api/linkedin/org/config response:", data);
+        console.log("[CRM3] /api/linkedin/org/profile response:", data);
         if (data.config) setOrgConfig(data.config);
         if (data.profile) setOrgProfile(data.profile);
-      }
-
-      // Also query /api/linkedin/org/profile to ensure live follower stats and profile fields are loaded
-      const profRes = await fetch(`${API_BASE_URL}/api/linkedin/org/profile`, {
-        headers: { "x-organization-id": orgId }
-      });
-      if (profRes.ok) {
-        const profData = await profRes.json();
-        console.log("[CRM3] /api/linkedin/org/profile response:", profData);
-        if (profData.profile) {
-          setOrgProfile(profData.profile);
-        }
       }
     } catch (err) {
       console.error("[LINKEDIN ORG] Failed to fetch org config & profile:", err);
