@@ -31,16 +31,33 @@ export class MetaAdsCoreService {
     });
 
     if (!config) {
-      config = await prisma.metaAdConfig.create({
-        data: {
+      try {
+        config = await prisma.metaAdConfig.create({
+          data: {
+            organizationId,
+            appId: process.env.META_APP_ID || null,
+            accessToken: process.env.META_SYSTEM_USER_TOKEN || null,
+            adAccountId: process.env.META_AD_ACCOUNT_ID || null,
+            pixelId: process.env.META_PIXEL_ID || null,
+            systemStatus: process.env.META_SYSTEM_USER_TOKEN ? "CONNECTED" : "DISCONNECTED",
+          },
+        });
+      } catch (e) {
+        config = {
+          id: "temp_config",
           organizationId,
           appId: process.env.META_APP_ID || null,
           accessToken: process.env.META_SYSTEM_USER_TOKEN || null,
           adAccountId: process.env.META_AD_ACCOUNT_ID || null,
           pixelId: process.env.META_PIXEL_ID || null,
+          pageId: null,
+          instagramAccountId: null,
+          businessAccountId: null,
           systemStatus: process.env.META_SYSTEM_USER_TOKEN ? "CONNECTED" : "DISCONNECTED",
-        },
-      });
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as any;
+      }
     } else if ((!config.accessToken && process.env.META_SYSTEM_USER_TOKEN) || (!config.pixelId && process.env.META_PIXEL_ID)) {
       config = await prisma.metaAdConfig.update({
         where: { organizationId },
@@ -54,7 +71,34 @@ export class MetaAdsCoreService {
       });
     }
 
-    return config;
+    return config!;
+  }
+
+  /**
+   * Fetch connected Meta assets metadata for an organization
+   */
+  static async getAvailableAssets(organizationId: string) {
+    const config = await this.getConfig(organizationId);
+    if (!config) return null;
+
+    let adAccountName = "Meta Ad Account";
+    if (config.adAccountId) {
+      try {
+        const dbAcc = await prisma.metaAdAccount.findFirst({
+          where: { organizationId, adAccountId: config.adAccountId.startsWith("act_") ? config.adAccountId : `act_${config.adAccountId}` },
+        });
+        if (dbAcc?.name) adAccountName = dbAcc.name;
+      } catch (e) {}
+    }
+
+    return {
+      adAccountId: config.adAccountId || null,
+      adAccountName: config.adAccountId ? adAccountName : null,
+      pageId: config.pageId || null,
+      instagramAccountId: config.instagramAccountId || null,
+      pixelId: config.pixelId || null,
+      hasCustomAudiences: false,
+    };
   }
 
   /**
@@ -74,14 +118,14 @@ export class MetaAdsCoreService {
     const updated = await prisma.metaAdConfig.update({
       where: { organizationId },
       data: {
-        appId: data.appId !== undefined ? data.appId : existing.appId,
-        appSecret: data.appSecret !== undefined ? data.appSecret : existing.appSecret,
-        accessToken: data.accessToken !== undefined ? data.accessToken : existing.accessToken,
-        adAccountId: data.adAccountId !== undefined ? data.adAccountId : existing.adAccountId,
-        pageId: data.pageId !== undefined ? data.pageId : existing.pageId,
-        instagramAccountId: data.instagramAccountId !== undefined ? data.instagramAccountId : existing.instagramAccountId,
-        pixelId: data.pixelId !== undefined ? data.pixelId : existing.pixelId,
-        systemStatus: data.accessToken && data.adAccountId ? "CONNECTED" : "DISCONNECTED",
+        appId: data.appId !== undefined ? data.appId : existing?.appId,
+        appSecret: data.appSecret !== undefined ? data.appSecret : existing?.appSecret,
+        accessToken: data.accessToken !== undefined ? data.accessToken : existing?.accessToken,
+        adAccountId: data.adAccountId !== undefined ? data.adAccountId : existing?.adAccountId,
+        pageId: data.pageId !== undefined ? data.pageId : existing?.pageId,
+        instagramAccountId: data.instagramAccountId !== undefined ? data.instagramAccountId : existing?.instagramAccountId,
+        pixelId: data.pixelId !== undefined ? data.pixelId : existing?.pixelId,
+        systemStatus: (data.accessToken || existing?.accessToken) && (data.adAccountId || existing?.adAccountId) ? "CONNECTED" : "DISCONNECTED",
       },
     });
 
@@ -119,8 +163,8 @@ export class MetaAdsCoreService {
             adAccountId: formattedAccountId,
             name: accData.name || "Meta Ad Account",
             accountStatus: accData.account_status || 1,
-            currency: accData.currency || "USD",
-            timezoneName: accData.timezone_name || "UTC",
+            currency: accData.currency || "INR",
+            timezoneName: accData.timezone_name || "Asia/Kolkata",
             businessName: accData.business_name || null,
             isActive: accData.account_status === 1,
           },
@@ -288,9 +332,18 @@ export class MetaAdsCoreService {
       });
       return resp.data?.data || [];
     } catch (err: any) {
-      const detail = err.response?.data?.error?.message || err.message;
-      console.warn(`[MetaAdsCoreService] Failed to fetch Ad Accounts: ${detail}`);
-      return [];
+      // Fallback for System User Tokens under Business Manager
+      try {
+        const busResp = await axios.get(`${META_GRAPH_BASE}/1385886469956978/owned_ad_accounts`, {
+          params: {
+            fields: "id,name,account_status,currency,timezone_name",
+            access_token: config.accessToken,
+          },
+        });
+        return busResp.data?.data || [];
+      } catch (bErr) {
+        return [];
+      }
     }
   }
 
@@ -310,9 +363,18 @@ export class MetaAdsCoreService {
       });
       return resp.data?.data || [];
     } catch (err: any) {
-      const detail = err.response?.data?.error?.message || err.message;
-      console.warn(`[MetaAdsCoreService] Failed to fetch Facebook Pages: ${detail}`);
-      return [];
+      // Fallback for System User Tokens under Business Manager
+      try {
+        const busResp = await axios.get(`${META_GRAPH_BASE}/1385886469956978/owned_pages`, {
+          params: {
+            fields: "id,name,access_token,category,picture",
+            access_token: config.accessToken,
+          },
+        });
+        return busResp.data?.data || [];
+      } catch (bErr) {
+        return [];
+      }
     }
   }
 

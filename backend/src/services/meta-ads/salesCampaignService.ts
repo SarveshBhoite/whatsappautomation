@@ -126,9 +126,6 @@ export class SalesCampaignService {
 
           // Billing Event
           let billingEvent = "IMPRESSIONS";
-          if (optGoal === "LINK_CLICKS") {
-            billingEvent = "LINK_CLICKS";
-          }
 
           // Custom Event Type Mapping (Purchase / Initiate Checkout / Add to Cart / Lead / Subscribe)
           let rawEvent = (payload.conversionEvent || payload.customEventType || "PURCHASE").toUpperCase();
@@ -181,6 +178,7 @@ export class SalesCampaignService {
             genders: parsedGenders,
             publisher_platforms: ["facebook", "instagram", "audience_network", "messenger"],
             device_platforms: ["mobile", "desktop"],
+            targeting_automation: { advantage_audience: 1 },
           };
 
           // Customer Lifecycle Exclusion (High Value vs All Audiences)
@@ -299,19 +297,24 @@ export class SalesCampaignService {
             const utmTags = payload.urlParams || payload.utmParameters || "utm_source=facebook_ad&utm_medium=cpc_sales&utm_campaign=sales_campaign_2026";
             adPayload.url_tags = utmTags;
 
-            const adResp = await axios.post(
-              `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
-              adPayload
-            );
-            metaAdId = adResp.data.id;
+            try {
+              const adResp = await axios.post(
+                `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
+                adPayload
+              );
+              metaAdId = adResp.data.id;
+            } catch (adErr: any) {
+              console.warn(`[SalesCampaignService] Ad creation warning:`, adErr.response?.data || adErr.message);
+            }
           }
         }
       } catch (err: any) {
-        const errorData = err.response?.data?.error || {};
         console.warn("[SalesCampaignService] Graph API error detail:", JSON.stringify(err.response?.data || err.message, null, 2));
-
-        let msg = errorData.error_user_msg || errorData.message || err.message;
-        throw new Error(`Meta Graph API Sales Error: ${msg}`);
+        const subcode = err.response?.data?.error?.error_subcode;
+        if (subcode === 2859002) {
+          throw new Error("Certification required: Please visit https://facebook.com/certification/nondiscrimination while switched to your Facebook Page profile to certify compliance.");
+        }
+        throw new Error(`Meta Graph API Sales Error: ${err.response?.data?.error?.error_user_msg || err.response?.data?.error?.message || err.message}`);
       }
     }
 

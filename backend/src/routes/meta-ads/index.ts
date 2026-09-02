@@ -6,6 +6,7 @@ import leadsRoutes from "./leadsRoutes";
 import appPromotionRoutes from "./appPromotionRoutes";
 import salesRoutes from "./salesRoutes";
 import engagementRoutes from "./engagementRoutes";
+import aiCampaignRoutes from "./aiCampaignRoutes";
 
 const router = Router();
 
@@ -17,5 +18,6 @@ router.use("/", leadsRoutes);
 router.use("/", appPromotionRoutes);
 router.use("/", salesRoutes);
 router.use("/", engagementRoutes);
+router.use("/", aiCampaignRoutes);
 
 export default router;

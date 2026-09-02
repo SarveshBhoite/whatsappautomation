@@ -117,9 +117,6 @@ export class TrafficCampaignService {
           else if (optGoal.includes("IMPRESSION")) optGoal = "IMPRESSIONS";
 
           let billingEvent = "IMPRESSIONS";
-          if (optGoal === "LINK_CLICKS") {
-            billingEvent = "LINK_CLICKS";
-          }
 
           let parsedGenders = [1, 2];
           if (payload.gender === "MEN" || payload.gender === "MALE") parsedGenders = [1];
@@ -132,6 +129,7 @@ export class TrafficCampaignService {
             genders: parsedGenders,
             publisher_platforms: ["facebook", "instagram", "audience_network", "messenger"],
             device_platforms: ["mobile", "desktop"],
+            targeting_automation: { advantage_audience: 1 },
           };
 
           const adSetPayload: any = {
@@ -242,19 +240,24 @@ export class TrafficCampaignService {
               adPayload.url_tags = payload.urlParams || payload.utmParameters || payload.urlParameters;
             }
 
-            const adResp = await axios.post(
-              `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
-              adPayload
-            );
-            metaAdId = adResp.data.id;
+            try {
+              const adResp = await axios.post(
+                `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
+                adPayload
+              );
+              metaAdId = adResp.data.id;
+            } catch (adErr: any) {
+              console.warn(`[TrafficCampaignService] Ad creation warning:`, adErr.response?.data || adErr.message);
+            }
           }
         }
       } catch (err: any) {
-        const errorData = err.response?.data?.error || {};
-        console.warn("[TrafficCampaignService] Graph API creation error detail:", JSON.stringify(err.response?.data || err.message, null, 2));
-
-        let msg = errorData.error_user_msg || errorData.message || err.message;
-        throw new Error(`Meta Graph API Traffic Error: ${msg}`);
+        console.warn("[TrafficCampaignService] Graph API error detail:", JSON.stringify(err.response?.data || err.message, null, 2));
+        const subcode = err.response?.data?.error?.error_subcode;
+        if (subcode === 2859002) {
+          throw new Error("Certification required: Please visit https://facebook.com/certification/nondiscrimination while switched to your Facebook Page profile to certify compliance.");
+        }
+        throw new Error(`Meta Graph API Traffic Error: ${err.response?.data?.error?.error_user_msg || err.response?.data?.error?.message || err.message}`);
       }
     }
 

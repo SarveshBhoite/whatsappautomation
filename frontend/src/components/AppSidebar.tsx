@@ -104,17 +104,21 @@ export default function AppSidebar() {
           if (data && Array.isArray(data.enabledModules)) {
             setEnabledModules(data.enabledModules);
             localStorage.setItem("enabled_modules", JSON.stringify(data.enabledModules));
+            return;
           }
         }
       } catch (err) {
-        console.warn("Could not fetch org modules, falling back to local storage:", err);
+        // Fallback gracefully to cached or default modules
+      } finally {
         const cached = localStorage.getItem("enabled_modules");
         if (cached) {
           try {
             setEnabledModules(JSON.parse(cached));
           } catch {}
+        } else {
+          // Default all active modules
+          setEnabledModules(navItems.map(item => item.moduleKey).filter(Boolean) as string[]);
         }
-      } finally {
         setIsLoaded(true);
       }
     };

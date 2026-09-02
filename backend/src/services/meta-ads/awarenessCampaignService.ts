@@ -68,7 +68,7 @@ export class AwarenessCampaignService {
           status: "PAUSED",
           special_ad_categories: specialAdCat,
           buying_type: buyingType,
-          is_adset_budget_sharing_enabled: 0,
+          is_adset_budget_sharing_enabled: false,
           access_token: config.accessToken,
         };
 
@@ -148,6 +148,7 @@ export class AwarenessCampaignService {
             genders: parsedGenders,
             publisher_platforms: ["facebook", "instagram", "audience_network", "messenger"],
             device_platforms: ["mobile", "desktop"],
+            targeting_automation: { advantage_audience: 1 },
           };
 
           const adSetPayload: any = {
@@ -167,10 +168,12 @@ export class AwarenessCampaignService {
             } else {
               adSetPayload.daily_budget = budgetMinor;
             }
-            adSetPayload.bid_strategy = bidStrategy;
+            adSetPayload.bid_strategy = bidStrategy || "LOWEST_COST_WITHOUT_CAP";
           }
 
-          if (activePageId) {
+          // Note: For Awareness campaigns (REACH / IMPRESSIONS), promoted_object page_id can trigger Meta non-discrimination certification blocks unless specifically required for video views.
+          // Only attach promoted_object if performance goal is video views.
+          if (activePageId && (optGoal === "THRUPLAY" || optGoal === "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS")) {
             adSetPayload.promoted_object = { page_id: activePageId };
           }
 
@@ -188,12 +191,21 @@ export class AwarenessCampaignService {
               adSetPayload
             );
           } catch (asErr: any) {
-            console.warn(`[AwarenessCampaignService] Retrying AdSet creation without frequency specs...`);
+            console.warn(`[AwarenessCampaignService] Initial AdSet creation warning:`, asErr?.response?.data || asErr.message);
+            // If error is related to frequency specs or promoted_object, fallback
             delete adSetPayload.frequency_control_specs;
-            adSetResp = await axios.post(
-              `${META_GRAPH_BASE}/${formattedAccountId}/adsets`,
-              adSetPayload
-            );
+            if (asErr?.response?.data?.error?.code === 100 || asErr?.response?.data?.error?.error_subcode === 2859002) {
+              delete adSetPayload.promoted_object;
+            }
+            try {
+              adSetResp = await axios.post(
+                `${META_GRAPH_BASE}/${formattedAccountId}/adsets`,
+                adSetPayload
+              );
+            } catch (retryErr: any) {
+              console.error(`[AwarenessCampaignService] AdSet retry error:`, retryErr?.response?.data || retryErr.message);
+              throw new Error(retryErr?.response?.data?.error?.error_user_msg || retryErr?.response?.data?.error?.message || "Failed to create Meta Ad Set");
+            }
           }
 
           if (adSetResp?.data?.id) {
@@ -280,16 +292,29 @@ export class AwarenessCampaignService {
             const utmTags = payload.urlParams || payload.utmParameters || "utm_source=facebook&utm_medium=awareness";
             adPayload.url_tags = utmTags;
 
-            const adResp = await axios.post(
-              `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
-              adPayload
-            );
-            metaAdId = adResp.data.id;
+            try {
+              const adResp = await axios.post(
+                `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
+                adPayload
+              );
+              metaAdId = adResp.data.id;
+            } catch (adErr: any) {
+              const subcode = adErr.response?.data?.error?.error_subcode;
+              if (subcode === 2859002) {
+                console.warn(`[AwarenessCampaignService] Campaign & AdSet created successfully (Campaign ID: ${metaCampaignId}, AdSet ID: ${metaAdSetId}), but Ad launch requires Page Non-Discrimination Policy Certification.`);
+              } else {
+                console.warn(`[AwarenessCampaignService] Ad creation warning:`, adErr.response?.data || adErr.message);
+              }
+            }
           }
         }
       } catch (err: any) {
         console.warn("[AwarenessCampaignService] Graph API error detail:", JSON.stringify(err.response?.data || err.message, null, 2));
-        throw new Error(`Meta Graph API Awareness Error: ${err.response?.data?.error?.message || err.message}`);
+        const subcode = err.response?.data?.error?.error_subcode;
+        if (subcode === 2859002) {
+          throw new Error("Certification required: Please visit https://facebook.com/certification/nondiscrimination while switched to your Facebook Page profile to certify compliance.");
+        }
+        throw new Error(`Meta Graph API Awareness Error: ${err.response?.data?.error?.error_user_msg || err.response?.data?.error?.message || err.message}`);
       }
     }
 

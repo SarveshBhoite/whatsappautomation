@@ -391,7 +391,7 @@ export class MetaAdsService {
 
     const accountMap = new Map<string, any>();
 
-    // 1. Fetch direct user ad accounts (/me/adaccounts)
+    // 1. Fetch direct user ad accounts (/me/adaccounts) with Business Manager fallback
     try {
       const resp = await axios.get(`${META_GRAPH_BASE}/me/adaccounts`, {
         params: {
@@ -405,34 +405,19 @@ export class MetaAdsService {
         if (id) accountMap.set(id, { ...acc, adAccountId: id });
       });
     } catch (err: any) {
-      const detail = err.response?.data?.error?.message || err.message;
-      console.warn(`[MetaAdsService] Failed to fetch direct Ad Accounts: ${detail}`);
-    }
-
-    // 2. Fetch Meta Business Manager linked ad accounts (/me/businesses)
-    try {
-      const bizResp = await axios.get(`${META_GRAPH_BASE}/me/businesses`, {
-        params: {
-          fields: "id,name,client_ad_accounts{id,name,account_status,currency},owned_ad_accounts{id,name,account_status,currency}",
-          access_token: config.accessToken,
-        },
-      });
-      (bizResp.data?.data || []).forEach((biz: any) => {
-        const clientAccs = biz.client_ad_accounts?.data || [];
-        const ownedAccs = biz.owned_ad_accounts?.data || [];
-        [...clientAccs, ...ownedAccs].forEach((acc: any) => {
-          const id = acc.id || acc.adAccountId;
-          if (id && !accountMap.has(id)) {
-            accountMap.set(id, {
-              ...acc,
-              adAccountId: id,
-              businessName: biz.name,
-            });
-          }
+      // Fallback for System User Access Tokens under Business Portfolio
+      try {
+        const busResp = await axios.get(`${META_GRAPH_BASE}/1385886469956978/owned_ad_accounts`, {
+          params: {
+            fields: "id,name,account_status,currency,timezone_name",
+            access_token: config.accessToken,
+          },
         });
-      });
-    } catch (err: any) {
-      // Business Manager query optional
+        (busResp.data?.data || []).forEach((acc: any) => {
+          const id = acc.id || acc.adAccountId;
+          if (id) accountMap.set(id, { ...acc, adAccountId: id });
+        });
+      } catch (bErr: any) {}
     }
 
     // 3. Include any ad accounts recorded in Prisma DB

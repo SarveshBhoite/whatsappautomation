@@ -146,13 +146,16 @@ export class LeadsCampaignService {
           if (payload.gender === "MEN" || payload.gender === "MALE") parsedGenders = [1];
           else if (payload.gender === "WOMEN" || payload.gender === "FEMALE") parsedGenders = [2];
 
+          const isAdvantageAudience = payload.advantageAudience !== false;
+
           const targetingObj: any = {
             geo_locations: { countries: payload.targeting?.countries || ["IN"] },
             age_min: payload.ageMin || payload.targeting?.ageMin || 18,
-            age_max: payload.ageMax || payload.targeting?.ageMax || 65,
+            age_max: isAdvantageAudience ? 65 : (payload.ageMax || payload.targeting?.ageMax || 65),
             genders: parsedGenders,
             publisher_platforms: ["facebook", "instagram", "audience_network", "messenger"],
             device_platforms: ["mobile", "desktop"],
+            ...(isAdvantageAudience ? { targeting_automation: { advantage_audience: 1 } } : {}),
           };
 
           const adSetPayload: any = {
@@ -271,23 +274,29 @@ export class LeadsCampaignService {
             const utmTags = payload.urlParams || payload.utmParameters || "utm_source=facebook&utm_medium=leads";
             adPayload.url_tags = utmTags;
 
-            const adResp = await axios.post(
-              `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
-              adPayload
-            );
-            metaAdId = adResp.data.id;
+            try {
+              const adResp = await axios.post(
+                `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
+                adPayload
+              );
+              metaAdId = adResp.data.id;
+            } catch (adErr: any) {
+              console.warn(`[LeadsCampaignService] Ad creation warning:`, adErr.response?.data || adErr.message);
+            }
           }
         }
       } catch (err: any) {
-        const errorData = err.response?.data?.error || {};
         console.warn("[LeadsCampaignService] Graph API error detail:", JSON.stringify(err.response?.data || err.message, null, 2));
-
-        if (errorData.error_subcode === 1815089) {
+        const subcode = err.response?.data?.error?.error_subcode;
+        if (subcode === 2859002) {
+          throw new Error("Certification required: Please visit https://facebook.com/certification/nondiscrimination while switched to your Facebook Page profile to certify compliance.");
+        }
+        if (err.response?.data?.error?.error_subcode === 1815089) {
           throw new Error(
             `Facebook Page Lead Ads TOS Error: Facebook Page (ID: ${activePageId || 'Linked Page'}) has not accepted Facebook's Lead Generation Terms of Service. Please visit https://www.facebook.com/ads/leadgen/tos to accept TOS for your Page.`
           );
         }
-        throw new Error(`Meta Graph API Leads Error: ${errorData.message || err.message}`);
+        throw new Error(`Meta Graph API Leads Error: ${err.response?.data?.error?.error_user_msg || err.response?.data?.error?.message || err.message}`);
       }
     }
 

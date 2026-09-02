@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Megaphone, TrendingUp, MousePointerClick, Eye, DollarSign,
   Target, Plus, Play, Pause, Sparkles, ChevronRight, ChevronLeft,
@@ -164,7 +164,8 @@ function MetaAdsWorkspace({
   platform: string;
   setPlatform: (p: any) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"overview" | "campaigns" | "ad-sets" | "ads" | "audiences" | "conversions" | "approvals" | "reports" | "settings">("overview");
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"overview" | "campaigns" | "ad-sets" | "ads" | "audiences" | "conversions" | "approvals" | "reports" | "settings" | "ai-studio">("overview");
   const [dateRange, setDateRange] = useState("LAST_30_DAYS");
 
   const [config, setConfig] = useState<any>(null);
@@ -201,6 +202,19 @@ function MetaAdsWorkspace({
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   const currencySymbol = "₹";
+
+  const META_TABS: { id: any; label: string; icon: any }[] = [
+    { id: "overview", label: "Overview", icon: LayoutGrid },
+    { id: "campaigns", label: "Campaigns", icon: Megaphone },
+    { id: "ad-sets", label: "Ad Sets", icon: Layers },
+    { id: "ads", label: "Ads", icon: FileText },
+    { id: "audiences", label: "Audiences", icon: Users },
+    { id: "conversions", label: "Conversions", icon: Target },
+    { id: "approvals", label: `Approval Status (${approvals?.total || 0})`, icon: ShieldCheck },
+    { id: "reports", label: "Reports", icon: BarChart2 },
+    { id: "ai-studio", label: "✨ AI Campaign Studio", icon: Sparkles },
+    { id: "settings", label: "Settings", icon: Settings },
+  ];
 
   const fetchMetaConfig = useCallback(async () => {
     try {
@@ -460,18 +474,6 @@ function MetaAdsWorkspace({
   const avgCpc = totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : "0.00";
   const costPerConv = totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : "0.00";
 
-  const META_TABS: { id: any; label: string; icon: any }[] = [
-    { id: "overview", label: "Overview", icon: LayoutGrid },
-    { id: "campaigns", label: "Campaigns", icon: Megaphone },
-    { id: "ad-sets", label: "Ad Sets", icon: Layers },
-    { id: "ads", label: "Ads", icon: FileText },
-    { id: "audiences", label: "Audiences", icon: Users },
-    { id: "conversions", label: "Conversions", icon: Target },
-    { id: "approvals", label: `Approval Status (${approvals?.total || 0})`, icon: ShieldCheck },
-    { id: "reports", label: "Reports", icon: BarChart2 },
-    { id: "settings", label: "Settings", icon: Settings },
-  ];
-
   if (loading) {
     return (
       <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
@@ -692,6 +694,14 @@ function MetaAdsWorkspace({
             <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin text-blue-600" : ""}`} />
           </button>
 
+          {/* AI Campaign Builder Button */}
+          <button
+            onClick={() => router.push("/meta-ads/ai-campaign")}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+          >
+            <Sparkles className="h-4 w-4" /> AI Campaign Studio
+          </button>
+
           {/* New Campaign Button */}
           <button
             onClick={() => setShowCreateModal(true)}
@@ -716,7 +726,13 @@ function MetaAdsWorkspace({
         {META_TABS.map(t => (
           <button
             key={t.id}
-            onClick={() => setActiveTab(t.id)}
+            onClick={() => {
+              if (t.id === "ai-studio") {
+                router.push("/meta-ads/ai-campaign");
+              } else {
+                setActiveTab(t.id);
+              }
+            }}
             className={`flex items-center gap-2 px-3.5 py-3 text-xs font-bold whitespace-nowrap border-b-2 transition-all cursor-pointer ${
               activeTab === t.id ? "border-blue-600 text-blue-700 bg-blue-50/50" : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50"
             }`}

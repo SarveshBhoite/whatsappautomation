@@ -140,6 +140,7 @@ export class AppPromotionCampaignService {
             user_os: userOs,
             device_platforms: ["mobile"],
             publisher_platforms: ["facebook", "instagram", "audience_network"],
+            targeting_automation: { advantage_audience: 1 },
           };
 
           const adSetPayload: any = {
@@ -178,12 +179,25 @@ export class AppPromotionCampaignService {
               adSetPayload
             );
           } catch (asErr: any) {
-            console.warn(`[AppPromotionCampaignService] Retrying AdSet creation with basic promoted_object...`);
+            console.warn(`[AppPromotionCampaignService] Initial AdSet creation warning:`, asErr?.response?.data || asErr.message);
             delete adSetPayload.is_skadnetwork_attribution;
-            adSetResp = await axios.post(
-              `${META_GRAPH_BASE}/${formattedAccountId}/adsets`,
-              adSetPayload
-            );
+            if (asErr?.response?.data?.error?.error_subcode === 1885093 || asErr?.response?.data?.error?.code === 100) {
+              // If Meta App ID is not linked to Play Store URL in Meta Developer Dashboard, retry with object_store_url only
+              adSetPayload.promoted_object = { object_store_url: storeUrl };
+            }
+            try {
+              adSetResp = await axios.post(
+                `${META_GRAPH_BASE}/${formattedAccountId}/adsets`,
+                adSetPayload
+              );
+            } catch (retryErr: any) {
+              console.error(`[AppPromotionCampaignService] AdSet retry error:`, retryErr?.response?.data || retryErr.message);
+              const subcode = asErr?.response?.data?.error?.error_subcode || retryErr?.response?.data?.error?.error_subcode;
+              if (subcode === 1885093) {
+                throw new Error("Application/Object Store URL Mismatch: To run App Promotion ads, please enter your registered Google Play Store or iOS App Store URL linked to your Meta App ID.");
+              }
+              throw new Error(retryErr?.response?.data?.error?.error_user_msg || retryErr?.response?.data?.error?.message || "Failed to create Meta App Promotion Ad Set");
+            }
           }
 
           if (adSetResp?.data?.id) {
@@ -259,16 +273,24 @@ export class AppPromotionCampaignService {
             const utmTags = payload.urlParams || payload.utmParameters || "utm_source=facebook&utm_medium=app_promo";
             adPayload.url_tags = utmTags;
 
-            const adResp = await axios.post(
-              `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
-              adPayload
-            );
-            metaAdId = adResp.data.id;
+            try {
+              const adResp = await axios.post(
+                `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
+                adPayload
+              );
+              metaAdId = adResp.data.id;
+            } catch (adErr: any) {
+              console.warn(`[AppPromotionCampaignService] Ad creation warning:`, adErr.response?.data || adErr.message);
+            }
           }
         }
       } catch (err: any) {
         console.warn("[AppPromotionCampaignService] Graph API error detail:", JSON.stringify(err.response?.data || err.message, null, 2));
-        throw new Error(`Meta Graph API App Promotion Error: ${err.response?.data?.error?.message || err.message}`);
+        const subcode = err.response?.data?.error?.error_subcode;
+        if (subcode === 2859002) {
+          throw new Error("Certification required: Please visit https://facebook.com/certification/nondiscrimination while switched to your Facebook Page profile to certify compliance.");
+        }
+        throw new Error(`Meta Graph API App Promotion Error: ${err.response?.data?.error?.error_user_msg || err.response?.data?.error?.message || err.message}`);
       }
     }
 
