@@ -845,8 +845,10 @@ export default function GoogleAdsPage() {
       try {
         const res = await fetch(`${BACKEND}/api/gmb/config?orgId=${orgId}`);
         const data = await res.json();
-        setIsConnected(!!data.googleRefreshToken);
-        if (data.googleAdsCustomerId) setSelectedCustomerId(data.googleAdsCustomerId.replace(/-/g, ""));
+        const activeCfg = data?.config || data || {};
+        setIsConnected(!!(activeCfg.googleRefreshToken || data?.googleRefreshToken));
+        const adsCid = activeCfg.googleAdsCustomerId || data?.googleAdsCustomerId;
+        if (adsCid) setSelectedCustomerId(adsCid.replace(/-/g, ""));
       } catch { } finally { setConfigLoading(false); }
     })();
   }, [orgId]);

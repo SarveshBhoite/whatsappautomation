@@ -120,7 +120,7 @@ router.get("/config", async (req, res) => {
       config = accounts.find((a: any) => a.isDefault) || accounts[0];
     }
 
-    return res.status(200).json({ config, accounts });
+    return res.status(200).json({ ...(config || {}), config, accounts });
   } catch (error: any) {
     console.error("Error fetching GMB config:", error);
     return res.status(500).json({ error: error.message });
