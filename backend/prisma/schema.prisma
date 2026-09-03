@@ -467,6 +467,9 @@ model GoogleBusinessConfig {
   autoReplyMinRating  Int?         @default(4)
   accountName         String?
   locationName        String?
+  googleEmail         String?
+  googleName          String?
+  googlePicture       String?
   accessToken         String       @default("")
   refreshToken        String?
   tokenExpiresAt      DateTime?

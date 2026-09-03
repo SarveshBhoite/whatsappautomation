@@ -128,7 +128,11 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
       google_ads: {
         connected: hasGoogleAds,
         name: "Google Ads",
-        status: hasGoogleAds ? "Operational" : "Not Configured"
+        status: hasGoogleAds ? "Operational" : "Not Configured",
+        accountEmail: defaultGmb?.googleEmail || null,
+        accountName: defaultGmb?.googleName || null,
+        accountPicture: defaultGmb?.googlePicture || null,
+        customerId: defaultGmb?.googleAdsCustomerId || defaultGmb?.accountId || null
       },
       meta_ads: {
         connected: Boolean(defaultIg?.pageAccessToken),
@@ -143,12 +147,18 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
       youtube: {
         connected: Boolean(defaultYt?.accessToken || defaultYt?.channelId),
         name: "YouTube Channel",
-        status: (defaultYt?.accessToken || defaultYt?.channelId) ? "Operational" : "Not Configured"
+        status: (defaultYt?.accessToken || defaultYt?.channelId) ? "Operational" : "Not Configured",
+        channelName: defaultYt?.channelName || null,
+        channelHandle: defaultYt?.channelHandle || null
       },
       gmb: {
         connected: hasGmb,
         name: "Google Business Profile",
-        status: hasGmb ? "Operational" : "Not Configured"
+        status: hasGmb ? "Operational" : "Not Configured",
+        locationName: defaultGmb?.locationName || null,
+        accountEmail: defaultGmb?.googleEmail || null,
+        accountName: defaultGmb?.googleName || null,
+        accountPicture: defaultGmb?.googlePicture || null
       },
       gmail: {
         connected: Boolean(defaultGmail?.emailAddress && (defaultGmail?.accessToken || defaultGmail?.refreshToken)),

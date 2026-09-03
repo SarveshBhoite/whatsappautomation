@@ -35,6 +35,11 @@ async function addMissingColumn() {
     await prisma.$executeRawUnsafe('ALTER TABLE "Conversation" ADD COLUMN IF NOT EXISTS "phoneNumberId" TEXT;');
     await prisma.$executeRawUnsafe('ALTER TABLE "Conversation" ADD COLUMN IF NOT EXISTS "accountHandle" TEXT;');
 
+    // GoogleBusinessConfig missing columns
+    await prisma.$executeRawUnsafe('ALTER TABLE "GoogleBusinessConfig" ADD COLUMN IF NOT EXISTS "googleEmail" TEXT;');
+    await prisma.$executeRawUnsafe('ALTER TABLE "GoogleBusinessConfig" ADD COLUMN IF NOT EXISTS "googleName" TEXT;');
+    await prisma.$executeRawUnsafe('ALTER TABLE "GoogleBusinessConfig" ADD COLUMN IF NOT EXISTS "googlePicture" TEXT;');
+
     // Drop legacy single-account unique constraints if present in old PostgreSQL DB
     await prisma.$executeRawUnsafe('DROP INDEX IF EXISTS "WhatsAppConfig_organizationId_key" CASCADE;');
     await prisma.$executeRawUnsafe('DROP INDEX IF EXISTS "InstagramConfig_organizationId_key" CASCADE;');

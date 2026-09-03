@@ -200,8 +200,10 @@ router.get("/oauth/connect", (req, res) => {
       return res.status(400).send("GOOGLE_CLIENT_ID is not configured in backend .env");
     }
 
-    // Include GMB, Google Ads, and Google Calendar scopes in one OAuth consent screen
+    // Include GMB, Google Ads, Google Calendar, and userinfo profile scopes in one OAuth consent screen
     const scopes = [
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/business.manage",
       "https://www.googleapis.com/auth/adwords",
       "https://www.googleapis.com/auth/calendar.events",
@@ -258,6 +260,23 @@ router.get("/oauth/callback", async (req, res) => {
     });
 
     const { refresh_token, access_token } = tokenRes.data;
+
+    // Fetch Google User Profile info (name, email, picture)
+    let googleEmail = "";
+    let googleName = "";
+    let googlePicture = "";
+    try {
+      const profileRes = await axios.get("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${access_token}` }
+      });
+      if (profileRes.data) {
+        googleEmail = profileRes.data.email || "";
+        googleName = profileRes.data.name || "";
+        googlePicture = profileRes.data.picture || "";
+      }
+    } catch (profileErr: any) {
+      console.warn("Could not fetch Google user profile:", profileErr.message);
+    }
 
     // Discover all locations under the user's GMB accounts
     let discoveredLocations: { googleLocationId: string, locationName: string }[] = [];
@@ -327,7 +346,10 @@ router.get("/oauth/callback", async (req, res) => {
               googleRefreshToken: refresh_token || match.googleRefreshToken,
               accessToken: access_token || match.accessToken,
               locationName: item.locationName || match.locationName,
-              googleAdsCustomerId: googleAdsCustomerId || match.googleAdsCustomerId
+              googleAdsCustomerId: googleAdsCustomerId || match.googleAdsCustomerId,
+              googleEmail: googleEmail || match.googleEmail,
+              googleName: googleName || match.googleName,
+              googlePicture: googlePicture || match.googlePicture
             }
           });
         } else {
@@ -340,6 +362,9 @@ router.get("/oauth/callback", async (req, res) => {
               googleRefreshToken: refresh_token || "",
               accessToken: access_token || "",
               googleAdsCustomerId: googleAdsCustomerId || "",
+              googleEmail: googleEmail || "",
+              googleName: googleName || "",
+              googlePicture: googlePicture || "",
               autoReplyEnabled: true,
               autoReplyMinRating: 4,
               autoReplyTemplate: "Thank you so much for your review! We value your feedback.",
@@ -350,7 +375,7 @@ router.get("/oauth/callback", async (req, res) => {
         }
       }
     } else {
-      // Fallback: Upsert default config with tokens
+      // Fallback: Upsert default config with tokens & profile
       const existing = existingConfigs[0];
       if (existing) {
         await (prisma as any).googleBusinessConfig.update({
@@ -358,7 +383,10 @@ router.get("/oauth/callback", async (req, res) => {
           data: {
             googleRefreshToken: refresh_token || existing.googleRefreshToken,
             accessToken: access_token || existing.accessToken,
-            googleAdsCustomerId: googleAdsCustomerId || existing.googleAdsCustomerId
+            googleAdsCustomerId: googleAdsCustomerId || existing.googleAdsCustomerId,
+            googleEmail: googleEmail || existing.googleEmail,
+            googleName: googleName || existing.googleName,
+            googlePicture: googlePicture || existing.googlePicture
           }
         });
       } else {
@@ -369,6 +397,9 @@ router.get("/oauth/callback", async (req, res) => {
             accessToken: access_token || "",
             locationName: "Google Business Profile",
             googleAdsCustomerId: googleAdsCustomerId || "",
+            googleEmail: googleEmail || "",
+            googleName: googleName || "",
+            googlePicture: googlePicture || "",
             autoReplyEnabled: true,
             autoReplyMinRating: 4,
             autoReplyTemplate: "Thank you so much for your review! We value your feedback.",
@@ -389,6 +420,7 @@ router.get("/oauth/callback", async (req, res) => {
         data: {
           accessToken: access_token || existingCal.accessToken,
           refreshToken: refresh_token || existingCal.refreshToken,
+          googleEmail: googleEmail || existingCal.googleEmail,
           isActive: true
         }
       });
@@ -396,7 +428,7 @@ router.get("/oauth/callback", async (req, res) => {
       await (prisma as any).googleCalendarConfig.create({
         data: {
           organizationId: orgId,
-          googleEmail: "google_account@company.com",
+          googleEmail: googleEmail || "google_account@company.com",
           accessToken: access_token || "",
           refreshToken: refresh_token || null,
           selectedCalendarId: "primary",
