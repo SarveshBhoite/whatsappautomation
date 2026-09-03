@@ -19,6 +19,7 @@ import ComparisonMatrix from "@/components/home/ComparisonMatrix";
 import RoiCalculator from "@/components/home/RoiCalculator";
 import FaqAccordion from "@/components/home/FaqAccordion";
 import BottomCta from "@/components/home/BottomCta";
+import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -390,36 +391,7 @@ export default function LandingPage() {
       </main>
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer className="w-full border-t border-slate-200 bg-white py-10 sm:py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-8 text-sm text-slate-500">
-          {/* Brand Info */}
-          <div className="flex flex-col gap-1.5 text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start gap-2.5">
-              <div className="h-7 w-7 rounded-lg overflow-hidden border border-slate-200">
-                <img src="/icon.jpeg" alt="Logo" className="h-full w-full object-cover" />
-              </div>
-              <span className="font-extrabold text-base text-slate-900">Jisnu CRM</span>
-            </div>
-            <p className="text-xs text-slate-500">
-              © {new Date().getFullYear()} Jisnu CRM. All rights reserved.
-            </p>
-            <p className="text-[11px] text-slate-400">
-              WhatsApp Business API, Google Ads &amp; Google Business Profile Automation Suite.
-            </p>
-          </div>
-
-          {/* Links & Compliance */}
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 font-semibold text-xs text-slate-600">
-            <a href="#cockpit" className="hover:text-brand-blue transition-colors">Cockpit</a>
-            <a href="#workflow" className="hover:text-brand-blue transition-colors">Workflow</a>
-            <a href="#modules" className="hover:text-brand-blue transition-colors">Modules</a>
-            <a href="#bento-features" className="hover:text-brand-blue transition-colors">Features</a>
-            <a href="#comparison" className="hover:text-brand-blue transition-colors">Comparison</a>
-            <Link href="/privacy" className="hover:text-brand-blue transition-colors">Privacy Policy</Link>
-            <Link href="/terms" className="hover:text-brand-blue transition-colors">Terms of Service</Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
