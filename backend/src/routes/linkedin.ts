@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import axios from "axios";
 import prisma from "../utils/prisma";
 import {
   LinkedInService,
@@ -149,10 +150,37 @@ router.get("/profile", async (req: Request, res: Response) => {
       profile = await LinkedInSyncService.syncPersonalProfile(organizationId);
     }
 
+    // Enhance personal profile with real metrics if available (e.g. Followers)
+    let followersCount: number | null = null;
+    try {
+      if (config.accessToken && config.memberId) {
+        const memberUrn = config.memberId.startsWith("urn:li:person:") ? config.memberId : `urn:li:person:${config.memberId}`;
+        const headers = {
+          Authorization: `Bearer ${config.accessToken}`,
+          "LinkedIn-Version": "202607",
+          "X-Restli-Protocol-Version": "2.0.0"
+        };
+        const encodedMemberUrn = encodeURIComponent(memberUrn);
+        const netUrl = `https://api.linkedin.com/rest/networkSizes/${encodedMemberUrn}?edgeType=MEMBER_FOLLOWED_BY_MEMBER`;
+        const netRes = await axios.get(netUrl, { headers, timeout: 5000 }).catch((err) => {
+          console.log(`[LINKEDIN PERSONAL] /rest/networkSizes query status: ${err.response?.status || err.message}`);
+          return null;
+        });
+        if (netRes?.data?.firstDegreeSize !== undefined) {
+          followersCount = Number(netRes.data.firstDegreeSize);
+          console.log(`[LINKEDIN PERSONAL] Live Followers Count: ${followersCount}`);
+        }
+      }
+    } catch (netErr: any) {
+      // Clean fallback, no fake numbers
+    }
+
+    console.log(`[LINKEDIN PERSONAL] Returning profile for ${profile?.name || config.memberName || organizationId}: Followers = ${followersCount ?? "N/A (unsupported by scope)"}`);
+
     return res.status(200).json({
       connected: true,
-      profile,
-      config
+      profile: profile ? { ...profile, followersCount } : null,
+      config: config ? { ...config, followersCount } : null
     });
   } catch (error: any) {
     const status = error.response?.status || 500;
@@ -255,6 +283,96 @@ router.post("/posts/sync-engagement", async (req: Request, res: Response) => {
       success: false,
       error: error.message || "Failed to synchronize post engagement."
     });
+  }
+});
+
+// 3.1 GET /api/linkedin/posts/comments/:postUrn - Fetch live comments on personal post
+router.get("/posts/comments/:postUrn", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postUrn = (req.params.postUrn as string) || "";
+    let config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+
+    // Fallback to active access token if needed
+    if (!config || !config.accessToken) {
+      config = await prisma.linkedInConfig.findFirst({
+        where: { accessToken: { not: "" } },
+        orderBy: { updatedAt: "desc" }
+      });
+    }
+
+    if (!config || !config.accessToken) {
+      return res.status(200).json({ success: true, comments: [] });
+    }
+
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const comments = await orgProvider.getComments(config.accessToken, postUrn);
+    return res.status(200).json({ success: true, comments });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to fetch comments", details: err.message });
+  }
+});
+
+// 3.2 POST /api/linkedin/posts/comments/:postUrn - Reply/comment on personal post
+router.post("/posts/comments/:postUrn", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postUrn = (req.params.postUrn as string) || "";
+    const { message } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "Comment message is required." });
+    }
+
+    let config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+    if (!config || !config.accessToken) {
+      config = await prisma.linkedInConfig.findFirst({
+        where: { accessToken: { not: "" } },
+        orderBy: { updatedAt: "desc" }
+      });
+    }
+
+    if (!config || !config.accessToken) {
+      return res.status(401).json({ error: "LinkedIn account not connected." });
+    }
+
+    const authorUrn = config.memberId
+      ? (config.memberId.startsWith("urn:li:person:") ? config.memberId : `urn:li:person:${config.memberId}`)
+      : (config.authorUrn || `urn:li:person:me`);
+
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const result = await orgProvider.replyToComment(config.accessToken, postUrn, authorUrn, message.trim());
+
+    return res.status(200).json({ success: true, result });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to post comment", details: err.message });
+  }
+});
+
+// 3.3 DELETE /api/linkedin/posts/comments/:postUrn/:commentUrn - Delete comment on personal post
+router.delete("/posts/comments/:postUrn/:commentUrn", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postUrn = (req.params.postUrn as string) || "";
+    const commentUrn = (req.params.commentUrn as string) || "";
+
+    let config = await prisma.linkedInConfig.findUnique({ where: { organizationId } });
+    if (!config || !config.accessToken) {
+      config = await prisma.linkedInConfig.findFirst({
+        where: { accessToken: { not: "" } },
+        orderBy: { updatedAt: "desc" }
+      });
+    }
+
+    if (!config || !config.accessToken) {
+      return res.status(401).json({ error: "LinkedIn account not connected." });
+    }
+
+    const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
+    const result = await orgProvider.deleteComment(config.accessToken, postUrn, commentUrn);
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to delete comment", details: err.message });
   }
 });
 
@@ -1058,10 +1176,29 @@ router.get("/org/profile", async (req: Request, res: Response) => {
   }
 });
 
+// Feature flag: set to true to disable remote LinkedIn REST API posts fetching for organization
+// and return local database posts or empty list, saving API quota.
+const DISABLE_ORG_POSTS_FETCH = true;
+
 // 3. GET /api/linkedin/org/posts
 router.get("/org/posts", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+
+    if (DISABLE_ORG_POSTS_FETCH) {
+      console.log(`[LINKEDIN ORG] Live company posts fetching is currently PAUSED to save API quota. Serving local posts.`);
+      const localPosts = await prisma.linkedInPost.findMany({
+        where: { organizationId },
+        orderBy: { publishedAt: "desc" }
+      });
+      return res.status(200).json({
+        permissionGranted: true,
+        paused: true,
+        message: "Live company posts fetching is paused to save API quota. You can turn this back on anytime.",
+        posts: localPosts || []
+      });
+    }
+
     const orgProvider = LinkedInProviderFactory.getOrganizationProvider();
     const result = await orgProvider.getPosts(organizationId);
     return res.status(200).json(result);
@@ -2144,6 +2281,7 @@ router.get("/ai/history", async (req: Request, res: Response) => {
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+
 
 // Multer memory storage for direct cloud upload to ImageKit
 const memoryStorage = multer.memoryStorage();

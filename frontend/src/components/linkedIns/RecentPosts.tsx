@@ -10,7 +10,8 @@ import {
   ThumbsUp,
   MessageSquare,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Send
 } from "lucide-react";
 import { MediaPreview } from "@/components/linkedIns/MediaPreview";
 
@@ -86,6 +87,84 @@ export function RecentPosts({
       }
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const [selectedPostForComments, setSelectedPostForComments] = useState<PostItem | null>(null);
+  const [comments, setComments] = useState<any[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [commentReply, setCommentReply] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Fetch comments for personal post
+  const handleOpenComments = async (post: PostItem) => {
+    setSelectedPostForComments(post);
+    setLoadingComments(true);
+    try {
+      const postUrn = post.linkedinPostId || post.id;
+      const res = await fetch(`/api/linkedin/posts/comments/${encodeURIComponent(postUrn)}`, {
+        headers: { "x-organization-id": organizationId }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const loadedComments = data.comments || [];
+        setComments(loadedComments);
+      }
+    } catch (err) {
+      console.error("[LINKEDIN] Error loading comments:", err);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  // Submit comment reply
+  const handlePostComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentReply.trim() || !selectedPostForComments) return;
+
+    setSubmittingComment(true);
+    try {
+      const postUrn = selectedPostForComments.linkedinPostId || selectedPostForComments.id;
+      const res = await fetch(`/api/linkedin/posts/comments/${encodeURIComponent(postUrn)}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId
+        },
+        body: JSON.stringify({ message: commentReply.trim() })
+      });
+      if (res.ok) {
+        setCommentReply("");
+        handleOpenComments(selectedPostForComments);
+        if (onRefresh) onRefresh();
+      }
+    } catch (err: any) {
+      alert(`Error posting comment: ${err.message}`);
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  // Delete comment
+  const handleDeleteComment = async (commentUrn: string) => {
+    if (!confirm("Are you sure you want to delete this comment?")) return;
+    if (!selectedPostForComments) return;
+
+    try {
+      const postUrn = selectedPostForComments.linkedinPostId || selectedPostForComments.id;
+      const res = await fetch(
+        `/api/linkedin/posts/comments/${encodeURIComponent(postUrn)}/${encodeURIComponent(commentUrn)}`,
+        {
+          method: "DELETE",
+          headers: { "x-organization-id": organizationId }
+        }
+      );
+      if (res.ok) {
+        handleOpenComments(selectedPostForComments);
+        if (onRefresh) onRefresh();
+      }
+    } catch (err: any) {
+      alert(`Error deleting comment: ${err.message}`);
     }
   };
 
@@ -192,13 +271,15 @@ export function RecentPosts({
                     <span>{post.likesCount ?? 0}</span>
                   </div>
 
-                  <div
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50/80 border border-purple-200 text-purple-700 text-xs font-bold shadow-2xs"
-                    title="Live Comments"
+                  <button
+                    type="button"
+                    onClick={() => handleOpenComments(post)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50/80 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                    title="View & Reply to Comments"
                   >
                     <MessageSquare className="h-3.5 w-3.5 fill-purple-700/20" />
-                    <span>{post.commentsCount ?? 0}</span>
-                  </div>
+                    <span>{post.commentsCount ?? 0} Comments</span>
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
@@ -228,6 +309,67 @@ export function RecentPosts({
               Compose First Post
             </button>
           )}
+        </div>
+      )}
+
+      {/* Moderate Comments Modal Drawer */}
+      {selectedPostForComments && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900">Comments Moderation</h3>
+                <p className="text-[11px] text-slate-500">Read & Reply to Post Comments</p>
+              </div>
+              <button
+                onClick={() => setSelectedPostForComments(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {loadingComments ? (
+                <div className="py-8 text-center text-xs text-slate-400">Loading live comments...</div>
+              ) : comments.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">No comments found on this post yet.</div>
+              ) : (
+                comments.map((c) => (
+                  <div key={c.id || c.commentUrn} className="p-3.5 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900">{c.actorName || "LinkedIn Member"}</span>
+                      <button
+                        onClick={() => handleDeleteComment(c.commentUrn || c.id)}
+                        className="text-slate-400 hover:text-red-600 text-xs cursor-pointer"
+                        title="Delete comment"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-700">{c.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <form onSubmit={handlePostComment} className="p-4 border-t border-slate-100 bg-slate-50 flex items-center gap-2">
+              <input
+                type="text"
+                value={commentReply}
+                onChange={(e) => setCommentReply(e.target.value)}
+                placeholder="Reply to post..."
+                className="flex-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#0A66C2]"
+              />
+              <button
+                type="submit"
+                disabled={submittingComment || !commentReply.trim()}
+                className="px-4 py-2 bg-[#0A66C2] text-white font-bold text-xs rounded-xl disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Send className="h-3 w-3" /> Reply
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>

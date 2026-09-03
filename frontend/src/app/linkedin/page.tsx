@@ -74,6 +74,9 @@ interface LinkedInProfileData {
   picture?: string;
   vanityName?: string;
   profileUrl?: string;
+  about?: string;
+  description?: string;
+  followersCount?: number | null;
   locale?: string;
   updatedAt?: string;
 }
@@ -102,6 +105,9 @@ interface LinkedInConfigData {
   companyName?: string;
   companyLogo?: string;
   website?: string;
+  about?: string;
+  description?: string;
+  followersCount?: number | null;
   updatedAt?: string;
   profile?: LinkedInProfileData;
   syncLogs?: LinkedInSyncLog[];
@@ -122,11 +128,15 @@ interface LinkedInOrgConfigData {
   id?: string;
   organizationId?: string;
   companyId?: string;
+  organizationUrn?: string;
   companyName?: string;
   vanityName?: string;
   companyLogo?: string;
+  coverPhoto?: string;
   website?: string;
   industry?: string;
+  organizationType?: string;
+  foundedYear?: number | string;
   description?: string;
   followersCount?: number;
   accessToken?: string;
@@ -138,12 +148,16 @@ interface LinkedInOrgConfigData {
 interface LinkedInOrgProfileData {
   id?: string;
   companyId?: string;
+  organizationUrn?: string;
   companyName?: string;
   vanityName?: string;
   vanityUrl?: string;
   companyLogo?: string;
+  coverPhoto?: string;
   website?: string;
   industry?: string;
+  organizationType?: string;
+  foundedYear?: number | string;
   description?: string;
   localizedName?: string;
   followersCount?: number;
@@ -325,11 +339,15 @@ function LinkedInPageContent() {
     return DEFAULT_ORG_ID;
   };
 
-  const [activeOrgId, setActiveOrgId] = useState<string>(DEFAULT_ORG_ID);
+  const [activeOrgId, setActiveOrgId] = useState<string>(activeTab === "company" ? DEFAULT_ORG_ID : "crm1");
 
   useEffect(() => {
-    setActiveOrgId(getActiveOrgId());
-  }, []);
+    if (activeTab === "company") {
+      setActiveOrgId(getActiveOrgId());
+    } else {
+      setActiveOrgId("crm1");
+    }
+  }, [activeTab]);
 
   // Fetch CRM1 LinkedIn Configuration, Profile & Logs
   const fetchConfig = async () => {
@@ -340,8 +358,10 @@ function LinkedInPageContent() {
       });
       if (res.ok) {
         const data = await res.json();
-        setConfig(data);
-        if (data.profile) setProfile(data.profile);
+        setConfig((prev) => ({ ...prev, ...data, followersCount: prev.followersCount ?? data.followersCount }));
+        if (data.profile) {
+          setProfile((prev) => ({ ...prev, ...data.profile, followersCount: prev?.followersCount ?? data.profile?.followersCount }));
+        }
         if (data.syncLogs) setSyncLogs(data.syncLogs);
       }
     } catch (err) {
@@ -376,8 +396,8 @@ function LinkedInPageContent() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.profile) setProfile(data.profile);
-        if (data.config) setConfig(data.config);
+        if (data.profile) setProfile((prev) => ({ ...prev, ...data.profile }));
+        if (data.config) setConfig((prev) => ({ ...prev, ...data.config }));
       }
     } catch (err) {
       console.error("[LINKEDIN] Failed to fetch profile:", err);

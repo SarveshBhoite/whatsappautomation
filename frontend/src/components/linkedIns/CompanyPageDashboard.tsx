@@ -27,7 +27,12 @@ import {
   Eye,
   Clock,
   LayoutDashboard,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Copy,
+  Check,
+  MapPin,
+  Building,
+  CalendarDays
 } from "lucide-react";
 import { MediaPreview, detectMediaType } from "@/components/linkedIns/MediaPreview";
 import { PostComposer } from "@/components/linkedIns/PostComposer";
@@ -52,12 +57,16 @@ const LinkedInIcon = ({ className = "h-5 w-5", ...props }: React.SVGProps<SVGSVG
 
 export interface CompanyProfile {
   companyId?: string;
+  organizationUrn?: string;
   companyName?: string;
   vanityName?: string;
   vanityUrl?: string;
   companyLogo?: string;
+  coverPhoto?: string;
   website?: string;
   industry?: string;
+  organizationType?: string;
+  foundedYear?: number | string;
   description?: string;
   headquarters?: string;
   specialties?: string[];
@@ -137,16 +146,30 @@ export function CompanyPageDashboard({
 
   const companyName = profile?.companyName || config?.companyName || "";
   const companyId = profile?.companyId || config?.companyId || "";
+  const organizationUrn = profile?.organizationUrn || (companyId ? `urn:li:organization:${companyId}` : "");
   const vanityName = profile?.vanityName || config?.vanityName || "";
   const vanityUrl = profile?.vanityUrl || (vanityName ? `https://www.linkedin.com/company/${vanityName}` : "");
   const companyLogo = profile?.companyLogo || config?.companyLogo || "";
+  const coverPhoto = profile?.coverPhoto || config?.coverPhoto || "";
   const website = profile?.website || config?.website || "";
   const industry = profile?.industry || config?.industry || "";
+  const organizationType = profile?.organizationType || config?.organizationType || "";
+  const foundedYear = profile?.foundedYear || config?.foundedYear || "";
   const description = profile?.description || config?.description || "";
   const headquarters = profile?.headquarters || "";
   const specialties = profile?.specialties || [];
   const staffCountRange = profile?.staffCountRange || "";
   const followersCount = profile?.followersCount ?? config?.followersCount;
+
+  const [copiedUrn, setCopiedUrn] = useState(false);
+  const handleCopyUrn = () => {
+    if (!organizationUrn) return;
+    navigator.clipboard.writeText(organizationUrn);
+    setCopiedUrn(true);
+    setTimeout(() => setCopiedUrn(false), 2000);
+  };
+
+  const [postsSyncPaused, setPostsSyncPaused] = useState<boolean>(true);
 
   // Fetch company posts
   const fetchOrgPosts = async () => {
@@ -159,57 +182,65 @@ export function CompanyPageDashboard({
       if (res.ok) {
         const data = await res.json();
         console.log(`[CRM3] Posts response:`, data);
+        if (data.paused) {
+          setPostsSyncPaused(true);
+        } else {
+          setPostsSyncPaused(false);
+        }
+
         if (Array.isArray(data.posts)) {
           setPosts(data.posts);
 
-          // Asynchronously enrich recent posts with live reactions and comment counts
-          const visiblePosts = data.posts.slice(0, 30);
-          Promise.allSettled(
-            visiblePosts.map(async (p: CompanyPost) => {
-              const postUrn = p.linkedinPostId || p.id;
-              if (!postUrn) return null;
-              try {
-                const metaRes = await fetch(`${API_BASE_URL}/api/linkedin/org/social-metadata?postUrn=${encodeURIComponent(postUrn)}`, {
-                  headers: { "x-organization-id": organizationId }
-                });
-                if (metaRes.ok) {
-                  const metaData = await metaRes.json();
-                  return {
-                    id: p.id,
-                    likesCount: metaData.likesCount || 0,
-                    commentsCount: metaData.commentsCount || 0
-                  };
-                }
-              } catch (err) {}
-              return null;
-            })
-          ).then((results) => {
-            const updates: Record<string, { likesCount: number; commentsCount: number }> = {};
-            results.forEach((r) => {
-              if (r.status === "fulfilled" && r.value) {
-                updates[r.value.id] = {
-                  likesCount: r.value.likesCount,
-                  commentsCount: r.value.commentsCount
-                };
-              }
-            });
-
-            if (Object.keys(updates).length > 0) {
-              setPosts((currentPosts) =>
-                currentPosts.map((p) => {
-                  const update = updates[p.id];
-                  if (update) {
+          // Only enrich reactions if not paused and posts exist
+          if (!data.paused && data.posts.length > 0) {
+            const visiblePosts = data.posts.slice(0, 30);
+            Promise.allSettled(
+              visiblePosts.map(async (p: CompanyPost) => {
+                const postUrn = p.linkedinPostId || p.id;
+                if (!postUrn) return null;
+                try {
+                  const metaRes = await fetch(`${API_BASE_URL}/api/linkedin/org/social-metadata?postUrn=${encodeURIComponent(postUrn)}`, {
+                    headers: { "x-organization-id": organizationId }
+                  });
+                  if (metaRes.ok) {
+                    const metaData = await metaRes.json();
                     return {
-                      ...p,
-                      likesCount: update.likesCount,
-                      commentsCount: update.commentsCount
+                      id: p.id,
+                      likesCount: metaData.likesCount || 0,
+                      commentsCount: metaData.commentsCount || 0
                     };
                   }
-                  return p;
-                })
-              );
-            }
-          });
+                } catch (err) {}
+                return null;
+              })
+            ).then((results) => {
+              const updates: Record<string, { likesCount: number; commentsCount: number }> = {};
+              results.forEach((r) => {
+                if (r.status === "fulfilled" && r.value) {
+                  updates[r.value.id] = {
+                    likesCount: r.value.likesCount,
+                    commentsCount: r.value.commentsCount
+                  };
+                }
+              });
+
+              if (Object.keys(updates).length > 0) {
+                setPosts((currentPosts) =>
+                  currentPosts.map((p) => {
+                    const update = updates[p.id];
+                    if (update) {
+                      return {
+                        ...p,
+                        likesCount: update.likesCount,
+                        commentsCount: update.commentsCount
+                      };
+                    }
+                    return p;
+                  })
+                );
+              }
+            });
+          }
         }
       }
     } catch (err) {
@@ -421,206 +452,278 @@ export function CompanyPageDashboard({
   return (
     <div className="space-y-6 font-sans">
       {/* 1. Header Banner & Switcher */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden space-y-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-blue-50 to-slate-100 border border-slate-200 flex items-center justify-center text-[#0A66C2] overflow-hidden shrink-0 shadow-xs relative">
-              {companyLogo ? (
-                <img
-                  src={companyLogo}
-                  alt={companyName || "Company Logo"}
-                  className="h-full w-full object-contain p-1"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = "none";
-                  }}
-                />
-              ) : (
-                <Building2 className="h-8 w-8 text-[#0A66C2]" />
+      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm relative overflow-hidden space-y-0">
+        {/* Cover Photo Banner (Rendered when provided by API, or sleek branded gradient placeholder) */}
+        <div className="h-32 sm:h-44 w-full bg-gradient-to-r from-blue-900 via-[#0A66C2] to-slate-800 relative overflow-hidden">
+          {coverPhoto ? (
+            <img
+              src={coverPhoto}
+              alt={`${companyName} Cover Banner`}
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = "none";
+              }}
+            />
+          ) : (
+            <div className="absolute inset-0 opacity-15 flex items-center justify-end p-6 pointer-events-none">
+              <Building2 className="h-32 w-32 text-white" />
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-6 -mt-12 sm:-mt-16 relative z-10">
+            <div className="flex items-end gap-4">
+              <div className="h-20 w-20 rounded-2xl bg-white border-2 border-white shadow-md flex items-center justify-center text-[#0A66C2] overflow-hidden shrink-0 relative">
+                {companyLogo ? (
+                  <img
+                    src={companyLogo}
+                    alt={companyName || "Company Logo"}
+                    className="h-full w-full object-contain p-1.5"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <Building2 className="h-10 w-10 text-[#0A66C2]" />
+                )}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{companyName || "LinkedIn Organization"}</h1>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Verified Page
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 flex items-center gap-2 flex-wrap font-medium">
+                  {industry && <span className="font-semibold text-slate-700">{industry}</span>}
+                  {companyId && (
+                    <span className="flex items-center gap-1">
+                      <span>• ID:</span>
+                      <code className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-mono text-[11px]">{companyId}</code>
+                    </span>
+                  )}
+                  {organizationUrn && (
+                    <button
+                      type="button"
+                      onClick={handleCopyUrn}
+                      className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                      title="Copy Organization URN"
+                    >
+                      {copiedUrn ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                      <span>{copiedUrn ? "URN Copied!" : organizationUrn}</span>
+                    </button>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap pt-2 sm:pt-0">
+              {onSwitchToPersonal && (
+                <button
+                  type="button"
+                  onClick={onSwitchToPersonal}
+                  className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0A66C2] border border-blue-200 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-xs"
+                >
+                  <span>Go to Personal Profile</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+
+              {onRefresh && (
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  className="p-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold cursor-pointer transition-all shadow-xs"
+                  title="Refresh Company Profile"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              )}
+
+              {onDisconnect && (
+                <button
+                  type="button"
+                  onClick={onDisconnect}
+                  className="px-4 py-2.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-xs"
+                >
+                  <Unplug className="h-4 w-4" /> Disconnect Page
+                </button>
               )}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{companyName || "LinkedIn Organization"}</h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Verified Page
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap font-medium">
-                {industry && <span className="font-semibold text-slate-700">{industry}</span>}
-                {companyId && <span>• ID: <code className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-mono text-[11px]">{companyId}</code></span>}
+          </div>
+
+          {/* Company Overview Description (Rendered only when API provides it) */}
+          {description && (
+            <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-4.5">
+              <p className="text-xs sm:text-sm text-slate-700 leading-relaxed max-w-4xl">
+                {description}
+              </p>
+            </div>
+          )}
+
+          {/* Responsive Company Overview Information Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* 1. Industry */}
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Industry</span>
+              <p className="text-xs font-bold text-slate-900 truncate">{industry || "—"}</p>
+            </div>
+
+            {/* 2. Organization Type */}
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <Building className="h-3 w-3 text-slate-400" /> Organization Type
+              </span>
+              <p className="text-xs font-bold text-slate-900 truncate">{organizationType || "—"}</p>
+            </div>
+
+            {/* 3. Company Size */}
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Company Size</span>
+              <p className="text-xs font-bold text-slate-900 truncate">{staffCountRange ? `${staffCountRange} employees` : "—"}</p>
+            </div>
+
+            {/* 4. Founded */}
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <CalendarDays className="h-3 w-3 text-slate-400" /> Founded
+              </span>
+              <p className="text-xs font-bold text-slate-900 truncate">{foundedYear ? `Founded in ${foundedYear}` : "—"}</p>
+            </div>
+
+            {/* 5. Headquarters / Location */}
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <MapPin className="h-3 w-3 text-slate-400" /> Headquarters
+              </span>
+              <p className="text-xs font-bold text-slate-900 truncate">{headquarters || "—"}</p>
+            </div>
+
+            {/* 6. Website */}
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Website</span>
+              {website ? (
+                <a
+                  href={website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 truncate"
+                >
+                  <Globe className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{website.replace(/^https?:\/\//, "")}</span>
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+              ) : (
+                <p className="text-xs font-bold text-slate-400">—</p>
+              )}
+            </div>
+
+            {/* 7. LinkedIn URL / Vanity */}
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LinkedIn URL</span>
+              {vanityUrl ? (
+                <a
+                  href={vanityUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-bold text-[#0A66C2] hover:underline flex items-center gap-1 truncate"
+                >
+                  <LinkedInIcon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">linkedin.com/company/{vanityName || "page"}</span>
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+              ) : (
+                <p className="text-xs font-bold text-slate-400">—</p>
+              )}
+            </div>
+
+            {/* 8. Organization URN */}
+            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Organization URN</span>
+              <p className="text-xs font-mono font-bold text-slate-800 truncate" title={organizationUrn || ""}>
+                {organizationUrn || (companyId ? `urn:li:organization:${companyId}` : "—")}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {onSwitchToPersonal && (
-              <button
-                type="button"
-                onClick={onSwitchToPersonal}
-                className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0A66C2] border border-blue-200 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-xs"
-              >
-                <span>Go to Personal Profile</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            )}
-
-            {onRefresh && (
-              <button
-                type="button"
-                onClick={onRefresh}
-                className="p-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold cursor-pointer transition-all shadow-xs"
-                title="Refresh Company Profile"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </button>
-            )}
-
-            {onDisconnect && (
-              <button
-                type="button"
-                onClick={onDisconnect}
-                className="px-4 py-2.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-xs"
-              >
-                <Unplug className="h-4 w-4" /> Disconnect Page
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Company Overview Description (Rendered only when API provides it) */}
-        {description && (
-          <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-4.5">
-            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed max-w-4xl">
-              {description}
-            </p>
-          </div>
-        )}
-
-        {/* Responsive Company Overview Information Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {industry && (
-            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Industry</span>
-              <p className="text-xs font-bold text-slate-900 truncate">{industry}</p>
+          {/* Specialties Tags */}
+          {specialties && specialties.length > 0 && (
+            <div className="pt-2 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Specialties:</span>
+              {specialties.map((spec, idx) => (
+                <span
+                  key={idx}
+                  className="px-2.5 py-0.5 rounded-lg bg-slate-100 border border-slate-200/80 text-slate-700 text-[11px] font-medium"
+                >
+                  {spec}
+                </span>
+              ))}
             </div>
           )}
 
-          {staffCountRange && (
-            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Company Size</span>
-              <p className="text-xs font-bold text-slate-900 truncate">{staffCountRange} employees</p>
-            </div>
-          )}
-
-          {headquarters && (
-            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Headquarters</span>
-              <p className="text-xs font-bold text-slate-900 truncate">{headquarters}</p>
-            </div>
-          )}
-
-          {website && (
-            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Website</span>
-              <a
-                href={website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 truncate"
-              >
-                <Globe className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{website.replace(/^https?:\/\//, "")}</span>
-                <ExternalLink className="h-3 w-3 shrink-0" />
-              </a>
-            </div>
-          )}
-
-          {vanityUrl && (
-            <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-3.5 space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LinkedIn URL</span>
-              <a
-                href={vanityUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-bold text-[#0A66C2] hover:underline flex items-center gap-1 truncate"
-              >
-                <LinkedInIcon className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">linkedin.com/company/{vanityName || "page"}</span>
-                <ExternalLink className="h-3 w-3 shrink-0" />
-              </a>
-            </div>
-          )}
-        </div>
-
-        {/* Specialties Tags */}
-        {specialties && specialties.length > 0 && (
-          <div className="pt-2 flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Specialties:</span>
-            {specialties.map((spec, idx) => (
-              <span
-                key={idx}
-                className="px-2.5 py-0.5 rounded-lg bg-slate-100 border border-slate-200/80 text-slate-700 text-[11px] font-medium"
-              >
-                {spec}
+          {/* 2. Key Metrics Widgets */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 border-t border-slate-100">
+            <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-[#0A66C2]" /> Total Followers
               </span>
-            ))}
-          </div>
-        )}
+              <p className="text-2xl font-black text-slate-900">
+                {followersCount !== undefined && followersCount !== null ? followersCount.toLocaleString() : "—"}
+              </p>
+              <p className="text-[10px] text-slate-400">Official Page Follower Count</p>
+            </div>
 
-        {/* 2. Key Metrics Widgets */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6">
-          <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-[#0A66C2]" /> Total Followers
-            </span>
-            <p className="text-2xl font-black text-slate-900">
-              {followersCount !== undefined && followersCount !== null ? followersCount.toLocaleString() : "—"}
-            </p>
-            <p className="text-[10px] text-slate-400">Official Page Follower Count</p>
-          </div>
+            <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <BarChart3 className="h-3.5 w-3.5 text-emerald-600" /> Page Views
+              </span>
+              <p className="text-2xl font-black text-slate-900">
+                {analyticsLoading ? (
+                  "..."
+                ) : analyticsError ? (
+                  <span className="text-sm font-semibold text-slate-400">Unavailable</span>
+                ) : pageAnalytics && typeof pageAnalytics.views === "number" ? (
+                  pageAnalytics.views.toLocaleString()
+                ) : (
+                  "—"
+                )}
+              </p>
+              <p className="text-[10px] text-slate-400">Total Page Impressions</p>
+            </div>
 
-          <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5 text-emerald-600" /> Page Views
-            </span>
-            <p className="text-2xl font-black text-slate-900">
-              {analyticsLoading ? (
-                "..."
-              ) : analyticsError ? (
-                <span className="text-sm font-semibold text-slate-400">Unavailable</span>
-              ) : pageAnalytics && typeof pageAnalytics.views === "number" ? (
-                pageAnalytics.views.toLocaleString()
-              ) : (
-                "—"
-              )}
-            </p>
-            <p className="text-[10px] text-slate-400">Total Page Impressions</p>
-          </div>
+            <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5 text-indigo-600" /> Unique Visitors
+              </span>
+              <p className="text-2xl font-black text-slate-900">
+                {analyticsLoading ? (
+                  "..."
+                ) : analyticsError ? (
+                  <span className="text-sm font-semibold text-slate-400">Unavailable</span>
+                ) : pageAnalytics && typeof pageAnalytics.uniqueViews === "number" ? (
+                  pageAnalytics.uniqueViews.toLocaleString()
+                ) : (
+                  "—"
+                )}
+              </p>
+              <p className="text-[10px] text-slate-400">Unique Page Visitors</p>
+            </div>
 
-          <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5 text-indigo-600" /> Unique Visitors
-            </span>
-            <p className="text-2xl font-black text-slate-900">
-              {analyticsLoading ? (
-                "..."
-              ) : analyticsError ? (
-                <span className="text-sm font-semibold text-slate-400">Unavailable</span>
-              ) : pageAnalytics && typeof pageAnalytics.uniqueViews === "number" ? (
-                pageAnalytics.uniqueViews.toLocaleString()
-              ) : (
-                "—"
-              )}
-            </p>
-            <p className="text-[10px] text-slate-400">Unique Page Visitors</p>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-1">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Share2 className="h-3.5 w-3.5 text-purple-600" /> Company Posts
-            </span>
-            <p className="text-2xl font-black text-slate-900">{posts.length}</p>
-            <p className="text-[10px] text-slate-400">Active Live Posts</p>
+            <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Share2 className="h-3.5 w-3.5 text-purple-600" /> Company Posts
+                </span>
+                {postsSyncPaused && (
+                  <span className="px-1.5 py-0.5 text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 rounded-md uppercase">
+                    Paused
+                  </span>
+                )}
+              </div>
+              <p className="text-2xl font-black text-slate-900">{posts.length}</p>
+              <p className="text-[10px] text-slate-400">{postsSyncPaused ? "Live Sync Paused (Quota Saved)" : "Active Live Posts"}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -782,8 +885,14 @@ export function CompanyPageDashboard({
             ) : posts.length === 0 ? (
               <div className="py-12 text-center space-y-2">
                 <Building2 className="h-10 w-10 text-slate-300 mx-auto" />
-                <p className="text-sm font-bold text-slate-600">No posts published on Company Page yet.</p>
-                <p className="text-xs text-slate-400">Use the composer above to publish your first organization update.</p>
+                <p className="text-sm font-bold text-slate-600">
+                  {postsSyncPaused ? "Live Company Posts Fetching is Paused (Quota Saved)" : "No posts published on Company Page yet."}
+                </p>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  {postsSyncPaused
+                    ? "Live organization post syncing is paused in settings to prevent API rate limits. All company stats and profiles remain active. You can re-enable live fetching anytime."
+                    : "Use the composer above to publish your first organization update."}
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -948,8 +1057,14 @@ export function CompanyPageDashboard({
           ) : posts.length === 0 ? (
             <div className="py-12 text-center space-y-2">
               <Building2 className="h-10 w-10 text-slate-300 mx-auto" />
-              <p className="text-sm font-bold text-slate-600">No posts published on Company Page yet.</p>
-              <p className="text-xs text-slate-400">Use the composer to publish your first organization update.</p>
+              <p className="text-sm font-bold text-slate-600">
+                {postsSyncPaused ? "Live Company Posts Fetching is Paused (Quota Saved)" : "No posts published on Company Page yet."}
+              </p>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                {postsSyncPaused
+                  ? "Live organization post syncing is paused to save API quota. Stats and profile details remain active."
+                  : "Use the composer to publish your first organization update."}
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
