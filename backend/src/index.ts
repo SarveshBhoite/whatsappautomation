@@ -22,6 +22,7 @@ import aiAgentRouter from "./routes/aiAgent";
 import metaAdsRouter from "./routes/metaAds";
 import reportsRouter from "./routes/reports";
 import whatsappEmbeddedRouter from "./routes/whatsappEmbedded";
+import instagramCommentToDmRouter from "./routes/instagramCommentToDm";
 // Enable JSON serialization of BigInt values from Prisma queries
 (BigInt.prototype as any).toJSON = function () {
   const intVal = Number(this);

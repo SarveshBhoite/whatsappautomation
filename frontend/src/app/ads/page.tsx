@@ -866,14 +866,26 @@ export default function GoogleAdsPage() {
   const loadOverview = useCallback(async (cid: string) => {
     setOverviewLoading(true);
     try {
-      const [ovRes, campRes] = await Promise.all([
+      const [ovRes, campRes] = await Promise.allSettled([
         api(`/reports/overview?orgId=${orgId}&customerId=${cid}&dateRange=${dateRange}`),
         api(`/campaigns?orgId=${orgId}&customerId=${cid}`)
       ]);
-      const ov = await ovRes.json();
-      const camps = await campRes.json();
-      setOverview(ov);
-      if (Array.isArray(camps)) setCampaigns(camps);
+      
+      let campsData: any[] = [];
+      if (campRes.status === "fulfilled" && campRes.value.ok) {
+        const camps = await campRes.value.json();
+        if (Array.isArray(camps)) {
+          campsData = camps;
+          setCampaigns(camps);
+        }
+      }
+
+      if (ovRes.status === "fulfilled" && ovRes.value.ok) {
+        const ov = await ovRes.value.json();
+        if (ov && !ov.error) {
+          setOverview(ov);
+        }
+      }
     } catch (e: any) { console.warn("Overview load:", e.message); } finally { setOverviewLoading(false); }
   }, [orgId, dateRange]);
 

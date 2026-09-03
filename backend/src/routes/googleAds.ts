@@ -318,7 +318,17 @@ router.get("/campaigns", async (req, res) => {
       res.status(200).json(combined);
     } catch (apiErr: any) {
       console.warn("Live data unavailable, returning local:", apiErr.message);
-      res.status(200).json(localCampaigns.map(lc => ({ ...lc, live: null, impressions: 0, clicks: 0, ctr: "0%", conversions: 0, cost: "0.00" })));
+      res.status(200).json(localCampaigns.map(lc => ({
+        ...lc,
+        amountMicros: Number(lc.amountMicros || 0),
+        impressions: Number(lc.impressions || 0),
+        clicks: Number(lc.clicks || 0),
+        costMicros: Number(lc.costMicros || 0),
+        live: null,
+        ctr: "0%",
+        conversions: 0,
+        cost: "0.00"
+      })));
     }
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -2124,8 +2134,36 @@ router.get("/reports/overview", async (req, res) => {
     const customerId = getCustomerId(req);
     const dateRange = (req.query.dateRange as string) || "LAST_30_DAYS";
     if (!customerId) return res.status(400).json({ error: "customerId required" });
-    const overview = await GoogleAdsService.getAccountOverview(orgId, customerId, dateRange);
-    res.status(200).json(overview);
+    
+    try {
+      const overview = await GoogleAdsService.getAccountOverview(orgId, customerId, dateRange);
+      return res.status(200).json(overview);
+    } catch (liveErr: any) {
+      console.warn("[Google Ads Overview] Live API overview failed, aggregating from database:", liveErr.message);
+      
+      const localCampaigns = await prisma.googleAdCampaign.findMany({
+        where: { organizationId: orgId, customerId }
+      });
+
+      const totalImpressions = localCampaigns.reduce((s, c) => s + Number(c.impressions || 0), 0);
+      const totalClicks = localCampaigns.reduce((s, c) => s + Number(c.clicks || 0), 0);
+      const totalCostMicros = localCampaigns.reduce((s, c) => s + Number(c.costMicros || 0), 0);
+      const totalCost = (totalCostMicros / 1_000_000).toFixed(2);
+      const totalConversions = localCampaigns.reduce((s, c) => s + (c.conversions || 0), 0);
+      const ctr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) + "%" : "0.00%";
+      const avgCpc = totalClicks > 0 ? ((totalCostMicros / totalClicks) / 1_000_000).toFixed(2) : "0.00";
+
+      return res.status(200).json({
+        impressions: totalImpressions,
+        clicks: totalClicks,
+        cost: totalCost,
+        ctr,
+        conversions: totalConversions,
+        avgCpc,
+        allConversionsValue: "0.00",
+        costPerConversion: totalConversions > 0 ? (Number(totalCost) / totalConversions).toFixed(2) : "0.00"
+      });
+    }
   } catch (error: any) {
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
   }
