@@ -201,15 +201,14 @@ Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. W
      - If the user says "instant", "now", or "today", set dateStr to "${currentDateStr}" and timeStr to "${currentTimeStr}".
      - Just write a short warm confirmation sentence in your replyText (e.g., "I have scheduled your consultation right away. Here are your joining details:").
      - Set:
-       "requestedAppointment": {
-         "isBookingRequested": true,
-         "customerName": "<extracted_name_or_from_history>",
-         "customerEmail": "<extracted_email_or_from_history>",
-         "dateStr": "<YYYY-MM-DD>",
-         "timeStr": "<HH:MM AM/PM>",
-         "title": "<Dynamic Subject/Title Based On User Topic>"
-       }
->>>>>>> origin/feature/multi-id
+        "requestedAppointment": {
+          "isBookingRequested": true,
+          "customerName": "<extracted_name_or_from_history>",
+          "customerEmail": "<extracted_email_or_from_history>",
+          "dateStr": "<YYYY-MM-DD>",
+          "timeStr": "<HH:MM AM/PM>",
+          "title": "<Dynamic Subject/Title Based On User Topic>"
+        }
 
 ### TRAINED COMPANY KNOWLEDGE BASE DATA:
 ${knowledgeContextText}
