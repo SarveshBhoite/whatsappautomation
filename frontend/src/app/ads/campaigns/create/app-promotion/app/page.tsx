@@ -111,13 +111,14 @@ export default function AppPromotionWizard() {
 
   // Wizard Step State: "CAMPAIGN_SETTINGS" | "AD_GROUP" | "BIDDING_BUDGET" | "SUMMARY"
   const [wizardStep, setWizardStep] = useState<"CAMPAIGN_SETTINGS" | "AD_GROUP" | "BIDDING_BUDGET" | "SUMMARY">("CAMPAIGN_SETTINGS");
-  const [campaignName, setCampaignName] = useState<string>("app-promotion-7");
+  const [campaignName, setCampaignName] = useState<string>(`App-Promotion-${Date.now().toString().slice(-4)}`);
+  const [isEditingCampaignName, setIsEditingCampaignName] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Step 1: Bidding State
   const [biddingFocus, setBiddingFocus] = useState<"Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Conversions");
   const [setTargetCpa, setSetTargetCpa] = useState<boolean>(false);
-  const [targetCpaValue, setTargetCpaValue] = useState<string>("166.11");
+  const [targetCpaValue, setTargetCpaValue] = useState<string>("");
   const [setTargetRoas, setSetTargetRoas] = useState<boolean>(false);
   const [targetRoasValue, setTargetRoasValue] = useState<string>("200");
   const [setMaxCpc, setSetMaxCpc] = useState<boolean>(false);
@@ -131,15 +132,7 @@ export default function AppPromotionWizard() {
   // Step 2: Campaign Settings State
   const [mobileAppPlatform, setMobileAppPlatform] = useState<"ANDROID" | "IOS">("ANDROID");
   const [mobileAppQuery, setMobileAppQuery] = useState<string>("");
-  const [selectedMobileApp, setSelectedMobileApp] = useState<AppOption | null>({
-    name: "My App",
-    packageName: "com.myapp.android",
-    icon: "https://play-lh.googleusercontent.com/12345",
-    publisher: "My Company",
-    rating: "4.5",
-    downloads: "1M+",
-    store: "Google Play"
-  });
+  const [selectedMobileApp, setSelectedMobileApp] = useState<AppOption | null>(PRESET_APPS_ANDROID[0]);
   const [viewThroughConversion, setViewThroughConversion] = useState<boolean>(true);
   const [useDataFeed, setUseDataFeed] = useState<boolean>(false);
   const [dataFeedType, setDataFeedType] = useState<string>("Dynamic ad feed");
@@ -563,7 +556,7 @@ export default function AppPromotionWizard() {
 
   // Step 4: Budget State
   const [budgetType, setBudgetType] = useState<"DAILY" | "TOTAL">("DAILY");
-  const [selectedPresetBudget, setSelectedPresetBudget] = useState<string>("1556.83");
+  const [selectedPresetBudget, setSelectedPresetBudget] = useState<string>("CUSTOM");
   const [customBudgetValue, setCustomBudgetValue] = useState<string>("");
 
   const timeOptions = [
@@ -621,8 +614,8 @@ export default function AppPromotionWizard() {
   }, [customerId]);
 
   const activeBudgetValue = selectedPresetBudget === "CUSTOM"
-    ? Number(customBudgetValue.replace(/,/g, "")) || 1556.83
-    : Number(selectedPresetBudget) || 1556.83;
+    ? Number(customBudgetValue.replace(/,/g, "")) || 0
+    : Number(selectedPresetBudget) || 0;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
@@ -646,10 +639,36 @@ export default function AppPromotionWizard() {
           <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-semibold">
             <span className="text-slate-500">app-promotion</span>
             <span className="text-slate-600">/</span>
-            <span className="text-slate-800 font-bold flex items-center gap-1.5">
-              <SearchIcon className="h-3.5 w-3.5 text-primary" />
-              App Setup
-            </span>
+            {isEditingCampaignName ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={campaignName}
+                  onChange={(e) => setCampaignName(e.target.value)}
+                  onBlur={() => setIsEditingCampaignName(false)}
+                  onKeyDown={(e) => e.key === "Enter" && setIsEditingCampaignName(false)}
+                  autoFocus
+                  className="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsEditingCampaignName(false)}
+                  className="text-primary hover:text-secondary p-0.5"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <span
+                onClick={() => setIsEditingCampaignName(true)}
+                className="text-slate-800 font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 px-1.5 py-0.5 rounded transition-all group"
+                title="Click to edit campaign name"
+              >
+                <SearchIcon className="h-3.5 w-3.5 text-primary" />
+                <span>{campaignName || "App Setup"}</span>
+                <Edit3 className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </span>
+            )}
           </div>
         </div>
 
@@ -788,6 +807,36 @@ export default function AppPromotionWizard() {
                   <div className="space-y-4 text-xs">
 
 
+                    <div className="space-y-3">
+                      <label className="text-slate-700 font-semibold block">Mobile app platform</label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            checked={mobileAppPlatform === "ANDROID"}
+                            onChange={() => {
+                              setMobileAppPlatform("ANDROID");
+                              setSelectedMobileApp(PRESET_APPS_ANDROID[0]);
+                            }}
+                            className="text-primary focus:ring-primary h-4 w-4 bg-slate-50 border-slate-300"
+                          />
+                          <span className="text-slate-800">Android</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            checked={mobileAppPlatform === "IOS"}
+                            onChange={() => {
+                              setMobileAppPlatform("IOS");
+                              setSelectedMobileApp(PRESET_APPS_IOS[0]);
+                            }}
+                            className="text-primary focus:ring-primary h-4 w-4 bg-slate-50 border-slate-300"
+                          />
+                          <span className="text-slate-800">iOS</span>
+                        </label>
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
                       <label className="text-slate-700 font-semibold block">Look up your app</label>
                       <div className="relative max-w-md">
@@ -796,26 +845,70 @@ export default function AppPromotionWizard() {
                           type="text"
                           value={mobileAppQuery}
                           onChange={(e) => setMobileAppQuery(e.target.value)}
-                          placeholder="Look up your app"
+                          placeholder="Look up your app (e.g. WhatsApp, Hubmate, Instagram)"
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                         />
                       </div>
 
+                      {/* App search / suggestions dropdown */}
+                      {mobileAppQuery.trim().length > 0 && (
+                        <div className="max-w-md bg-white border border-slate-200 rounded-xl shadow-lg p-2 space-y-1 mt-1 max-h-56 overflow-y-auto">
+                          {(mobileAppPlatform === "ANDROID" ? PRESET_APPS_ANDROID : PRESET_APPS_IOS)
+                            .filter(app => app.name.toLowerCase().includes(mobileAppQuery.toLowerCase()) || app.packageName.toLowerCase().includes(mobileAppQuery.toLowerCase()))
+                            .map((app, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  setSelectedMobileApp(app);
+                                  setMobileAppQuery("");
+                                }}
+                                className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
+                              >
+                                <img src={app.icon} alt={app.name} className="w-8 h-8 rounded-lg object-contain bg-slate-100 p-1 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-slate-900 truncate">{app.name}</div>
+                                  <div className="text-[11px] text-slate-500 truncate">{app.packageName} • {app.rating}</div>
+                                </div>
+                              </div>
+                            ))}
+                          <div
+                            onClick={() => {
+                              setSelectedMobileApp({
+                                name: mobileAppQuery,
+                                packageName: mobileAppQuery.includes(".") ? mobileAppQuery : `com.${mobileAppQuery.toLowerCase().replace(/\s+/g, "")}.app`,
+                                icon: "https://play-lh.googleusercontent.com/12345",
+                                publisher: "Custom App",
+                                rating: "4.5 ★",
+                                downloads: "10K+",
+                                store: mobileAppPlatform === "ANDROID" ? "Google Play Store" : "Apple App Store"
+                              });
+                              setMobileAppQuery("");
+                            }}
+                            className="flex items-center gap-2 p-2 rounded-lg hover:bg-primary/10 text-primary font-medium text-xs cursor-pointer border-t border-slate-100 mt-1"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Use custom package: &quot;{mobileAppQuery}&quot;</span>
+                          </div>
+                        </div>
+                      )}
+
                       {selectedMobileApp && (
                         <div className="mt-4 flex items-center gap-4 p-3 rounded-xl border border-primary/30 bg-primary/5 max-w-md">
-                          <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center shrink-0 border border-slate-300">
-                            <Smartphone className="h-6 w-6 text-slate-500" />
-                          </div>
+                          <img
+                            src={selectedMobileApp.icon}
+                            alt={selectedMobileApp.name}
+                            className="w-12 h-12 rounded-lg object-contain bg-slate-100 p-1 shrink-0 border border-slate-200"
+                          />
                           <div className="flex-1 min-w-0">
                             <h4 className="text-slate-800 font-bold text-sm truncate">{selectedMobileApp.name}</h4>
-                            <p className="text-slate-500 text-[11px] truncate">{selectedMobileApp.publisher}</p>
+                            <p className="text-slate-500 text-[11px] truncate">{selectedMobileApp.packageName}</p>
                             <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
                               <span>{selectedMobileApp.store}</span>
                               <span>•</span>
-                              <span>{selectedMobileApp.rating} ★</span>
+                              <span>{selectedMobileApp.rating}</span>
                             </div>
                           </div>
-                          <button onClick={() => setSelectedMobileApp(null)} className="text-slate-500 hover:text-slate-900 p-2">
+                          <button onClick={() => setSelectedMobileApp(null)} className="text-slate-500 hover:text-slate-900 p-2 cursor-pointer">
                             <X className="h-4 w-4" />
                           </button>
                         </div>
@@ -2664,7 +2757,7 @@ export default function AppPromotionWizard() {
                                 <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-mono">₹</span>
                                 <input
                                   type="text"
-                                  value={customBudgetValue || selectedPresetBudget}
+                                  value={customBudgetValue}
                                   onChange={(e) => setCustomBudgetValue(e.target.value)}
                                   placeholder="Enter daily amount"
                                   className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
@@ -2751,7 +2844,7 @@ export default function AppPromotionWizard() {
               </div>
 
               {/* 1. Issues Section */}
-              {(!headlines.some(h => h.trim().length > 0) || (selectedPresetBudget === "CUSTOM" && !customBudgetValue.trim())) && (
+              {(!headlines.some(h => h.trim().length > 0) || !customBudgetValue.trim() || Number(customBudgetValue.replace(/,/g, "")) <= 0) && (
               <div className="space-y-2">
                 <div className="space-y-0.5">
                   <h3 className="font-bold text-slate-800 text-xs">Issues</h3>
@@ -2778,32 +2871,13 @@ export default function AppPromotionWizard() {
                   </div>
                   )}
 
-                  {/* Issue 3: Add a budget */}
-                  {(selectedPresetBudget === "CUSTOM" && !customBudgetValue.trim()) && (
+                  {/* Issue 2: Add a budget */}
+                  {(!customBudgetValue.trim() || Number(customBudgetValue.replace(/,/g, "")) <= 0) && (
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
                       <p className="text-slate-800">
-                        <strong className="text-slate-900 font-bold">Add a budget:</strong> To publish your campaign, enter a budget
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep("BIDDING_BUDGET")}
-                      className="text-blue-500 font-bold hover:underline cursor-pointer flex items-center gap-1"
-                    >
-                      Fix
-                    </button>
-                  </div>
-                  )}
-
-                  {/* Issue 4: Budget value required */}
-                  {(selectedPresetBudget === "CUSTOM" && !customBudgetValue.trim()) && (
-                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-800">
-                        <strong className="text-slate-900 font-bold">Budget:</strong> Value is required
+                        <strong className="text-slate-900 font-bold">Add a budget:</strong> To publish your campaign, enter a valid budget greater than ₹0
                       </p>
                     </div>
                     <button
@@ -2941,43 +3015,17 @@ export default function AppPromotionWizard() {
                 <div className="rounded-xl border border-slate-200 bg-white overflow-hidden p-4 flex items-center justify-between">
                   <span className="text-slate-500 w-48 font-medium">Budget</span>
                   <div className="flex-1 space-y-1">
-                    <span className="text-slate-900 font-bold">Campaign total: ₹0.00</span>
-                    <span className="text-rose-400 font-semibold flex items-center gap-1"></span>
-                    {promoTimeError && <p className="text-rose-400 text-[11px] flex items-center gap-1"><AlertCircle className="h-3 w-3" />{promoTimeError}</p>}
-                    {promoSchedules.length > 0 && (
-                      <div className="space-y-1.5">
-                        {promoSchedules.map((s, i) => (
-                          <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white border border-slate-200">
-                            <span className="text-slate-700">{s.day}: {s.start} – {s.end}</span>
-                            <button type="button" onClick={() => setPromoSchedules(prev => prev.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-rose-400"><X className="h-3.5 w-3.5" /></button>
-                          </div>
-                        ))}
-                      </div>
+                    {activeBudgetValue > 0 ? (
+                      <span className="text-slate-900 font-bold">
+                        {budgetType === "DAILY" ? "Daily: " : "Campaign total: "}₹{activeBudgetValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    ) : (
+                      <span className="text-rose-500 font-semibold flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+                        Budget value is required
+                      </span>
                     )}
                   </div>
-                </div>
-
-                {/* Footer */}
-                <div className="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-4 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Validate before saving
-                      let valid = true;
-                      const amount = parseFloat(promotionTypeAmount);
-                      if (!isNaN(amount) && amount < 0) { setPromotionAmountError("Amount cannot be negative."); valid = false; }
-                      if (promotionFinalUrl.trim() && !/^https?:\/\/.+/.test(promotionFinalUrl.trim())) { setPromotionUrlError("URL must start with http:// or https://"); valid = false; }
-                      if (promotionStartDateOption === "SELECT" && promotionEndDateOption === "SELECT" && promotionEndDate && promotionStartDate && promotionEndDate < promotionStartDate) { setPromotionDateError("End date must be after start date."); valid = false; }
-                      if (!valid) return;
-                      setSavedPromotions(prev => [...prev, { event: promotionEvent, type: promotionType, amount: promotionTypeAmount, item: promotionItem, url: promotionFinalUrl }]);
-                      setShowPromotionsModal(false);
-                      setPromotionTypeAmount(""); setPromotionItem(""); setPromotionFinalUrl(""); setPromotionDetailsAmount(""); setPromoSchedules([]);
-                    }}
-                    className="px-6 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer transition-all"
-                  >
-                    Save promotion
-                  </button>
-                  <button type="button" onClick={() => setShowPromotionsModal(false)} className="px-4 py-2 text-slate-500 font-semibold text-xs hover:text-slate-900 cursor-pointer">Cancel</button>
                 </div>
               </div>
 
@@ -3011,9 +3059,53 @@ export default function AppPromotionWizard() {
           {wizardStep !== "SUMMARY" ? (
             <button
               onClick={() => {
-                if (wizardStep === "CAMPAIGN_SETTINGS") setWizardStep("AD_GROUP");
-                else if (wizardStep === "AD_GROUP") setWizardStep("BIDDING_BUDGET");
-                else if (wizardStep === "BIDDING_BUDGET") setWizardStep("SUMMARY");
+                setPublishError("");
+                if (wizardStep === "CAMPAIGN_SETTINGS") {
+                  if (!campaignName.trim()) {
+                    setPublishError("Campaign name is required.");
+                    return;
+                  }
+                  if (!selectedMobileApp?.packageName) {
+                    setPublishError("Please select a mobile app to promote.");
+                    return;
+                  }
+                  if (selectedLocation === "CUSTOM" && targetLocations.length === 0) {
+                    setPublishError("Please add at least one target location.");
+                    return;
+                  }
+                  if (selectedLanguages.length === 0) {
+                    setPublishError("Please select at least one language.");
+                    return;
+                  }
+                  setWizardStep("AD_GROUP");
+                } else if (wizardStep === "AD_GROUP") {
+                  const validHeadlines = headlines.filter(h => h.trim().length > 0);
+                  const validDescriptions = descriptions.filter(d => d.trim().length > 0);
+                  if (validHeadlines.length === 0) {
+                    setPublishError("At least 1 headline is required to create an ad.");
+                    return;
+                  }
+                  if (validDescriptions.length === 0) {
+                    setPublishError("At least 1 description is required to create an ad.");
+                    return;
+                  }
+                  setWizardStep("BIDDING_BUDGET");
+                } else if (wizardStep === "BIDDING_BUDGET") {
+                  const budgetNum = Number(customBudgetValue.replace(/,/g, ""));
+                  if (!customBudgetValue.trim() || isNaN(budgetNum) || budgetNum <= 0) {
+                    setPublishError("Please enter a valid positive budget amount.");
+                    return;
+                  }
+                  if (biddingFocus === "Target CPA" && (!targetCpaValue.trim() || Number(targetCpaValue) <= 0)) {
+                    setPublishError("Please enter a valid Target CPA amount.");
+                    return;
+                  }
+                  if (biddingFocus === "Target ROAS" && (!targetRoasValue.trim() || Number(targetRoasValue) <= 0)) {
+                    setPublishError("Please enter a valid Target ROAS percentage.");
+                    return;
+                  }
+                  setWizardStep("SUMMARY");
+                }
               }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >
@@ -3026,26 +3118,42 @@ export default function AppPromotionWizard() {
                 setIsPublishing(true);
                 setPublishError("");
                 try {
-                  const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-                  const activeBudgetValue = selectedPresetBudget === "CUSTOM"
-                    ? Number(customBudgetValue.replace(/,/g, "")) || 1000
-                    : Number(selectedPresetBudget) || 1000;
+                  const validHeadlines = headlines.filter(h => h.trim().length > 0);
+                  const validDescriptions = descriptions.filter(d => d.trim().length > 0);
+                  const budgetNum = Number(customBudgetValue.replace(/,/g, ""));
 
+                  if (!campaignName.trim()) {
+                    throw new Error("Campaign name is required.");
+                  }
+                  if (!selectedMobileApp?.packageName) {
+                    throw new Error("Please select a valid mobile app.");
+                  }
+                  if (validHeadlines.length === 0) {
+                    throw new Error("At least 1 headline is required.");
+                  }
+                  if (validDescriptions.length === 0) {
+                    throw new Error("At least 1 description is required.");
+                  }
+                  if (!customBudgetValue.trim() || isNaN(budgetNum) || budgetNum <= 0) {
+                    throw new Error("A valid daily budget amount greater than ₹0 is required.");
+                  }
+
+                  const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
                   const res = await fetch(`${BACKEND}/api/ads/campaigns/app-promotion/app`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "",
                       customerId: customerId || "6587355041",
-                      campaignName: campaignName || "App Promotion - 1",
+                      campaignName: campaignName.trim(),
                       platform: mobileAppPlatform,
-                      appId: selectedMobileApp?.packageName || "com.hubmate.app",
-                      locations: targetLocations.map(l => l.name) || ["India"],
+                      appId: selectedMobileApp.packageName,
+                      locations: selectedLocation === "ALL" ? ["All countries and territories"] : targetLocations.map(l => l.name),
                       languages: selectedLanguages || ["English"],
-                      headlines: headlines.filter(h => h.trim().length > 0) || ["Great App"],
-                      descriptions: descriptions.filter(d => d.trim().length > 0) || ["Download now"],
+                      headlines: validHeadlines,
+                      descriptions: validDescriptions,
                       targetCpa: Number(targetCpaValue) || 25,
-                      dailyBudget: activeBudgetValue
+                      dailyBudget: budgetNum
                     })
                   });
                   const data = await res.json();

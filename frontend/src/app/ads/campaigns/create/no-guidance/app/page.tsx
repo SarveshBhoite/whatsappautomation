@@ -111,12 +111,13 @@ export default function  NoGuidanceAppPage()  {
 
   // Wizard Step State: "CAMPAIGN_SETTINGS" | "AD_GROUP" | "BIDDING_BUDGET" | "SUMMARY"
   const [wizardStep, setWizardStep] = useState<"CAMPAIGN_SETTINGS" | "AD_GROUP" | "BIDDING_BUDGET" | "SUMMARY">("CAMPAIGN_SETTINGS");
-  const [campaignName, setCampaignName] = useState<string>("app-promotion-7");
+  const [campaignName, setCampaignName] = useState<string>(`No-Guidance-App-${Date.now().toString().slice(-4)}`);
+  const [isEditingCampaignName, setIsEditingCampaignName] = useState<boolean>(false);
 
   // Step 1: Bidding State
   const [biddingFocus, setBiddingFocus] = useState<"Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Conversions");
   const [setTargetCpa, setSetTargetCpa] = useState<boolean>(false);
-  const [targetCpaValue, setTargetCpaValue] = useState<string>("166.11");
+  const [targetCpaValue, setTargetCpaValue] = useState<string>("");
   const [setTargetRoas, setSetTargetRoas] = useState<boolean>(false);
   const [targetRoasValue, setTargetRoasValue] = useState<string>("200");
   const [setMaxCpc, setSetMaxCpc] = useState<boolean>(false);
@@ -130,15 +131,7 @@ export default function  NoGuidanceAppPage()  {
   // Step 2: Campaign Settings State
   const [mobileAppPlatform, setMobileAppPlatform] = useState<"ANDROID" | "IOS">("ANDROID");
   const [mobileAppQuery, setMobileAppQuery] = useState<string>("");
-  const [selectedMobileApp, setSelectedMobileApp] = useState<AppOption | null>({
-    name: "My App",
-    packageName: "com.myapp.android",
-    icon: "https://play-lh.googleusercontent.com/12345",
-    publisher: "My Company",
-    rating: "4.5",
-    downloads: "1M+",
-    store: "Google Play"
-  });
+  const [selectedMobileApp, setSelectedMobileApp] = useState<AppOption | null>(PRESET_APPS_ANDROID[0]);
   const [viewThroughConversion, setViewThroughConversion] = useState<boolean>(true);
   const [useDataFeed, setUseDataFeed] = useState<boolean>(false);
   const [dataFeedType, setDataFeedType] = useState<string>("Dynamic ad feed");
@@ -526,7 +519,7 @@ export default function  NoGuidanceAppPage()  {
 
   // Step 4: Budget State
   const [budgetType, setBudgetType] = useState<"DAILY" | "TOTAL">("DAILY");
-  const [selectedPresetBudget, setSelectedPresetBudget] = useState<string>("1556.83");
+  const [selectedPresetBudget, setSelectedPresetBudget] = useState<string>("CUSTOM");
   const [customBudgetValue, setCustomBudgetValue] = useState<string>("");
 
   const timeOptions = [
@@ -584,8 +577,8 @@ export default function  NoGuidanceAppPage()  {
   }, [customerId]);
 
   const activeBudgetValue = selectedPresetBudget === "CUSTOM"
-    ? Number(customBudgetValue.replace(/,/g, "")) || 1556.83
-    : Number(selectedPresetBudget) || 1556.83;
+    ? Number(customBudgetValue.replace(/,/g, "")) || 0
+    : Number(selectedPresetBudget) || 0;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
@@ -600,12 +593,38 @@ export default function  NoGuidanceAppPage()  {
             <X className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-semibold">
-            <span className="text-slate-500">app-promotion</span>
+            <span className="text-slate-500">no-guidance</span>
             <span className="text-slate-600">/</span>
-            <span className="text-slate-800 font-bold flex items-center gap-1.5">
-              <SearchIcon className="h-3.5 w-3.5 text-primary" />
-              App Setup
-            </span>
+            {isEditingCampaignName ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={campaignName}
+                  onChange={(e) => setCampaignName(e.target.value)}
+                  onBlur={() => setIsEditingCampaignName(false)}
+                  onKeyDown={(e) => e.key === "Enter" && setIsEditingCampaignName(false)}
+                  autoFocus
+                  className="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsEditingCampaignName(false)}
+                  className="text-primary hover:text-secondary p-0.5"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <span
+                onClick={() => setIsEditingCampaignName(true)}
+                className="text-slate-800 font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 px-1.5 py-0.5 rounded transition-all group"
+                title="Click to edit campaign name"
+              >
+                <SearchIcon className="h-3.5 w-3.5 text-primary" />
+                <span>{campaignName || "App Setup"}</span>
+                <Edit3 className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </span>
+            )}
           </div>
         </div>
 
@@ -753,26 +772,70 @@ export default function  NoGuidanceAppPage()  {
                           type="text"
                           value={mobileAppQuery}
                           onChange={(e) => setMobileAppQuery(e.target.value)}
-                          placeholder="Look up your app"
+                          placeholder="Look up your app (e.g. WhatsApp, Hubmate, Instagram)"
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                         />
                       </div>
+
+                      {/* App search / suggestions dropdown */}
+                      {mobileAppQuery.trim().length > 0 && (
+                        <div className="max-w-md bg-white border border-slate-200 rounded-xl shadow-lg p-2 space-y-1 mt-1 max-h-56 overflow-y-auto">
+                          {(mobileAppPlatform === "ANDROID" ? PRESET_APPS_ANDROID : PRESET_APPS_IOS)
+                            .filter(app => app.name.toLowerCase().includes(mobileAppQuery.toLowerCase()) || app.packageName.toLowerCase().includes(mobileAppQuery.toLowerCase()))
+                            .map((app, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  setSelectedMobileApp(app);
+                                  setMobileAppQuery("");
+                                }}
+                                className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
+                              >
+                                <img src={app.icon} alt={app.name} className="w-8 h-8 rounded-lg object-contain bg-slate-100 p-1 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-slate-900 truncate">{app.name}</div>
+                                  <div className="text-[11px] text-slate-500 truncate">{app.packageName} • {app.rating}</div>
+                                </div>
+                              </div>
+                            ))}
+                          <div
+                            onClick={() => {
+                              setSelectedMobileApp({
+                                name: mobileAppQuery,
+                                packageName: mobileAppQuery.includes(".") ? mobileAppQuery : `com.${mobileAppQuery.toLowerCase().replace(/\s+/g, "")}.app`,
+                                icon: "https://play-lh.googleusercontent.com/12345",
+                                publisher: "Custom App",
+                                rating: "4.5 ★",
+                                downloads: "10K+",
+                                store: mobileAppPlatform === "ANDROID" ? "Google Play Store" : "Apple App Store"
+                              });
+                              setMobileAppQuery("");
+                            }}
+                            className="flex items-center gap-2 p-2 rounded-lg hover:bg-primary/10 text-primary font-medium text-xs cursor-pointer border-t border-slate-100 mt-1"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Use custom package: &quot;{mobileAppQuery}&quot;</span>
+                          </div>
+                        </div>
+                      )}
                       
                       {selectedMobileApp && (
                         <div className="mt-4 flex items-center gap-4 p-3 rounded-xl border border-primary/30 bg-primary/5 max-w-md">
-                          <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center shrink-0 border border-slate-300">
-                            <Smartphone className="h-6 w-6 text-slate-500" />
-                          </div>
+                          <img
+                            src={selectedMobileApp.icon}
+                            alt={selectedMobileApp.name}
+                            className="w-12 h-12 rounded-lg object-contain bg-slate-100 p-1 shrink-0 border border-slate-200"
+                          />
                           <div className="flex-1 min-w-0">
                             <h4 className="text-slate-800 font-bold text-sm truncate">{selectedMobileApp.name}</h4>
-                            <p className="text-slate-500 text-[11px] truncate">{selectedMobileApp.publisher}</p>
+                            <p className="text-slate-500 text-[11px] truncate">{selectedMobileApp.packageName}</p>
                             <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
                               <span>{selectedMobileApp.store}</span>
                               <span>•</span>
-                              <span>{selectedMobileApp.rating} ★</span>
+                              <span>{selectedMobileApp.rating}</span>
                             </div>
                           </div>
-                          <button onClick={() => setSelectedMobileApp(null)} className="text-slate-500 hover:text-slate-900 p-2">
+                          <button onClick={() => setSelectedMobileApp(null)} className="text-slate-500 hover:text-slate-900 p-2 cursor-pointer">
                             <X className="h-4 w-4" />
                           </button>
                         </div>
@@ -2433,7 +2496,7 @@ export default function  NoGuidanceAppPage()  {
                                 <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-mono">₹</span>
                                 <input
                                   type="text"
-                                  value={customBudgetValue || selectedPresetBudget}
+                                  value={customBudgetValue}
                                   onChange={(e) => setCustomBudgetValue(e.target.value)}
                                   placeholder="Enter daily amount"
                                   className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
@@ -2521,6 +2584,7 @@ export default function  NoGuidanceAppPage()  {
               </div>
 
               {/* 1. Issues Section */}
+              {(!headlines.some(h => h.trim().length > 0) || !customBudgetValue.trim() || Number(customBudgetValue.replace(/,/g, "")) <= 0) && (
               <div className="space-y-2">
                 <div className="space-y-0.5">
                   <h3 className="font-bold text-slate-800 text-xs">Issues</h3>
@@ -2529,6 +2593,7 @@ export default function  NoGuidanceAppPage()  {
 
                 <div className="space-y-2">
                   {/* Issue 1: Create an ad */}
+                  {!headlines.some(h => h.trim().length > 0) && (
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
@@ -2539,64 +2604,34 @@ export default function  NoGuidanceAppPage()  {
                     <button
                       type="button"
                       onClick={() => setWizardStep("AD_GROUP")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
+                      className="text-blue-500 font-bold hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      View
+                      Fix
                     </button>
                   </div>
+                  )}
 
-                  {/* Issue 2: Add keywords */}
+                  {/* Issue 2: Add a budget */}
+                  {(!customBudgetValue.trim() || Number(customBudgetValue.replace(/,/g, "")) <= 0) && (
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
                       <p className="text-slate-800">
-                        <strong className="text-slate-900 font-bold">Add keywords:</strong> Get your ads running by adding keywords to your ad group
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep("AD_GROUP")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      View
-                    </button>
-                  </div>
-
-                  {/* Issue 3: Add a budget */}
-                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-800">
-                        <strong className="text-slate-900 font-bold">Add a budget:</strong> To publish your campaign, enter a budget
+                        <strong className="text-slate-900 font-bold">Add a budget:</strong> To publish your campaign, enter a valid budget greater than ₹0
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setWizardStep("BIDDING_BUDGET")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
+                      className="text-blue-500 font-bold hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      View
+                      Fix
                     </button>
                   </div>
-
-                  {/* Issue 4: Budget value required */}
-                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-800">
-                        <strong className="text-slate-900 font-bold">Budget:</strong> Value is required
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep("BIDDING_BUDGET")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      View
-                    </button>
-                  </div>
+                  )}
                 </div>
               </div>
+              )}
 
               {/* 2. Recommendations Section */}
               <div className="space-y-2 pt-2">
@@ -2720,11 +2755,16 @@ export default function  NoGuidanceAppPage()  {
                 <div className="rounded-xl border border-slate-200 bg-white overflow-hidden p-4 flex items-center justify-between">
                   <span className="text-slate-500 w-48 font-medium">Budget</span>
                   <div className="flex-1 space-y-1">
-                    <span className="text-slate-900 font-bold">Campaign total: ₹0.00</span>
-                    <span className="text-rose-400 font-semibold flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
-                      Value is required
-                    </span>
+                    {activeBudgetValue > 0 ? (
+                      <span className="text-slate-900 font-bold">
+                        {budgetType === "DAILY" ? "Daily: " : "Campaign total: "}₹{activeBudgetValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    ) : (
+                      <span className="text-rose-500 font-semibold flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+                        Budget value is required
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2759,9 +2799,53 @@ export default function  NoGuidanceAppPage()  {
           {wizardStep !== "SUMMARY" ? (
             <button
               onClick={() => {
-                if (wizardStep === "CAMPAIGN_SETTINGS") setWizardStep("AD_GROUP");
-                else if (wizardStep === "AD_GROUP") setWizardStep("BIDDING_BUDGET");
-                else if (wizardStep === "BIDDING_BUDGET") setWizardStep("SUMMARY");
+                setPublishError("");
+                if (wizardStep === "CAMPAIGN_SETTINGS") {
+                  if (!campaignName.trim()) {
+                    setPublishError("Campaign name is required.");
+                    return;
+                  }
+                  if (!selectedMobileApp?.packageName) {
+                    setPublishError("Please select a mobile app to promote.");
+                    return;
+                  }
+                  if (selectedLocation === "CUSTOM" && targetLocations.length === 0) {
+                    setPublishError("Please add at least one target location.");
+                    return;
+                  }
+                  if (selectedLanguages.length === 0) {
+                    setPublishError("Please select at least one language.");
+                    return;
+                  }
+                  setWizardStep("AD_GROUP");
+                } else if (wizardStep === "AD_GROUP") {
+                  const validHeadlines = headlines.filter(h => h.trim().length > 0);
+                  const validDescriptions = descriptions.filter(d => d.trim().length > 0);
+                  if (validHeadlines.length === 0) {
+                    setPublishError("At least 1 headline is required to create an ad.");
+                    return;
+                  }
+                  if (validDescriptions.length === 0) {
+                    setPublishError("At least 1 description is required to create an ad.");
+                    return;
+                  }
+                  setWizardStep("BIDDING_BUDGET");
+                } else if (wizardStep === "BIDDING_BUDGET") {
+                  const budgetNum = Number(customBudgetValue.replace(/,/g, ""));
+                  if (!customBudgetValue.trim() || isNaN(budgetNum) || budgetNum <= 0) {
+                    setPublishError("Please enter a valid positive budget amount.");
+                    return;
+                  }
+                  if (biddingFocus === "Target CPA" && (!targetCpaValue.trim() || Number(targetCpaValue) <= 0)) {
+                    setPublishError("Please enter a valid Target CPA amount.");
+                    return;
+                  }
+                  if (biddingFocus === "Target ROAS" && (!targetRoasValue.trim() || Number(targetRoasValue) <= 0)) {
+                    setPublishError("Please enter a valid Target ROAS percentage.");
+                    return;
+                  }
+                  setWizardStep("SUMMARY");
+                }
               }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >
@@ -2774,10 +2858,27 @@ export default function  NoGuidanceAppPage()  {
                 setIsPublishing(true);
                 setPublishError("");
                 try {
+                  const validHeadlines = headlines.filter(h => h.trim().length > 0);
+                  const validDescriptions = descriptions.filter(d => d.trim().length > 0);
+                  const budgetNum = Number(customBudgetValue.replace(/,/g, ""));
+
+                  if (!campaignName.trim()) {
+                    throw new Error("Campaign name is required.");
+                  }
+                  if (!selectedMobileApp?.packageName) {
+                    throw new Error("Please select a valid mobile app.");
+                  }
+                  if (validHeadlines.length === 0) {
+                    throw new Error("At least 1 headline is required.");
+                  }
+                  if (validDescriptions.length === 0) {
+                    throw new Error("At least 1 description is required.");
+                  }
+                  if (!customBudgetValue.trim() || isNaN(budgetNum) || budgetNum <= 0) {
+                    throw new Error("A valid positive daily budget is required.");
+                  }
+
                   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-                  const activeBudgetValue = selectedPresetBudget === "CUSTOM"
-                    ? Number(customBudgetValue.replace(/,/g, "")) || 1000
-                    : Number(selectedPresetBudget) || 1000;
                   
                   const res = await fetch(`${BACKEND}/api/ads/campaigns/no-guidance/app`, {
                     method: "POST",
@@ -2785,15 +2886,15 @@ export default function  NoGuidanceAppPage()  {
                     body: JSON.stringify({
                       orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "",
                       customerId: customerId || "6587355041",
-                      campaignName: campaignName || "No Guidance App",
-                      appId: selectedMobileApp?.packageName || "com.example.app",
+                      campaignName: campaignName.trim(),
+                      appId: selectedMobileApp.packageName,
                       appStore: mobileAppPlatform === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE",
                       targetCpa: Number(targetCpaValue) || 1.5,
-                      locations: targetLocations.map(l => l.name) || ["India"],
+                      locations: selectedLocation === "ALL" ? ["All countries and territories"] : selectedLocation === "INDIA" ? ["India"] : targetLocations.map(l => l.name),
                       languages: selectedLanguages || ["English"],
-                      headlines: headlines?.filter(h => h.trim().length > 0) || ["Great App"],
-                      descriptions: descriptions?.filter(d => d.trim().length > 0) || ["Download now"],
-                      dailyBudget: activeBudgetValue
+                      headlines: validHeadlines,
+                      descriptions: validDescriptions,
+                      dailyBudget: budgetNum
                     })
                   });
                   const data = await res.json();
@@ -2807,7 +2908,9 @@ export default function  NoGuidanceAppPage()  {
                 }
               }}
               disabled={isPublishing}
-              className={`px-6 py-2.5 text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer ${isPublishing ? "bg-emerald-300 text-slate-950/50 shadow-none cursor-not-allowed" : "bg-emerald-400 text-slate-950 hover:bg-emerald-300 shadow-emerald-400/20"}`}
+              className={`px-6 py-2.5 text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer ${
+                isPublishing ? "bg-emerald-300 text-slate-950/50 shadow-none cursor-not-allowed" : "bg-emerald-400 text-slate-950 hover:bg-emerald-300 shadow-emerald-400/20"
+              }`}
             >
               {isPublishing ? "Publishing..." : "Save & Publish"}
               <Check className="h-4 w-4" />

@@ -44,7 +44,8 @@ export class NoGuidanceAppService extends GoogleAdsBaseService {
             },
             targetCpa: {
               targetCpaMicros: String(targetCpaMicros)
-            }
+            },
+            containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING"
           }
         }]
       };
@@ -55,7 +56,9 @@ export class NoGuidanceAppService extends GoogleAdsBaseService {
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
     } catch (apiErr: any) {
-      console.warn("[Google Ads API fallback for No Guidance App]:", apiErr.message);
+      console.error("[Google Ads API Error for No Guidance App]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr));
+      console.error("[Google Ads API Raw Error Data]:", JSON.stringify(apiErr?.response?.data || apiErr.message, null, 2));
+      throw new Error(GoogleAdsBaseService.formatGoogleAdsError(apiErr));
     }
 
     const localCampaign = await this.saveCampaignToDatabase({

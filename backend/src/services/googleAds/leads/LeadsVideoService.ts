@@ -22,6 +22,7 @@ export class LeadsVideoService extends GoogleAdsBaseService {
     const cid = (customerId || "").replace(/-/g, "").trim();
 
     let apiResult: any = { campaignId: `leads-video-${Date.now()}` };
+    const ADS_BASE = "https://googleads.googleapis.com/v24";
     try {
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
@@ -30,38 +31,50 @@ export class LeadsVideoService extends GoogleAdsBaseService {
       apiResult.budgetResourceName = budgetRef;
 
       const { headers } = await this.getAdsHeaders(organizationId, customerId);
+      const euPoliticalValue = (payload.euPolitical === "YES" || payload.euPoliticalAds === "YES")
+        ? "CONTAINS_EU_POLITICAL_ADVERTISING"
+        : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING";
+
       const campaignPayload = {
         operations: [{
           create: {
             name: campaignName,
             status: "PAUSED",
-            advertisingChannelType: "VIDEO",
-            advertisingChannelSubType: "VIDEO_ACTION",
+            advertisingChannelType: "DEMAND_GEN",
             campaignBudget: budgetRef,
-            ...(targetCpaMicros ? { maximizeConversions: { targetCpaMicros: String(targetCpaMicros) } } : {})
+            containsEuPoliticalAdvertising: euPoliticalValue,
+            demandGenCampaignSettings: {
+              upgradedTargeting: true
+            },
+            ...(targetCpaMicros ? { targetCpa: { targetCpaMicros: String(targetCpaMicros) } } : { maximizeConversions: {} })
           }
         }]
       };
 
-      const ADS_BASE = "https://googleads.googleapis.com/v24";
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
       const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-video-${Date.now()}`;
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
       
       try {
-        const adGroupRef = await this.createAdGroup(organizationId, customerId, {
-          name: `${campaignName} Ad Group 1`,
-          campaignResourceName: campaignRef,
-          type: "VIDEO_RESPONSIVE",
-          status: "ENABLED"
-        });
-        apiResult.adGroupResourceName = adGroupRef;
+        const adGroupPayload = {
+          operations: [{
+            create: {
+              campaign: campaignRef,
+              name: `${campaignName} Ad Group 1`,
+              status: "ENABLED"
+            }
+          }]
+        };
+        const adGroupRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroups:mutate`, adGroupPayload, { headers });
+        apiResult.adGroupResourceName = adGroupRes.data?.results?.[0]?.resourceName;
       } catch (err: any) {
          console.warn("[Google Ads API fallback for Leads Video Ad Group]:", err.message);
       }
     } catch (apiErr: any) {
-      console.warn("[Google Ads API fallback for Leads Video]:", apiErr.message);
+      const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
+      console.error("[Google Ads API Error for Leads Video]:", formatted);
+      throw new Error(formatted);
     }
 
     const localCampaign = await this.saveCampaignToDatabase({

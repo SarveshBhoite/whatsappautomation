@@ -17,7 +17,8 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
       longHeadlines = [],
       descriptions = [],
       images = [],
-      dailyBudget = 1000,
+      dailyBudget,
+      budget,
       euPolitical = "NO",
       businessName,
       logos = [],
@@ -26,20 +27,32 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
 
     if (!finalUrl) throw new Error("Final URL is required.");
 
-    const validHeadlines = headlines.filter((h: any) => h && h.trim());
-    const validLongHeadlines = longHeadlines.filter((h: any) => h && h.trim());
-    const validDescriptions = descriptions.filter((h: any) => h && h.trim());
+    const effectiveBudget = Number(dailyBudget || budget || 1000);
+    const amountMicrosVal = amountMicros || Math.round(effectiveBudget * 1_000_000);
 
-    if (validHeadlines.length < 3) throw new Error("At least 3 headlines are required for Performance Max.");
-    if (validLongHeadlines.length < 1) throw new Error("At least 1 long headline is required for Performance Max.");
-    if (validDescriptions.length < 2) throw new Error("At least 2 descriptions are required for Performance Max.");
-    if (!images || !images.some((i: any) => i.fieldType === "MARKETING_IMAGE")) throw new Error("At least 1 MARKETING_IMAGE is required for Performance Max.");
-    if (!images || !images.some((i: any) => i.fieldType === "SQUARE_MARKETING_IMAGE")) throw new Error("At least 1 SQUARE_MARKETING_IMAGE is required for Performance Max.");
-    if (!brandGuidelinesEnabled && (!businessName || !businessName.trim())) throw new Error("Business Name is required for Performance Max when Brand Guidelines are disabled.");
-    if (!brandGuidelinesEnabled && (!logos || logos.length < 1)) throw new Error("Logo is required for Performance Max when Brand Guidelines are disabled.");
+    const validHeadlines = (headlines || []).filter((h: any) => h && h.trim());
+    const validLongHeadlines = (longHeadlines || []).filter((h: any) => h && h.trim());
+    const validDescriptions = (descriptions || []).filter((d: any) => d && d.trim());
+
+    // Clean & Sanitize Text Assets
+    const cleanedHeadlines = validHeadlines
+      .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 30))
+      .filter((text: string) => text.length > 0);
+    const safeHeadlines = (cleanedHeadlines.length >= 3 ? cleanedHeadlines : [...cleanedHeadlines, "Best Solutions", "Top Quality Services", "Grow Your Business"]).slice(0, 5);
+
+    const cleanedLongHeadlines = validLongHeadlines
+      .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 90))
+      .filter((text: string) => text.length > 0);
+    const safeLongHeadlines = (cleanedLongHeadlines.length >= 1 ? cleanedLongHeadlines : ["Experience premium digital services and fast business growth."]).slice(0, 5);
+
+    const cleanedDescriptions = validDescriptions
+      .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 90))
+      .filter((text: string) => text.length > 0);
+    const safeDescriptions = (cleanedDescriptions.length >= 2 ? cleanedDescriptions : [...cleanedDescriptions, "Discover great offers and personalized support.", "Get in touch today for expert services."]).slice(0, 5);
+
+    const safeBusinessName = GoogleAdsBaseService.cleanAdText(businessName || "My Business", 25) || "My Business";
 
     const cid = (customerId || "").replace(/-/g, "").trim();
-    const amountMicrosVal = amountMicros || Math.round(Number(dailyBudget) * 1_000_000);
 
     let biddingConfig: any = {};
     const normalizedFocus = biddingFocus.trim().toLowerCase();
@@ -50,233 +63,325 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
     }
 
     let apiResult: any = { campaignId: `web-pmax-${Date.now()}` };
+    const ADS_BASE = "https://googleads.googleapis.com/v24";
+
     try {
+      // 1. Create Budget
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: amountMicrosVal / 1_000_000
+        amountPerDay: effectiveBudget
       });
       apiResult.budgetResourceName = budgetRef;
 
       const { headers } = await this.getAdsHeaders(organizationId, customerId);
-      const campaignPayload = {
-        operations: [{
-          create: {
-            name: campaignName,
-            status: "PAUSED",
-            advertisingChannelType: "PERFORMANCE_MAX",
-            campaignBudget: budgetRef,
-            containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-            brandGuidelinesEnabled,
-            ...biddingConfig
-          }
-        }]
-      };
 
-      const ADS_BASE = "https://googleads.googleapis.com/v24";
-      let campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+      // 2. Create Campaign (with duplicate name auto-retry)
+      let effectiveCampaignName = campaignName;
+      let campaignRes;
+      try {
+        const campaignPayload = {
+          operations: [{
+            create: {
+              name: effectiveCampaignName,
+              status: "PAUSED",
+              advertisingChannelType: "PERFORMANCE_MAX",
+              campaignBudget: budgetRef,
+              containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+              brandGuidelinesEnabled: false,
+              ...biddingConfig
+            }
+          }]
+        };
+
+        campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+      } catch (campErr: any) {
+        const errMsg = campErr?.response?.data?.error?.message || campErr?.message || "";
+        const errDetails = JSON.stringify(campErr?.response?.data || "");
+        if (errMsg.includes("already assigned") || errDetails.includes("DUPLICATE_CAMPAIGN_NAME") || errDetails.includes("DUPLICATE_NAME") || errDetails.includes("already assigned")) {
+          effectiveCampaignName = `${campaignName} ${Date.now().toString().slice(-4)}`;
+          const retryPayload = {
+            operations: [{
+              create: {
+                name: effectiveCampaignName,
+                status: "PAUSED",
+                advertisingChannelType: "PERFORMANCE_MAX",
+                campaignBudget: budgetRef,
+                containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+                brandGuidelinesEnabled: false,
+                ...biddingConfig
+              }
+            }]
+          };
+          campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, retryPayload, { headers });
+        } else {
+          throw campErr;
+        }
+      }
+
       const campaignRef = campaignRes.data?.results?.[0]?.resourceName;
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
 
-      // Asset Creation (Business Name and Logo)
-      let businessNameAssetResourceName;
-      if (businessName) {
-        const bnPayload = {
-          operations: [{
-            create: {
-              type: "TEXT",
-              textAsset: { text: businessName }
-            }
-          }]
-        };
-        const bnRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, bnPayload, { headers });
-        businessNameAssetResourceName = bnRes.data.results?.[0]?.resourceName;
-      }
+      // 3. Create Business Name Text Asset
+      const bnRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+        operations: [{
+          create: {
+            type: "TEXT",
+            textAsset: { text: safeBusinessName }
+          }
+        }]
+      }, { headers });
+      const businessNameAssetRef = bnRes.data.results?.[0]?.resourceName;
 
-      let logoAssetResourceName;
-      if (logos && logos.length > 0 && typeof logos[0] === "string" && logos[0].includes("base64,")) {
-        const base64Data = logos[0].split("base64,")[1];
-        const logoPayload = {
-          operations: [{
-            create: {
-              type: "IMAGE",
-              imageAsset: { data: base64Data },
-              name: `Logo - ${Date.now()}`
-            }
-          }]
-        };
-        const logoRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, logoPayload, { headers });
-        logoAssetResourceName = logoRes.data.results?.[0]?.resourceName;
-      }
+      // 4. Create Text Assets (Headlines, Long Headlines, Descriptions)
+      const textOperations: any[] = [];
+      safeHeadlines.forEach((text: string) => textOperations.push({ create: { type: "TEXT", textAsset: { text } } }));
+      safeLongHeadlines.forEach((text: string) => textOperations.push({ create: { type: "TEXT", textAsset: { text } } }));
+      safeDescriptions.forEach((text: string) => textOperations.push({ create: { type: "TEXT", textAsset: { text } } }));
 
-      // Standard Performance Max Assets Creation (Text & Images)
-      const createdAssetResourceNames: { headlines: string[], longHeadlines: string[], descriptions: string[], images: { resourceName: string, fieldType: string }[] } = {
-        headlines: [],
-        longHeadlines: [],
-        descriptions: [],
-        images: []
+      const textRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, { operations: textOperations }, { headers });
+      const textResults = textRes.data.results || [];
+      let idx = 0;
+      const headlineRefs: string[] = safeHeadlines.map(() => textResults[idx++]?.resourceName).filter(Boolean);
+      const longHeadlineRefs: string[] = safeLongHeadlines.map(() => textResults[idx++]?.resourceName).filter(Boolean);
+      const descriptionRefs: string[] = safeDescriptions.map(() => textResults[idx++]?.resourceName).filter(Boolean);
+
+      // 5. Upload Image and Logo Assets with ImageKit Aspect Ratio Transformations
+      const toImageKitTransform = (url: string, transform: string): string => {
+        if (typeof url === "string" && url.includes("ik.imagekit.io")) {
+          if (url.includes("/tr:")) {
+            return url.replace(/\/tr:[^/]+\//, `/${transform}/`);
+          }
+          const parts = url.split("ik.imagekit.io/");
+          if (parts.length === 2) {
+            const subParts = parts[1].split("/");
+            const endpoint = subParts[0];
+            const rest = subParts.slice(1).join("/");
+            return `https://ik.imagekit.io/${endpoint}/${transform}/${rest}`;
+          }
+        }
+        return url;
       };
 
-      try {
-        const textOperations: any[] = [];
-        headlines.forEach((text: string) => {
-          textOperations.push({ create: { type: "TEXT", textAsset: { text } } });
-        });
-        longHeadlines.forEach((text: string) => {
-          textOperations.push({ create: { type: "TEXT", textAsset: { text } } });
-        });
-        descriptions.forEach((text: string) => {
-          textOperations.push({ create: { type: "TEXT", textAsset: { text } } });
-        });
+      const marketingImageRefs: string[] = [];
+      const squareImageRefs: string[] = [];
+      const logoRefs: string[] = [];
 
-        if (textOperations.length > 0) {
-          const textRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, { operations: textOperations }, { headers });
-          const results = textRes.data.results || [];
-          let idx = 0;
-          headlines.forEach(() => createdAssetResourceNames.headlines.push(results[idx++]?.resourceName));
-          longHeadlines.forEach(() => createdAssetResourceNames.longHeadlines.push(results[idx++]?.resourceName));
-          descriptions.forEach(() => createdAssetResourceNames.descriptions.push(results[idx++]?.resourceName));
+      const inputImages = Array.isArray(images) && images.length > 0 ? images : [];
+      const inputLogos = Array.isArray(logos) && logos.length > 0 ? logos : Array.isArray(payload.brandLogos) ? payload.brandLogos : [];
+
+      // Collect fallback ImageKit URL if available
+      let fallbackImageKitUrl = "";
+      for (const img of inputImages) {
+        const raw = typeof img === "string" ? img : img?.data || img?.url || "";
+        if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
+          fallbackImageKitUrl = raw;
+          break;
         }
-
-        const imageOperations: any[] = [];
-        images.forEach((img: any) => {
-          const base64Data = typeof img.data === "string" && img.data.includes("base64,") ? img.data.split("base64,")[1] : img.data;
-          if (base64Data) {
-            imageOperations.push({ create: { type: "IMAGE", imageAsset: { data: base64Data }, name: img.name || `Image - ${Date.now()}` } });
-          }
-        });
-
-        if (imageOperations.length > 0) {
-          const imgRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, { operations: imageOperations }, { headers });
-          const results = imgRes.data.results || [];
-          let idx = 0;
-          images.forEach((img: any) => {
-            const resName = results[idx++]?.resourceName;
-            if (resName) createdAssetResourceNames.images.push({ resourceName: resName, fieldType: img.fieldType || "MARKETING_IMAGE" });
-          });
-        }
-      } catch (err: any) {
-        console.error("[Website Traffic PMax] Text/Image Asset creation failed:", JSON.stringify(err?.response?.data || err.message, null, 2));
-        throw err;
       }
-
-      // CampaignAsset Linking (Only if Brand Guidelines are enabled)
-      if (brandGuidelinesEnabled && (businessNameAssetResourceName || logoAssetResourceName)) {
-        try {
-          const caOperations = [];
-          if (businessNameAssetResourceName) {
-            caOperations.push({
-              create: {
-                campaign: campaignRef,
-                asset: businessNameAssetResourceName,
-                fieldType: "BUSINESS_NAME",
-                status: "ENABLED"
-              }
-            });
+      if (!fallbackImageKitUrl) {
+        for (const logo of inputLogos) {
+          const raw = typeof logo === "string" ? logo : logo?.data || logo?.url || "";
+          if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
+            fallbackImageKitUrl = raw;
+            break;
           }
-          if (logoAssetResourceName) {
-            caOperations.push({
-              create: {
-                campaign: campaignRef,
-                asset: logoAssetResourceName,
-                fieldType: "LOGO",
-                status: "ENABLED"
-              }
-            });
-          }
-          
-          if (caOperations.length > 0) {
-            await axios.post(`${ADS_BASE}/customers/${cid}/campaignAssets:mutate`, {
-              operations: caOperations
-            }, { headers });
-          }
-        } catch (err: any) {
-          console.error(
-            "[Website Traffic PMax] CampaignAsset linking failed:",
-            JSON.stringify(err?.response?.data || err.message, null, 2)
-          );
-          throw err;
         }
       }
 
-      // AssetGroup Creation explicitly for Performance Max
-      try {
-        const finalUrlsArray = finalUrl ? [finalUrl.trim()] : [];
-        console.log("[Website Traffic PMax] final_urls before AssetGroup mutate:", JSON.stringify(finalUrlsArray));
-        
-        const tempAssetGroupResourceName = `customers/${cid}/assetGroups/-1`;
-        
-        const mutateOperations: any[] = [
-          {
-            assetGroupOperation: {
-              create: {
-                resourceName: tempAssetGroupResourceName,
-                campaign: campaignRef,
-                name: assetGroupName,
-                status: "ENABLED",
-                finalUrls: finalUrlsArray
-              }
+      // Process inputImages strictly by their explicit fieldType
+      for (const img of inputImages) {
+        const raw = typeof img === "string" ? img : img?.data || img?.url || "";
+        if (!raw) continue;
+        const fieldType = typeof img === "object" && img?.fieldType ? img.fieldType : null;
+
+        if (fieldType === "MARKETING_IMAGE") {
+          // Explicit Landscape (1.91:1)
+          const landUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          const ref = await this.uploadImageAsset(organizationId, customerId, `PMax_Land_${Date.now()}`, landUrl);
+          if (ref && !marketingImageRefs.includes(ref)) marketingImageRefs.push(ref);
+        } else if (fieldType === "SQUARE_MARKETING_IMAGE") {
+          // Explicit Square (1:1)
+          const sqUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          const ref = await this.uploadImageAsset(organizationId, customerId, `PMax_Sq_${Date.now()}`, sqUrl);
+          if (ref && !squareImageRefs.includes(ref)) squareImageRefs.push(ref);
+        } else if (fieldType === "LOGO") {
+          // Explicit Logo (1:1)
+          const logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+          const ref = await this.uploadImageAsset(organizationId, customerId, `PMax_Logo_${Date.now()}`, logoUrl);
+          if (ref && !logoRefs.includes(ref)) logoRefs.push(ref);
+        } else {
+          // Unclassified image (e.g. raw ImageKit URL): generate separate landscape & square assets
+          if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
+            const landUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+            const landRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Land_${Date.now()}`, landUrl);
+            if (landRef && !marketingImageRefs.includes(landRef)) marketingImageRefs.push(landRef);
+
+            const sqUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+            const sqRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Sq_${Date.now()}`, sqUrl);
+            if (sqRef && !squareImageRefs.includes(sqRef)) squareImageRefs.push(sqRef);
+          } else {
+            // Default base64 without fieldType: upload as marketing image
+            const ref = await this.uploadImageAsset(organizationId, customerId, `PMax_Img_${Date.now()}`, raw);
+            if (ref && !marketingImageRefs.includes(ref)) marketingImageRefs.push(ref);
+          }
+        }
+      }
+
+      // Process inputLogos (Strict 1:1 Square)
+      for (const logo of inputLogos) {
+        const raw = typeof logo === "string" ? logo : logo?.data || logo?.url || "";
+        if (!raw) continue;
+
+        const logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+        const logoRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Logo_${Date.now()}`, logoUrl);
+        if (logoRef && !logoRefs.includes(logoRef)) logoRefs.push(logoRef);
+      }
+
+      // Safe Aspect-Ratio-Preserving Fallbacks:
+      // 1. Logo fallback from Square Marketing Image (Both are 1:1 Square)
+      if (logoRefs.length === 0 && squareImageRefs.length > 0) {
+        logoRefs.push(squareImageRefs[0]);
+      }
+      // 2. Square Marketing Image fallback from Logo (Both are 1:1 Square)
+      if (squareImageRefs.length === 0 && logoRefs.length > 0) {
+        squareImageRefs.push(logoRefs[0]);
+      }
+      // 3. Marketing Image (Landscape 1.91:1) fallback via ImageKit URL transformation
+      if (marketingImageRefs.length === 0 && fallbackImageKitUrl) {
+        const landUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+        const landRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Land_${Date.now()}`, landUrl);
+        if (landRef && !marketingImageRefs.includes(landRef)) marketingImageRefs.push(landRef);
+      }
+      // 4. Square Image fallback via ImageKit URL transformation
+      if (squareImageRefs.length === 0 && fallbackImageKitUrl) {
+        const sqUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+        const sqRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Sq_${Date.now()}`, sqUrl);
+        if (sqRef && !squareImageRefs.includes(sqRef)) squareImageRefs.push(sqRef);
+      }
+      // 5. Logo fallback via ImageKit URL transformation
+      if (logoRefs.length === 0 && fallbackImageKitUrl) {
+        const logoUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+        const logoRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Logo_${Date.now()}`, logoUrl);
+        if (logoRef && !logoRefs.includes(logoRef)) logoRefs.push(logoRef);
+      }
+
+      if (marketingImageRefs.length === 0 || squareImageRefs.length === 0 || logoRefs.length === 0) {
+        throw new Error("At least 1 landscape marketing image (1.91:1), 1 square marketing image (1:1), and 1 logo (1:1) are required for Performance Max.");
+      }
+
+      // 6. Mutate Asset Group and AssetGroupAssets
+      const tempAssetGroupResourceName = `customers/${cid}/assetGroups/-1`;
+      const mutateOperations: any[] = [
+        {
+          assetGroupOperation: {
+            create: {
+              resourceName: tempAssetGroupResourceName,
+              campaign: campaignRef,
+              name: assetGroupName || `${campaignName} Asset Group 1`,
+              status: "ENABLED",
+              finalUrls: [finalUrl]
             }
           }
-        ];
-        
-        const compactLogs: any[] = [];
-        
-        if (!brandGuidelinesEnabled) {
-          if (businessNameAssetResourceName) {
-            mutateOperations.push({ assetGroupAssetOperation: { create: { assetGroup: tempAssetGroupResourceName, asset: businessNameAssetResourceName, fieldType: "BUSINESS_NAME", status: "ENABLED" } } });
-            compactLogs.push({ asset: businessNameAssetResourceName, fieldType: "BUSINESS_NAME" });
-          }
-          if (logoAssetResourceName) {
-            mutateOperations.push({ assetGroupAssetOperation: { create: { assetGroup: tempAssetGroupResourceName, asset: logoAssetResourceName, fieldType: "LOGO", status: "ENABLED" } } });
-            compactLogs.push({ asset: logoAssetResourceName, fieldType: "LOGO" });
+        },
+        {
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupResourceName,
+              asset: businessNameAssetRef,
+              fieldType: "BUSINESS_NAME",
+              status: "ENABLED"
+            }
           }
         }
+      ];
 
-        createdAssetResourceNames.headlines.forEach(resourceName => {
-          if (resourceName) {
-            mutateOperations.push({ assetGroupAssetOperation: { create: { assetGroup: tempAssetGroupResourceName, asset: resourceName, fieldType: "HEADLINE", status: "ENABLED" } } });
-            compactLogs.push({ asset: resourceName, fieldType: "HEADLINE" });
+      logoRefs.forEach((asset: string) => {
+        mutateOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupResourceName,
+              asset,
+              fieldType: "LOGO",
+              status: "ENABLED"
+            }
           }
         });
-        createdAssetResourceNames.longHeadlines.forEach(resourceName => {
-          if (resourceName) {
-            mutateOperations.push({ assetGroupAssetOperation: { create: { assetGroup: tempAssetGroupResourceName, asset: resourceName, fieldType: "LONG_HEADLINE", status: "ENABLED" } } });
-            compactLogs.push({ asset: resourceName, fieldType: "LONG_HEADLINE" });
-          }
-        });
-        createdAssetResourceNames.descriptions.forEach(resourceName => {
-          if (resourceName) {
-            mutateOperations.push({ assetGroupAssetOperation: { create: { assetGroup: tempAssetGroupResourceName, asset: resourceName, fieldType: "DESCRIPTION", status: "ENABLED" } } });
-            compactLogs.push({ asset: resourceName, fieldType: "DESCRIPTION" });
-          }
-        });
-        createdAssetResourceNames.images.forEach(img => {
-          if (img.resourceName) {
-            mutateOperations.push({ assetGroupAssetOperation: { create: { assetGroup: tempAssetGroupResourceName, asset: img.resourceName, fieldType: img.fieldType, status: "ENABLED" } } });
-            compactLogs.push({ asset: img.resourceName, fieldType: img.fieldType });
-          }
-        });
+      });
 
-        console.log("[Website Traffic PMax] Prepared AssetGroup:", tempAssetGroupResourceName);
-        console.log("[Website Traffic PMax] AssetGroupAssets to link:", JSON.stringify(compactLogs, null, 2));
+      headlineRefs.forEach((asset: string) => {
+        mutateOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupResourceName,
+              asset,
+              fieldType: "HEADLINE",
+              status: "ENABLED"
+            }
+          }
+        });
+      });
 
-        const mutateRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:mutate`, { mutateOperations }, { headers });
-        const results = mutateRes.data.mutateOperationResponses;
-        apiResult.assetGroupResourceName = results[0]?.assetGroupResult?.resourceName;
-      } catch (err: any) {
-        console.error(
-          "[Google Ads API error for Website Traffic PMax Asset Group & Assets]:",
-          JSON.stringify(err?.response?.data || err.message, null, 2)
-        );
-        throw err;
-      }
+      longHeadlineRefs.forEach((asset: string) => {
+        mutateOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupResourceName,
+              asset,
+              fieldType: "LONG_HEADLINE",
+              status: "ENABLED"
+            }
+          }
+        });
+      });
+
+      descriptionRefs.forEach((asset: string) => {
+        mutateOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupResourceName,
+              asset,
+              fieldType: "DESCRIPTION",
+              status: "ENABLED"
+            }
+          }
+        });
+      });
+
+      marketingImageRefs.forEach((asset: string) => {
+        mutateOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupResourceName,
+              asset,
+              fieldType: "MARKETING_IMAGE",
+              status: "ENABLED"
+            }
+          }
+        });
+      });
+
+      squareImageRefs.forEach((asset: string) => {
+        mutateOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupResourceName,
+              asset,
+              fieldType: "SQUARE_MARKETING_IMAGE",
+              status: "ENABLED"
+            }
+          }
+        });
+      });
+
+      const mutateRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:mutate`, { mutateOperations }, { headers });
+      const results = mutateRes.data.mutateOperationResponses;
+      apiResult.assetGroupResourceName = results[0]?.assetGroupResult?.resourceName;
+
     } catch (err: any) {
-      console.error(
-        "[Google Ads API error for Website Traffic Performance Max]:",
-        JSON.stringify(err?.response?.data || err.message, null, 2)
-      );
-      throw err;
+      const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);
+      console.error("[Google Ads API error for Website Traffic Performance Max]:", formatted);
+      throw new Error(formatted);
     }
 
     const localCampaign = await this.saveCampaignToDatabase({
@@ -290,8 +395,8 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
       finalUrl,
-      headlines,
-      descriptions,
+      headlines: safeHeadlines,
+      descriptions: safeDescriptions,
       geoTargets: { objective: "Website Traffic", locations, languages },
       advertisingChannelType: "PERFORMANCE_MAX",
       amountMicros: BigInt(amountMicrosVal),

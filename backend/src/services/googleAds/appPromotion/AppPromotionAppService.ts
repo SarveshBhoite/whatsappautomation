@@ -36,39 +36,54 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
 
       const { headers } = await this.getAdsHeaders(organizationId, customerId);
       const cid = (customerId || "").replace(/-/g, "").trim();
-      const campaignPayload = {
-        operations: [
-          {
-            create: {
-              name: campaignName,
-              status: "PAUSED",
-              advertisingChannelType: "MULTI_CHANNEL",
-              advertisingChannelSubType: "APP_CAMPAIGN",
-              appCampaignSetting: {
-                appId: appId,
-                appStore: appStore,
-                biddingStrategyGoalType
-              },
-              targetCpa: {
-                targetCpaMicros: targetCpaMicros
-              },
-              campaignBudget: budgetRef
-            }
-          }
-        ]
+      const campaignObj: any = {
+        name: campaignName,
+        status: "PAUSED",
+        advertisingChannelType: "MULTI_CHANNEL",
+        advertisingChannelSubType: "APP_CAMPAIGN",
+        appCampaignSetting: {
+          appId: appId || "com.hubmate.app",
+          appStore: appStore,
+          biddingStrategyGoalType
+        },
+        targetCpa: {
+          targetCpaMicros: String(targetCpaMicros)
+        },
+        containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+        campaignBudget: budgetRef
       };
 
       const ADS_BASE = "https://googleads.googleapis.com/v24";
-      const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-app-${Date.now()}`;
-      
-      apiResult = {
-        campaignResourceName: campaignRef,
-        budgetResourceName: budgetRef,
-        campaignId: campaignRef.split("/").pop()
-      };
+      let res;
+      try {
+        const campaignPayload = {
+          operations: [{ create: campaignObj }]
+        };
+        res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+      } catch (campErr: any) {
+        const errMsg = campErr?.response?.data?.error?.message || campErr?.message || "";
+        const errDetails = JSON.stringify(campErr?.response?.data || "");
+        if (errMsg.includes("already assigned") || errDetails.includes("DUPLICATE_CAMPAIGN_NAME") || errDetails.includes("DUPLICATE_NAME")) {
+          const uniqueName = `${campaignName} ${Date.now().toString().slice(-4)}`;
+          campaignObj.name = uniqueName;
+          const retryPayload = {
+            operations: [{ create: campaignObj }]
+          };
+          res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, retryPayload, { headers });
+        } else {
+          throw campErr;
+        }
+      }
+
+      const campaignRef = res.data?.results?.[0]?.resourceName;
+      if (campaignRef) {
+        apiResult.campaignResourceName = campaignRef;
+        apiResult.campaignId = campaignRef.split("/").pop();
+      }
     } catch (apiErr: any) {
-      console.warn("[Google Ads API fallback for App Promotion]:", apiErr.message);
+      console.error("[Google Ads API Error for App Promotion]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr));
+      console.error("[Google Ads API Raw Error Data]:", JSON.stringify(apiErr?.response?.data || apiErr.message, null, 2));
+      throw new Error(GoogleAdsBaseService.formatGoogleAdsError(apiErr));
     }
 
     const localCampaign = await this.saveCampaignToDatabase({

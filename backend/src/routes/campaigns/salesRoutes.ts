@@ -80,7 +80,7 @@ router.post("/video", validatePayload, async (req, res) => {
     const result = await SalesVideoService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+    res.status(400).json({ error: error?.response?.data?.error?.message || error.message });
   }
 });
 
@@ -91,7 +91,7 @@ router.post("/display", validatePayload, async (req, res) => {
     const result = await SalesDisplayService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+    res.status(400).json({ error: error?.response?.data?.error?.message || error.message });
   }
 });
 

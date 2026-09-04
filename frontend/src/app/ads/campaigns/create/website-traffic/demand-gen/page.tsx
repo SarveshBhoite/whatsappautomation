@@ -41,6 +41,24 @@ export default function WebsiteTrafficDemandGenPage() {
   const [existingCampaignsList, setExistingCampaignsList] = useState<Array<{ name?: string }>>([]);
   const [duplicateNameError, setDuplicateNameError] = useState<string | null>(null);
 
+  // Helper to generate a unique campaign name by appending 1, 2, etc.
+  const getUniqueCampaignName = (baseName: string, existingList: Array<{ name?: string }>): string => {
+    const trimmed = baseName.trim();
+    if (!trimmed) return baseName;
+    const existingNames = new Set(existingList.map(c => (c.name || "").trim().toLowerCase()));
+    if (!existingNames.has(trimmed.toLowerCase())) {
+      return trimmed;
+    }
+    const cleanBase = trimmed.replace(/\s+\d+$/, "");
+    let counter = 1;
+    let candidate = `${cleanBase} ${counter}`;
+    while (existingNames.has(candidate.toLowerCase())) {
+      counter++;
+      candidate = `${cleanBase} ${counter}`;
+    }
+    return candidate;
+  };
+
   // Load existing campaigns from Google Ads API / DB once on component mount
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -52,12 +70,13 @@ export default function WebsiteTrafficDemandGenPage() {
       .then(data => {
         if (Array.isArray(data)) {
           setExistingCampaignsList(data);
-          const normalized = demandGenCampaignName.trim().toLowerCase();
-          const isDup = data.some((c: any) => c.name && c.name.trim().toLowerCase() === normalized);
-          if (isDup) {
-            setDuplicateNameError("Campaign name already exists. Please choose a unique campaign name.");
-            setFieldErrors(prev => ({ ...prev, demandGenCampaignName: "Campaign name already exists. Please choose a unique campaign name." }));
-          }
+          setDemandGenCampaignName(prev => getUniqueCampaignName(prev, data));
+          setDuplicateNameError(null);
+          setFieldErrors(prev => {
+            const updated = { ...prev };
+            delete updated.demandGenCampaignName;
+            return updated;
+          });
         }
       })
       .catch(() => {
@@ -75,10 +94,15 @@ export default function WebsiteTrafficDemandGenPage() {
     const normalized = trimmed.toLowerCase();
     const isDup = existingCampaignsList.some(c => c.name && c.name.trim().toLowerCase() === normalized);
     if (isDup) {
-      const msg = "Campaign name already exists. Please choose a unique campaign name.";
-      setDuplicateNameError(msg);
-      setFieldErrors(prev => ({ ...prev, demandGenCampaignName: msg }));
-      return true;
+      const suggested = getUniqueCampaignName(trimmed, existingCampaignsList);
+      const msg = `Campaign name already exists. Will be saved as "${suggested}".`;
+      setDuplicateNameError(null);
+      setFieldErrors(prev => {
+        const updated = { ...prev };
+        delete updated.demandGenCampaignName;
+        return updated;
+      });
+      return false;
     } else {
       setDuplicateNameError(null);
       setFieldErrors(prev => {
@@ -350,12 +374,12 @@ export default function WebsiteTrafficDemandGenPage() {
 
     // 2. Daily Budget
     const numBudget = Number(demandGenBudgetAmount);
-    if (!demandGenBudgetAmount.trim() || isNaN(numBudget) || numBudget <= 0) {
+    if (!demandGenBudgetAmount.trim() || isNaN(numBudget) || numBudget < 416) {
       issues.push({
         id: "camp-budget",
         level: "Campaign",
         parameter: "Budget amount",
-        message: "Daily Budget must be a positive number greater than 0.",
+        message: "Daily Budget must be at least ₹416/day (Google's minimum required budget for Demand Gen campaigns).",
         step: "CAMPAIGN_SETTINGS",
         settingKey: "budget"
       });
@@ -2281,14 +2305,14 @@ export default function WebsiteTrafficDemandGenPage() {
                           <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
                           <input
                             type="number"
-                            min="0.01"
+                            min="416"
                             step="any"
                             value={demandGenBudgetAmount}
                             onChange={(e) => {
                               const val = e.target.value;
                               setDemandGenBudgetAmount(val);
-                              if (!val.trim() || isNaN(Number(val)) || Number(val) <= 0) {
-                                setFieldErrors(prev => ({ ...prev, demandGenBudgetAmount: "Daily Budget must be a positive number greater than 0." }));
+                              if (!val.trim() || isNaN(Number(val)) || Number(val) < 416) {
+                                setFieldErrors(prev => ({ ...prev, demandGenBudgetAmount: "Daily Budget must be at least ₹416/day for Demand Gen." }));
                               } else {
                                 setFieldErrors(prev => {
                                   const updated = { ...prev };
@@ -2297,9 +2321,9 @@ export default function WebsiteTrafficDemandGenPage() {
                                 });
                               }
                             }}
-                            placeholder="Required"
+                            placeholder="min ₹416/day"
                             className={`w-full border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-medium focus:outline-none ${
-                              !demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) <= 0 || fieldErrors.demandGenBudgetAmount
+                              !demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) < 416 || fieldErrors.demandGenBudgetAmount
                                 ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
                                 : "bg-slate-50 border-slate-200 focus:border-primary"
                             }`}
@@ -2307,9 +2331,9 @@ export default function WebsiteTrafficDemandGenPage() {
                         </div>
                       </div>
 
-                      {(!demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) <= 0 || fieldErrors.demandGenBudgetAmount) && (
+                      {(!demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) < 416 || fieldErrors.demandGenBudgetAmount) && (
                         <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
-                          <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.demandGenBudgetAmount || "Daily Budget is required and must be greater than 0."}
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.demandGenBudgetAmount || "Demand Gen campaigns require a minimum daily budget of ₹416/day."}
                         </span>
                       )}
 
@@ -5957,6 +5981,7 @@ export default function WebsiteTrafficDemandGenPage() {
 
                   const validHeadlines = adHeadlines.filter(h => h && h.trim().length > 0);
                   const validDescriptions = adDescriptions.filter(d => d && d.trim().length > 0);
+                  const finalCampaignName = getUniqueCampaignName(demandGenCampaignName, existingCampaignsList);
 
                   const res = await fetch(`${BACKEND}/api/ads/campaigns/website-traffic/demand-gen`, {
                     method: "POST",
@@ -5964,7 +5989,7 @@ export default function WebsiteTrafficDemandGenPage() {
                     body: JSON.stringify({
                       orgId,
                       customerId: targetCid,
-                      campaignName: demandGenCampaignName.trim(),
+                      campaignName: finalCampaignName,
                       channelType: "DEMAND_GEN",
                       biddingStrategy: targetCpaDemandGen ? "TARGET_CPA" : demandGenGoal === "Clicks" ? "MAXIMIZE_CLICKS" : "MAXIMIZE_CONVERSIONS",
                       budget: Number(demandGenBudgetAmount),

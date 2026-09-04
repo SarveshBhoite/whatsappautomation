@@ -2308,9 +2308,13 @@ export default function WebsiteTrafficDisplayPage() {
                                   if (e.target.files && e.target.files.length > 0) {
                                     const files = Array.from(e.target.files);
                                     files.forEach(file => {
-                                      const localUrl = URL.createObjectURL(file);
-                                      const cdnUrl = `https://ik.imagekit.io/whatsappdemo/display_ads/${Date.now()}_${file.name}`;
-                                      setImagesList(prev => [...prev, localUrl || cdnUrl]);
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        if (typeof reader.result === "string") {
+                                          setImagesList(prev => [...prev, reader.result as string]);
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
                                     });
                                   }
                                 }}
@@ -2328,7 +2332,7 @@ export default function WebsiteTrafficDisplayPage() {
                                   </div>
                                   <div className="flex items-center justify-between gap-1">
                                     <span className="text-[10px] font-mono text-emerald-400 truncate flex-1" title={imgUrl}>
-                                      {imgUrl.startsWith("blob:") ? `https://ik.imagekit.io/demo/img_${i + 1}.png` : imgUrl}
+                                      {imgUrl.startsWith("data:") ? `Image_${i + 1}.png` : imgUrl}
                                     </span>
                                     <button
                                       type="button"
@@ -2359,9 +2363,13 @@ export default function WebsiteTrafficDisplayPage() {
                                   if (e.target.files && e.target.files.length > 0) {
                                     const files = Array.from(e.target.files);
                                     files.forEach(file => {
-                                      const localUrl = URL.createObjectURL(file);
-                                      const cdnUrl = `https://ik.imagekit.io/whatsappdemo/logos/${Date.now()}_${file.name}`;
-                                      setLogosList(prev => [...prev, localUrl || cdnUrl]);
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        if (typeof reader.result === "string") {
+                                          setLogosList(prev => [...prev, reader.result as string]);
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
                                     });
                                   }
                                 }}
@@ -2379,7 +2387,7 @@ export default function WebsiteTrafficDisplayPage() {
                                   </div>
                                   <div className="flex items-center justify-between gap-1">
                                     <span className="text-[10px] font-mono text-emerald-400 truncate flex-1" title={logoUrl}>
-                                      {logoUrl.startsWith("blob:") ? `https://ik.imagekit.io/demo/logo_${i + 1}.png` : logoUrl}
+                                      {logoUrl.startsWith("data:") ? `Logo_${i + 1}.png` : logoUrl}
                                     </span>
                                     <button
                                       type="button"

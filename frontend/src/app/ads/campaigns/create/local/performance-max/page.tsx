@@ -1,14 +1,10 @@
 "use client";
-import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  X, HelpCircle, ArrowRight, Check, CheckCircle2, AlertTriangle, Plus, Trash2,
-  Sparkles, Layers, Target, Search, Video as VideoIcon, LayoutGrid, ShoppingBag,
-  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3,
-  Image as ImageIcon, Play, Upload, ExternalLink, ShieldCheck, DollarSign, RefreshCw, MapPin,
-  Building2, Store, Wand2, BarChart2, Phone, FileText
+  X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall, Play, BarChart2,
+  Search, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, Sparkles, Image as ImageIcon, Video as VideoIcon, Upload, Phone, DollarSign, Tag, FileText, MessageSquare, Smartphone, SlidersHorizontal, Globe, Users, Settings, Edit3, Lock, ShieldAlert, Layers, Crop, ZoomIn, RotateCcw, Menu
 } from "lucide-react";
 
 export default function LocalPerformanceMaxPage() {
@@ -25,11 +21,12 @@ function LocalPerformanceMaxContent() {
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [publishError, setPublishError] = useState("");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY">("BIDDING");
-  const [campaignName, setCampaignName] = useState<string>("Local-Performance Max-1");
+  const [campaignName, setCampaignName] = useState<string>(" LocalPerformance-Performance Max-1");
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [showDraftModal, setShowDraftModal] = useState<boolean>(false);
   const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
 
@@ -42,20 +39,18 @@ function LocalPerformanceMaxContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: customerId || accountInfo?.customerId || "default",
-          campaignName: campaignName || "Local-Performance Max-1",
+          campaignName: campaignName || " LocalPerformance-Performance Max-1",
           campaignType: "PERFORMANCE_MAX",
           biddingStrategy: biddingFocus || "Maximize conversion value",
-          targetCpa: typeof targetCpaValue !== "undefined" ? Number(targetCpaValue) : null,
-          targetRoas: typeof targetRoasValue !== "undefined" ? Number(targetRoasValue) / 100 : null,
           budget: typeof dailyBudgetValue !== "undefined" && dailyBudgetValue ? Number(dailyBudgetValue) : null,
           startDate: typeof startDate !== "undefined" && startDate ? startDate : new Date().toISOString().split("T")[0],
           endDate: typeof endDate !== "undefined" && endDate ? endDate : null,
           finalUrl: typeof finalUrl !== "undefined" ? finalUrl : null,
-          headlines: typeof headlines !== "undefined" && Array.isArray(headlines) ? headlines.filter(Boolean) : [],
-          descriptions: typeof descriptions !== "undefined" && Array.isArray(descriptions) ? descriptions.filter(Boolean) : [],
+          headlines: Array.isArray(headlines) ? headlines.filter(Boolean) : [],
+          descriptions: Array.isArray(descriptions) ? descriptions.filter(Boolean) : [],
           searchThemes: typeof searchThemes !== "undefined" && Array.isArray(searchThemes) ? searchThemes : [],
           languages: typeof selectedLanguages !== "undefined" ? selectedLanguages : ["English"],
-          geoTargets: typeof selectedLocation !== "undefined" && selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["INDIA"] : (typeof customLocationInput !== "undefined" && customLocationInput ? [customLocationInput] : ["ALL"]),
+          geoTargets: typeof selectedLocation !== "undefined" && selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["INDIA"] : (customLocationInput ? [customLocationInput] : ["ALL"]),
           draftData: {
             assetGroupName: typeof assetGroupName !== "undefined" ? assetGroupName : "Asset group 1",
             businessName: typeof businessName !== "undefined" ? businessName : "",
@@ -94,13 +89,15 @@ function LocalPerformanceMaxContent() {
   const [isEUPoliticalAdsOpen, setIsEUPoliticalAdsOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
+  const [selectedCustomLocations, setSelectedCustomLocations] = useState<Array<{ name: string; id?: string; canonicalName?: string }>>([]);
+  const [isSearchingLocations, setIsSearchingLocations] = useState<boolean>(false);
+  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ name: string; id?: string; canonicalName?: string; targetType?: string }>>([]);
   const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
   const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
   
   // Language Selection State with API simulation
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
-  
   const [isSearchingLanguages, setIsSearchingLanguages] = useState<boolean>(false);
   const [languageSearchResults, setLanguageSearchResults] = useState<string[]>([]);
 
@@ -126,6 +123,62 @@ function LocalPerformanceMaxContent() {
     }
   }, [languageSearchInput, selectedLanguages]);
 
+  // Live Location Search from backend API
+  useEffect(() => {
+    if (customLocationInput.trim().length >= 2) {
+      setIsSearchingLocations(true);
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "8627341950";
+
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`${BACKEND}/api/ads/geo-targets/search?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}&q=${encodeURIComponent(customLocationInput.trim())}`);
+          if (res.ok) {
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : (data.results || data.data || []);
+            const formatted = list.map((item: any) => ({
+              id: item.id || item.geoTargetConstant?.id || item.resourceName?.split("/").pop(),
+              name: item.name || item.geoTargetConstant?.name || item.canonicalName || item.geoTargetConstant?.canonicalName,
+              canonicalName: item.canonicalName || item.geoTargetConstant?.canonicalName || item.name,
+              targetType: item.targetType || item.geoTargetConstant?.targetType || "Location"
+            }));
+            setLocationSearchResults(formatted);
+          } else {
+            // Fallback to local filtering if search API returns 400/500
+            const localFallback = [
+              { name: "Mumbai", canonicalName: "Mumbai, Maharashtra, India", targetType: "City" },
+              { name: "Delhi", canonicalName: "Delhi, India", targetType: "Union territory" },
+              { name: "Bengaluru", canonicalName: "Bengaluru, Karnataka, India", targetType: "City" },
+              { name: "Hyderabad", canonicalName: "Hyderabad, Telangana, India", targetType: "City" },
+              { name: "Ahmedabad", canonicalName: "Ahmedabad, Gujarat, India", targetType: "City" },
+              { name: "Chennai", canonicalName: "Chennai, Tamil Nadu, India", targetType: "City" },
+              { name: "Kolkata", canonicalName: "Kolkata, West Bengal, India", targetType: "City" },
+              { name: "Pune", canonicalName: "Pune, Maharashtra, India", targetType: "City" },
+              { name: "Surat", canonicalName: "Surat, Gujarat, India", targetType: "City" },
+              { name: "Jaipur", canonicalName: "Jaipur, Rajasthan, India", targetType: "City" },
+              { name: "United States", canonicalName: "United States", targetType: "Country" },
+              { name: "United Kingdom", canonicalName: "United Kingdom", targetType: "Country" },
+              { name: "Canada", canonicalName: "Canada", targetType: "Country" },
+              { name: "Australia", canonicalName: "Australia", targetType: "Country" },
+              { name: "United Arab Emirates", canonicalName: "United Arab Emirates", targetType: "Country" }
+            ].filter(loc => loc.canonicalName.toLowerCase().includes(customLocationInput.toLowerCase()));
+            setLocationSearchResults(localFallback);
+          }
+        } catch (err) {
+          console.error("Location search error:", err);
+          setLocationSearchResults([]);
+        } finally {
+          setIsSearchingLocations(false);
+        }
+      }, 250);
+      return () => clearTimeout(timer);
+    } else {
+      setLocationSearchResults([]);
+      setIsSearchingLocations(false);
+    }
+  }, [customLocationInput, customerId]);
+
   const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
   const [showMoreCampaignSettings, setShowMoreCampaignSettings] = useState<boolean>(false);
   const [activeEditSetting, setActiveEditSetting] = useState<string | null>(null);
@@ -147,7 +200,7 @@ function LocalPerformanceMaxContent() {
     "16:00", "16:15", "16:30", "16:45", "17:00", "17:15", "17:30", "17:45",
     "18:00", "18:15", "18:30", "18:45", "19:00", "19:15", "19:30", "19:45",
     "20:00", "20:15", "20:30", "20:45", "21:00", "21:15", "21:30", "21:45",
-    "22:00", "22:15", "22:30", "22:45", "23:00", "23:15", "23:30", "23:45"
+    "22:00", "22:15", "22:30", "22:45", "23:00", "23:15", "23:30", "23:45", "24:00"
   ];
 
   const dayOptions = [
@@ -156,10 +209,10 @@ function LocalPerformanceMaxContent() {
   ];
 
   // Start and End Dates State
-  const [startDate, setStartDate] = useState<string>("2026-08-10");
-  const [startDateError, setStartDateError] = useState<string | null>(null);
-  const [endDateError, setEndDateError] = useState<string | null>(null);
+  const todayDateString = new Date().toISOString().split("T")[0];
+  const [startDate, setStartDate] = useState<string>(todayDateString);
   const [endDate, setEndDate] = useState<string>("");
+  const [endDateOption, setEndDateOption] = useState<"NONE" | "SELECT">("NONE");
 
   // Campaign URL options & Custom Parameters
   const [trackingTemplate, setTrackingTemplate] = useState<string>("");
@@ -292,20 +345,20 @@ function LocalPerformanceMaxContent() {
     tv: true
   });
   const [turnOnAgeExclusions, setTurnOnAgeExclusions] = useState<boolean>(false);
+  const [excludedAges, setExcludedAges] = useState<string[]>([]);
   const [turnOnGenderExclusions, setTurnOnGenderExclusions] = useState<boolean>(false);
+  const [excludedGenders, setExcludedGenders] = useState<string[]>([]);
 
   // Step 3: Asset Group State
+  const [isAssetGroupInfoOpen, setIsAssetGroupInfoOpen] = useState(false);
+  const [isBrandGuidelinesMainOpen, setIsBrandGuidelinesMainOpen] = useState(false);
+  const [isAssetsSectionOpen, setIsAssetsSectionOpen] = useState(false);
+  const [isMoreOptionsCardOpen, setIsMoreOptionsCardOpen] = useState(false);
+  const [isAssetOptimizationCardOpen, setIsAssetOptimizationCardOpen] = useState(false);
+  const [isSignalsOpen, setIsSignalsOpen] = useState(false);
   const [assetGroupName, setAssetGroupName] = useState<string>("Asset Group 1");
-  const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
-  const [businessName, setBusinessName] = useState<string>("JISNU Local Retail");
-
-  // Asset Group Accordion Cards (Pen Edit Icon Format)
-  const [isAssetGroupInfoOpen, setIsAssetGroupInfoOpen] = useState<boolean>(false);
-  const [isBrandGuidelinesMainOpen, setIsBrandGuidelinesMainOpen] = useState<boolean>(false);
-  const [isAssetsSectionOpen, setIsAssetsSectionOpen] = useState<boolean>(false);
-  const [isMoreOptionsCardOpen, setIsMoreOptionsCardOpen] = useState<boolean>(false);
-  const [isAssetOptimizationCardOpen, setIsAssetOptimizationCardOpen] = useState<boolean>(false);
-  const [isSignalsOpen, setIsSignalsOpen] = useState<boolean>(false);
+  const [finalUrl, setFinalUrl] = useState<string>("https://www.google.com");
+  const [businessName, setBusinessName] = useState<string>("Local Store");
 
   // Brand Guidelines State
   const [showBrandGuidelinesDetails, setShowBrandGuidelinesDetails] = useState<boolean>(false);
@@ -323,13 +376,45 @@ function LocalPerformanceMaxContent() {
     if (!file) return;
 
     setIsUploadingLogo(true);
-    const localUrl = URL.createObjectURL(file);
-    const cdnUrl = `https://ik.imagekit.io/whatsappdemo/logos/${Date.now()}_${file.name}`;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64Url = reader.result as string;
+      if (!base64Url) {
+        setIsUploadingLogo(false);
+        return;
+      }
 
-    setTimeout(() => {
-      setBrandLogos(prev => [...prev, cdnUrl || localUrl]);
+      // Generate 1:1 Square Logo (1200x1200) for Google Ads LOGO Asset
+      const img = new Image();
+      img.onload = () => {
+        const squareCanvas = document.createElement("canvas");
+        squareCanvas.width = 1200;
+        squareCanvas.height = 1200;
+        const ctx = squareCanvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, 1200, 1200);
+          const minDim = Math.min(img.width, img.height);
+          const sqX = (img.width - minDim) / 2;
+          const sqY = (img.height - minDim) / 2;
+          ctx.drawImage(img, sqX, sqY, minDim, minDim, 0, 0, 1200, 1200);
+          const squareLogoData = squareCanvas.toDataURL("image/jpeg", 0.92);
+          setBrandLogos(prev => [...prev, squareLogoData]);
+        } else {
+          setBrandLogos(prev => [...prev, base64Url]);
+        }
+        setIsUploadingLogo(false);
+      };
+      img.onerror = () => {
+        setBrandLogos(prev => [...prev, base64Url]);
+        setIsUploadingLogo(false);
+      };
+      img.src = base64Url;
+    };
+    reader.onerror = () => {
       setIsUploadingLogo(false);
-    }, 400);
+    };
+    reader.readAsDataURL(file);
   };
   const [headlines, setHeadlines] = useState<string[]>(["", "", ""]);
   const [longHeadlines, setLongHeadlines] = useState<string[]>([""]);
@@ -337,37 +422,46 @@ function LocalPerformanceMaxContent() {
   const [ctaOption, setCtaOption] = useState<string>("Automated (recommended)");
 
   // Uploaded Media State
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<Array<{ data: string; fieldType: string; name: string }>>([]);
   const [uploadedVideos, setUploadedVideos] = useState<string[]>([]);
   const [uploadedClips, setUploadedClips] = useState<string[]>([]);
 
+  // Marketing Image Cropper State
+  const [cropQueue, setCropQueue] = useState<Array<{ file: File; base64: string; name: string }>>([]);
+  const [currentCropItem, setCurrentCropItem] = useState<{ file: File; base64: string; name: string } | null>(null);
+  const [cropAspectMode, setCropAspectMode] = useState<"LANDSCAPE" | "SQUARE">("LANDSCAPE"); // LANDSCAPE (1.91:1) or SQUARE (1:1)
+  const [cropZoom, setCropZoom] = useState<number>(1);
+  const [cropOffset, setCropOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDraggingCrop, setIsDraggingCrop] = useState<boolean>(false);
+  const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [cropValidationError, setCropValidationError] = useState<string | null>(null);
+
   // Saved Asset Extensions State
-  const [savedSitelinks, setSavedSitelinks] = useState<Array<{ text: string; desc1: string; desc2: string; url: string }>>([]);
+  const [savedSitelinks, setSavedSitelinks] = useState<Array<{ text: string; desc1: string; desc2: string; url: string; mobileUrl: string; tracking: string; suffix: string; customParams: Array<{id: string, name: string, value: string}>; schedules: Array<{id: string, day: string, start: string, end: string, startDate: string, endDate: string}> }>>([]);
+  const [sitelinkText, setSitelinkText] = useState("");
+  const [sitelinkDesc1, setSitelinkDesc1] = useState("");
+  const [sitelinkDesc2, setSitelinkDesc2] = useState("");
+  const [sitelinkUrl, setSitelinkUrl] = useState("");
+  const [showSitelinkUrlOptions, setShowSitelinkUrlOptions] = useState(false);
+  const [showSitelinkAdvancedOptions, setShowSitelinkAdvancedOptions] = useState(false);
+  const [sitelinkMobileUrl, setSitelinkMobileUrl] = useState("");
+  const [useSitelinkMobileUrl, setUseSitelinkMobileUrl] = useState(false);
+  const [sitelinkTracking, setSitelinkTracking] = useState("");
+  const [sitelinkSuffix, setSitelinkSuffix] = useState("");
+  const [sitelinkCustomParams, setSitelinkCustomParams] = useState<Array<{id: string, name: string, value: string}>>([]);
+  const [sitelinkSchedules, setSitelinkSchedules] = useState<Array<{id: string, day: string, start: string, end: string, startDate: string, endDate: string}>>([]);
   const [savedPromotions, setSavedPromotions] = useState<Array<{ occasion: string; item: string; discount: string; url: string }>>([]);
   const [savedPrices, setSavedPrices] = useState<Array<{ type: string; price: string }>>([]);
   const [savedMessages, setSavedMessages] = useState<Array<{ platform: string }>>([]);
   const [savedSnippets, setSavedSnippets] = useState<Array<{ header: string; values: string[] }>>([]);
   const [savedLeadForms, setSavedLeadForms] = useState<Array<{ headline: string; business: string }>>([]);
   const [savedCallouts, setSavedCallouts] = useState<string[]>([]);
-
-  // Sitelink validation states
-  const [sitelinkText, setSitelinkText] = useState<string>("");
-  const [sitelinkDesc1, setSitelinkDesc1] = useState<string>("");
-  const [sitelinkDesc2, setSitelinkDesc2] = useState<string>("");
-  const [sitelinkUrl, setSitelinkUrl] = useState<string>("");
-  const [sitelinkDupeError, setSitelinkDupeError] = useState<string | null>(null);
-  const [sitelinkUrlError, setSitelinkUrlError] = useState<string | null>(null);
-  const [sitelinkDescError, setSitelinkDescError] = useState<string | null>(null);
-  const [sitelinkItems, setSitelinkItems] = useState<Array<{ text: string; desc1: string; desc2: string; url: string }>>([{ text: "", desc1: "", desc2: "", url: "" }]);
+  const [savedCalls, setSavedCalls] = useState<Array<{ country: string; phone: string }>>([]);
 
   // Callouts advanced states
   const [modalCalloutTexts, setModalCalloutTexts] = useState<string[]>([]);
   const [newCalloutInput, setNewCalloutInput] = useState<string>("");
   const [calloutStartDateType, setCalloutStartDateType] = useState<"none" | "date">("none");
-  const [calloutStartError, setCalloutStartError] = useState<string | null>(null);
-  const [calloutEndError, setCalloutEndError] = useState<string | null>(null);
-  const [calloutSchedDupeError, setCalloutSchedDupeError] = useState<string | null>(null);
-  const [calloutDupeError, setCalloutDupeError] = useState<string | null>(null);
   const [calloutStartDateValue, setCalloutStartDateValue] = useState<string>("");
   const [calloutEndDateType, setCalloutEndDateType] = useState<"none" | "date">("none");
   const [calloutEndDateValue, setCalloutEndDateValue] = useState<string>("");
@@ -470,9 +564,6 @@ function LocalPerformanceMaxContent() {
 
   // Dates
   const [promoStartDate, setPromoStartDate] = useState<string>("");
-  const [promoStartDateError, setPromoStartDateError] = useState<string | null>(null);
-  const [promoEndDateError, setPromoEndDateError] = useState<string | null>(null);
-  const [promoFinalUrlError, setPromoFinalUrlError] = useState<string | null>(null);
   const [promoEndDate, setPromoEndDate] = useState<string>("");
 
   // URL Options
@@ -487,9 +578,6 @@ function LocalPerformanceMaxContent() {
   const [promoTermsConditions, setPromoTermsConditions] = useState<string>("");
   const [promoAdditionalTermsLink, setPromoAdditionalTermsLink] = useState<string>("");
   const [assetSchedStartDate, setAssetSchedStartDate] = useState<string>("");
-  const [assetSchedStartError, setAssetSchedStartError] = useState<string | null>(null);
-  const [assetSchedEndError, setAssetSchedEndError] = useState<string | null>(null);
-  const [assetSchedDupeError, setAssetSchedDupeError] = useState<string | null>(null);
   const [assetSchedEndDate, setAssetSchedEndDate] = useState<string>("");
   const [assetSchedules, setAssetSchedules] = useState<Array<{ id: string; day: string; start: string; end: string }>>([
     { id: "as-1", day: "All days", start: "12:00 AM", end: "12:00 AM" }
@@ -519,8 +607,10 @@ function LocalPerformanceMaxContent() {
   // Signals State
   const [searchThemes, setSearchThemes] = useState<string[]>([]);
   const [searchThemeInput, setSearchThemeInput] = useState<string>("");
-  const [audienceName, setAudienceName] = useState<string>("");
-
+  const [audienceList, setAudienceList] = useState<Array<{ id: string; name: string; resourceName: string; type: string }>>([]);
+  const [isLoadingAudiences, setIsLoadingAudiences] = useState<boolean>(false);
+  const [selectedAudienceResource, setSelectedAudienceResource] = useState<{ resourceName: string; name: string; type: string } | null>(null);
+  
   // Audience Signal states
   const [savedAudienceSignal, setSavedAudienceSignal] = useState<{
     name: string;
@@ -528,7 +618,6 @@ function LocalPerformanceMaxContent() {
     hasInterests: boolean;
     demographicsCount: number;
   } | null>(null);
-
   const [audienceNameInput, setAudienceNameInput] = useState<string>("");
   const [selectedDataSegments, setSelectedDataSegments] = useState<string[]>([]);
   const [interestsInput, setInterestsInput] = useState<string>("");
@@ -549,6 +638,32 @@ function LocalPerformanceMaxContent() {
   const [ytPrefill, setYtPrefill] = useState<"prefill" | "empty">("prefill");
   const [ytDescription, setYtDescription] = useState<string>("");
 
+  // Step 0: Campaign Construction & Feeds State
+  const [merchantCenterEnabled, setMerchantCenterEnabled] = useState<boolean>(false);
+  const [merchantCenterId, setMerchantCenterId] = useState<string>("");
+  const [feedLabel, setFeedLabel] = useState<string>("");
+  const [storeLocationsEnabled, setStoreLocationsEnabled] = useState<boolean>(false);
+  const [businessProfileLocationFilter, setBusinessProfileLocationFilter] = useState<string>("ALL");
+  const [dynamicAdsFeedEnabled, setDynamicAdsFeedEnabled] = useState<boolean>(false);
+  const [dynamicFeedId, setDynamicFeedId] = useState<string>("");
+
+  // Value Rules State (Bidding Step)
+  const [isConversionValueRulesOpen, setIsConversionValueRulesOpen] = useState<boolean>(false);
+  const [valueRuleType, setValueRuleType] = useState<"NONE" | "AUDIENCE" | "DEVICE" | "GEO">("NONE");
+  const [valueRuleOperation, setValueRuleOperation] = useState<"MULTIPLY" | "ADD">("MULTIPLY");
+  const [valueRuleValue, setValueRuleValue] = useState<string>("1.2");
+  const [valueRuleConditionValue, setValueRuleConditionValue] = useState<string>("");
+
+  // Third-Party Measurement State (More Settings)
+  const [thirdPartyMeasurementEnabled, setThirdPartyMeasurementEnabled] = useState<boolean>(false);
+  const [thirdPartyVendor, setThirdPartyVendor] = useState<string>("NONE");
+  const [thirdPartyAccountId, setThirdPartyAccountId] = useState<string>("");
+
+  // Page Feeds State (More Settings)
+  const [pageFeedUrls, setPageFeedUrls] = useState<Array<{ id: string; url: string; label: string }>>([]);
+  const [newPageFeedUrlInput, setNewPageFeedUrlInput] = useState<string>("");
+  const [newPageFeedLabelInput, setNewPageFeedLabelInput] = useState<string>("");
+
   // GA4 states
   const [ga4Property, setGa4Property] = useState<string>("");
   const [ga4ImportMetrics, setGa4ImportMetrics] = useState<boolean>(true);
@@ -558,9 +673,11 @@ function LocalPerformanceMaxContent() {
   const [budgetType, setBudgetType] = useState<"DAILY" | "TOTAL">("DAILY");
   const [dailyBudgetValue, setDailyBudgetValue] = useState<string>("");
 
+  const draftId = searchParams.get("draftId");
+
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     if (customerId) {
       fetch(`${BACKEND}/api/ads/customer-info?orgId=${orgId}&customerId=${customerId}`)
         .then(r => r.json())
@@ -573,14 +690,76 @@ function LocalPerformanceMaxContent() {
         .catch(() => {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
         });
+
+      setIsLoadingAudiences(true);
+      fetch(`${BACKEND}/api/ads/audiences?orgId=${orgId}&customerId=${customerId}`)
+        .then(r => r.json())
+        .then(data => {
+          const list = Array.isArray(data) ? data : (data.value || []);
+          setAudienceList(list);
+          setIsLoadingAudiences(false);
+        })
+        .catch(() => {
+          setAudienceList([]);
+          setIsLoadingAudiences(false);
+        });
     }
-  }, [customerId]);
+
+    if (draftId) {
+      fetch(`${BACKEND}/api/ads/campaigns/drafts?orgId=${encodeURIComponent(orgId)}${customerId ? `&customerId=${encodeURIComponent(customerId)}` : ""}`)
+        .then(r => r.json())
+        .then(drafts => {
+          if (Array.isArray(drafts)) {
+            const found = drafts.find((d: any) => d.id === draftId || d.campaignId === draftId);
+            if (found) {
+              if (found.name) setCampaignName(found.name);
+              if (found.biddingStrategy) setBiddingFocus(found.biddingStrategy as any);
+              if (found.budget) setDailyBudgetValue(String(found.budget));
+              if (found.startDate) setStartDate(new Date(found.startDate).toISOString().split("T")[0]);
+              if (found.endDate) setEndDate(new Date(found.endDate).toISOString().split("T")[0]);
+              if (found.finalUrl) setFinalUrl(found.finalUrl);
+              if (Array.isArray(found.headlines) && found.headlines.length > 0) setHeadlines(found.headlines);
+              if (Array.isArray(found.descriptions) && found.descriptions.length > 0) setDescriptions(found.descriptions);
+              if (Array.isArray(found.searchThemes) && found.searchThemes.length > 0) setSearchThemes(found.searchThemes);
+              if (Array.isArray(found.languages) && found.languages.length > 0) setSelectedLanguages(found.languages);
+              if (Array.isArray(found.geoTargets) && found.geoTargets.length > 0) {
+                if (found.geoTargets[0] === "ALL" || found.geoTargets[0] === "INDIA") {
+                  setSelectedLocation(found.geoTargets[0]);
+                } else {
+                  setSelectedLocation("CUSTOM");
+                  setCustomLocationInput(found.geoTargets[0]);
+                }
+              }
+              const dData = found.audienceSignal;
+              if (dData && typeof dData === "object") {
+                if (dData.assetGroupName) setAssetGroupName(dData.assetGroupName);
+                if (dData.businessName) setBusinessName(dData.businessName);
+                if (Array.isArray(dData.longHeadlines)) setLongHeadlines(dData.longHeadlines);
+                if (Array.isArray(dData.uploadedImages)) setUploadedImages(dData.uploadedImages);
+                if (Array.isArray(dData.uploadedLogos)) setBrandLogos(dData.uploadedLogos);
+                if (Array.isArray(dData.uploadedVideos)) setUploadedVideos(dData.uploadedVideos);
+                if (dData.ctaOption) setCtaOption(dData.ctaOption);
+              }
+            }
+          }
+        })
+        .catch(err => console.error("Error restoring draft:", err));
+    }
+  }, [customerId, draftId]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ── */}
-      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
-        <div className="flex items-center gap-4">
+      <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-1.5 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 md:hidden cursor-pointer"
+            title="Open steps menu"
+            aria-label="Open steps menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <button
             onClick={() => setShowDraftModal(true)}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
@@ -588,138 +767,280 @@ function LocalPerformanceMaxContent() {
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-semibold">
-            <span className="text-slate-500">Local store visits and promotions</span>
-            <span className="text-slate-600">/</span>
-            <span className="text-slate-800 font-bold flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Performance Max Setup
-            </span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-3 sm:pl-4 text-xs font-semibold">
+            <span className="text-slate-500 hidden sm:inline"> LocalPerformance</span>
+            <span className="text-slate-600 hidden sm:inline">/</span>
+            <div className="flex items-center gap-1.5 bg-slate-100/80 px-2.5 py-1 rounded-lg border border-slate-200">
+              <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+              <input
+                type="text"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="Campaign Name"
+                className="bg-transparent border-0 text-slate-800 font-bold text-xs focus:outline-none focus:ring-0 max-w-[140px] sm:max-w-[220px]"
+              />
+              <Edit3 className="h-3 w-3 text-slate-400 shrink-0" />
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="font-mono">
+          <span className="font-mono text-[11px] sm:text-xs truncate max-w-[140px] sm:max-w-none">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "779-100-4787 Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900 shrink-0" />
         </div>
       </header>
+
+      {/* ── Mobile Sidebar Drawer (Slide-over overlay) ── */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+
+          {/* Drawer panel */}
+          <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col z-10 border-r border-slate-200 animate-in slide-in-from-left duration-200">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <h2 className="font-bold text-slate-900 text-sm">Performance Max</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1">
+              <nav className="space-y-2 text-xs font-sans">
+                {/* 1. Bidding */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("BIDDING"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "BIDDING"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">1</div>
+                    <span className="font-semibold">Bidding</span>
+                  </div>
+                  {wizardStep === "BIDDING" && (
+                    <div className="ml-7 mt-1 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1 font-medium">
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("bidding"); setIsMobileSidebarOpen(false); }}>Bidding</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("acquisition"); setIsMobileSidebarOpen(false); }}>Customer acquisition</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("retention"); setIsMobileSidebarOpen(false); }}>Customer retention</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("local"); setIsMobileSidebarOpen(false); }}>Local customer optimization</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Campaign settings */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "CAMPAIGN_SETTINGS"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">2</div>
+                    <span className="font-semibold">Campaign settings</span>
+                  </div>
+                  {wizardStep === "CAMPAIGN_SETTINGS" && (
+                    <div className="ml-7 mt-1 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1 font-medium">
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Locations</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Languages</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>EU political ads</div>
+                      <div className="pl-3 border-l border-slate-200 space-y-1 pt-1 pb-1">
+                        <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Ad Schedule</div>
+                        <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Start and end dates</div>
+                        <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Campaign URL options</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Asset group */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "ASSET_GROUP"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">3</div>
+                    <span className="font-semibold">Asset group</span>
+                  </div>
+                  {wizardStep === "ASSET_GROUP" && (
+                    <div className="ml-7 mt-1 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1 font-medium">
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}>Assets &amp; Media</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}>Search themes</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}>Audience signal</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Budget */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("BUDGET"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "BUDGET"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">4</div>
+                    <span className="font-semibold">Budget</span>
+                  </div>
+                </div>
+
+                {/* 5. Summary */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("SUMMARY"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "SUMMARY"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">5</div>
+                    <span className="font-semibold">Summary &amp; Review</span>
+                  </div>
+                </div>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main Layout: Sidebar & Content ── */}
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
         
         {/* Left Sidebar Navigation */}
         <aside className="w-64 border-r border-slate-200 bg-slate-50/50 hidden md:block shrink-0 overflow-y-auto hidden-scrollbar">
-          <div className="p-6 space-y-6">
-            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-2 text-xs font-semibold text-slate-800">
-              <Sparkles className="h-4 w-4 text-primary shrink-0" />
-              <span>Performance Max</span>
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <h2 className="font-bold text-slate-800">Performance Max</h2>
             </div>
-
-            <nav className="space-y-1.5 text-xs font-sans">
+            <nav className="space-y-1 text-xs font-sans">
               {/* 1. Bidding */}
-              <div className="space-y-1">
+              <div>
                 <div
                   onClick={() => setWizardStep("BIDDING")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
                     wizardStep === "BIDDING"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-bold"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
                       : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
-                  <span>1. Bidding</span>
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">1</div>
+                  <span>Bidding</span>
                 </div>
-                {wizardStep === "BIDDING" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
-                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("bidding")}>Bidding</p>
-                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("acquisition")}>Customer acquisition</p>
-                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("retention")}>Customer retention</p>
-                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("local")}>Local customer optimization</p>
-                  </div>
-                )}
+                <div className="ml-10 mt-1 space-y-2 text-[11px] text-slate-500 font-medium pb-2">
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("bidding"); }}>Bidding</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("acquisition"); }}>Customer acquisition</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("retention"); }}>Customer retention</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("local"); }}>Local customer optimization</div>
+                </div>
               </div>
 
               {/* 2. Campaign settings */}
-              <div className="space-y-1">
+              <div>
                 <div
                   onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
                     wizardStep === "CAMPAIGN_SETTINGS"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-bold"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
                       : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
-                  <span>2. Campaign settings</span>
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">2</div>
+                  <span>Campaign settings</span>
                 </div>
-                {wizardStep === "CAMPAIGN_SETTINGS" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
-                    <p className="hover:text-slate-800">Locations</p>
-                    <p className="hover:text-slate-800">Languages</p>
-                    <p className="hover:text-slate-800">EU political ads</p>
-                    <div className="pt-1">
-                      <p className="text-slate-700 font-semibold">more settings</p>
-                      <div className="ml-2 space-y-0.5 text-[10px] text-slate-500">
-                        <p>Ad Schedule</p>
-                        <p>Start and end dates</p>
-                        <p>Campaign URL options</p>
-                        <p>Page Feeds</p>
-                        <p>Devices</p>
-                        <p>Brand exclusions</p>
-                        <p>Demographic exclusions</p>
-                        <p>Audience exclusions</p>
-                      </div>
+                <div className="ml-10 mt-1 space-y-2 text-[11px] text-slate-500 font-medium pb-2">
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Locations</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Languages</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>EU political ads</div>
+                  
+                  <div className="pl-3 border-l border-slate-200 space-y-2 pt-1 pb-1">
+                    <div className="text-slate-500 font-semibold cursor-pointer hover:text-slate-900 flex items-center gap-1 transition-colors">
+                      More settings
                     </div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Ad Schedule</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Start and end dates</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Campaign URL options</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Page Feeds</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Devices</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Brand exclusions</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Demographic exclusions</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Audience exclusions</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Third-party measurement</div>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* 3. Asset group */}
-              <div className="space-y-1">
+              <div>
                 <div
                   onClick={() => setWizardStep("ASSET_GROUP")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
                     wizardStep === "ASSET_GROUP"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-bold"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
                       : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
-                  <span>3. Asset group</span>
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">3</div>
+                  <span>Asset group</span>
                 </div>
-                {wizardStep === "ASSET_GROUP" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
-                    <p className="hover:text-slate-800">Name</p>
-                    <p className="hover:text-slate-800">Final URL</p>
-                    <p className="hover:text-slate-800">Assets</p>
-                    <p className="hover:text-slate-800">Asset optimization</p>
-                    <p className="hover:text-slate-800">Search themes</p>
-                    <p className="hover:text-slate-800">Audience signal</p>
-                  </div>
-                )}
+                <div className="ml-10 mt-1 space-y-2 text-[11px] text-slate-500 font-medium pb-2">
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>Assets &amp; Media</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>Search themes</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>Audience signal</div>
+                </div>
               </div>
 
               {/* 4. Budget */}
-              <div
-                onClick={() => setWizardStep("BUDGET")}
-                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${
-                  wizardStep === "BUDGET"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                    : "text-slate-500 hover:bg-white hover:text-slate-800"
-                }`}
-              >
-                <span>4. Budget</span>
+              <div>
+                <div
+                  onClick={() => setWizardStep("BUDGET")}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                    wizardStep === "BUDGET"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
+                  }`}
+                >
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">4</div>
+                  <span>Budget</span>
+                </div>
               </div>
 
               {/* 5. Summary */}
-              <div
-                onClick={() => setWizardStep("SUMMARY")}
-                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${
-                  wizardStep === "SUMMARY"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                    : "text-slate-500 hover:bg-white hover:text-slate-800"
-                }`}
-              >
-                <span>5. Summary</span>
+              <div>
+                <div
+                  onClick={() => setWizardStep("SUMMARY")}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                    wizardStep === "SUMMARY"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
+                  }`}
+                >
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">5</div>
+                  <span>Summary &amp; Review</span>
+                </div>
               </div>
             </nav>
           </div>
@@ -766,9 +1087,16 @@ function LocalPerformanceMaxContent() {
                             value={targetCpaValue}
                             onChange={(e) => setTargetCpaValue(e.target.value)}
                             placeholder="0.00"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                            className={`w-full bg-slate-50 border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none ${
+                              Number(targetCpaValue) <= 0 && targetCpaValue ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"
+                            }`}
                           />
                         </div>
+                        {Number(targetCpaValue) <= 0 && targetCpaValue && (
+                          <p className="text-[11px] text-rose-500 font-semibold">
+                            Target CPA must be a positive number and cannot be negative or zero.
+                          </p>
+                        )}
                         <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
                           Alternative bid strategies like portfolios are available in settings after you create your campaign
                         </p>
@@ -784,10 +1112,17 @@ function LocalPerformanceMaxContent() {
                             value={targetRoasValue}
                             onChange={(e) => setTargetRoasValue(e.target.value)}
                             placeholder="200"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                            className={`w-full bg-slate-50 border rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none ${
+                              Number(targetRoasValue) <= 0 && targetRoasValue ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"
+                            }`}
                           />
                           <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">%</span>
                         </div>
+                        {Number(targetRoasValue) <= 0 && targetRoasValue && (
+                          <p className="text-[11px] text-rose-500 font-semibold">
+                            Target ROAS must be a positive percentage (e.g. 200%) and cannot be negative or zero.
+                          </p>
+                        )}
                         <p className="text-[10px] text-amber-500 mt-1 leading-relaxed font-semibold">
                           Before opting into target ROAS, wait until the account that set up conversion tracking has received at least 15 conversions in the last 30 days.
                         </p>
@@ -1029,28 +1364,81 @@ function LocalPerformanceMaxContent() {
                     <p className="text-slate-500">Select locations for this campaign</p>
                     <div className="space-y-2">
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="radio" name="localPmaxLoc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-primary h-4 w-4" />
+                        <input type="radio" name=" LocalPerformancePmaxLoc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-primary h-4 w-4" />
                         <span>All countries and territories</span>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="radio" name="localPmaxLoc" checked={selectedLocation === "INDIA"} onChange={() => setSelectedLocation("INDIA")} className="text-primary h-4 w-4" />
+                        <input type="radio" name=" LocalPerformancePmaxLoc" checked={selectedLocation === "INDIA"} onChange={() => setSelectedLocation("INDIA")} className="text-primary h-4 w-4" />
                         <span>India</span>
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="radio" name="localPmaxLoc" checked={selectedLocation === "CUSTOM"} onChange={() => setSelectedLocation("CUSTOM")} className="text-primary h-4 w-4" />
+                        <input type="radio" name=" LocalPerformancePmaxLoc" checked={selectedLocation === "CUSTOM"} onChange={() => setSelectedLocation("CUSTOM")} className="text-primary h-4 w-4" />
                         <span>Enter another location</span>
                       </label>
                     </div>
 
                     {selectedLocation === "CUSTOM" && (
-                      <div className="pt-2 max-w-md">
-                        <input
-                          type="text"
-                          value={customLocationInput}
-                          onChange={(e) => setCustomLocationInput(e.target.value)}
-                          placeholder="Enter a location (e.g. Mumbai, India)"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
-                        />
+                      <div className="pt-2 max-w-md space-y-2">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={customLocationInput}
+                            onChange={(e) => setCustomLocationInput(e.target.value)}
+                            placeholder="Enter a location to target (e.g. Mumbai, Gujarat, India)"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                          />
+                          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          {isSearchingLocations && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Live Location Search Dropdown Results */}
+                        {locationSearchResults.length > 0 && (
+                          <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 z-10 relative">
+                            {locationSearchResults.map((loc, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  if (!selectedCustomLocations.some(l => l.canonicalName === loc.canonicalName)) {
+                                    setSelectedCustomLocations(prev => [...prev, loc]);
+                                  }
+                                  setCustomLocationInput(loc.canonicalName || loc.name);
+                                  setLocationSearchResults([]);
+                                }}
+                                className="p-2.5 hover:bg-primary/10 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                              >
+                                <div>
+                                  <span className="font-semibold text-slate-800 block">{loc.canonicalName || loc.name}</span>
+                                  {loc.id && <span className="text-[10px] text-slate-500 font-mono">ID: {loc.id}</span>}
+                                </div>
+                                <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-medium">
+                                  {loc.targetType || "Location"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Selected Custom Locations Chips */}
+                        {selectedCustomLocations.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {selectedCustomLocations.map((loc, i) => (
+                              <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary rounded-lg text-xs font-semibold">
+                                {loc.canonicalName || loc.name}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedCustomLocations(prev => prev.filter((_, idx) => idx !== i))}
+                                  className="hover:text-rose-500"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1220,11 +1608,11 @@ function LocalPerformanceMaxContent() {
                   <div className="space-y-3 pt-1">
                     <p className="text-slate-700">Does your campaign have European Union political ads?</p>
                     <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="radio" name="euPolLocal" checked={euPoliticalAds === "YES"} onChange={() => setEuPoliticalAds("YES")} className="text-primary h-4 w-4" />
+                      <input type="radio" name="euPol LocalPerformance" checked={euPoliticalAds === "YES"} onChange={() => setEuPoliticalAds("YES")} className="text-primary h-4 w-4" />
                       <span>Yes, this campaign has EU political ads</span>
                     </label>
                     <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="radio" name="euPolLocal" checked={euPoliticalAds === "NO"} onChange={() => setEuPoliticalAds("NO")} className="text-primary h-4 w-4" />
+                      <input type="radio" name="euPol LocalPerformance" checked={euPoliticalAds === "NO"} onChange={() => setEuPoliticalAds("NO")} className="text-primary h-4 w-4" />
                       <span>No, this campaign doesn't have EU political ads</span>
                     </label>
                     <p className="text-[11px] text-slate-500 pt-1">EU regulation requires Google to ask this question. Learn how an EU political ad is defined</p>
@@ -1277,59 +1665,66 @@ function LocalPerformanceMaxContent() {
                       </div>
                       <div className="space-y-3">
                         {adScheduleList.map((sched, idx) => (
-                          <div key={idx} className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                            <select
-                              value={sched.day}
-                              onChange={(e) => {
-                                const updated = [...adScheduleList];
-                                updated[idx].day = e.target.value;
-                                setAdScheduleList(updated);
-                              }}
-                              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
-                            >
-                              {dayOptions.map((day, i) => (
-                                <option key={i} value={day}>{day}</option>
-                              ))}
-                            </select>
-
-                            <select
-                              value={sched.start}
-                              onChange={(e) => {
-                                const updated = [...adScheduleList];
-                                updated[idx].start = e.target.value;
-                                setAdScheduleList(updated);
-                              }}
-                              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
-                            >
-                              {timeOptions.map((t, i) => (
-                                <option key={i} value={t}>{t}</option>
-                              ))}
-                            </select>
-
-                            <span className="text-slate-500">to</span>
-
-                            <select
-                              value={sched.end}
-                              onChange={(e) => {
-                                const updated = [...adScheduleList];
-                                updated[idx].end = e.target.value;
-                                setAdScheduleList(updated);
-                              }}
-                              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
-                            >
-                              {timeOptions.map((t, i) => (
-                                <option key={i} value={t}>{t}</option>
-                              ))}
-                            </select>
-
-                            {adScheduleList.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => setAdScheduleList(prev => prev.filter((_, i) => i !== idx))}
-                                className="p-1.5 text-slate-500 hover:text-rose-400 ml-auto"
+                          <div key={idx} className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                              <select
+                                value={sched.day}
+                                onChange={(e) => {
+                                  const updated = [...adScheduleList];
+                                  updated[idx].day = e.target.value;
+                                  setAdScheduleList(updated);
+                                }}
+                                className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                                {dayOptions.map((day, i) => (
+                                  <option key={i} value={day}>{day}</option>
+                                ))}
+                              </select>
+
+                              <select
+                                value={sched.start}
+                                onChange={(e) => {
+                                  const updated = [...adScheduleList];
+                                  updated[idx].start = e.target.value;
+                                  setAdScheduleList(updated);
+                                }}
+                                className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
+                              >
+                                {timeOptions.map((t, i) => (
+                                  <option key={i} value={t}>{t}</option>
+                                ))}
+                              </select>
+
+                              <span className="text-slate-500">to</span>
+
+                              <select
+                                value={sched.end}
+                                onChange={(e) => {
+                                  const updated = [...adScheduleList];
+                                  updated[idx].end = e.target.value;
+                                  setAdScheduleList(updated);
+                                }}
+                                className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
+                              >
+                                {timeOptions.map((t, i) => (
+                                  <option key={i} value={t}>{t}</option>
+                                ))}
+                              </select>
+
+                              {adScheduleList.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setAdScheduleList(prev => prev.filter((_, i) => i !== idx))}
+                                  className="p-1.5 text-slate-500 hover:text-rose-400 ml-auto"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                            {sched.start && sched.end && !(sched.start === "00:00" && (sched.end === "00:00" || sched.end === "24:00")) && sched.end <= sched.start && (
+                              <p className="text-[10px] text-rose-500 font-semibold pl-1">
+                                End time ({sched.end}) must be after start time ({sched.start}).
+                              </p>
                             )}
                           </div>
                         ))}
@@ -1366,32 +1761,55 @@ function LocalPerformanceMaxContent() {
                         <div className="space-y-1">
                           <label className="block text-[11px] text-slate-500 font-semibold">Start date</label>
                           <input
-                             type="date"
-                             min={new Date().toISOString().split("T")[0]}
-                             value={startDate}
-                             onChange={(e) => {
-                               setStartDate(e.target.value);
-                               const today = new Date().toISOString().split("T")[0];
-                               if (e.target.value && e.target.value < today) { setStartDateError("Start date cannot be in the past."); } else { setStartDateError(null); }
-                               if (endDate && e.target.value && endDate <= e.target.value) { const d = new Date(e.target.value); d.setDate(d.getDate()+1); setEndDate(d.toISOString().split("T")[0]); setEndDateError(null); }
-                             }}
-                             className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary ${startDateError ? "border-rose-400" : "border-slate-200"}`}
-                           />
-                           {startDateError && <p className="text-[11px] text-rose-500 font-semibold">{startDateError}</p>}
+                            type="date"
+                            value={startDate}
+                            min={todayDateString}
+                            onChange={(e) => {
+                              const newDate = e.target.value;
+                              setStartDate(newDate);
+                              if (endDate && newDate > endDate) {
+                                setEndDate(newDate);
+                              }
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                          />
                         </div>
                         <div className="space-y-1">
                           <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
-                          <input
-                             type="date"
-                             min={startDate ? (() => { const d = new Date(startDate); d.setDate(d.getDate()+1); return d.toISOString().split("T")[0]; })() : new Date().toISOString().split("T")[0]}
-                             value={endDate}
-                             onChange={(e) => {
-                               setEndDate(e.target.value);
-                               if (startDate && e.target.value && e.target.value <= startDate) { setEndDateError("End date must be after start date."); } else { setEndDateError(null); }
-                             }}
-                             className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary ${endDateError ? "border-rose-400" : "border-slate-200"}`}
-                           />
-                           {endDateError && <p className="text-[11px] text-rose-500 font-semibold">{endDateError}</p>}
+                          <div className="flex items-center gap-4 mb-2">
+                            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                              <input 
+                                type="radio" 
+                                name="endDateOption" 
+                                checked={endDateOption === "NONE"} 
+                                onChange={() => {
+                                  setEndDateOption("NONE");
+                                  setEndDate("");
+                                }} 
+                                className="text-primary focus:ring-primary h-3.5 w-3.5"
+                              />
+                              None
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                              <input 
+                                type="radio" 
+                                name="endDateOption" 
+                                checked={endDateOption === "SELECT"} 
+                                onChange={() => setEndDateOption("SELECT")} 
+                                className="text-primary focus:ring-primary h-3.5 w-3.5"
+                              />
+                              Select a date
+                            </label>
+                          </div>
+                          {endDateOption === "SELECT" && (
+                            <input
+                              type="date"
+                              value={endDate}
+                              min={startDate || todayDateString}
+                              onChange={(e) => setEndDate(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1399,7 +1817,7 @@ function LocalPerformanceMaxContent() {
                     <div onClick={() => setActiveEditSetting("DATES")} className="p-4 hover:bg-slate-50 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
                       <div className="w-1/3 text-slate-500 font-semibold">Start and end dates</div>
                       <div className="w-2/3 text-slate-800 font-bold pr-8">
-                        Start date: {startDate ? new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"}  End date: {endDate ? new Date(endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"}
+                        Start date: {startDate ? new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"}  End date: {endDateOption === "NONE" ? "None" : (endDate ? new Date(endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set")}
                       </div>
                       <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
                     </div>
@@ -1500,15 +1918,18 @@ function LocalPerformanceMaxContent() {
                         <span className="font-bold text-slate-800">Page feeds</span>
                         <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
                       </div>
-                      <p className="text-[11px] text-slate-500 leading-relaxed">Add page feeds to specify which URLs to use in your campaign. With Final URL expansion on, you will use all URLs Google knows about your website, including any page feeds. By turning Final URL expansion off, you will only use URLs from your page feeds. Learn more about page feeds</p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">Add page feeds to specify which URLs to use in your campaign. With Final URL expansion on, you will use all URLs Google knows about your website, including any page feeds. By turning Final URL expansion off, you will only use URLs from your page feeds.</p>
+                      
+                      {/* Page feeds input removed as requested */}
                     </div>
                   ) : (
                     <div onClick={() => setActiveEditSetting("PAGE_FEEDS")} className="p-4 hover:bg-slate-50 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
                       <div className="w-1/3 text-slate-500 font-semibold">Page feeds</div>
-                      <div className="w-2/3 text-slate-800 font-bold pr-8">No page feeds added</div>
+                      <div className="w-2/3 text-slate-800 font-bold pr-8">{pageFeedUrls.length > 0 ? `${pageFeedUrls.length} page feeds configured` : "No page feeds added"}</div>
                       <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
                     </div>
                   )}
+
 
                   {/* Devices Row */}
                   {activeEditSetting === "DEVICES" ? (
@@ -1593,18 +2014,81 @@ function LocalPerformanceMaxContent() {
                     <div className="p-6 bg-white space-y-4 animate-in fade-in duration-150 text-xs">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                         <span className="font-bold text-slate-800">Demographic exclusions</span>
-                        <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg">Save</button>
+                        <button 
+                          type="button" 
+                          disabled={
+                            (turnOnAgeExclusions && ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"].every(a => excludedAges.includes(a))) || 
+                            (turnOnGenderExclusions && ["Female", "Male"].every(g => excludedGenders.includes(g)))
+                          }
+                          onClick={() => setActiveEditSetting(null)} 
+                          className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Save
+                        </button>
                       </div>
                       <p className="text-[11px] text-slate-500">Demographic exclusions will override any specific hints that are active on any asset groups within this campaign.</p>
-                      <div className="space-y-2 pt-1">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={turnOnAgeExclusions} onChange={(e) => setTurnOnAgeExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
-                          <span>Turn on age exclusions</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={turnOnGenderExclusions} onChange={(e) => setTurnOnGenderExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
-                          <span>Turn on gender exclusions</span>
-                        </label>
+                      <div className="space-y-4 pt-1">
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={turnOnAgeExclusions} onChange={(e) => setTurnOnAgeExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
+                            <span className="font-semibold text-slate-800">Turn on age exclusions</span>
+                          </label>
+                          {turnOnAgeExclusions && (
+                            <div className="ml-6 space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                              <p className="text-[11px] text-slate-500 mb-3">Select age ranges to exclude from the campaign. Unselected ages will be included.</p>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map((age) => (
+                                  <label key={age} className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={excludedAges.includes(age)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setExcludedAges(prev => [...prev, age]);
+                                        else setExcludedAges(prev => prev.filter(a => a !== age));
+                                      }}
+                                      className="rounded text-primary h-4 w-4" 
+                                    />
+                                    <span className="text-slate-700 text-[11px]">{age}</span>
+                                  </label>
+                                ))}
+                              </div>
+                              {["18-24", "25-34", "35-44", "45-54", "55-64", "65+"].every(a => excludedAges.includes(a)) && (
+                                <p className="text-[11px] text-rose-500 font-semibold pt-1">You are excluding all age ranges. You must allow at least one age range.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={turnOnGenderExclusions} onChange={(e) => setTurnOnGenderExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
+                            <span className="font-semibold text-slate-800">Turn on gender exclusions</span>
+                          </label>
+                          {turnOnGenderExclusions && (
+                            <div className="ml-6 space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                              <p className="text-[11px] text-slate-500 mb-3">Select genders to exclude from the campaign. Unselected genders will be included.</p>
+                              <div className="flex flex-wrap gap-4">
+                                {["Female", "Male", "Unknown"].map((gender) => (
+                                  <label key={gender} className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={excludedGenders.includes(gender)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setExcludedGenders(prev => [...prev, gender]);
+                                        else setExcludedGenders(prev => prev.filter(g => g !== gender));
+                                      }}
+                                      className="rounded text-primary h-4 w-4" 
+                                    />
+                                    <span className="text-slate-700 text-[11px]">{gender}</span>
+                                  </label>
+                                ))}
+                              </div>
+                              {["Female", "Male"].every(g => excludedGenders.includes(g)) && (
+                                <p className="text-[11px] text-rose-500 font-semibold pt-1">At least one gender has to be included.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1669,7 +2153,6 @@ function LocalPerformanceMaxContent() {
                             ) : (
                               <div className="space-y-1.5 max-h-48 overflow-y-auto">
                                 {[
-                                  "Website visitors",
                                   "All converters",
                                   `Google-engaged audiences - for Account ${customerId || "6587355041"}`
                                 ]
@@ -1702,7 +2185,6 @@ function LocalPerformanceMaxContent() {
                         {dataExclusionsTab === "BROWSE" && (
                           <div className="space-y-2 pt-1">
                             {[
-                              "Website visitors",
                               "All converters",
                               `Google-engaged audiences - for Account ${customerId || "6587355041"}`
                             ].map((category, idx) => {
@@ -1766,12 +2248,39 @@ function LocalPerformanceMaxContent() {
                   
                   <div className="space-y-4 pt-1">
                     <div>
-                      <label className="block font-semibold text-slate-700">Asset group name</label>
+                      <div className="flex items-center gap-1">
+                        <label className="block font-semibold text-slate-700">Asset group name</label>
+                        <span className="text-rose-500 font-bold">*</span>
+                      </div>
                       <input type="text" value={assetGroupName} onChange={(e) => setAssetGroupName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-medium focus:border-primary focus:outline-none" />
                     </div>
-                    <div>
-                      <label className="block font-semibold text-slate-700">Final URL</label>
-                      <input type="text" value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://www.example.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono focus:border-primary focus:outline-none" />
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <label className="block font-semibold text-slate-700">Final URL</label>
+                        <span className="text-rose-500 font-bold">*</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={finalUrl}
+                        onChange={(e) => setFinalUrl(e.target.value)}
+                        placeholder="https://www.example.com"
+                        className={`w-full bg-slate-50 border rounded-xl px-4 py-2 text-xs font-mono focus:outline-none ${
+                          finalUrl && !finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")
+                            ? "border-rose-400 focus:border-rose-500"
+                            : "border-slate-200 focus:border-primary"
+                        }`}
+                      />
+                      {finalUrl && !finalUrl.startsWith("http://") && !finalUrl.startsWith("https://") && (
+                        <p className="text-[11px] text-rose-500 font-semibold">
+                          Final URL must start with a valid protocol (e.g. <span className="font-mono">https://www.example.com</span>).
+                        </p>
+                      )}
+                      {finalUrl && (finalUrl.startsWith("http://") || finalUrl.startsWith("https://")) && (
+                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center gap-1.5 mt-1">
+                          <span className="font-semibold text-slate-500">Destination:</span>
+                          <span className="text-primary font-mono truncate">{finalUrl}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1803,7 +2312,7 @@ function LocalPerformanceMaxContent() {
                       <p className="text-[11px] text-slate-500">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about brand guidelines</a></p>
                     </div>
                     <button 
-                      type="button"
+                      type="button" 
                       onClick={() => setIsBrandGuidelinesMainOpen(false)}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
                     >
@@ -1813,7 +2322,6 @@ function LocalPerformanceMaxContent() {
 
                   <div className="pt-2">
                     {!showBrandGuidelinesDetails ? (
-                      /* Basic Brand Guidelines View */
                       <div className="space-y-4">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1">
@@ -1831,7 +2339,6 @@ function LocalPerformanceMaxContent() {
                           <span className="text-[10px] text-slate-500 block">Text is {businessName.length} characters out of 25</span>
                         </div>
 
-                        {/* Logos */}
                         <div className="space-y-2 pt-2 border-t border-slate-200">
                           <div className="flex items-center justify-between">
                             <label className="block text-slate-700 font-semibold">Logos</label>
@@ -1865,7 +2372,6 @@ function LocalPerformanceMaxContent() {
                           </div>
                         </div>
 
-                        {/* More options button */}
                         <div className="pt-2">
                           <button
                             type="button"
@@ -1878,7 +2384,6 @@ function LocalPerformanceMaxContent() {
                         </div>
                       </div>
                     ) : (
-                      /* Full Brand Guidelines Expanded Details View */
                       <div className="space-y-6 animate-in fade-in duration-200">
                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                           <h4 className="font-bold text-slate-800 text-xs">Add brand guidelines</h4>
@@ -1892,7 +2397,6 @@ function LocalPerformanceMaxContent() {
                           </button>
                         </div>
 
-                        {/* Brand Identity */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-slate-700 text-xs">Brand identity</h4>
 
@@ -1946,14 +2450,12 @@ function LocalPerformanceMaxContent() {
                           </div>
                         </div>
 
-                        {/* Visual Guidelines */}
                         <div className="space-y-4 pt-4 border-t border-slate-200">
                           <div>
                             <h4 className="font-semibold text-slate-700 text-xs">Visual guidelines</h4>
                             <p className="text-[11px] text-slate-500 mt-0.5">Add your brand colors and fonts to help Google AI generate on-brand videos and responsive display ads.</p>
                           </div>
 
-                          {/* Custom Colors */}
                           <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl max-w-md">
                             <span className="text-xs font-semibold text-slate-800 block">Custom colors</span>
                             <div className="grid grid-cols-2 gap-4">
@@ -1997,7 +2499,6 @@ function LocalPerformanceMaxContent() {
                             </div>
                           </div>
 
-                          {/* Font */}
                           <div className="space-y-1 max-w-md">
                             <label className="block text-slate-700 font-semibold">Font</label>
                             <select
@@ -2019,7 +2520,6 @@ function LocalPerformanceMaxContent() {
                           </div>
                         </div>
 
-                        {/* Text Guidelines */}
                         <div className="space-y-4 pt-4 border-t border-slate-200">
                           <div>
                             <div className="flex items-center gap-2">
@@ -2029,28 +2529,55 @@ function LocalPerformanceMaxContent() {
                             <p className="text-[11px] text-slate-500 mt-0.5">Tell Google AI the rules it needs to follow when it creates relevant, on-brand headlines and descriptions for you. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about text guidelines</a></p>
                           </div>
 
-                          {/* Term exclusions */}
                           <div className="space-y-2 max-w-md">
                             <div className="flex justify-between items-center">
                               <label className="block text-slate-700 font-semibold">Term exclusions</label>
                               <span className="text-[10px] text-slate-500">{termExclusionsList.length}/25</span>
                             </div>
-                            <input
-                              type="text"
-                              value={termExclusionsInput}
-                              onChange={(e) => setTermExclusionsInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && termExclusionsInput.trim()) {
-                                  e.preventDefault();
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                maxLength={30}
+                                value={termExclusionsInput}
+                                onChange={(e) => setTermExclusionsInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && termExclusionsInput.trim()) {
+                                    e.preventDefault();
+                                    const term = termExclusionsInput.trim();
+                                    if (termExclusionsList.some(t => t.toLowerCase() === term.toLowerCase())) return;
+                                    if (termExclusionsList.length < 25) {
+                                      setTermExclusionsList(prev => [...prev, term]);
+                                      setTermExclusionsInput("");
+                                    }
+                                  }
+                                }}
+                                placeholder="For example: Cheap, free shipping, etc."
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const term = termExclusionsInput.trim();
+                                  if (!term) return;
+                                  if (termExclusionsList.some(t => t.toLowerCase() === term.toLowerCase())) return;
                                   if (termExclusionsList.length < 25) {
-                                    setTermExclusionsList(prev => [...prev, termExclusionsInput.trim()]);
+                                    setTermExclusionsList(prev => [...prev, term]);
                                     setTermExclusionsInput("");
                                   }
-                                }
-                              }}
-                              placeholder="For example: Cheap, free shipping, etc. Press Enter after each word or phrase."
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                            />
+                                }}
+                                className="px-4 py-2 bg-slate-100 text-slate-900 rounded-xl font-semibold hover:bg-slate-200 cursor-pointer text-xs"
+                              >
+                                Add
+                              </button>
+                            </div>
+                            <div className="flex justify-between items-start px-1 mt-1">
+                              <div>
+                                {termExclusionsList.some(t => t.toLowerCase() === termExclusionsInput.trim().toLowerCase()) && termExclusionsInput.trim() !== "" && (
+                                  <p className="text-[11px] text-rose-500 font-semibold">This term has already been added.</p>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-500 font-mono">{termExclusionsInput.length} / 30</span>
+                            </div>
                             {termExclusionsList.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 pt-1">
                                 {termExclusionsList.map((term, i) => (
@@ -2065,7 +2592,6 @@ function LocalPerformanceMaxContent() {
                             )}
                           </div>
 
-                          {/* Messaging restrictions */}
                           <div className="space-y-3 max-w-md pt-2">
                             <div className="flex justify-between items-center">
                               <label className="block text-slate-700 font-semibold">Messaging restrictions</label>
@@ -2090,19 +2616,30 @@ function LocalPerformanceMaxContent() {
                                           ? "Example: Don't use specific prices, such as $550 per night or $99 intro offer"
                                           : "Example: Don't use 'only' or 'just for' language, such as 'for high-performance athletes only'"
                                     }
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                                    className={`w-full bg-slate-50 border rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary ${
+                                      messagingRestrictions.some((r, i) => i !== idx && r.trim() !== "" && r.toLowerCase() === restriction.trim().toLowerCase()) 
+                                        ? "border-rose-300 bg-rose-50" 
+                                        : "border-slate-200"
+                                    }`}
                                   />
                                   {messagingRestrictions.length > 1 && (
                                     <button
                                       type="button"
                                       onClick={() => setMessagingRestrictions(prev => prev.filter((_, i) => i !== idx))}
-                                      className="absolute top-2 right-2 p-1 text-slate-500 hover:text-rose-400"
+                                      className="absolute top-2 right-2 p-1 text-slate-500 hover:text-rose-400 bg-white/80 rounded-md"
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                   )}
                                 </div>
-                                <span className="text-[10px] text-slate-500 block text-right font-mono">{restriction.length} / 300 (Text is {restriction.length} characters out of 300)</span>
+                                <div className="flex justify-between items-start px-1">
+                                  <div>
+                                    {messagingRestrictions.some((r, i) => i !== idx && r.trim() !== "" && r.toLowerCase() === restriction.trim().toLowerCase()) && (
+                                      <p className="text-[11px] text-rose-500 font-semibold">Duplicate restriction.</p>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-slate-500 font-mono">{restriction.length} / 300</span>
+                                </div>
                               </div>
                             ))}
 
@@ -2193,12 +2730,20 @@ function LocalPerformanceMaxContent() {
                       {/* 2) Headlines */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-700">Headlines ({headlines.length})</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-700">Headlines ({headlines.filter(h => h.trim()).length}/3 min required)</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                            {headlines.filter(h => h.trim()).length < 3 && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                                Need at least 3
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => {
-                                const aiGens = Array.from({ length: headlines.length }, (_, i) => `AI Headline ${i + 1}: Local store visits and promotions`);
+                                const aiGens = Array.from({ length: Math.max(headlines.length, 3) }, (_, i) => `AI Headline ${i + 1}:  LocalPerformance Boost`);
                                 setHeadlines(aiGens);
                               }}
                               className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
@@ -2210,7 +2755,7 @@ function LocalPerformanceMaxContent() {
                         </div>
                         {headlines.map((hl, i) => (
                           <div key={i} className="space-y-1">
-                            <input type="text" value={hl} onChange={(e) => { const u = [...headlines]; u[i] = e.target.value; setHeadlines(u); }} maxLength={30} placeholder="Headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
+                            <input type="text" value={hl} onChange={(e) => { const u = [...headlines]; u[i] = e.target.value; setHeadlines(u); }} maxLength={30} placeholder={`Headline ${i + 1} (required: 3 min)`} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
                             <div className="flex justify-between text-[10px] text-slate-500">
                               <span>Text is {hl.length} characters out of 30</span>
                               <span>{hl.length} / 30</span>
@@ -2222,12 +2767,20 @@ function LocalPerformanceMaxContent() {
                       {/* 3) Long Headlines */}
                       <div className="space-y-2 pt-2 border-t border-slate-200">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-700">Long headlines ({longHeadlines.length})</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-700">Long headlines ({longHeadlines.filter(lh => lh.trim()).length}/1 min required)</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                            {longHeadlines.filter(lh => lh.trim()).length < 1 && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                                Need at least 1
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => {
-                                const aiGens = Array.from({ length: longHeadlines.length }, (_, i) => `AI Long Headline ${i + 1}: Drive qualified store visits and local retail traffic.`);
+                                const aiGens = Array.from({ length: Math.max(longHeadlines.length, 1) }, (_, i) => `AI Long Headline ${i + 1}: Comprehensive solutions to grow your audience and revenue.`);
                                 setLongHeadlines(aiGens);
                               }}
                               className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
@@ -2239,7 +2792,7 @@ function LocalPerformanceMaxContent() {
                         </div>
                         {longHeadlines.map((lh, i) => (
                           <div key={i} className="space-y-1">
-                            <input type="text" value={lh} onChange={(e) => { const u = [...longHeadlines]; u[i] = e.target.value; setLongHeadlines(u); }} maxLength={90} placeholder="Long headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
+                            <input type="text" value={lh} onChange={(e) => { const u = [...longHeadlines]; u[i] = e.target.value; setLongHeadlines(u); }} maxLength={90} placeholder={`Long headline ${i + 1} (required: 1 min)`} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
                             <div className="flex justify-between text-[10px] text-slate-500">
                               <span>Text is {lh.length} characters out of 90</span>
                               <span>{lh.length} / 90</span>
@@ -2251,12 +2804,20 @@ function LocalPerformanceMaxContent() {
                       {/* 4) Descriptions */}
                       <div className="space-y-2 pt-2 border-t border-slate-200">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-700">Descriptions ({descriptions.length})</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-700">Descriptions ({descriptions.filter(d => d.trim()).length}/2 min required)</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                            {descriptions.filter(d => d.trim()).length < 2 && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                                Need at least 2
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => {
-                                const aiGens = Array.from({ length: descriptions.length }, (_, i) => `AI Description ${i + 1}: Find the nearest branch, view catalog items, and visit us today.`);
+                                const aiGens = Array.from({ length: Math.max(descriptions.length, 2) }, (_, i) => `AI Description ${i + 1}: High converting copies tailored for your campaigns.`);
                                 setDescriptions(aiGens);
                               }}
                               className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
@@ -2268,7 +2829,7 @@ function LocalPerformanceMaxContent() {
                         </div>
                         {descriptions.map((desc, i) => (
                           <div key={i} className="space-y-1">
-                            <input type="text" value={desc} onChange={(e) => { const u = [...descriptions]; u[i] = e.target.value; setDescriptions(u); }} maxLength={90} placeholder="Description" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
+                            <input type="text" value={desc} onChange={(e) => { const u = [...descriptions]; u[i] = e.target.value; setDescriptions(u); }} maxLength={90} placeholder={`Description ${i + 1} (required: 2 min)`} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
                             <div className="flex justify-between text-[10px] text-slate-500">
                               <span>Text is {desc.length} characters out of 90</span>
                               <span>{desc.length} / 90</span>
@@ -2282,7 +2843,10 @@ function LocalPerformanceMaxContent() {
                         {/* Images */}
                         <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
                           <ImageIcon className="h-5 w-5 text-primary mx-auto" />
-                          <span className="font-semibold text-slate-800 block text-xs">Images ({uploadedImages.length})</span>
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="font-semibold text-slate-800 block text-xs">Images ({uploadedImages.length})</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                          </div>
                           <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
                             + Add images
                             <input
@@ -2290,18 +2854,94 @@ function LocalPerformanceMaxContent() {
                               accept="image/*"
                               multiple
                               onChange={(e) => {
-                                if (e.target.files) {
-                                  const filesArr = Array.from(e.target.files).map(f => f.name);
-                                  setUploadedImages(prev => [...prev, ...filesArr]);
+                                if (e.target.files && e.target.files.length > 0) {
+                                  const files = Array.from(e.target.files);
+                                  const newItems: Array<{ file: File; base64: string; name: string }> = [];
+                                  let loadedCount = 0;
+                                  files.forEach(file => {
+                                    const reader = new FileReader();
+                                    reader.onload = () => {
+                                      const base64Url = reader.result as string;
+                                      if (base64Url) {
+                                        newItems.push({ file, base64: base64Url, name: file.name });
+                                      }
+                                      loadedCount++;
+                                      if (loadedCount === files.length && newItems.length > 0) {
+                                        setCropQueue(prev => {
+                                          const combined = [...prev, ...newItems];
+                                          if (!currentCropItem && combined.length > 0) {
+                                            setCurrentCropItem(combined[0]);
+                                            setCropZoom(1);
+                                            setCropOffset({ x: 0, y: 0 });
+                                            setCropAspectMode("LANDSCAPE");
+                                            setCropValidationError(null);
+                                            return combined.slice(1);
+                                          }
+                                          return combined;
+                                        });
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  });
+                                  // Clear input so same file can be selected again
+                                  e.target.value = "";
                                 }
                               }}
                               className="hidden"
                             />
                           </label>
                           {uploadedImages.length > 0 && (
-                            <div className="flex flex-wrap gap-1 justify-center pt-1">
-                              {uploadedImages.map((img, idx) => (
-                                <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{img}</span>
+                            <div className="flex flex-wrap gap-1.5 justify-center pt-1">
+                              {uploadedImages.map((img: any, idx) => (
+                                <div key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 shadow-xs">
+                                  <span className="truncate max-w-[90px]">{img.name || `Image ${idx + 1}`}</span>
+                                  <span className="text-[9px] px-1 bg-slate-100 rounded text-slate-500 font-mono">
+                                    {img.fieldType === "MARKETING_IMAGE" ? "1.91:1" : "1:1"}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-400 hover:text-rose-500"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Logos */}
+                        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
+                          <ImageIcon className="h-5 w-5 text-primary mx-auto" />
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="font-semibold text-slate-800 block text-xs">Logos ({brandLogos.length})</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                          </div>
+                          <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
+                            + Add logos
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={handleLogoUpload}
+                              className="hidden"
+                            />
+                          </label>
+                          {brandLogos.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 justify-center pt-1">
+                              {brandLogos.map((logo: string, idx: number) => (
+                                <div key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 shadow-xs">
+                                  <span className="truncate max-w-[80px]">Logo {idx + 1}</span>
+                                  <span className="text-[9px] px-1 bg-slate-100 rounded text-slate-500 font-mono">1:1</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setBrandLogos(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-400 hover:text-rose-500"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
                               ))}
                             </div>
                           )}
@@ -2457,24 +3097,6 @@ function LocalPerformanceMaxContent() {
                             + Callouts {savedCallouts.length > 0 && `(${savedCallouts.length})`}
                           </button>
                         </div>
-
-                        {/* Display active saved extensions */}
-                        {(savedPromotions.length > 0 || savedPrices.length > 0 || savedSnippets.length > 0 || savedCallouts.length > 0) && (
-                          <div className="pt-2 space-y-2">
-                            <span className="text-[11px] text-slate-500 font-semibold block">Added Extensions:</span>
-                            <div className="flex flex-wrap gap-2">
-                              {savedPromotions.map((p, i) => (
-                                <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Promo: {p.item || "Discount"}</span>
-                              ))}
-                              {savedPrices.map((pr, i) => (
-                                <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Price: {pr.price}</span>
-                              ))}
-                              {savedCallouts.map((co, i) => (
-                                <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Callout: {co}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -2520,25 +3142,46 @@ function LocalPerformanceMaxContent() {
                     <div className="space-y-2">
                       <h3 className="font-semibold text-slate-800 text-xs">Display path</h3>
                       <p className="text-[11px] text-slate-500">Add paths to your display URL to show people where your ad will take them.</p>
-                      <div className="flex items-center gap-2 max-w-md">
-                        <span className="text-xs text-slate-500 font-mono">example.com/</span>
-                        <input
-                          type="text"
-                          maxLength={15}
-                          placeholder="Path 1"
-                          value={displayPath1}
-                          onChange={(e) => setDisplayPath1(e.target.value)}
-                          className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
-                        />
-                        <span className="text-xs text-slate-500">/</span>
-                        <input
-                          type="text"
-                          maxLength={15}
-                          placeholder="Path 2"
-                          value={displayPath2}
-                          onChange={(e) => setDisplayPath2(e.target.value)}
-                          className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
-                        />
+                      <div className="space-y-1.5 max-w-md">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 font-mono">
+                            {finalUrl ? (finalUrl.replace(/^https?:\/\//, "").split("/")[0] || "example.com") : "example.com"}/
+                          </span>
+                          <input
+                            type="text"
+                            maxLength={15}
+                            placeholder="Path 1"
+                            value={displayPath1}
+                            onChange={(e) => setDisplayPath1(e.target.value)}
+                            className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                          />
+                          <span className="text-xs text-slate-500">/</span>
+                          <input
+                            type="text"
+                            maxLength={15}
+                            placeholder="Path 2"
+                            value={displayPath2}
+                            onChange={(e) => setDisplayPath2(e.target.value)}
+                            className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                          />
+                        </div>
+
+                        {/* Live Demo URL Preview */}
+                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center gap-1.5">
+                          <span className="font-semibold text-slate-500">Demo Preview:</span>
+                          <span className="text-primary font-mono truncate">
+                            {finalUrl ? (finalUrl.replace(/^https?:\/\//, "").split("/")[0] || "example.com") : "example.com"}
+                            {displayPath1 ? `/${displayPath1}` : displayPath2 ? `/${displayPath2}` : ""}
+                            {displayPath1 && displayPath2 ? `/${displayPath2}` : ""}
+                          </span>
+                        </div>
+
+                        {/* Immediate Validation Message */}
+                        {displayPath2.trim() && !displayPath1.trim() && (
+                          <p className="text-[11px] text-rose-500 font-semibold pl-0.5">
+                            Path 1 is required when Path 2 is set. Please fill Path 1 or Path 2 will be automatically moved to Path 1.
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -2840,7 +3483,6 @@ function LocalPerformanceMaxContent() {
                         </div>
                       </div>
 
-                      {/* Image Enhancement Visual Example */}
                       <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
                         <span className="font-semibold text-slate-700 block text-xs">Example of landing page images</span>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2881,7 +3523,6 @@ function LocalPerformanceMaxContent() {
                         </div>
                       </div>
 
-                      {/* Video Enhancement Examples */}
                       <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
                         <span className="font-semibold text-slate-700 block text-xs">Examples of video enhancement</span>
                         <p className="text-[11px] text-slate-500 leading-relaxed">
@@ -2894,7 +3535,6 @@ function LocalPerformanceMaxContent() {
                       </div>
                     </div>
 
-                    {/* EU Labeling Footer */}
                     <p className="text-[10px] text-slate-500 border-t border-slate-200 pt-3 leading-relaxed">
                       Ads using image or video assets optimized by these features will be labeled as created or edited with AI when shown in the European Union (EU), India, and New York state, in the US. Text assets on matters of public interest will also be labeled when shown in the EU.{" "}
                       <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more about AI labeling requirements</a>
@@ -3062,20 +3702,37 @@ function LocalPerformanceMaxContent() {
 
                 {/* Budget Amount Input */}
                 <div className="space-y-3 pt-3 border-t border-slate-200">
-                  <label className="block font-semibold text-slate-700">
-                    {budgetType === "DAILY" ? "Average daily budget amount" : "Campaign total budget amount"}
-                  </label>
+                  <div className="flex items-center gap-1">
+                    <label className="block font-semibold text-slate-700">
+                      {budgetType === "DAILY" ? "Average daily budget amount" : "Campaign total budget amount"}
+                    </label>
+                    <span className="text-rose-500 font-bold">*</span>
+                  </div>
                   <div className="relative max-w-xs">
                     <span className="absolute left-3.5 top-2.5 font-bold text-slate-500">₹</span>
                     <input
-                      type="text"
+                      type="number"
                       value={dailyBudgetValue}
                       onChange={(e) => setDailyBudgetValue(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-900 font-medium focus:border-primary focus:outline-none"
+                      className={`w-full bg-slate-50 border rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-900 font-medium focus:outline-none ${
+                        !dailyBudgetValue || Number(dailyBudgetValue) <= 0
+                          ? "border-rose-400 focus:border-rose-500"
+                          : "border-slate-200 focus:border-primary"
+                      }`}
                     />
                   </div>
-                  {!dailyBudgetValue && <p className="text-rose-400 font-semibold text-[11px]">Value is required</p>}
+                  {!dailyBudgetValue && <p className="text-rose-500 font-semibold text-[11px]">Value is required.</p>}
+                  {dailyBudgetValue && Number(dailyBudgetValue) <= 0 && (
+                    <p className="text-rose-500 font-semibold text-[11px]">Budget cannot be negative or zero. Please enter a valid positive amount.</p>
+                  )}
+                  {dailyBudgetValue && Number(dailyBudgetValue) > 0 && (
+                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center gap-2 max-w-md">
+                      <span className="font-semibold text-slate-500">Est. Monthly Max:</span>
+                      <span className="font-mono text-primary font-bold">₹{(Number(dailyBudgetValue) * 30.4).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+                      <span className="text-[10px] text-slate-500">(~30.4 days)</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Campaign Dates Card for Campaign Total Budget */}
@@ -3091,21 +3748,36 @@ function LocalPerformanceMaxContent() {
                         <label className="block text-[11px] text-slate-500 font-semibold">Start date</label>
                         <input
                           type="date"
+                          min={new Date().toISOString().split('T')[0]}
                           value={startDate}
                           onChange={(e) => setStartDate(e.target.value)}
                           onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                          className={`w-full bg-white border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none cursor-pointer ${
+                            startDate && startDate < new Date().toISOString().split('T')[0] ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"
+                          }`}
                         />
+                        {startDate && startDate < new Date().toISOString().split('T')[0] && (
+                          <p className="text-[11px] text-rose-500 font-semibold mt-1">Start date cannot be in the past.</p>
+                        )}
                       </div>
                       <div className="space-y-1">
                         <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
                         <input
                           type="date"
+                          min={startDate || new Date().toISOString().split('T')[0]}
                           value={endDate}
                           onChange={(e) => setEndDate(e.target.value)}
                           onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                          className={`w-full bg-white border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none cursor-pointer ${
+                            (endDate && startDate && endDate <= startDate) || (endDate && startDate && (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 3600 * 24) < 3) ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"
+                          }`}
                         />
+                        {endDate && startDate && endDate <= startDate && (
+                          <p className="text-[11px] text-rose-500 font-semibold mt-1">End date must be after start date.</p>
+                        )}
+                        {endDate && startDate && endDate > startDate && (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 3600 * 24) < 3 && (
+                          <p className="text-[11px] text-rose-500 font-semibold mt-1">Campaign duration must be at least 3 days.</p>
+                        )}
                       </div>
                     </div>
 
@@ -3128,19 +3800,101 @@ function LocalPerformanceMaxContent() {
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
               <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Your campaign is almost ready to publish</h1>
 
-              {/* Issues Card */}
-              <div className="p-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 space-y-3 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-rose-400" />
-                  <h2 className="text-sm font-bold text-rose-200">Issues</h2>
+              {/* Submission Error Card */}
+              {submitError && (
+                <div className="p-4 rounded-2xl border border-rose-500/50 bg-rose-500/10 text-rose-300 flex items-start gap-3 shadow-sm">
+                  <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-rose-200 text-xs">Failed to publish campaign</p>
+                    <p className="text-[11px] text-rose-300 leading-relaxed">{submitError}</p>
+                  </div>
                 </div>
-                <p className="font-semibold text-rose-200">Fix these issues to run your campaign</p>
-                <ul className="space-y-1.5 list-disc list-inside text-[11px] text-rose-300">
-                  <li><strong>Add a budget:</strong> To publish your campaign, enter a budget</li>
-                  <li><strong>Final URL:</strong> Enter a valid URL (ex. https://www.example.com)</li>
-                  <li><strong>Budget:</strong> Value is required</li>
-                </ul>
-              </div>
+              )}
+
+              {/* Issues Card */}
+              {(!dailyBudgetValue || !finalUrl || uploadedImages.length === 0 || headlines.filter(h => h && h.trim()).length < 3 || longHeadlines.filter(lh => lh && lh.trim()).length < 1 || descriptions.filter(d => d && d.trim()).length < 2) && (
+                <div className="p-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 space-y-3 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-rose-400" />
+                    <h2 className="text-sm font-bold text-rose-200">Issues</h2>
+                  </div>
+                  <p className="font-semibold text-rose-200">Fix these issues to run your campaign</p>
+                  <ul className="space-y-2 text-[11px] text-rose-300">
+                    {(!dailyBudgetValue || Number(dailyBudgetValue) <= 0) && (
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Budget:</strong> {Number(dailyBudgetValue) <= 0 && dailyBudgetValue ? "Budget cannot be negative or zero" : "Value is required"}</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("BUDGET")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
+                    )}
+                    {!finalUrl && (
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Final URL:</strong> Enter a valid URL (ex. https://www.example.com)</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("ASSET_GROUP")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
+                    )}
+                    {endDateOption === "SELECT" && endDate && startDate && endDate < startDate && (
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Campaign Dates:</strong> End Date ({endDate}) cannot be earlier than Start Date ({startDate})</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("BUDGET")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
+                    )}
+                    {adScheduleList.some(s => s.start && s.end && !(s.start === "00:00" && (s.end === "00:00" || s.end === "24:00")) && s.end <= s.start) && (
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Ad Schedule:</strong> End time must not be less than or equal to start time</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
+                    )}
+                    {uploadedImages.length === 0 && (
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Marketing Images:</strong> Performance Max requires at least 1 marketing image (upload in Asset Group)</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("ASSET_GROUP")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
+                    )}
+                    {headlines.filter(h => h && h.trim()).length < 3 && (
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Headlines:</strong> Performance Max requires at least 3 headlines (currently {headlines.filter(h => h && h.trim()).length}/3)</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("ASSET_GROUP")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
+                    )}
+                    {longHeadlines.filter(lh => lh && lh.trim()).length < 1 && (
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Long headlines:</strong> Performance Max requires at least 1 long headline (currently {longHeadlines.filter(lh => lh && lh.trim()).length}/1)</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("ASSET_GROUP")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
+                    )}
+                    {descriptions.filter(d => d && d.trim()).length < 2 && (
+                      <li className="flex items-start justify-between gap-4 bg-rose-500/5 p-2.5 rounded-lg border border-rose-500/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
+                          <div><strong>Descriptions:</strong> Performance Max requires at least 2 descriptions (currently {descriptions.filter(d => d && d.trim()).length}/2)</div>
+                        </div>
+                        <button type="button" onClick={() => setWizardStep("ASSET_GROUP")} className="text-xs font-bold text-rose-200 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 px-3 py-1.5 rounded-md transition-colors shrink-0">Fix</button>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
 
               {/* Recommendations Card */}
               <div className="p-6 rounded-2xl border border-blue-500/30 bg-blue-500/10 space-y-2 shadow-sm">
@@ -3166,7 +3920,12 @@ function LocalPerformanceMaxContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <span className="text-slate-500 block text-[11px]">Campaign name</span>
-                    <span className="font-bold text-slate-900 text-sm">Local store visits and promotions-Performance Max-16</span>
+                    <input
+                      type="text"
+                      value={campaignName}
+                      onChange={(e) => setCampaignName(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-900 font-bold text-xs mt-1 w-full focus:outline-none focus:border-primary"
+                    />
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[11px]">Campaign type</span>
@@ -3174,7 +3933,7 @@ function LocalPerformanceMaxContent() {
                   </div>
                   <div className="md:col-span-2">
                     <span className="text-slate-500 block text-[11px]">Goal</span>
-                    <span className="font-bold text-slate-900">Downloads, Phone call leads</span>
+                    <span className="font-bold text-slate-900"> LocalPerformance (Downloads, Phone call leads)</span>
                   </div>
                 </div>
               </div>
@@ -3279,7 +4038,7 @@ function LocalPerformanceMaxContent() {
                     </div>
                     <div>
                       <span className="text-slate-500 block text-[11px]">Audience</span>
-                      <span className="text-slate-500 italic">{audienceName || "No signal provided"}</span>
+                      <span className="text-slate-500 italic">{selectedAudienceResource?.name || "No signal provided"}</span>
                     </div>
                   </div>
                 </div>
@@ -3328,12 +4087,6 @@ function LocalPerformanceMaxContent() {
         </button>
 
         <div className="flex items-center gap-3">
-          {publishError && (
-            <div className="text-rose-500 text-[11px] font-semibold flex items-center gap-1 bg-rose-50 px-3 py-2 rounded-lg border border-rose-200">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              {publishError}
-            </div>
-          )}
           {wizardStep !== "SUMMARY" ? (
             <button
               onClick={() => {
@@ -3349,47 +4102,270 @@ function LocalPerformanceMaxContent() {
             </button>
           ) : (
             <button
+              disabled={isSubmitting}
               onClick={async () => {
-                if (!dailyBudgetValue) {
-                  alert("Please fix issues before publishing: Add a budget (Value is required)");
+                setSubmitError(null);
+
+                // 1. Budget validation (cannot be negative or zero)
+                if (!dailyBudgetValue || isNaN(Number(dailyBudgetValue)) || Number(dailyBudgetValue) <= 0) {
+                  setSubmitError("Budget cannot be negative or zero. Please enter a valid positive amount.");
                   return;
                 }
-                setIsPublishing(true);
-                setPublishError("");
+
+                // 2. Final URL validation (must begin with http:// or https://)
+                const trimmedFinalUrl = finalUrl ? finalUrl.trim() : "";
+                if (!trimmedFinalUrl || (!trimmedFinalUrl.startsWith("http://") && !trimmedFinalUrl.startsWith("https://"))) {
+                  setSubmitError("Final URL must start with a valid protocol (http:// or https://). Example: https://www.example.com");
+                  return;
+                }
+
+                // 3. Numeric & percentage fields must not be negative
+                if (biddingFocus === "Target CPA" && targetCpaValue) {
+                  const val = Number(targetCpaValue);
+                  if (isNaN(val) || val <= 0) {
+                    setSubmitError("Target CPA must be a positive number and cannot be negative or zero.");
+                    return;
+                  }
+                }
+                if (biddingFocus === "Target ROAS" && targetRoasValue) {
+                  const val = Number(targetRoasValue);
+                  if (isNaN(val) || val <= 0) {
+                    setSubmitError("Target ROAS percentage must be a positive number (e.g. 200%) and cannot be negative or zero.");
+                    return;
+                  }
+                }
+
+                // 4. Start Date cannot be in the past
+                const todayIsoStr = new Date().toISOString().split("T")[0];
+                if (startDate && startDate < todayIsoStr) {
+                  setSubmitError(`Start Date (${startDate}) cannot be in the past. Please select today (${todayIsoStr}) or a future date.`);
+                  return;
+                }
+
+                // 5. Marketing Images validation
+                if (uploadedImages.length === 0) {
+                  setSubmitError("Performance Max requires at least 1 marketing image in the Asset Group (upload via + Add images).");
+                  return;
+                }
+
+                // 6. Headlines & Descriptions validation
+                const validHeadlines = headlines.filter(h => h && h.trim());
+                if (validHeadlines.length < 3) {
+                  setSubmitError("Please provide at least 3 headlines in the Asset Group (Google Performance Max requirement).");
+                  return;
+                }
+                const validLongHeadlines = longHeadlines.filter(lh => lh && lh.trim());
+                if (validLongHeadlines.length < 1) {
+                  setSubmitError("Please provide at least 1 long headline in the Asset Group (Google Performance Max requirement).");
+                  return;
+                }
+                const validDescriptions = descriptions.filter(d => d && d.trim());
+                if (validDescriptions.length < 2) {
+                  setSubmitError("Please provide at least 2 descriptions in the Asset Group (Google Performance Max requirement).");
+                  return;
+                }
+
+                // 7. Tracking Templates validation
+                if (trackingTemplate.trim()) {
+                  const hasTag = /\{(?:lpurl|unescapedlpurl|escapedlpurl|lpurlpath|2escapedlpurl)\}/i.test(trackingTemplate.trim());
+                  if (!hasTag) {
+                    setSubmitError("Tracking template must contain a landing page parameter tag (e.g. {lpurl}). Example: https://tracking.example.com/?url={lpurl}");
+                    return;
+                  }
+                }
+                if (assetGroupTrackingTemplate.trim()) {
+                  const hasTag = /\{(?:lpurl|unescapedlpurl|escapedlpurl|lpurlpath|2escapedlpurl)\}/i.test(assetGroupTrackingTemplate.trim());
+                  if (!hasTag) {
+                    setSubmitError("Asset Group Tracking template must contain a landing page parameter tag (e.g. {lpurl}). Example: https://tracking.example.com/?url={lpurl}");
+                    return;
+                  }
+                }
+
+                // 8. Ad Schedule End time not less than Start time validation
+                for (const sched of adScheduleList) {
+                  if (sched.start && sched.end && !(sched.start === "00:00" && (sched.end === "00:00" || sched.end === "24:00"))) {
+                    if (sched.end <= sched.start) {
+                      setSubmitError(`Ad schedule end time (${sched.end}) must not be less than or equal to start time (${sched.start}) for ${sched.day}.`);
+                      return;
+                    }
+                  }
+                }
+
+                // 9. End Date not older than Start Date validation
+                const effectiveEndDate = endDateOption === "SELECT" && endDate ? endDate : undefined;
+                if (startDate && effectiveEndDate && effectiveEndDate < startDate) {
+                  setSubmitError(`End Date (${effectiveEndDate}) cannot be earlier than Start Date (${startDate}).`);
+                  return;
+                }
+
+                // 10. Mobile Number must be 10 digits validation
+                if (callPhone && callPhone.trim()) {
+                  const digits = callPhone.replace(/[^0-9]/g, "");
+                  const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+                  if (clean10.length !== 10) {
+                    setSubmitError("Mobile number must be exactly 10 digits (e.g. 9876543210).");
+                    return;
+                  }
+                }
+
+                setIsSubmitting(true);
                 try {
                   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-                  
+                  const targetCpaNum = biddingFocus === "Target CPA" && targetCpaValue ? Number(targetCpaValue) : undefined;
+                  const targetRoasNum = biddingFocus === "Target ROAS" && targetRoasValue ? Number(targetRoasValue) : undefined;
+
+                  const payload = {
+                    customerId: customerId || "1234567890",
+                    campaignName: campaignName || " LocalPerformance-Performance Max-1",
+                    finalUrl: finalUrl.trim(),
+                    businessName: businessName.trim() || undefined,
+                    biddingFocus: biddingFocus,
+                    targetCpa: targetCpaNum,
+                    targetRoas: targetRoasNum,
+                    onlyNewCustomers: onlyBidNewCustomers,
+                    reengageLapsedCustomers: adjustLapsedCustomers,
+                    startDate: startDate || undefined,
+                    endDate: effectiveEndDate,
+                    locations: selectedLocation === "INDIA"
+                      ? ["India"]
+                      : selectedLocation === "CUSTOM"
+                        ? (selectedCustomLocations.length > 0
+                            ? selectedCustomLocations.map(l => l.canonicalName || l.name)
+                            : (customLocationInput ? [customLocationInput] : ["India"]))
+                        : ["All countries"],
+                    languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
+                    euPolitical: euPoliticalAds,
+                    assetGroupName: assetGroupName || `${campaignName} Asset Group 1`,
+                    headlines: validHeadlines,
+                    longHeadlines: longHeadlines.filter(lh => lh && lh.trim()),
+                    descriptions: descriptions.filter(d => d && d.trim()),
+                    images: uploadedImages,
+                    logos: brandLogos,
+                    searchThemes: searchThemes,
+                    audienceSignal: selectedAudienceResource ? {
+                      resourceName: selectedAudienceResource.resourceName,
+                      name: selectedAudienceResource.name,
+                      type: "AUDIENCE"
+                    } : null,
+                    ctaOption: ctaOption || "Automated (recommended)",
+                    displayPath1: displayPath1.trim() || undefined,
+                    displayPath2: displayPath2.trim() || undefined,
+                    enableFinalUrlExpansion: enableFinalUrlExpansion,
+                    brandGuidelinesEnabled: false,
+                    brandColors: { mainColor, accentColor, font: selectedFont },
+                    deviceSettings: devicesSelection,
+                    trackingTemplate: trackingTemplate.trim() || undefined,
+                    finalUrlSuffix: finalUrlSuffix.trim() || undefined,
+                    customParameters: customParameters.filter(p => p.name.trim() && p.value.trim()),
+                    sitelinks: savedSitelinks.length > 0 ? savedSitelinks : undefined,
+                    callouts: savedCallouts.length > 0 ? savedCallouts : undefined,
+                    callAsset: callPhone ? { countryCode: "IN", phoneNumber: callPhone.trim() } : undefined,
+                    structuredSnippets: savedSnippets.length > 0 ? savedSnippets : undefined,
+                    promotions: savedPromotions.length > 0 ? savedPromotions.map(p => ({
+                      promotionTarget: p.item,
+                      percentOff: Number(p.discount) || undefined,
+                      occasion: p.occasion !== "None" ? p.occasion : undefined,
+                      finalUrl: p.url || finalUrl
+                    })) : undefined,
+                    prices: savedPrices.length >= 3 ? savedPrices.map(p => ({
+                      header: p.type,
+                      description: "Service plan",
+                      amountMicros: Number(p.price) * 1_000_000,
+                      currencyCode: "INR",
+                      finalUrl: finalUrl
+                    })) : undefined,
+                    finalMobileUrls: useDiffMobileUrl && mobileFinalUrl ? [mobileFinalUrl.trim()] : undefined,
+                    assetGroupTrackingTemplate: assetGroupTrackingTemplate.trim() || undefined,
+                    assetGroupCustomParameters: assetGroupCustomParameters.filter(p => p.name.trim() && p.value.trim()),
+                    leadForm: lfHeadline ? {
+                      headline: lfHeadline,
+                      businessName: lfBusinessName || businessName,
+                      description: lfDescription,
+                      privacyPolicyUrl: lfPrivacyPolicyUrl
+                    } : undefined,
+                    locationTargetingType: locationTargetingType,
+                    brandExclusions: selectedBrandsList.map(b => b.name),
+                    urlRulesList: urlRulesList.length > 0 ? urlRulesList : undefined,
+                    assetOptimizations: {
+                      enableTextCustomization,
+                      enableImageEnhancement,
+                      enableLandingPageImages,
+                      enableVideoEnhancement
+                    },
+                    youtubeVideos: uploadedVideos.length > 0 ? uploadedVideos : undefined,
+                    messagingRestrictions: messagingRestrictions.filter(m => m.trim()),
+                    ga4Property: ga4Property ? { propertyId: ga4Property, importMetrics: ga4ImportMetrics, importAudiences: ga4ImportAudiences } : undefined,
+                    pageFeeds: pageFeedUrls.length > 0 ? pageFeedUrls.map(pf => ({ url: pf.url, label: pf.label || undefined })) : [],
+                    merchantCenter: merchantCenterEnabled && merchantCenterId ? {
+                      merchantCenterId: merchantCenterId.trim(),
+                      feedLabel: feedLabel.trim() || undefined
+                    } : undefined,
+                    storeLocations: storeLocationsEnabled ? {
+                      enabled: true,
+                      locationFilter: businessProfileLocationFilter
+                    } : undefined,
+                    dynamicAdsFeed: dynamicAdsFeedEnabled && dynamicFeedId ? {
+                      feedId: dynamicFeedId.trim()
+                    } : undefined,
+                    valueRules: valueRuleType !== "NONE" ? {
+                      type: valueRuleType,
+                      conditionValue: valueRuleConditionValue.trim() || undefined,
+                      operation: valueRuleOperation,
+                      value: Number(valueRuleValue) || 1.0
+                    } : undefined,
+                    thirdPartyMeasurement: thirdPartyMeasurementEnabled && thirdPartyVendor !== "NONE" ? {
+                      vendor: thirdPartyVendor,
+                      accountId: thirdPartyAccountId.trim() || undefined
+                    } : undefined,
+                    audienceExclusions: selectedDataExclusions,
+                    ytUserSegment: ytSegmentName ? { name: ytSegmentName, type: ytSegmentType, channel: ytSelectedChannel } : undefined,
+                    assetSchedules: assetSchedules,
+                    promoTerms: promoTermsConditions ? { terms: promoTermsConditions, link: promoAdditionalTermsLink } : undefined,
+                    leadFormWebhook: lfWebhookUrl ? { url: lfWebhookUrl, key: lfWebhookKey } : undefined,
+                    adSchedule: adScheduleList,
+                    budgetType: budgetType,
+                    dailyBudget: Number(dailyBudgetValue),
+                    objective: " LocalPerformance"
+                  };
+
                   const res = await fetch(`${BACKEND}/api/ads/campaigns/store-visits/performance-max`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                      "Content-Type": "application/json",
+                      "x-organization-id": (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123"
+                    },
                     body: JSON.stringify({
-                      orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "",
-                      customerId: customerId || "6587355041",
-                      campaignName: "Local store visits and promotions-Performance Max-9",
-                      biddingFocus: biddingFocus || "Maximize conversions",
-                      targetCpa: Number(targetCpaValue) || 25,
-                      finalUrl: typeof finalUrl !== "undefined" ? finalUrl : "https://www.example.com",
-                      headlines: typeof headlines !== "undefined" && headlines?.filter ? headlines.filter((h: string) => h.trim().length > 0) : ["Visit Our Store"],
-                      descriptions: typeof descriptions !== "undefined" && descriptions?.filter ? descriptions.filter((d: string) => d.trim().length > 0) : ["Great deals inside"],
-                      dailyBudget: Number(dailyBudgetValue.replace(/,/g, "")) || 1000,
-                      assetGroupName: typeof assetGroupName !== "undefined" ? assetGroupName : "Asset Group 1"
+                      ...payload,
+                      orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123"
                     })
                   });
+
                   const data = await res.json();
-                  if (!res.ok) throw new Error(data.error || "Failed to publish campaign");
-                  alert(`Local store visits and promotions Performance Max campaign "Local store visits and promotions-Performance Max-9" published successfully!`);
+                  if (!res.ok) {
+                    throw new Error(data.error || "Failed to publish Local store visits and promotions Performance Max campaign.");
+                  }
+
                   router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
                 } catch (err: any) {
-                  setPublishError(err.message);
+                  console.error("Local store visits and promotions PMax campaign submission error:", err);
+                  setSubmitError(err.message || "An unexpected error occurred while publishing.");
                 } finally {
-                  setIsPublishing(false);
+                  setIsSubmitting(false);
                 }
               }}
-              disabled={isPublishing}
-              className={`px-6 py-2.5 text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer ${isPublishing ? "bg-emerald-300 text-slate-950/50 shadow-none cursor-not-allowed" : "bg-emerald-400 text-slate-950 hover:bg-emerald-300 shadow-emerald-400/20"}`}
+              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
             >
-              {isPublishing ? "Publishing..." : "Save & Publish"}
-              <Check className="h-4 w-4" />
+              {isSubmitting ? (
+                <>
+                  <div className="h-4 w-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  Save & Publish
+                  <Check className="h-4 w-4" />
+                </>
+              )}
             </button>
           )}
         </div>
@@ -3417,8 +4393,11 @@ function LocalPerformanceMaxContent() {
                 value={newBrandListName}
                 onChange={(e) => setNewBrandListName(e.target.value)}
                 placeholder="Enter list name"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none ${newBrandListName.trim() && createdBrandLists.some(bl => bl.name.trim().toLowerCase() === newBrandListName.trim().toLowerCase()) ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-primary"}`}
               />
+              {newBrandListName.trim() && createdBrandLists.some(bl => bl.name.trim().toLowerCase() === newBrandListName.trim().toLowerCase()) && (
+                <p className="text-[11px] text-rose-500 font-semibold pt-1">A brand list with this name already exists.</p>
+              )}
             </div>
 
             {/* Search & Brands Selection */}
@@ -3507,9 +4486,9 @@ function LocalPerformanceMaxContent() {
               </button>
               <button
                 type="button"
-                disabled={!newBrandListName.trim() || selectedBrandsList.length === 0}
+                disabled={!newBrandListName.trim() || selectedBrandsList.length === 0 || createdBrandLists.some(bl => bl.name.trim().toLowerCase() === newBrandListName.trim().toLowerCase())}
                 onClick={() => {
-                  if (newBrandListName.trim() && selectedBrandsList.length > 0) {
+                  if (newBrandListName.trim() && selectedBrandsList.length > 0 && !createdBrandLists.some(bl => bl.name.trim().toLowerCase() === newBrandListName.trim().toLowerCase())) {
                     setCreatedBrandLists(prev => [...prev, { name: newBrandListName, brands: selectedBrandsList.map(sb => sb.name) }]);
                     setNewBrandListName("");
                     setSelectedBrandsList([]);
@@ -3554,11 +4533,13 @@ function LocalPerformanceMaxContent() {
                     onChange={(e) => setCallCountry(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
                   >
-                    <option value="United States">United States</option>
-                    <option value="India (+91)">India (+91)</option>
-                    <option value="United Kingdom (+44)">United Kingdom (+44)</option>
-                    <option value="Canada (+1)">Canada (+1)</option>
-                    <option value="Australia (+61)">Australia (+61)</option>
+                    {[
+                      "United States (+1)", "India (+91)", "United Kingdom (+44)", "Canada (+1)", "Australia (+61)",
+                      "Germany (+49)", "France (+33)", "Italy (+39)", "Spain (+34)", "Brazil (+55)",
+                      "Mexico (+52)", "Japan (+81)", "China (+86)", "South Korea (+82)", "South Africa (+27)",
+                      "New Zealand (+64)", "Singapore (+65)", "United Arab Emirates (+971)", "Saudi Arabia (+966)",
+                      "Netherlands (+31)", "Sweden (+46)", "Switzerland (+41)", "Ireland (+353)", "Israel (+972)"
+                    ].map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
 
@@ -3568,9 +4549,12 @@ function LocalPerformanceMaxContent() {
                     type="text"
                     value={callPhone}
                     onChange={(e) => setCallPhone(e.target.value)}
-                    placeholder="Example: (201) 555-0123"
+                    placeholder="Example: 555-0123"
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                   />
+                  {callPhone.trim() && callPhone.replace(/\D/g, '').length !== 10 && (
+                    <p className="text-[11px] text-rose-500 font-semibold">Phone number must be exactly 10 digits.</p>
+                  )}
                 </div>
               </div>
 
@@ -3585,7 +4569,6 @@ function LocalPerformanceMaxContent() {
                   <option value="Use account settings (Calls from ads)">Use account settings (Calls from ads)</option>
                   <option value="Calls from ads">Calls from ads</option>
                   <option value="None">None</option>
-                  <option value="Manage conversions">Manage conversions</option>
                 </select>
               </div>
 
@@ -3594,67 +4577,75 @@ function LocalPerformanceMaxContent() {
                 <h5 className="font-semibold text-slate-700">Advanced options</h5>
                 <label className="block text-[11px] text-slate-500 font-semibold">Days and hours</label>
 
-                {callSchedules.map((sched, idx) => (
-                  <div key={sched.id} className="flex flex-wrap items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200">
-                    <select
-                      value={sched.day}
-                      onChange={(e) => {
-                        const updated = [...callSchedules];
-                        updated[idx].day = e.target.value;
-                        setCallSchedules(updated);
-                      }}
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
-                    >
-                      {dayOptions.map((d, i) => (
-                        <option key={i} value={d}>{d}</option>
-                      ))}
-                    </select>
+                {callSchedules.map((sched, idx) => {
+                  const isInvalidTime = sched.start >= sched.end && sched.end !== "00:00";
+                  const isDuplicate = callSchedules.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === sched.end);
+                  return (
+                    <div key={sched.id} className="space-y-1">
+                      <div className={`flex flex-wrap items-center gap-3 bg-white p-2.5 rounded-xl border ${isInvalidTime || isDuplicate ? 'border-rose-300 bg-rose-50' : 'border-slate-200'}`}>
+                        <select
+                          value={sched.day}
+                          onChange={(e) => {
+                            const updated = [...callSchedules];
+                            updated[idx].day = e.target.value;
+                            setCallSchedules(updated);
+                          }}
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
+                        >
+                          {dayOptions.map((d, i) => (
+                            <option key={i} value={d}>{d}</option>
+                          ))}
+                        </select>
 
-                    <select
-                      value={sched.start}
-                      onChange={(e) => {
-                        const updated = [...callSchedules];
-                        updated[idx].start = e.target.value;
-                        setCallSchedules(updated);
-                      }}
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
-                    >
-                      {timeOptions.map((t, i) => (
-                        <option key={i} value={t}>{t}</option>
-                      ))}
-                    </select>
+                        <select
+                          value={sched.start}
+                          onChange={(e) => {
+                            const updated = [...callSchedules];
+                            updated[idx].start = e.target.value;
+                            setCallSchedules(updated);
+                          }}
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
+                        >
+                          {timeOptions.map((t, i) => (
+                            <option key={i} value={t}>{t}</option>
+                          ))}
+                        </select>
 
-                    <span className="text-slate-500">to</span>
+                        <span className="text-slate-500">to</span>
 
-                    <select
-                      value={sched.end}
-                      onChange={(e) => {
-                        const updated = [...callSchedules];
-                        updated[idx].end = e.target.value;
-                        setCallSchedules(updated);
-                      }}
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
-                    >
-                      {timeOptions.map((t, i) => (
-                        <option key={i} value={t}>{t}</option>
-                      ))}
-                    </select>
+                        <select
+                          value={sched.end}
+                          onChange={(e) => {
+                            const updated = [...callSchedules];
+                            updated[idx].end = e.target.value;
+                            setCallSchedules(updated);
+                          }}
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
+                        >
+                          {timeOptions.map((t, i) => (
+                            <option key={i} value={t}>{t}</option>
+                          ))}
+                        </select>
 
-                    {callSchedules.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setCallSchedules(prev => prev.filter((_, i) => i !== idx))}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 ml-auto"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                        {callSchedules.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setCallSchedules(prev => prev.filter((_, i) => i !== idx))}
+                            className="p-1.5 text-slate-500 hover:text-rose-400 ml-auto bg-white/50 rounded-md"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      {isInvalidTime && <p className="text-[11px] text-rose-500 font-semibold px-1">End time must be after start time.</p>}
+                      {isDuplicate && <p className="text-[11px] text-rose-500 font-semibold px-1">Duplicate schedule found.</p>}
+                    </div>
+                  );
+                })}
 
                 <button
                   type="button"
-                  onClick={() => setCallSchedules(prev => [...prev, { id: Date.now().toString(), day: "All days", start: "00:00", end: "00:00" }])}
+                  onClick={() => setCallSchedules(prev => [...prev, { id: Date.now().toString(), day: "All days", start: "00:00", end: "23:45" }])}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/30 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -3679,16 +4670,6 @@ function LocalPerformanceMaxContent() {
               <p className="text-[10px] text-slate-500 leading-relaxed">Previews shown here are examples and don't include all possible formats. You're responsible for the content of your ads. Please make sure that your provided assets don't violate any Google policies or applicable laws.</p>
             </div>
 
-            {/* Account-level calls */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-              <h4 className="font-semibold text-slate-800">Account-level calls</h4>
-              <p className="text-[11px] text-slate-500">The following calls are from your account and will be used in this campaign.</p>
-              <div className="flex items-center gap-2 pt-1 font-mono text-slate-800 font-bold text-xs">
-                <Phone className="h-3.5 w-3.5 text-primary" />
-                <span>077099 36965</span>
-              </div>
-            </div>
-
             {/* Modal Actions */}
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
               <button
@@ -3700,11 +4681,18 @@ function LocalPerformanceMaxContent() {
               </button>
               <button
                 type="button"
+                disabled={
+                  !callPhone.trim() || 
+                  callPhone.replace(/\D/g, '').length !== 10 || 
+                  callSchedules.some(s => s.start >= s.end && s.end !== "00:00") ||
+                  callSchedules.some((s1, i) => callSchedules.findIndex(s2 => s1.day === s2.day && s1.start === s2.start && s1.end === s2.end) !== i)
+                }
                 onClick={() => {
-                  alert(`Call asset saved for ${callPhone || "account level call"}`);
+                  setSavedCalls(prev => [...prev, { country: callCountry, phone: callPhone }]);
+                  setCallPhone("");
                   setActiveModal(null);
                 }}
-                className="px-5 py-2 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary transition-all shadow-md shadow-primary/20 cursor-pointer"
+                className="px-5 py-2 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary transition-all shadow-md shadow-primary/20 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Save Call Asset
               </button>
@@ -3722,43 +4710,225 @@ function LocalPerformanceMaxContent() {
               <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4">
-              <h4 className="font-bold text-slate-800">Sitelink 1</h4>
+              <h4 className="font-bold text-slate-800">Sitelink {savedSitelinks.length + 1}</h4>
               <div className="space-y-1">
                 <label className="block text-slate-700 font-semibold">Sitelink text</label>
-                <input id="sitelinkTextInp" type="text" maxLength={25} placeholder="Sitelink text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
-                <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 25</span>
+                <input type="text" value={sitelinkText} onChange={(e) => setSitelinkText(e.target.value)} maxLength={25} placeholder="Sitelink text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary" />
+                <span className="text-[10px] text-slate-500 block">Text is {sitelinkText.length} characters out of 25</span>
               </div>
               <div className="space-y-1">
                 <label className="block text-slate-700 font-semibold">Description line 1 (recommended)</label>
-                <input id="sitelinkDesc1Inp" type="text" maxLength={35} placeholder="Description line 1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
-                <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 35</span>
+                <input type="text" value={sitelinkDesc1} onChange={(e) => setSitelinkDesc1(e.target.value)} maxLength={35} placeholder="Description line 1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary" />
+                <span className="text-[10px] text-slate-500 block">Text is {sitelinkDesc1.length} characters out of 35</span>
               </div>
               <div className="space-y-1">
                 <label className="block text-slate-700 font-semibold">Description line 2 (recommended)</label>
-                <input id="sitelinkDesc2Inp" type="text" maxLength={35} placeholder="Description line 2" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
-                <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 35</span>
+                <input type="text" value={sitelinkDesc2} onChange={(e) => setSitelinkDesc2(e.target.value)} maxLength={35} placeholder="Description line 2" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary" />
+                <span className="text-[10px] text-slate-500 block">Text is {sitelinkDesc2.length} characters out of 35</span>
               </div>
               <div className="space-y-1">
                 <label className="block text-slate-700 font-semibold">Final URL</label>
-                <input id="sitelinkUrlInp" type="text" placeholder="https://www.example.com/sitelink1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono" />
+                <input type="text" value={sitelinkUrl} onChange={(e) => setSitelinkUrl(e.target.value)} placeholder="https://www.example.com/sitelink1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary" />
+              </div>
+
+              {/* Sitelink URL options */}
+              <div className="pt-2">
+                <button type="button" onClick={() => setShowSitelinkUrlOptions(!showSitelinkUrlOptions)} className="flex items-center gap-1 text-slate-700 font-semibold hover:text-primary">
+                  {showSitelinkUrlOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />} Sitelink URL options
+                </button>
+                {showSitelinkUrlOptions && (
+                  <div className="mt-3 space-y-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="space-y-1">
+                      <label className="block text-slate-700 font-semibold">Tracking template</label>
+                      <input type="text" value={sitelinkTracking} onChange={(e) => setSitelinkTracking(e.target.value)} placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-slate-700 font-semibold">Final URL suffix</label>
+                      <input type="text" value={sitelinkSuffix} onChange={(e) => setSitelinkSuffix(e.target.value)} placeholder="Example: param1=value1&param2=value2" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-slate-700 font-semibold">Custom parameter</label>
+                      {sitelinkCustomParams.map((param, idx) => (
+                        <div key={param.id} className="flex items-center gap-2">
+                          <span className="text-slate-500 font-mono">{'{_'}</span>
+                          <input type="text" value={param.name} onChange={(e) => {
+                            const updated = [...sitelinkCustomParams];
+                            updated[idx].name = e.target.value;
+                            setSitelinkCustomParams(updated);
+                          }} placeholder="Name" className="w-1/3 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs" />
+                          <span className="text-slate-500 font-mono">{'}'} =</span>
+                          <input type="text" value={param.value} onChange={(e) => {
+                            const updated = [...sitelinkCustomParams];
+                            updated[idx].value = e.target.value;
+                            setSitelinkCustomParams(updated);
+                          }} placeholder="Value" className="w-1/3 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs" />
+                          <button type="button" onClick={() => setSitelinkCustomParams(prev => prev.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-1">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setSitelinkCustomParams(prev => [...prev, { id: Date.now().toString(), name: "", value: "" }])} className="text-primary font-bold hover:underline">+ Add custom parameter</button>
+                    </div>
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={useSitelinkMobileUrl} onChange={(e) => setUseSitelinkMobileUrl(e.target.checked)} className="rounded text-primary h-4 w-4" />
+                        <span className="text-slate-700 font-semibold">Use a different final URL for mobile</span>
+                      </label>
+                      {useSitelinkMobileUrl && (
+                        <input type="text" value={sitelinkMobileUrl} onChange={(e) => setSitelinkMobileUrl(e.target.value)} placeholder="m.example.com" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono" />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Advanced options */}
+              <div className="pt-2 border-t border-slate-200">
+                <button type="button" onClick={() => setShowSitelinkAdvancedOptions(!showSitelinkAdvancedOptions)} className="flex items-center gap-1 text-slate-700 font-semibold hover:text-primary">
+                  {showSitelinkAdvancedOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />} Advanced options
+                </button>
+                {showSitelinkAdvancedOptions && (
+                  <div className="mt-3 space-y-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="block text-slate-700 font-semibold">Start date</label>
+                        <input 
+                          type="date" 
+                          value={sitelinkSchedules[0]?.startDate || ""} 
+                          min={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            if (sitelinkSchedules.length === 0) {
+                              setSitelinkSchedules([{ id: "s-1", day: "All days", start: "00:00", end: "23:45", startDate: e.target.value, endDate: "" }]);
+                            } else {
+                              const updated = [...sitelinkSchedules];
+                              updated[0].startDate = e.target.value;
+                              setSitelinkSchedules(updated);
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-medium" 
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-slate-700 font-semibold">End date</label>
+                        <input 
+                          type="date" 
+                          value={sitelinkSchedules[0]?.endDate || ""} 
+                          min={sitelinkSchedules[0]?.startDate || new Date().toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            if (sitelinkSchedules.length === 0) {
+                              setSitelinkSchedules([{ id: "s-1", day: "All days", start: "00:00", end: "23:45", startDate: "", endDate: e.target.value }]);
+                            } else {
+                              const updated = [...sitelinkSchedules];
+                              updated[0].endDate = e.target.value;
+                              setSitelinkSchedules(updated);
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-medium" 
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="block text-slate-700 font-semibold">Days and hours</label>
+                      {sitelinkSchedules.map((sched, idx) => {
+                        const isInvalidTime = sched.start >= sched.end && sched.end !== "00:00";
+                        const isDuplicate = sitelinkSchedules.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === sched.end);
+                        return (
+                          <div key={sched.id} className="space-y-1">
+                            <div className={`flex flex-wrap items-center gap-2 bg-white p-2 rounded-lg border ${isInvalidTime || isDuplicate ? 'border-rose-300' : 'border-slate-200'}`}>
+                              <select value={sched.day} onChange={(e) => {
+                                const updated = [...sitelinkSchedules];
+                                updated[idx].day = e.target.value;
+                                setSitelinkSchedules(updated);
+                              }} className="bg-slate-50 border border-slate-200 rounded flex-1 px-2 py-1 text-xs text-slate-900 font-medium">
+                                {dayOptions.map((d, i) => <option key={i} value={d}>{d}</option>)}
+                              </select>
+                              <select value={sched.start} onChange={(e) => {
+                                const updated = [...sitelinkSchedules];
+                                updated[idx].start = e.target.value;
+                                setSitelinkSchedules(updated);
+                              }} className="bg-slate-50 border border-slate-200 rounded w-20 px-1 py-1 text-xs text-slate-900 font-mono">
+                                {timeOptions.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                              </select>
+                              <span className="text-slate-500">to</span>
+                              <select value={sched.end} onChange={(e) => {
+                                const updated = [...sitelinkSchedules];
+                                updated[idx].end = e.target.value;
+                                setSitelinkSchedules(updated);
+                              }} className="bg-slate-50 border border-slate-200 rounded w-20 px-1 py-1 text-xs text-slate-900 font-mono">
+                                {timeOptions.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                              </select>
+                              {sitelinkSchedules.length > 1 && (
+                                <button type="button" onClick={() => setSitelinkSchedules(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-500 hover:text-rose-400">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                            {isInvalidTime && <p className="text-[11px] text-rose-500 font-semibold px-1">End time must be after start time.</p>}
+                            {isDuplicate && <p className="text-[11px] text-rose-500 font-semibold px-1">Duplicate schedule found.</p>}
+                          </div>
+                        );
+                      })}
+                      <button type="button" onClick={() => setSitelinkSchedules(prev => [...prev, { id: `ss-${Date.now()}`, day: "All days", start: "00:00", end: "23:45", startDate: prev[0]?.startDate || "", endDate: prev[0]?.endDate || "" }])} className="text-primary font-bold hover:underline mt-1 block">
+                        + Add schedule
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            <div className="flex justify-between items-center pt-3 border-t border-slate-200">
-              <button type="button" onClick={() => setSitelinkItems(prev => prev.length < 4 ? [...prev, { text: "", desc1: "", desc2: "", url: "" }] : prev)} className="text-primary font-bold text-xs hover:underline cursor-pointer">+ Add another sitelink</button>
-              <button
-                type="button"
+
+            <div className="flex justify-between items-center pt-4 border-t border-slate-200">
+              <button 
+                type="button" 
+                disabled={!sitelinkText.trim() || !sitelinkUrl.trim() || sitelinkSchedules.some(s => s.start >= s.end && s.end !== "00:00") || sitelinkSchedules.some((s1, i) => sitelinkSchedules.findIndex(s2 => s1.day === s2.day && s1.start === s2.start && s1.end === s2.end) !== i)}
                 onClick={() => {
-                  const txt = (document.getElementById("sitelinkTextInp") as HTMLInputElement)?.value || "Sitelink 1";
-                  const d1 = (document.getElementById("sitelinkDesc1Inp") as HTMLInputElement)?.value || "";
-                  const d2 = (document.getElementById("sitelinkDesc2Inp") as HTMLInputElement)?.value || "";
-                  const url = (document.getElementById("sitelinkUrlInp") as HTMLInputElement)?.value || "";
-                  setSavedSitelinks(prev => [...prev, { text: txt, desc1: d1, desc2: d2, url }]);
-                  setActiveModal(null);
+                  const newEntry = { text: sitelinkText, desc1: sitelinkDesc1, desc2: sitelinkDesc2, url: sitelinkUrl, mobileUrl: sitelinkMobileUrl, tracking: sitelinkTracking, suffix: sitelinkSuffix, customParams: sitelinkCustomParams, schedules: sitelinkSchedules };
+                  const identicalCount = savedSitelinks.filter(s => s.text === sitelinkText && s.url === sitelinkUrl).length;
+                  if (identicalCount >= 2) {
+                    alert("You cannot save more than two identical sitelinks.");
+                    return;
+                  }
+                  setSavedSitelinks(prev => [...prev, newEntry]);
+                  setSitelinkText("");
+                  setSitelinkDesc1("");
+                  setSitelinkDesc2("");
+                  setSitelinkUrl("");
+                  setSitelinkMobileUrl("");
+                  setSitelinkTracking("");
+                  setSitelinkSuffix("");
+                  setSitelinkCustomParams([]);
+                  setSitelinkSchedules([]);
+                  setUseSitelinkMobileUrl(false);
+                  setShowSitelinkUrlOptions(false);
+                  setShowSitelinkAdvancedOptions(false);
                 }}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
-                Save Sitelinks
+                <Plus className="h-3.5 w-3.5" />
+                Add another sitelink
               </button>
+              
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] text-slate-500 font-medium mr-2">{savedSitelinks.length} saved</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // if form has data, attempt to save it too
+                    if (sitelinkText.trim() && sitelinkUrl.trim()) {
+                      const newEntry = { text: sitelinkText, desc1: sitelinkDesc1, desc2: sitelinkDesc2, url: sitelinkUrl, mobileUrl: sitelinkMobileUrl, tracking: sitelinkTracking, suffix: sitelinkSuffix, customParams: sitelinkCustomParams, schedules: sitelinkSchedules };
+                      const identicalCount = savedSitelinks.filter(s => s.text === sitelinkText && s.url === sitelinkUrl).length;
+                      if (identicalCount < 2) {
+                        setSavedSitelinks(prev => [...prev, newEntry]);
+                      }
+                    }
+                    setActiveModal(null);
+                  }}
+                  className="px-6 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all shadow-md shadow-primary/20"
+                >
+                  Save Sitelinks
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -4056,86 +5226,93 @@ function LocalPerformanceMaxContent() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
-                        <div>
+                        <div className="space-y-1">
                           <span className="text-[11px] text-slate-500 block mb-1">Start date</span>
                           <input
                             type="date"
+                            min={new Date().toISOString().split('T')[0]}
                             value={assetSchedStartDate}
                             onChange={(e) => setAssetSchedStartDate(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
                           />
                         </div>
-                        <div>
+                        <div className="space-y-1">
                           <span className="text-[11px] text-slate-500 block mb-1">End date</span>
                           <input
                             type="date"
+                            min={assetSchedStartDate || new Date().toISOString().split('T')[0]}
                             value={assetSchedEndDate}
                             onChange={(e) => setAssetSchedEndDate(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
                           />
+                          {assetSchedEndDate && assetSchedStartDate && assetSchedEndDate <= assetSchedStartDate && (
+                            <p className="text-[11px] text-rose-500 font-semibold px-1">End date must be after start date.</p>
+                          )}
                         </div>
                       </div>
 
                       {/* Days and hours */}
                       <div className="space-y-2 pt-2 border-t border-slate-200">
                         <label className="block text-slate-700 font-semibold">Days and hours</label>
-                        {assetSchedules.map((sch, idx) => (
-                          <div key={sch.id} className="flex items-center gap-2">
-                            <select
-                              value={sch.day}
-                              onChange={(e) => {
-                                const updated = [...assetSchedules];
-                                updated[idx].day = e.target.value;
-                                setAssetSchedules(updated);
-                              }}
-                              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                            >
-                              <option value="All days">All days</option>
-                              <option value="Mondays">Mondays</option>
-                              <option value="Tuesdays">Tuesdays</option>
-                              <option value="Wednesdays">Wednesdays</option>
-                              <option value="Thursdays">Thursdays</option>
-                              <option value="Fridays">Fridays</option>
-                              <option value="Saturdays">Saturdays</option>
-                              <option value="Sundays">Sundays</option>
-                              <option value="Mondays to Fridays">Mondays to Fridays</option>
-                            </select>
-                            <input
-                              type="time"
-                              value={sch.start}
-                              onChange={(e) => {
-                                const updated = [...assetSchedules];
-                                updated[idx].start = e.target.value;
-                                setAssetSchedules(updated);
-                              }}
-                              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
-                            />
-                            <span className="text-slate-500">to</span>
-                            <input
-                              type="time"
-                              value={sch.end}
-                              onChange={(e) => {
-                                const updated = [...assetSchedules];
-                                updated[idx].end = e.target.value;
-                                setAssetSchedules(updated);
-                              }}
-                              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
-                            />
-                            {assetSchedules.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => setAssetSchedules(prev => prev.filter((_, i) => i !== idx))}
-                                className="text-slate-500 hover:text-rose-400 p-1"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                        {assetSchedules.map((sch, idx) => {
+                          const isInvalidTime = sch.start >= sch.end && sch.end !== "00:00" && sch.end !== "12:00 AM";
+                          const isDuplicate = assetSchedules.some((s, i) => i !== idx && s.day === sch.day && s.start === sch.start && s.end === sch.end);
+                          return (
+                            <div key={sch.id} className="space-y-1">
+                              <div className={`flex flex-wrap items-center gap-2 p-2 rounded-xl border ${isInvalidTime || isDuplicate ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-slate-50'}`}>
+                                <select
+                                  value={sch.day}
+                                  onChange={(e) => {
+                                    const updated = [...assetSchedules];
+                                    updated[idx].day = e.target.value;
+                                    setAssetSchedules(updated);
+                                  }}
+                                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900 flex-1"
+                                >
+                                  {dayOptions.map((d, i) => <option key={i} value={d}>{d}</option>)}
+                                </select>
+                                <select
+                                  value={sch.start}
+                                  onChange={(e) => {
+                                    const updated = [...assetSchedules];
+                                    updated[idx].start = e.target.value;
+                                    setAssetSchedules(updated);
+                                  }}
+                                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900 font-mono w-24"
+                                >
+                                  {timeOptions.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                                </select>
+                                <span className="text-slate-500">to</span>
+                                <select
+                                  value={sch.end}
+                                  onChange={(e) => {
+                                    const updated = [...assetSchedules];
+                                    updated[idx].end = e.target.value;
+                                    setAssetSchedules(updated);
+                                  }}
+                                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900 font-mono w-24"
+                                >
+                                  {timeOptions.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                                </select>
+                                {assetSchedules.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAssetSchedules(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-500 hover:text-rose-400 p-1 bg-white/50 rounded-md"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              {isInvalidTime && <p className="text-[11px] text-rose-500 font-semibold px-1">End time must be after start time.</p>}
+                              {isDuplicate && <p className="text-[11px] text-rose-500 font-semibold px-1">Duplicate schedule found.</p>}
+                            </div>
+                          );
+                        })}
 
                         <button
                           type="button"
-                          onClick={() => setAssetSchedules(prev => [...prev, { id: `as-${Date.now()}`, day: "All days", start: "12:00 AM", end: "12:00 AM" }])}
+                          onClick={() => setAssetSchedules(prev => [...prev, { id: `as-${Date.now()}`, day: "All days", start: "00:00", end: "23:45" }])}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all mt-1"
                         >
                           <Plus className="h-3.5 w-3.5" />
@@ -4157,11 +5334,18 @@ function LocalPerformanceMaxContent() {
             <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
+                disabled={
+                  !promoFinalUrl || 
+                  (promoFinalUrl && !/^https?:\/\/.+/.test(promoFinalUrl)) || 
+                  (assetSchedStartDate && assetSchedEndDate && assetSchedEndDate <= assetSchedStartDate) ||
+                  assetSchedules.some(s => s.start >= s.end && s.end !== "00:00" && s.end !== "12:00 AM") ||
+                  assetSchedules.some((s1, i) => assetSchedules.findIndex(s2 => s1.day === s2.day && s1.start === s2.start && s1.end === s2.end) !== i)
+                }
                 onClick={() => {
                   setSavedPromotions(prev => [...prev, { occasion: promoOccasion, item: promoItem || "Special Discount", discount: promoType, url: promoFinalUrl }]);
                   setActiveModal(null);
                 }}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all"
+                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save Promotion
               </button>
@@ -4973,7 +6157,7 @@ function LocalPerformanceMaxContent() {
                         <option value="What is your proposed website URL?">What is your proposed website URL?</option>
                         <option value="What is your job role?">What is your job role?</option>
                         <option value="What is your job department?">What is your job department?</option>
-                        <option value="What is your annual Local store visits and promotions volume?">What is your annual Local store visits and promotions volume?</option>
+                        <option value="What is your annual  LocalPerformance volume?">What is your annual  LocalPerformance volume?</option>
                         <option value="How many years have you been in business?">How many years have you been in business?</option>
                         <option value="Do you operate in the EU?">Do you operate in the EU?</option>
                         <option value="Do you have a forwarder or any shipping agent in China?">Do you have a forwarder or any shipping agent in China?</option>
@@ -5936,216 +7120,62 @@ function LocalPerformanceMaxContent() {
               </div>
             )}
 
-            {/* Main Modal Content: AUDIENCE SIGNAL BUILDER */}
-            {subModal === null && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                
-                {/* Your data segment selector */}
-                <div className="space-y-3">
-                  <div>
-                    <span className="font-bold text-slate-800 block text-xs">Your data</span>
-                    <p className="text-[11px] text-slate-500 leading-normal">First-party data can help us reach your customers</p>
+            {/* Main Modal Content: GOOGLE ADS AUDIENCES SELECTOR */}
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div>
+                <span className="font-bold text-slate-800 block text-xs">Google Ads Audience</span>
+                <p className="text-[11px] text-slate-500 leading-normal">Select an existing Google Ads Audience resource to guide your Performance Max campaign targeting.</p>
+              </div>
+
+              <div className="bg-slate-50/40 p-4 rounded-xl border border-slate-200 space-y-3">
+                {isLoadingAudiences ? (
+                  <div className="py-6 text-center text-xs text-slate-500">Loading Google Ads Audiences...</div>
+                ) : audienceList.length === 0 ? (
+                  <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-2 text-center">
+                    <p className="text-xs text-amber-400 font-medium">No Google Ads Audiences found for this account.</p>
+                    <p className="text-[11px] text-slate-500">Create an Audience in Google Ads Audience Manager first, then refresh this list. Audience Signal is optional and can be skipped.</p>
                   </div>
-
-                  <div className="bg-slate-50/40 p-4 rounded-xl border border-slate-200 space-y-3">
-                    <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                      <button
-                        type="button"
-                        onClick={() => setDataTab("search")}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg ${dataTab === "search" ? "bg-primary text-slate-950" : "text-slate-500 hover:text-slate-900"}`}
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {audienceList.map((aud) => (
+                      <label
+                        key={aud.resourceName}
+                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                          selectedAudienceResource?.resourceName === aud.resourceName
+                            ? "bg-primary/10 border-primary text-slate-900"
+                            : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                        }`}
                       >
-                        Search
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDataTab("browse")}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg ${dataTab === "browse" ? "bg-primary text-slate-950" : "text-slate-500 hover:text-slate-900"}`}
-                      >
-                        Browse
-                      </button>
-                    </div>
-
-                    {dataTab === "search" ? (
-                      <div className="space-y-2">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-xs block">{aud.name}</span>
+                          <span className="text-[10px] text-slate-500 font-mono block">{aud.resourceName}</span>
+                        </div>
                         <input
-                          type="text"
-                          placeholder="Search your data segments..."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs"
+                          type="radio"
+                          name="selectedAudience"
+                          checked={selectedAudienceResource?.resourceName === aud.resourceName}
+                          onChange={() => setSelectedAudienceResource({ resourceName: aud.resourceName, name: aud.name, type: "AUDIENCE" })}
+                          className="text-primary h-4 w-4"
                         />
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Google-engaged audiences - for Account 6587355041</span>
-                        {["Website visitors", "All converters"].map(item => (
-                          <label key={item} className="flex items-center gap-2.5 cursor-pointer py-0.5">
-                            <input
-                              type="checkbox"
-                              checked={selectedDataSegments.includes(item)}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setSelectedDataSegments(prev => checked ? [...prev, item] : prev.filter(x => x !== item));
-                              }}
-                              className="rounded text-primary h-3.5 w-3.5"
-                            />
-                            <span className="text-xs text-slate-700">{item}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                      <span className="text-[10px] text-slate-500">Add custom segments from GA4, YouTube, or visitor lists.</span>
-                      <button
-                        type="button"
-                        onClick={() => setSubModal("NEW_SEGMENT")}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-700 text-slate-900 rounded-lg font-semibold text-[11px] cursor-pointer"
-                      >
-                        Add your data
-                      </button>
-                    </div>
-
-                    {selectedDataSegments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        {selectedDataSegments.map(item => (
-                          <span key={item} className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-[10px] text-slate-800">
-                            {item}
-                            <button
-                              type="button"
-                              onClick={() => setSelectedDataSegments(prev => prev.filter(x => x !== item))}
-                              className="text-slate-500 hover:text-red-400 ml-1"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                      </label>
+                    ))}
                   </div>
-                </div>
+                )}
+              </div>
 
-                {/* Interests & Detailed Demographics */}
-                <div className="pt-2 border-t border-slate-200 space-y-2">
-                  <div>
-                    <span className="font-bold text-slate-800 block text-xs">Interests & detailed demographics</span>
-                    <p className="text-[11px] text-slate-500">Add any interests, detailed demographics, or life events related to your customers</p>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Add in-market segments, life events, and more"
-                    value={interestsInput}
-                    onChange={(e) => setInterestsInput(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900"
-                  />
-                </div>
-
-                {/* Demographics Checklist Grid */}
-                <div className="pt-2 border-t border-slate-200 space-y-3">
-                  <div>
-                    <span className="font-bold text-slate-800 block text-xs">Demographics</span>
-                    <p className="text-[11px] text-slate-500">People with the following demographics</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 bg-slate-50/20 p-4 rounded-xl border border-slate-200">
-                    {/* Gender */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-700 block text-[11px]">Gender</span>
-                      {["Female", "Male", "Unknown"].map(g => (
-                        <label key={g} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoGenders.includes(g)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoGenders(prev => checked ? [...prev, g] : prev.filter(x => x !== g));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-700">{g}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {/* Age */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-700 block text-[11px]">Age</span>
-                      {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map(a => (
-                        <label key={a} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoAges.includes(a)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoAges(prev => checked ? [...prev, a] : prev.filter(x => x !== a));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-700">{a}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 bg-slate-50/20 p-4 rounded-xl border border-slate-200">
-                    {/* Parental Status */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-700 block text-[11px]">Parental status</span>
-                      {["Parent", "Not a parent", "Unknown"].map(p => (
-                        <label key={p} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoParental.includes(p)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoParental(prev => checked ? [...prev, p] : prev.filter(x => x !== p));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-700">{p}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {/* Household Income */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-700 block text-[11px]">Household income</span>
-                      {["Top 10%", "11-20%", "21-30%", "31-40%", "41-50%", "Lower 50%", "Unknown"].map(i => (
-                        <label key={i} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoIncome.includes(i)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoIncome(prev => checked ? [...prev, i] : prev.filter(x => x !== i));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-700">{i}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <p className="text-[10px] text-slate-500 italic leading-relaxed">
-                    Note: Household income targeting is only available in select countries.{" "}
-                    <a href="#" className="text-primary hover:underline" onClick={(e) => e.preventDefault()}>Learn more</a>
-                  </p>
-                </div>
-
-                {/* Audience Name at bottom (Optional) */}
-                <div className="pt-2 border-t border-slate-200 space-y-1">
-                  <label className="text-[11px] text-slate-500 block font-medium">Audience name</label>
-                  <p className="text-[11px] text-slate-500">Add a name for your audience to save it to your library (optional)</p>
-                  <input
-                    type="text"
-                    placeholder="Enter audience name"
-                    value={audienceNameInput}
-                    onChange={(e) => setAudienceNameInput(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900"
-                  />
-                </div>
-
-                {/* Footer Buttons */}
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              {/* Footer Buttons */}
+              <div className="flex justify-between items-center pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAudienceResource(null);
+                    setActiveModal(null);
+                  }}
+                  className="text-slate-500 hover:text-red-400 text-xs font-semibold"
+                >
+                  Clear Selection
+                </button>
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
@@ -6155,23 +7185,320 @@ function LocalPerformanceMaxContent() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      const finalName = audienceNameInput.trim() || "Audience Signal";
-                      setSavedAudienceSignal({
-                        name: finalName,
-                        hasYourData: selectedDataSegments.length > 0,
-                        hasInterests: !!interestsInput,
-                        demographicsCount: demoGenders.length + demoAges.length + demoParental.length + demoIncome.length
-                      });
-                      setActiveModal(null);
-                    }}
+                    onClick={() => setActiveModal(null)}
                     className="px-5 py-2 bg-primary text-slate-950 rounded-xl font-bold hover:bg-secondary cursor-pointer"
                   >
-                    Save Audience Signal
+                    Done
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Marketing Image Crop / Edit Modal ── */}
+      {currentCropItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl text-xs">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-200 pb-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Crop className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-bold text-slate-900">Edit & Crop Marketing Image</h3>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {currentCropItem.name} {cropQueue.length > 0 ? `(+${cropQueue.length} more in queue)` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  // Cancel current item and move to next in queue if any
+                  if (cropQueue.length > 0) {
+                    setCurrentCropItem(cropQueue[0]);
+                    setCropQueue(prev => prev.slice(1));
+                    setCropZoom(1);
+                    setCropOffset({ x: 0, y: 0 });
+                    setCropValidationError(null);
+                  } else {
+                    setCurrentCropItem(null);
+                  }
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Aspect Ratio Selector Tabs */}
+            <div className="flex items-center gap-2">
+              <span className="text-slate-600 font-semibold text-[11px]">Required Ratio:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setCropAspectMode("LANDSCAPE");
+                  setCropValidationError(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 ${
+                  cropAspectMode === "LANDSCAPE"
+                    ? "bg-primary text-slate-950 shadow-xs"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                <span className="w-3.5 h-2 rounded-[2px] border border-current inline-block"></span>
+                Landscape (1.91 : 1)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCropAspectMode("SQUARE");
+                  setCropValidationError(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 ${
+                  cropAspectMode === "SQUARE"
+                    ? "bg-primary text-slate-950 shadow-xs"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                <span className="w-2.5 h-2.5 rounded-[2px] border border-current inline-block"></span>
+                Square (1 : 1)
+              </button>
+            </div>
+
+            {/* Interactive Crop Preview Canvas Container */}
+            <div className="relative bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center p-4 min-h-[320px] max-h-[400px] select-none">
+              
+              {/* Image with zoom and offset */}
+              <div
+                className="relative overflow-hidden cursor-grab active:cursor-grabbing border-2 border-dashed border-primary/80 shadow-2xl flex items-center justify-center bg-black/40"
+                style={{
+                  width: cropAspectMode === "LANDSCAPE" ? "420px" : "280px",
+                  height: cropAspectMode === "LANDSCAPE" ? "220px" : "280px",
+                }}
+                onMouseDown={(e) => {
+                  setIsDraggingCrop(true);
+                  setDragStartPos({ x: e.clientX - cropOffset.x, y: e.clientY - cropOffset.y });
+                }}
+                onMouseMove={(e) => {
+                  if (isDraggingCrop) {
+                    setCropOffset({
+                      x: e.clientX - dragStartPos.x,
+                      y: e.clientY - dragStartPos.y
+                    });
+                  }
+                }}
+                onMouseUp={() => setIsDraggingCrop(false)}
+                onMouseLeave={() => setIsDraggingCrop(false)}
+              >
+                <img
+                  src={currentCropItem.base64}
+                  alt="Crop preview"
+                  draggable={false}
+                  className="max-w-none transition-transform pointer-events-none"
+                  style={{
+                    transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})`,
+                    transformOrigin: "center center"
+                  }}
+                />
+                <div className="absolute inset-0 border border-primary/30 pointer-events-none grid grid-cols-3 grid-rows-3">
+                  <div className="border-r border-b border-white/20"></div>
+                  <div className="border-r border-b border-white/20"></div>
+                  <div className="border-b border-white/20"></div>
+                  <div className="border-r border-b border-white/20"></div>
+                  <div className="border-r border-b border-white/20"></div>
+                  <div className="border-b border-white/20"></div>
+                  <div className="border-r border-white/20"></div>
+                  <div className="border-r border-white/20"></div>
+                  <div></div>
+                </div>
+              </div>
+
+              <div className="absolute bottom-2 left-3 bg-slate-900/80 px-2 py-1 rounded text-[10px] text-slate-300 backdrop-blur-xs font-mono">
+                {cropAspectMode === "LANDSCAPE" ? "Target: 1200 × 628 px (1.91:1)" : "Target: 1200 × 1200 px (1:1)"}
+              </div>
+            </div>
+
+            {/* Interactive Controls (Zoom, Reset, Pan Instructions) */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-3">
+                <span className="text-slate-600 font-semibold text-xs flex items-center gap-1">
+                  <ZoomIn className="h-3.5 w-3.5 text-primary" /> Zoom:
+                </span>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="3"
+                  step="0.05"
+                  value={cropZoom}
+                  onChange={(e) => setCropZoom(parseFloat(e.target.value))}
+                  className="w-32 accent-primary cursor-pointer"
+                />
+                <span className="font-mono text-[11px] text-slate-700 w-10">
+                  {Math.round(cropZoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCropZoom(1);
+                    setCropOffset({ x: 0, y: 0 });
+                  }}
+                  className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-700 cursor-pointer flex items-center gap-1"
+                >
+                  <RotateCcw className="h-3 w-3" /> Reset
+                </button>
+              </div>
+
+              <span className="text-[11px] text-slate-500">
+                Tip: Click and drag inside the frame to reposition
+              </span>
+            </div>
+
+            {cropValidationError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <p className="text-xs">{cropValidationError}</p>
+              </div>
             )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  if (cropQueue.length > 0) {
+                    setCurrentCropItem(cropQueue[0]);
+                    setCropQueue(prev => prev.slice(1));
+                    setCropZoom(1);
+                    setCropOffset({ x: 0, y: 0 });
+                    setCropValidationError(null);
+                  } else {
+                    setCurrentCropItem(null);
+                  }
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Skip / Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!currentCropItem) return;
+
+                  // Render final cropped image using HTML5 Canvas
+                  const targetWidth = cropAspectMode === "LANDSCAPE" ? 1200 : 1200;
+                  const targetHeight = cropAspectMode === "LANDSCAPE" ? 628 : 1200;
+                  const fieldType = cropAspectMode === "LANDSCAPE" ? "MARKETING_IMAGE" : "SQUARE_MARKETING_IMAGE";
+
+                  const canvas = document.createElement("canvas");
+                  canvas.width = targetWidth;
+                  canvas.height = targetHeight;
+                  const ctx = canvas.getContext("2d");
+
+                  if (!ctx) {
+                    setCropValidationError("Failed to initialize canvas context for cropping.");
+                    return;
+                  }
+
+                  const img = new Image();
+                  img.onload = () => {
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+                    // Calculate scale & offset relative to crop container
+                    const containerWidth = cropAspectMode === "LANDSCAPE" ? 420 : 280;
+                    const containerHeight = cropAspectMode === "LANDSCAPE" ? 220 : 280;
+
+                    const scaleFactor = targetWidth / containerWidth;
+
+                    ctx.save();
+                    // Move to center of canvas
+                    ctx.translate(targetWidth / 2, targetHeight / 2);
+                    // Apply offset scaled to target dimensions
+                    ctx.translate(cropOffset.x * scaleFactor, cropOffset.y * scaleFactor);
+                    // Apply zoom
+                    ctx.scale(cropZoom, cropZoom);
+
+                    // Compute draw dimensions maintaining original aspect ratio
+                    const naturalWidth = img.naturalWidth || img.width;
+                    const naturalHeight = img.naturalHeight || img.height;
+                    const aspect = naturalWidth / naturalHeight;
+
+                    let drawW = targetWidth;
+                    let drawH = targetWidth / aspect;
+                    if (drawH < targetHeight) {
+                      drawH = targetHeight;
+                      drawW = targetHeight * aspect;
+                    }
+
+                    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+                    ctx.restore();
+
+                    // 1. Generate primary chosen aspect ratio image
+                    const croppedDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+
+                    // 2. Also generate complementary aspect ratio version so user always has both MARKETING_IMAGE & SQUARE_MARKETING_IMAGE
+                    const compCanvas = document.createElement("canvas");
+                    const compWidth = cropAspectMode === "LANDSCAPE" ? 1200 : 1200;
+                    const compHeight = cropAspectMode === "LANDSCAPE" ? 1200 : 628;
+                    const compFieldType = cropAspectMode === "LANDSCAPE" ? "SQUARE_MARKETING_IMAGE" : "MARKETING_IMAGE";
+                    compCanvas.width = compWidth;
+                    compCanvas.height = compHeight;
+                    const compCtx = compCanvas.getContext("2d");
+                    let compDataUrl = "";
+                    if (compCtx) {
+                      compCtx.fillStyle = "#ffffff";
+                      compCtx.fillRect(0, 0, compWidth, compHeight);
+                      const naturalW = img.naturalWidth || img.width;
+                      const naturalH = img.naturalHeight || img.height;
+                      const aspect = naturalW / naturalH;
+                      let dW = compWidth;
+                      let dH = compWidth / aspect;
+                      if (dH < compHeight) {
+                        dH = compHeight;
+                        dW = compHeight * aspect;
+                      }
+                      compCtx.drawImage(img, (compWidth - dW) / 2, (compHeight - dH) / 2, dW, dH);
+                      compDataUrl = compCanvas.toDataURL("image/jpeg", 0.92);
+                    }
+
+                    // Save both validated images
+                    setUploadedImages(prev => [
+                      ...prev,
+                      {
+                        data: croppedDataUrl,
+                        fieldType: fieldType,
+                        name: `${currentCropItem.name.replace(/\.[^/.]+$/, "")} (${cropAspectMode === "LANDSCAPE" ? "Landscape 1.91:1" : "Square 1:1"})`
+                      },
+                      ...(compDataUrl ? [{
+                        data: compDataUrl,
+                        fieldType: compFieldType,
+                        name: `${currentCropItem.name.replace(/\.[^/.]+$/, "")} (${compFieldType === "MARKETING_IMAGE" ? "Landscape 1.91:1" : "Square 1:1"})`
+                      }] : [])
+                    ]);
+
+                    // Advance queue
+                    if (cropQueue.length > 0) {
+                      setCurrentCropItem(cropQueue[0]);
+                      setCropQueue(prev => prev.slice(1));
+                      setCropZoom(1);
+                      setCropOffset({ x: 0, y: 0 });
+                      setCropValidationError(null);
+                    } else {
+                      setCurrentCropItem(null);
+                    }
+                  };
+                  img.src = currentCropItem.base64;
+                }}
+                className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-primary hover:bg-secondary transition-all shadow-md shadow-primary/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Check className="h-4 w-4" /> Use Image & Save
+              </button>
+            </div>
+
           </div>
         </div>
       )}
@@ -6188,14 +7515,14 @@ function LocalPerformanceMaxContent() {
               <button
                 type="button"
                 onClick={() => setShowDraftModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
-              Your campaign progress will be saved as a draft so you can resume anytime.
+              Your campaign draft will be saved so you can resume and publish whenever you are ready.
             </p>
 
             <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200">

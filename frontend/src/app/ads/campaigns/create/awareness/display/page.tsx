@@ -221,9 +221,24 @@ export default function AwarenessDisplayPage() {
   const [headlines, setHeadlines] = useState<string[]>([""]);
   const [longHeadlines, setLongHeadlines] = useState<string[]>([""]);
   const [descriptions, setDescriptions] = useState<string[]>([""]);
+  const [landscapeImagesList, setLandscapeImagesList] = useState<string[]>([]);
+  const [squareImagesList, setSquareImagesList] = useState<string[]>([]);
   const [imagesList, setImagesList] = useState<string[]>([]);
   const [logosList, setLogosList] = useState<string[]>([]);
   const [videosList, setVideosList] = useState<string[]>([]);
+
+  // Crop & Ratio Selection Modal State
+  const [cropModalData, setCropModalData] = useState<{
+    isOpen: boolean;
+    rawImage: string;
+    originalWidth: number;
+    originalHeight: number;
+    targetType: "IMAGE" | "LOGO";
+    selectedRatios: {
+      landscape: boolean; // 1.91:1
+      square: boolean;    // 1:1
+    };
+  } | null>(null);
 
   // Optimization & Format Settings
   const [useAssetEnhancements, setUseAssetEnhancements] = useState<boolean>(true);
@@ -2302,46 +2317,106 @@ export default function AwarenessDisplayPage() {
                               <input
                                 type="file"
                                 accept="image/*"
-                                multiple
                                 className="hidden"
                                 onChange={(e) => {
                                   if (e.target.files && e.target.files.length > 0) {
-                                    const files = Array.from(e.target.files);
-                                    files.forEach(file => {
-                                      const localUrl = URL.createObjectURL(file);
-                                      const cdnUrl = `https://ik.imagekit.io/whatsappdemo/display_ads/${Date.now()}_${file.name}`;
-                                      setImagesList(prev => [...prev, localUrl || cdnUrl]);
-                                    });
+                                    const file = e.target.files[0];
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      const rawData = reader.result as string;
+                                      if (!rawData) return;
+                                      const img = new Image();
+                                      img.onload = () => {
+                                        setCropModalData({
+                                          isOpen: true,
+                                          rawImage: rawData,
+                                          originalWidth: img.width,
+                                          originalHeight: img.height,
+                                          targetType: "IMAGE",
+                                          selectedRatios: {
+                                            landscape: true,
+                                            square: true
+                                          }
+                                        });
+                                      };
+                                      img.src = rawData;
+                                    };
+                                    reader.readAsDataURL(file);
+                                    e.target.value = "";
                                   }
                                 }}
                               />
                             </label>
                           </div>
-                          <p className="text-[11px] text-slate-500">Add up to 15 images. At least 1 landscape image and 1 square image required <span className="text-rose-500 font-bold">*</span>. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline">Learn more</a></p>
+                          <p className="text-[11px] text-slate-500">
+                            Add images with required aspect ratios: <strong>Landscape (1.91:1)</strong> and <strong>Square (1:1)</strong> <span className="text-rose-500 font-bold">*</span>.
+                          </p>
 
-                          {imagesList.length > 0 && (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
-                              {imagesList.map((imgUrl, i) => (
-                                <div key={i} className="relative group p-2 rounded-xl bg-white border border-slate-200 space-y-2">
-                                  <div className="h-24 w-full rounded-lg overflow-hidden bg-slate-50 border border-slate-200 flex items-center justify-center">
-                                    <img src={imgUrl} alt={`Upload ${i + 1}`} className="h-full w-full object-cover" />
+                          {/* Landscape Images section */}
+                          <div className="space-y-1 pt-1">
+                            <span className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
+                              Landscape Images (1.91:1 - 1200×628)
+                              <span className="text-[10px] font-normal text-slate-500">({landscapeImagesList.length})</span>
+                            </span>
+                            {landscapeImagesList.length > 0 ? (
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {landscapeImagesList.map((imgUrl, i) => (
+                                  <div key={i} className="relative group p-2 rounded-xl bg-white border border-slate-200 space-y-1">
+                                    <div className="h-20 w-full rounded-lg overflow-hidden bg-slate-50 border border-slate-200 flex items-center justify-center p-1">
+                                      <img src={imgUrl} alt={`Landscape ${i + 1}`} className="h-full w-full object-contain" />
+                                    </div>
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="text-[9px] font-mono text-primary truncate flex-1">Landscape_{i + 1}.jpg</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setLandscapeImagesList(prev => prev.filter((_, index) => index !== i))}
+                                        className="text-slate-400 hover:text-rose-500 p-0.5"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span className="text-[10px] font-mono text-emerald-400 truncate flex-1" title={imgUrl}>
-                                      {imgUrl.startsWith("blob:") ? `https://ik.imagekit.io/demo/img_${i + 1}.png` : imgUrl}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setImagesList(prev => prev.filter((_, index) => index !== i))}
-                                      className="text-slate-500 hover:text-rose-400 p-0.5"
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                    </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                                At least 1 Landscape marketing image (1.91:1) is required.
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Square Images section */}
+                          <div className="space-y-1 pt-2">
+                            <span className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
+                              Square Images (1:1 - 1200×1200)
+                              <span className="text-[10px] font-normal text-slate-500">({squareImagesList.length})</span>
+                            </span>
+                            {squareImagesList.length > 0 ? (
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {squareImagesList.map((imgUrl, i) => (
+                                  <div key={i} className="relative group p-2 rounded-xl bg-white border border-slate-200 space-y-1">
+                                    <div className="h-20 w-full rounded-lg overflow-hidden bg-slate-50 border border-slate-200 flex items-center justify-center p-1">
+                                      <img src={imgUrl} alt={`Square ${i + 1}`} className="h-full w-full object-contain" />
+                                    </div>
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="text-[9px] font-mono text-cyan-600 truncate flex-1">Square_{i + 1}.jpg</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSquareImagesList(prev => prev.filter((_, index) => index !== i))}
+                                        className="text-slate-400 hover:text-rose-500 p-0.5"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                                At least 1 Square marketing image (1:1) is required.
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         {/* Logos Card */}
@@ -2353,22 +2428,38 @@ export default function AwarenessDisplayPage() {
                               <input
                                 type="file"
                                 accept="image/*"
-                                multiple
                                 className="hidden"
                                 onChange={(e) => {
                                   if (e.target.files && e.target.files.length > 0) {
-                                    const files = Array.from(e.target.files);
-                                    files.forEach(file => {
-                                      const localUrl = URL.createObjectURL(file);
-                                      const cdnUrl = `https://ik.imagekit.io/whatsappdemo/logos/${Date.now()}_${file.name}`;
-                                      setLogosList(prev => [...prev, localUrl || cdnUrl]);
-                                    });
+                                    const file = e.target.files[0];
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      const rawData = reader.result as string;
+                                      if (!rawData) return;
+                                      const img = new Image();
+                                      img.onload = () => {
+                                        setCropModalData({
+                                          isOpen: true,
+                                          rawImage: rawData,
+                                          originalWidth: img.width,
+                                          originalHeight: img.height,
+                                          targetType: "LOGO",
+                                          selectedRatios: {
+                                            landscape: false,
+                                            square: true
+                                          }
+                                        });
+                                      };
+                                      img.src = rawData;
+                                    };
+                                    reader.readAsDataURL(file);
+                                    e.target.value = "";
                                   }
                                 }}
                               />
                             </label>
                           </div>
-                          <p className="text-[11px] text-slate-500">Add up to 5 logos</p>
+                          <p className="text-[11px] text-slate-500">Add up to 5 logos (1:1 square required)</p>
 
                           {logosList.length > 0 && (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
@@ -2378,13 +2469,13 @@ export default function AwarenessDisplayPage() {
                                     <img src={logoUrl} alt={`Logo ${i + 1}`} className="h-full w-full object-contain" />
                                   </div>
                                   <div className="flex items-center justify-between gap-1">
-                                    <span className="text-[10px] font-mono text-emerald-400 truncate flex-1" title={logoUrl}>
-                                      {logoUrl.startsWith("blob:") ? `https://ik.imagekit.io/demo/logo_${i + 1}.png` : logoUrl}
+                                    <span className="text-[10px] font-mono text-emerald-600 truncate flex-1" title={logoUrl}>
+                                      {logoUrl.startsWith("data:") ? `Logo_${i + 1}.jpg` : logoUrl}
                                     </span>
                                     <button
                                       type="button"
                                       onClick={() => setLogosList(prev => prev.filter((_, index) => index !== i))}
-                                      className="text-slate-500 hover:text-rose-400 p-0.5"
+                                      className="text-slate-500 hover:text-rose-500 p-0.5"
                                     >
                                       <X className="h-3.5 w-3.5" />
                                     </button>
@@ -2410,9 +2501,12 @@ export default function AwarenessDisplayPage() {
                                   if (e.target.files && e.target.files.length > 0) {
                                     const files = Array.from(e.target.files);
                                     files.forEach(file => {
-                                      const localUrl = URL.createObjectURL(file);
-                                      const cdnUrl = `https://ik.imagekit.io/whatsappdemo/display_videos/${Date.now()}_${file.name}`;
-                                      setVideosList(prev => [...prev, localUrl || cdnUrl]);
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        const data = reader.result as string;
+                                        setVideosList(prev => [...prev, data]);
+                                      };
+                                      reader.readAsDataURL(file);
                                     });
                                   }
                                 }}
@@ -2429,13 +2523,13 @@ export default function AwarenessDisplayPage() {
                                     <video src={vidUrl} controls className="h-full w-full object-cover" />
                                   </div>
                                   <div className="flex items-center justify-between gap-1">
-                                    <span className="text-[10px] font-mono text-cyan-400 truncate flex-1" title={vidUrl}>
-                                      {vidUrl.startsWith("blob:") ? `https://ik.imagekit.io/demo/video_${i + 1}.mp4` : vidUrl}
+                                    <span className="text-[10px] font-mono text-cyan-600 truncate flex-1" title={vidUrl}>
+                                      {vidUrl.startsWith("data:") ? `Video_${i + 1}.mp4` : vidUrl}
                                     </span>
                                     <button
                                       type="button"
                                       onClick={() => setVideosList(prev => prev.filter((_, index) => index !== i))}
-                                      className="text-slate-500 hover:text-rose-400 p-0.5"
+                                      className="text-slate-500 hover:text-rose-500 p-0.5"
                                     >
                                       <X className="h-3.5 w-3.5" />
                                     </button>
@@ -2459,7 +2553,7 @@ export default function AwarenessDisplayPage() {
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-500">
-                          {imagesList.length} Image(s), {logosList.length} Logo(s), {videosList.length} Video(s)
+                          {landscapeImagesList.length} Landscape, {squareImagesList.length} Square, {logosList.length} Logo(s), {videosList.length} Video(s)
                         </div>
                       </div>
                       <button
@@ -3118,8 +3212,8 @@ export default function AwarenessDisplayPage() {
                     <h4 className="font-bold text-slate-700">Ads</h4>
                     <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
                       <span className="text-slate-500 font-semibold">Ad creation</span>
-                      <span className={`font-bold ${imagesList.length > 0 ? "text-emerald-400" : "text-slate-500"}`}>
-                        {imagesList.length > 0 ? `${imagesList.length} image(s) added` : "No ads"}
+                      <span className={`font-bold ${(landscapeImagesList.length > 0 || squareImagesList.length > 0) ? "text-emerald-400" : "text-slate-500"}`}>
+                        {(landscapeImagesList.length > 0 || squareImagesList.length > 0) ? `${landscapeImagesList.length} Landscape, ${squareImagesList.length} Square image(s)` : "No ads"}
                       </span>
                     </div>
                   </div>
@@ -3192,6 +3286,11 @@ export default function AwarenessDisplayPage() {
                   const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
                   const targetCid = customerId || "6587355041";
 
+                  const formattedImages: Array<{ data: string; fieldType: "MARKETING_IMAGE" | "SQUARE_MARKETING_IMAGE" }> = [
+                    ...landscapeImagesList.map(data => ({ data, fieldType: "MARKETING_IMAGE" as const })),
+                    ...squareImagesList.map(data => ({ data, fieldType: "SQUARE_MARKETING_IMAGE" as const }))
+                  ];
+
                   const payloadToLaunch = {
                     orgId,
                     customerId: targetCid,
@@ -3205,15 +3304,19 @@ export default function AwarenessDisplayPage() {
                     finalUrl: finalUrl.trim() || "https://www.JDS-automation.com",
                     businessName: businessName.trim() || "JDS",
                     headlines: cleanHeadlines.length > 0 ? cleanHeadlines : ["Grow Your Business Online", "Digital Marketing Solutions", "Smart Business Automation"],
+                    longHeadlines: (longHeadlines && longHeadlines.filter(h => h && h.trim().length > 0).length > 0)
+                      ? longHeadlines.filter(h => h && h.trim().length > 0)
+                      : ["Explore Smart Business Automation and Digital Marketing Solutions"],
                     descriptions: cleanDescriptions.length > 0 ? cleanDescriptions : [
                       "Get powerful digital marketing and automation solutions for your business.",
                       "Generate more leads and grow your business with smart automation."
                     ],
-                    images: imagesList.length > 0 ? imagesList : [
-                      "https://ik.imagekit.io/automationjds/gads_dg_image_1787574968684_aimaths_YX-Kb7zvI.jpg"
+                    images: formattedImages.length > 0 ? formattedImages : [
+                      { data: "https://ik.imagekit.io/automationjds/tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF/gads_dg_image_1788441362828_images_RKjVY-rHB.png", fieldType: "MARKETING_IMAGE" as const },
+                      { data: "https://ik.imagekit.io/automationjds/tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF/gads_dg_image_1788441362828_images_RKjVY-rHB.png", fieldType: "SQUARE_MARKETING_IMAGE" as const }
                     ],
                     logos: logosList.length > 0 ? logosList : [
-                      "https://ik.imagekit.io/automationjds/gads_dg_logo_1787574973938_google_ads_logo_FJndWjppS.jpg"
+                      "https://ik.imagekit.io/automationjds/tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg"
                     ],
                     locations: selectedLocation === "INDIA" ? ["India"] : ["All countries and territories"],
                     languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
@@ -3247,6 +3350,219 @@ export default function AwarenessDisplayPage() {
           )}
         </div>
       </footer>
+
+      {/* ── Crop & Aspect Ratio Selection Modal ── */}
+      {cropModalData && cropModalData.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5 text-primary" />
+                  Select Aspect Ratios for Upload
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Choose which aspect ratios to generate for your Display {cropModalData.targetType === "LOGO" ? "Logo" : "Marketing Image"}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCropModalData(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Original Image Info */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <span className="text-slate-600">Original Dimensions: <strong className="text-slate-900">{cropModalData.originalWidth} × {cropModalData.originalHeight} px</strong></span>
+              <span className="text-slate-500">Auto-cropped & padded to standard Google Ads spec</span>
+            </div>
+
+            {/* Ratio Selection Options */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Landscape 1.91:1 */}
+              {cropModalData.targetType === "IMAGE" && (
+                <div
+                  onClick={() => {
+                    setCropModalData(prev => prev ? {
+                      ...prev,
+                      selectedRatios: {
+                        ...prev.selectedRatios,
+                        landscape: !prev.selectedRatios.landscape
+                      }
+                    } : null);
+                  }}
+                  className={`p-4 rounded-xl border-2 transition-all cursor-pointer space-y-3 ${
+                    cropModalData.selectedRatios.landscape
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={cropModalData.selectedRatios.landscape}
+                        onChange={() => {}}
+                        className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <span className="font-bold text-xs text-slate-800">Landscape (1.91:1)</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
+                      1200 × 628
+                    </span>
+                  </div>
+                  <div className="h-28 w-full rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center p-1">
+                    <img
+                      src={cropModalData.rawImage}
+                      alt="Landscape preview"
+                      className="h-full w-full object-contain"
+                      style={{ aspectRatio: "1.91 / 1" }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500">Required for horizontal placements across Google Display Network</p>
+                </div>
+              )}
+
+              {/* Square 1:1 */}
+              <div
+                onClick={() => {
+                  setCropModalData(prev => prev ? {
+                    ...prev,
+                    selectedRatios: {
+                      ...prev.selectedRatios,
+                      square: !prev.selectedRatios.square
+                    }
+                  } : null);
+                }}
+                className={`p-4 rounded-xl border-2 transition-all cursor-pointer space-y-3 ${
+                  cropModalData.selectedRatios.square
+                    ? "border-cyan-500 bg-cyan-500/5 shadow-sm"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                } ${cropModalData.targetType === "LOGO" ? "sm:col-span-2" : ""}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={cropModalData.selectedRatios.square}
+                      onChange={() => {}}
+                      className="h-4 w-4 rounded text-cyan-600 focus:ring-cyan-500 cursor-pointer"
+                    />
+                    <span className="font-bold text-xs text-slate-800">
+                      Square (1:1) {cropModalData.targetType === "LOGO" ? "Logo" : "Marketing Image"}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
+                    1200 × 1200
+                  </span>
+                </div>
+                <div className="h-28 w-full rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center p-1">
+                  <img
+                    src={cropModalData.rawImage}
+                    alt="Square preview"
+                    className="h-full w-full object-contain"
+                    style={{ aspectRatio: "1 / 1" }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {cropModalData.targetType === "LOGO"
+                    ? "1:1 Square aspect ratio required by Google Ads for Logos"
+                    : "Required for square placements in native and banner feeds"}
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setCropModalData(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!cropModalData.selectedRatios.landscape && !cropModalData.selectedRatios.square}
+                onClick={() => {
+                  const rawData = cropModalData.rawImage;
+                  const img = new Image();
+                  img.onload = () => {
+                    if (cropModalData.targetType === "LOGO") {
+                      // Generate 1:1 Square Logo
+                      const logoCanvas = document.createElement("canvas");
+                      logoCanvas.width = 1200;
+                      logoCanvas.height = 1200;
+                      const ctx = logoCanvas.getContext("2d");
+                      if (ctx) {
+                        ctx.fillStyle = "#ffffff";
+                        ctx.fillRect(0, 0, 1200, 1200);
+                        const scale = Math.min(1200 / img.width, 1200 / img.height);
+                        const w = img.width * scale;
+                        const h = img.height * scale;
+                        const x = (1200 - w) / 2;
+                        const y = (1200 - h) / 2;
+                        ctx.drawImage(img, x, y, w, h);
+                        const logoData = logoCanvas.toDataURL("image/jpeg", 0.92);
+                        setLogosList(prev => [...prev, logoData]);
+                      }
+                    } else {
+                      // 1. Generate 1.91:1 Landscape if selected
+                      if (cropModalData.selectedRatios.landscape) {
+                        const landCanvas = document.createElement("canvas");
+                        landCanvas.width = 1200;
+                        landCanvas.height = 628;
+                        const lctx = landCanvas.getContext("2d");
+                        if (lctx) {
+                          lctx.fillStyle = "#ffffff";
+                          lctx.fillRect(0, 0, 1200, 628);
+                          const scale = Math.min(1200 / img.width, 628 / img.height);
+                          const w = img.width * scale;
+                          const h = img.height * scale;
+                          const x = (1200 - w) / 2;
+                          const y = (628 - h) / 2;
+                          lctx.drawImage(img, x, y, w, h);
+                          const landData = landCanvas.toDataURL("image/jpeg", 0.92);
+                          setLandscapeImagesList(prev => [...prev, landData]);
+                        }
+                      }
+
+                      // 2. Generate 1:1 Square if selected
+                      if (cropModalData.selectedRatios.square) {
+                        const sqCanvas = document.createElement("canvas");
+                        sqCanvas.width = 1200;
+                        sqCanvas.height = 1200;
+                        const sctx = sqCanvas.getContext("2d");
+                        if (sctx) {
+                          sctx.fillStyle = "#ffffff";
+                          sctx.fillRect(0, 0, 1200, 1200);
+                          const scale = Math.min(1200 / img.width, 1200 / img.height);
+                          const w = img.width * scale;
+                          const h = img.height * scale;
+                          const x = (1200 - w) / 2;
+                          const y = (1200 - h) / 2;
+                          sctx.drawImage(img, x, y, w, h);
+                          const sqData = sqCanvas.toDataURL("image/jpeg", 0.92);
+                          setSquareImagesList(prev => [...prev, sqData]);
+                        }
+                      }
+                    }
+                    setCropModalData(null);
+                  };
+                  img.src = rawData;
+                }}
+                className="px-5 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md shadow-primary/20 cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="h-4 w-4" />
+                Apply Ratios & Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,60 +6,155 @@ export class SalesVideoService extends GoogleAdsBaseService {
     const {
       campaignName = "Sales Video",
       finalUrl = "https://www.example.com",
-      campaignSubtype = "Drive conversions",
-      biddingFocus = "Maximize conversions",
-      targetCpa = 25,
-      targetRoas = 200,
+      campaignSubtype = "VIDEO_ACTION",
+      biddingStrategy = "MAXIMIZE_CONVERSIONS",
+      biddingFocus,
+      targetCpa,
+      targetRoas,
       locations = ["India"],
       languages = ["English"],
       youtubeVideos = [],
       headlines = [],
+      longHeadlines = [],
       descriptions = [],
-      dailyBudget = 1000
+      images = [],
+      logos = [],
+      businessName = "",
+      dailyBudget = 1000,
+      budget,
+      startDate,
+      endDate,
+      euPolitical = "NO"
     } = payload;
 
     if (!finalUrl) {
       throw new Error("Final URL is required.");
     }
 
-    const advertisingChannelType = "VIDEO";
-    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const effectiveBudget = Math.max(Number(dailyBudget || budget || 1000), 416);
+    const amountMicros = Math.round(effectiveBudget * 1_000_000);
     const targetCpaMicros = targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
 
+    const finalBiddingStrategy = biddingStrategy || (biddingFocus === "Target CPA" || biddingFocus === "TARGET_CPA" ? "TARGET_CPA" : "MAXIMIZE_CONVERSIONS");
+
+    let biddingConfig: any = {};
+    if (finalBiddingStrategy === "TARGET_CPA" && targetCpaMicros) {
+      biddingConfig = { targetCpa: { targetCpaMicros: String(targetCpaMicros) } };
+    } else {
+      biddingConfig = { maximizeConversions: {} };
+    }
+
+    const cid = (customerId || "").replace(/-/g, "").trim();
     let apiResult: any = { campaignId: `video-${Date.now()}` };
+    const ADS_BASE = "https://googleads.googleapis.com/v24";
+
     try {
+      // 1. Create Campaign Budget
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: amountMicros / 1_000_000
+        amountPerDay: effectiveBudget
       });
       apiResult.budgetResourceName = budgetRef;
 
       const { headers } = await this.getAdsHeaders(organizationId, customerId);
-      const cid = (customerId || "").replace(/-/g, "").trim();
-      
-      const campaignPayload = {
-        operations: [
-          {
-            create: {
-              name: campaignName,
-              status: "PAUSED",
-              advertisingChannelType: "VIDEO",
-              advertisingChannelSubType: "VIDEO_ACTION",
-              campaignBudget: budgetRef,
-              ...(targetCpaMicros ? { maximizeConversions: { targetCpaMicros: String(targetCpaMicros) } } : {})
-            }
-          }
-        ]
-      };
+      const euPoliticalValue = (euPolitical === "YES" || payload.euPoliticalAds === "YES")
+        ? "CONTAINS_EU_POLITICAL_ADVERTISING"
+        : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING";
 
-      const ADS_BASE = "https://googleads.googleapis.com/v24";
-      const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-video-${Date.now()}`;
-      
+      // In Google Ads API v24, Sales / Action Video campaigns are created as DEMAND_GEN (or VIDEO_ACTION with DEMAND_GEN channel)
+      let effectiveCampaignName = campaignName;
+      let res;
+      try {
+        const campaignPayload = {
+          operations: [
+            {
+              create: {
+                name: effectiveCampaignName,
+                status: "PAUSED",
+                advertisingChannelType: "DEMAND_GEN",
+                campaignBudget: budgetRef,
+                containsEuPoliticalAdvertising: euPoliticalValue,
+                demandGenCampaignSettings: {
+                  upgradedTargeting: true
+                },
+                ...biddingConfig
+              }
+            }
+          ]
+        };
+
+        res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+      } catch (campErr: any) {
+        const errMsg = campErr?.response?.data?.error?.message || campErr?.message || "";
+        const errDetails = JSON.stringify(campErr?.response?.data || "");
+        if (errMsg.includes("already assigned") || errDetails.includes("DUPLICATE_CAMPAIGN_NAME") || errDetails.includes("DUPLICATE_NAME") || errDetails.includes("already assigned")) {
+          effectiveCampaignName = `${campaignName} ${Date.now().toString().slice(-4)}`;
+          const retryPayload = {
+            operations: [
+              {
+                create: {
+                  name: effectiveCampaignName,
+                  status: "PAUSED",
+                  advertisingChannelType: "DEMAND_GEN",
+                  campaignBudget: budgetRef,
+                  containsEuPoliticalAdvertising: euPoliticalValue,
+                  demandGenCampaignSettings: {
+                    upgradedTargeting: true
+                  },
+                  ...biddingConfig
+                }
+              }
+            ]
+          };
+          res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, retryPayload, { headers });
+        } else {
+          throw campErr;
+        }
+      }
+
+      const campaignRef = res.data?.results?.[0]?.resourceName;
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
+
+      // 2. Create Ad Group with channel controls
+      try {
+        const selectedChannels = {
+          youtubeInStream: true,
+          youtubeInFeed: true,
+          youtubeShorts: true,
+          discover: true,
+          gmail: true,
+          display: true
+        };
+
+        const adGroupPayload = {
+          operations: [
+            {
+              create: {
+                campaign: campaignRef,
+                name: `${effectiveCampaignName} Ad Group 1`,
+                status: "ENABLED",
+                demandGenAdGroupSettings: {
+                  channelControls: {
+                    selectedChannels
+                  }
+                }
+              }
+            }
+          ]
+        };
+        const adGroupRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroups:mutate`, adGroupPayload, { headers });
+        const adGroupRef = adGroupRes.data?.results?.[0]?.resourceName;
+        apiResult.adGroupResourceName = adGroupRef;
+      } catch (adgErr: any) {
+        console.warn("[Google Ads API fallback for Sales Video Ad Group]:", adgErr?.response?.data || adgErr.message);
+      }
+
     } catch (apiErr: any) {
-      console.warn("[Google Ads API fallback for Sales Video]:", apiErr.message);
+      const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
+      console.error("[Google Ads API Error for Sales Video]:", formatted);
+      console.error("[Google Ads API Raw Error Data]:", JSON.stringify(apiErr?.response?.data || apiErr.message, null, 2));
+      throw new Error(formatted);
     }
 
     const localCampaign = await this.saveCampaignToDatabase({
@@ -68,8 +163,8 @@ export class SalesVideoService extends GoogleAdsBaseService {
       googleAdsCampaignId: apiResult.campaignId || `video-${Date.now()}`,
       name: campaignName,
       campaignType: "VIDEO",
-      biddingStrategy: biddingFocus === "Target CPA" ? "TARGET_CPA" : biddingFocus === "Target ROAS" ? "TARGET_ROAS" : "MAXIMIZE_CONVERSIONS",
-      budget: Number(dailyBudget),
+      biddingStrategy: finalBiddingStrategy,
+      budget: Number(effectiveBudget),
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
       finalUrl,
@@ -95,7 +190,8 @@ export class SalesVideoService extends GoogleAdsBaseService {
         costMicros: Number(localCampaign.costMicros),
         impressions: Number(localCampaign.impressions),
         clicks: Number(localCampaign.clicks)
-      }
+      },
+      apiResult
     };
   }
 }
