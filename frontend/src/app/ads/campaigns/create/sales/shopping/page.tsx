@@ -101,7 +101,7 @@ export default function SalesShoppingPage() {
   const [headlines, setHeadlines] = useState<string[]>(["Shop Top Deals Now"]);
   const [descriptions, setDescriptions] = useState<string[]>(["Explore our exclusive shopping collection with fast delivery and great discounts."]);
 
-  // Load existing campaigns from Google Ads API / DB once on component mount
+  // Load existing campaigns from Google Ads API / DB once on component mount & restore prefill if coming from AI Guided
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
@@ -122,7 +122,119 @@ export default function SalesShoppingPage() {
           setDuplicateNameError(null);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        // Restore AI Guided prefill campaign state from localStorage if available
+        try {
+          if (typeof window !== "undefined") {
+            const prefillRaw = localStorage.getItem("googleAds_prefill_campaign");
+            if (prefillRaw) {
+              const prefill = JSON.parse(prefillRaw);
+              if (prefill.campaignName) setCampaignName(prefill.campaignName);
+              if (prefill.dailyBudget || prefill.budget) {
+                setBudgetAmount(String(prefill.dailyBudget || prefill.budget));
+              }
+              if (prefill.budgetType) {
+                setBudgetType(prefill.budgetType.toLowerCase() === "total" ? "total" : "daily");
+              }
+              if (prefill.biddingStrategy) {
+                const s = prefill.biddingStrategy.toUpperCase().replace(/\s+/g, "_");
+                if (s === "TARGET_ROAS") {
+                  setBidStrategy("Target ROAS");
+                } else if (s === "MAXIMIZE_CLICKS" || s === "CLICKS") {
+                  setBidStrategy("Maximize clicks");
+                } else if (s === "MAXIMIZE_CONVERSION_VALUE") {
+                  setBidStrategy("Maximize conversion value");
+                } else if (s === "MANUAL_CPC") {
+                  setBidStrategy("Manual CPC");
+                } else {
+                  setBidStrategy(prefill.biddingStrategy);
+                }
+              }
+              if (prefill.targetRoas) {
+                setTargetRoas(String(prefill.targetRoas));
+              }
+              if (prefill.maxCpcLimit) {
+                setSetMaxCpcLimit(true);
+                setMaxCpcLimitAmount(String(prefill.maxCpcLimit));
+              }
+              if (prefill.merchantCenterId || prefill.merchantId) {
+                setMerchantCenterId(String(prefill.merchantCenterId || prefill.merchantId));
+              }
+              if (prefill.salesCountry) {
+                setSalesCountry(prefill.salesCountry);
+              }
+              if (prefill.feedLabel) {
+                setFeedLabel(prefill.feedLabel);
+              }
+              if (prefill.adGroupName) {
+                setAdGroupName(prefill.adGroupName);
+              }
+              if (prefill.adGroupBid) {
+                setAdGroupBid(String(prefill.adGroupBid));
+              }
+              if (prefill.customerAcquisitionMode) {
+                setCustomerAcquisition(prefill.customerAcquisitionMode === "NEW_CUSTOMERS_ONLY");
+              }
+              if (prefill.campaignPriority) {
+                const p = String(prefill.campaignPriority).toUpperCase();
+                if (p === "HIGH") setCampaignPriority("High");
+                else if (p === "MEDIUM") setCampaignPriority("Medium");
+                else setCampaignPriority("Low (default)");
+              }
+              if (prefill.localProducts !== undefined || prefill.enableLocalProducts !== undefined) {
+                setLocalProducts(Boolean(prefill.localProducts ?? prefill.enableLocalProducts));
+              }
+              if (prefill.euPolitical) {
+                setEuPoliticalAds(prefill.euPolitical === "YES" ? "Yes, this campaign has EU political ads" : "No, this campaign doesn't have EU political ads");
+              }
+              if (prefill.startDate) {
+                setStartDate(prefill.startDate);
+              }
+              if (prefill.endDate) {
+                setEndDateOption("Select a date");
+                setEndDate(prefill.endDate);
+              }
+              if (prefill.trackingTemplate) {
+                setTrackingTemplate(prefill.trackingTemplate);
+              }
+              if (prefill.finalUrlSuffix) {
+                setFinalUrlSuffix(prefill.finalUrlSuffix);
+              }
+              if (prefill.productGroupFilter) {
+                setProductGroupFilter(prefill.productGroupFilter);
+              }
+              if (prefill.productGroupSelectBy) {
+                setProductGroupSelectBy(prefill.productGroupSelectBy);
+              }
+              if (prefill.productGroupCustomLabel) {
+                setProductGroupCustomLabel(prefill.productGroupCustomLabel);
+              }
+              if (prefill.finalUrl || prefill.website) {
+                setFinalUrl(prefill.finalUrl || prefill.website);
+              }
+              if (Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+                setHeadlines(prefill.headlines);
+              }
+              if (Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+                setDescriptions(prefill.descriptions);
+              }
+              if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+                if (prefill.locations.length === 1 && (prefill.locations[0] === "ALL" || prefill.locations[0] === "All countries and territories")) {
+                  setLocationType("All");
+                } else if (prefill.locations.length === 1 && (prefill.locations[0] === "INDIA" || prefill.locations[0] === "India")) {
+                  setLocationType("India");
+                } else {
+                  setLocationType("Another");
+                  setCustomLocation(prefill.locations.join(", "));
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("Could not restore googleAds_prefill_campaign in Sales Shopping form:", err);
+        }
+      });
   }, [customerId]);
 
   // Real-time check whenever campaignName changes

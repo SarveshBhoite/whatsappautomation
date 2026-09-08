@@ -1,5 +1,6 @@
 "use client";
 import { LanguageDropdown } from "@/components/LanguageDropdown";
+import { AiCampaignAssistantModal } from "@/components/ads/AiCampaignAssistantModal";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -836,6 +837,50 @@ export default function CampaignCreatePage() {
       .finally(() => {
         setIsLoadingDrafts(false);
       });
+
+    // Check for AI Copilot prefill state
+    try {
+      if (typeof window !== "undefined") {
+        const storedAiPrefill = localStorage.getItem("googleAds_prefill_campaign");
+        if (storedAiPrefill) {
+          const parsed = JSON.parse(storedAiPrefill);
+          if (parsed.campaignName) setCampaignName(parsed.campaignName);
+          if (parsed.businessName) setBusinessName(parsed.businessName);
+          if (parsed.website) {
+            setWebsiteVisitsUrl(parsed.website);
+            setAssetFinalUrl(parsed.website);
+          }
+          if (parsed.objective) setSelectedObjective(parsed.objective);
+          if (parsed.campaignType) setSelectedType(parsed.campaignType);
+          if (parsed.dailyBudget) {
+            setBudgetType("DAILY");
+            setCustomBudgetValue(String(parsed.dailyBudget));
+            setSelectedPresetBudget("CUSTOM");
+          }
+          if (Array.isArray(parsed.headlines) && parsed.headlines.length > 0) {
+            setHeadlines(parsed.headlines);
+          }
+          if (Array.isArray(parsed.descriptions) && parsed.descriptions.length > 0) {
+            setDescriptions(parsed.descriptions);
+          }
+          if (Array.isArray(parsed.images) && parsed.images.length > 0) {
+            setUploadedImages(parsed.images.map((im: any) => ({
+              url: typeof im === "string" ? im : im?.url || "",
+              name: typeof im === "object" ? im?.name || "Image" : "Image"
+            })));
+          }
+          if (Array.isArray(parsed.logos) && parsed.logos.length > 0) {
+            setUploadedLogos(parsed.logos.map((lg: any) => ({
+              url: typeof lg === "string" ? lg : lg?.url || "",
+              name: typeof lg === "object" ? lg?.name || "Logo" : "Logo"
+            })));
+          }
+          localStorage.removeItem("googleAds_prefill_campaign");
+        }
+      }
+    } catch (e) {
+      console.warn("Could not parse AI prefill campaign state", e);
+    }
   }, [customerId]);
 
   return (
@@ -867,11 +912,10 @@ export default function CampaignCreatePage() {
             Manual Creation
           </button>
           <button
-            onClick={() => setCreationMode("AI")}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 ${creationMode === "AI"
-                ? "bg-blue-600 text-white shadow"
-                : "text-slate-500 hover:text-slate-900"
-              }`}
+            onClick={() => {
+              router.push(`/ads/campaigns/create/ai-guided${customerId ? `?customerId=${customerId}` : ""}`);
+            }}
+            className="px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
           >
             <Sparkles className="h-3.5 w-3.5" />
             AI Guided
@@ -8346,6 +8390,13 @@ export default function CampaignCreatePage() {
           </div>
         </div>
       )}
+
+      {/* ── AI Guided Campaign Creation Assistant Modal ── */}
+      <AiCampaignAssistantModal
+        isOpen={creationMode === "AI"}
+        onClose={() => setCreationMode("MANUAL")}
+        customerId={customerId}
+      />
     </div>
   );
 }

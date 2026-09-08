@@ -522,7 +522,6 @@ router.post("/posts/create", async (req, res) => {
         data: {
           organizationId: orgId,
           gmbPostId: null,
-          title: title || "",
           summary,
           mediaUrl: mediaUrl || null,
           callToActionType: callToActionType || "NONE",
@@ -575,7 +574,6 @@ router.post("/posts/create", async (req, res) => {
       data: {
         organizationId: orgId,
         gmbPostId: gmbPostId,
-        title: title || "",
         summary: summary,
         mediaUrl: mediaUrl || null,
         callToActionType: callToActionType || "NONE",

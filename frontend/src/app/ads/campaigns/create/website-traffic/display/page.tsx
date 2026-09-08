@@ -254,6 +254,119 @@ export default function WebsiteTrafficDisplayPage() {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
         });
     }
+
+    // Check for AI-Guided prefill campaign state from localStorage
+    try {
+      if (typeof window !== "undefined") {
+        const prefillRaw = localStorage.getItem("googleAds_prefill_campaign");
+        if (prefillRaw) {
+          const prefill = JSON.parse(prefillRaw);
+          if (prefill.campaignName) setDisplayCampaignName(prefill.campaignName);
+          if (prefill.businessName || prefill.business?.name) setBusinessName(prefill.businessName || prefill.business?.name);
+          if (prefill.website || prefill.finalUrl) {
+            setFinalUrl(prefill.website || prefill.finalUrl);
+          }
+          if (prefill.dailyBudget) {
+            setDailyBudget(String(prefill.dailyBudget));
+          }
+          if (prefill.biddingStrategy) {
+            const b = prefill.biddingStrategy;
+            if (b === "Target CPA" || b === "TARGET_CPA") {
+              setBiddingFocus("Target CPA");
+              setConversionBiddingType("TARGET_CPA");
+              if (prefill.targetCpa) setTargetCpaValue(String(prefill.targetCpa));
+            } else if (b === "Target ROAS" || b === "TARGET_ROAS") {
+              setBiddingFocus("Target ROAS");
+              setSetTargetRoas(true);
+              if (prefill.targetRoas) setTargetRoasValue(String(prefill.targetRoas));
+            } else {
+              setBiddingFocus("Conversions");
+              setConversionBiddingType("MAX_CONVERSIONS");
+            }
+          }
+          if (prefill.targetCpa) {
+            setTargetCpaValue(String(prefill.targetCpa));
+            setConversionBiddingType("TARGET_CPA");
+          }
+          if (prefill.targetRoas) {
+            setTargetRoasValue(String(prefill.targetRoas));
+            setSetTargetRoas(true);
+          }
+          if (prefill.startDate) setStartDate(prefill.startDate);
+          if (prefill.endDate) setEndDate(prefill.endDate);
+          if (prefill.euPolitical) setEuPoliticalAds(prefill.euPolitical);
+
+          // Location
+          if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+            if (prefill.locations.length === 1 && prefill.locations[0] === "All countries and territories") {
+              setSelectedLocation("ALL");
+            } else if (prefill.locations.length === 1 && prefill.locations[0] === "India") {
+              setSelectedLocation("INDIA");
+            } else {
+              setSelectedLocation("CUSTOM");
+              setCustomLocationInput(prefill.locations.join(", "));
+            }
+          }
+
+          // Languages
+          if (prefill.language) {
+            const langs = prefill.language.split(",").map((l: string) => l.trim()).filter(Boolean);
+            if (langs.length > 0) setSelectedLanguages(langs);
+          }
+
+          // Headlines
+          if (Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+            const paddedHeadlines = [...prefill.headlines];
+            while (paddedHeadlines.length < 1) paddedHeadlines.push("");
+            setHeadlines(paddedHeadlines.slice(0, 5));
+          }
+
+          // Long Headlines
+          if (Array.isArray(prefill.longHeadlines) && prefill.longHeadlines.length > 0) {
+            const paddedLongHeadlines = [...prefill.longHeadlines];
+            while (paddedLongHeadlines.length < 1) paddedLongHeadlines.push("");
+            setLongHeadlines(paddedLongHeadlines.slice(0, 5));
+          }
+
+          // Descriptions
+          if (Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+            const paddedDescriptions = [...prefill.descriptions];
+            while (paddedDescriptions.length < 1) paddedDescriptions.push("");
+            setDescriptions(paddedDescriptions.slice(0, 5));
+          }
+
+          // Images
+          if (Array.isArray(prefill.landscapeImages) && prefill.landscapeImages.length > 0) {
+            setImagesList(prev => Array.from(new Set([...prev, ...prefill.landscapeImages])));
+          }
+          if (Array.isArray(prefill.squareImages) && prefill.squareImages.length > 0) {
+            setImagesList(prev => Array.from(new Set([...prev, ...prefill.squareImages])));
+          }
+          if (Array.isArray(prefill.images) && prefill.images.length > 0) {
+            const imgUrls = prefill.images.map((img: any) => (typeof img === "string" ? img : img?.url || img?.data || "")).filter(Boolean);
+            if (imgUrls.length > 0) {
+              setImagesList(prev => Array.from(new Set([...prev, ...imgUrls])));
+            }
+          }
+
+          // Logos
+          if (Array.isArray(prefill.logos) && prefill.logos.length > 0) {
+            const logoUrls = prefill.logos.map((lg: any) => (typeof lg === "string" ? lg : lg?.url || lg?.data || "")).filter(Boolean);
+            if (logoUrls.length > 0) setLogosList(logoUrls);
+          }
+
+          // Targeting
+          if (Array.isArray(prefill.audiences) && prefill.audiences.length > 0) {
+            setSelectedAudiences(prefill.audiences);
+          }
+          if (typeof prefill.useOptimizedTargeting === "boolean") {
+            setUseOptimizedTargeting(prefill.useOptimizedTargeting);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not parse googleAds_prefill_campaign for Website Traffic Display:", err);
+    }
   }, [customerId]);
 
   return (

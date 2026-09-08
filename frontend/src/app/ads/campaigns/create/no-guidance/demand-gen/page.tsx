@@ -118,6 +118,8 @@ export default function NoGuidanceDemandGenPage() {
   const [includeViewThrough, setIncludeViewThrough] = useState<boolean>(false);
   const [targetCpaDemandGen, setTargetCpaDemandGen] = useState<boolean>(false);
   const [targetCpaValue, setTargetCpaValue] = useState<string>("");
+  const [targetRoasDemandGen, setTargetRoasDemandGen] = useState<boolean>(false);
+  const [targetRoasValue, setTargetRoasValue] = useState<string>("");
   const [demandGenBudgetType, setDemandGenBudgetType] = useState<string>("Daily");
   const [demandGenBudgetAmount, setDemandGenBudgetAmount] = useState<string>("");
   const [onlyNewCustomers, setOnlyNewCustomers] = useState<boolean>(false);
@@ -397,6 +399,23 @@ export default function NoGuidanceDemandGenPage() {
           step: "CAMPAIGN_SETTINGS",
           settingKey: "targetCpa"
         });
+      }
+    }
+
+    // 3B. Target ROAS (if enabled)
+    if (targetRoasDemandGen || demandGenGoal === "Conversion value") {
+      if (targetRoasDemandGen) {
+        const numRoas = Number(targetRoasValue);
+        if (!targetRoasValue.trim() || isNaN(numRoas) || numRoas <= 0) {
+          issues.push({
+            id: "camp-target-roas",
+            level: "Campaign",
+            parameter: "Target ROAS",
+            message: "Target ROAS is enabled and must be a positive percentage greater than 0%.",
+            step: "CAMPAIGN_SETTINGS",
+            settingKey: "targetRoas"
+          });
+        }
       }
     }
 
@@ -2146,128 +2165,255 @@ export default function NoGuidanceDemandGenPage() {
                 </div>
               )}
 
-              {/* 6. Target cost per action */}
-              <div className={`p-5 rounded-2xl border bg-white space-y-3 shadow-lg ${
-                targetCpaDemandGen && (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue)
-                  ? "border-rose-400 bg-rose-50/10"
-                  : "border-slate-200"
-              }`}>
-                {openCampaignSetting === "targetCpa" ? (
-                  <>
-                    <div 
-                      onClick={() => setOpenCampaignSetting(null)}
-                      className="flex items-center justify-between border-b border-slate-200 pb-2.5 cursor-pointer select-none"
-                    >
-                      <h3 className="text-xs font-bold text-slate-800">Target cost per action</h3>
-                      <ChevronUp className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      By default, your campaign will aim to maximize your conversions. You can set an optional target cost per action (Target CPA) to optimize for getting conversions at a specific cost per conversion.
-                    </p>
-                    <label className="flex items-start gap-3 cursor-pointer pt-1 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={targetCpaDemandGen}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setTargetCpaDemandGen(checked);
-                          if (!checked) {
-                            setFieldErrors(prev => {
-                              const updated = { ...prev };
-                              delete updated.targetCpaValue;
-                              return updated;
-                            });
-                          } else if (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0) {
-                            setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
-                          }
-                        }}
-                        className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
-                      />
-                      <div>
-                        <span className="font-semibold text-slate-800 block">Set a target cost per action (optional)</span>
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
-                          Target CPA is the average amount you'd like to pay for a conversion. Google Ads will optimize bids to help get as many conversions as possible at the target cost-per-action (CPA). <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
-                        </p>
+              {/* 6. Target cost per action (Target CPA) (When Goal is Conversions or Clicks) */}
+              {demandGenGoal !== "Conversion value" && (
+                <div className={`p-5 rounded-2xl border bg-white space-y-3 shadow-lg ${
+                  targetCpaDemandGen && (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue)
+                    ? "border-rose-400 bg-rose-50/10"
+                    : "border-slate-200"
+                }`}>
+                  {openCampaignSetting === "targetCpa" ? (
+                    <>
+                      <div 
+                        onClick={() => setOpenCampaignSetting(null)}
+                        className="flex items-center justify-between border-b border-slate-200 pb-2.5 cursor-pointer select-none"
+                      >
+                        <h3 className="text-xs font-bold text-slate-800">Target cost per action</h3>
+                        <ChevronUp className="h-4 w-4 text-slate-500" />
                       </div>
-                    </label>
-
-                    {targetCpaDemandGen && (
-                      <div className="pt-2 pl-7 space-y-1">
-                        <label className="block text-slate-700 font-semibold text-xs">Target CPA amount (₹)</label>
-                        <div className="relative w-48">
-                          <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
-                          <input
-                            type="number"
-                            min="0.01"
-                            step="any"
-                            value={targetCpaValue}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setTargetCpaValue(val);
-                              if (!val.trim() || isNaN(Number(val)) || Number(val) <= 0) {
-                                setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
-                              } else {
-                                setFieldErrors(prev => {
-                                  const updated = { ...prev };
-                                  delete updated.targetCpaValue;
-                                  return updated;
-                                });
-                              }
-                            }}
-                            placeholder="e.g. 50"
-                            className={`w-full border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-medium focus:outline-none ${
-                              !targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue
-                                ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
-                                : "bg-slate-50 border-slate-200 focus:border-primary"
-                            }`}
-                          />
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        By default, your campaign will aim to maximize your conversions. You can set an optional target cost per action (Target CPA) to optimize for getting conversions at a specific cost per conversion.
+                      </p>
+                      <label className="flex items-start gap-3 cursor-pointer pt-1 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={targetCpaDemandGen}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setTargetCpaDemandGen(checked);
+                            if (!checked) {
+                              setFieldErrors(prev => {
+                                const updated = { ...prev };
+                                delete updated.targetCpaValue;
+                                return updated;
+                              });
+                            } else if (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0) {
+                              setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
+                            }
+                          }}
+                          className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
+                        />
+                        <div>
+                          <span className="font-semibold text-slate-800 block">Set a target cost per action (optional)</span>
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
+                            Target CPA is the average amount you'd like to pay for a conversion. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
+                          </p>
                         </div>
-                        {(!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue) && (
-                          <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
-                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.targetCpaValue || "Target CPA must be a positive number greater than 0."}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div 
-                    onClick={() => setOpenCampaignSetting("targetCpa")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
-                  >
-                    <div className="flex items-center gap-16">
-                      <div className="w-56">
-                        <span className="font-bold text-slate-800">Target cost per action</span>
-                      </div>
-                      <div className="text-[11px] font-medium">
-                        {targetCpaDemandGen ? (
-                          !targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue ? (
-                            <span className="text-rose-500 flex items-center gap-1">
-                              <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Target CPA must be greater than 0
+                      </label>
+
+                      {targetCpaDemandGen && (
+                        <div className="pt-2 pl-7 space-y-1">
+                          <label className="block text-slate-700 font-semibold text-xs">Target CPA amount</label>
+                          <div className="relative w-48">
+                            <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="any"
+                              value={targetCpaValue}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTargetCpaValue(val);
+                                if (!val.trim() || isNaN(Number(val)) || Number(val) <= 0) {
+                                  setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
+                                } else {
+                                  setFieldErrors(prev => {
+                                    const updated = { ...prev };
+                                    delete updated.targetCpaValue;
+                                    return updated;
+                                  });
+                                }
+                              }}
+                              placeholder="e.g. 50"
+                              className={`w-full border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-medium focus:outline-none ${
+                                !targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue
+                                  ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                  : "bg-slate-50 border-slate-200 focus:border-primary"
+                              }`}
+                            />
+                          </div>
+                          {(!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue) && (
+                            <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.targetCpaValue || "Target CPA must be a positive number greater than 0."}
                             </span>
-                          ) : (
-                            <span className="text-slate-700">₹{targetCpaValue}</span>
-                          )
-                        ) : (
-                          <span className="text-slate-500">No bid set</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      aria-label="Edit"
-                      title="Edit"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenCampaignSetting("targetCpa");
-                      }}
-                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div 
+                      onClick={() => setOpenCampaignSetting("targetCpa")}
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
-                      <Edit3 className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
+                      <div className="flex items-center gap-16">
+                        <div className="w-56">
+                          <span className="font-bold text-slate-800">Target cost per action</span>
+                        </div>
+                        <div className="text-[11px] font-medium">
+                          {targetCpaDemandGen ? (
+                            !targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue ? (
+                              <span className="text-rose-500 flex items-center gap-1">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Target CPA must be greater than 0
+                              </span>
+                            ) : (
+                              <span className="text-slate-700">₹{targetCpaValue}</span>
+                            )
+                          ) : (
+                            <span className="text-slate-500">No bid set</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenCampaignSetting("targetCpa");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 6B. Target Return on Ad Spend (Target ROAS) (When Goal is Conversion value) */}
+              {demandGenGoal === "Conversion value" && (
+                <div className={`p-5 rounded-2xl border bg-white space-y-3 shadow-lg ${
+                  targetRoasDemandGen && (!targetRoasValue.trim() || isNaN(Number(targetRoasValue)) || Number(targetRoasValue) <= 0 || fieldErrors.targetRoasValue)
+                    ? "border-rose-400 bg-rose-50/10"
+                    : "border-slate-200"
+                }`}>
+                  {openCampaignSetting === "targetRoas" ? (
+                    <>
+                      <div 
+                        onClick={() => setOpenCampaignSetting(null)}
+                        className="flex items-center justify-between border-b border-slate-200 pb-2.5 cursor-pointer select-none"
+                      >
+                        <h3 className="text-xs font-bold text-slate-800">Target return on ad spend (Target ROAS)</h3>
+                        <ChevronUp className="h-4 w-4 text-slate-500" />
+                      </div>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        By default, your campaign will aim to maximize your conversion value. You can set an optional Target ROAS to optimize for getting conversion value at a specific return on ad spend percentage.
+                      </p>
+                      <label className="flex items-start gap-3 cursor-pointer pt-1 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={targetRoasDemandGen}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setTargetRoasDemandGen(checked);
+                            if (!checked) {
+                              setFieldErrors(prev => {
+                                const updated = { ...prev };
+                                delete updated.targetRoasValue;
+                                return updated;
+                              });
+                            } else if (!targetRoasValue.trim() || isNaN(Number(targetRoasValue)) || Number(targetRoasValue) <= 0) {
+                              setFieldErrors(prev => ({ ...prev, targetRoasValue: "Target ROAS must be a positive percentage greater than 0%." }));
+                            }
+                          }}
+                          className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
+                        />
+                        <div>
+                          <span className="font-semibold text-slate-800 block">Set a target return on ad spend (optional)</span>
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
+                            Target ROAS is the average conversion value you'd like to get for each unit of currency you spend. For example, 200% means you want ₹2 in conversion value for every ₹1 spent. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
+                          </p>
+                        </div>
+                      </label>
+
+                      {targetRoasDemandGen && (
+                        <div className="pt-2 pl-7 space-y-1">
+                          <label className="block text-slate-700 font-semibold text-xs">Target ROAS percentage (%)</label>
+                          <div className="relative w-48">
+                            <input
+                              type="number"
+                              min="1"
+                              step="any"
+                              value={targetRoasValue}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTargetRoasValue(val);
+                                if (!val.trim() || isNaN(Number(val)) || Number(val) <= 0) {
+                                  setFieldErrors(prev => ({ ...prev, targetRoasValue: "Target ROAS must be a positive percentage greater than 0%." }));
+                                } else {
+                                  setFieldErrors(prev => {
+                                    const updated = { ...prev };
+                                    delete updated.targetRoasValue;
+                                    return updated;
+                                  });
+                                }
+                              }}
+                              placeholder="e.g. 200"
+                              className={`w-full border rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-medium focus:outline-none ${
+                                !targetRoasValue.trim() || isNaN(Number(targetRoasValue)) || Number(targetRoasValue) <= 0 || fieldErrors.targetRoasValue
+                                  ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                  : "bg-slate-50 border-slate-200 focus:border-primary"
+                              }`}
+                            />
+                            <span className="absolute right-3.5 top-2 text-xs font-semibold text-slate-500">%</span>
+                          </div>
+                          {(!targetRoasValue.trim() || isNaN(Number(targetRoasValue)) || Number(targetRoasValue) <= 0 || fieldErrors.targetRoasValue) && (
+                            <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.targetRoasValue || "Target ROAS must be a positive percentage greater than 0%."}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div 
+                      onClick={() => setOpenCampaignSetting("targetRoas")}
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
+                    >
+                      <div className="flex items-center gap-16">
+                        <div className="w-56">
+                          <span className="font-bold text-slate-800">Target return on ad spend</span>
+                        </div>
+                        <div className="text-[11px] font-medium">
+                          {targetRoasDemandGen ? (
+                            !targetRoasValue.trim() || isNaN(Number(targetRoasValue)) || Number(targetRoasValue) <= 0 || fieldErrors.targetRoasValue ? (
+                              <span className="text-rose-500 flex items-center gap-1">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Target ROAS must be greater than 0%
+                              </span>
+                            ) : (
+                              <span className="text-slate-700">{targetRoasValue}%</span>
+                            )
+                          ) : (
+                            <span className="text-slate-500">No bid set</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenCampaignSetting("targetRoas");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 7. Budget and dates */}
               <div className={`p-5 rounded-2xl border bg-white space-y-4 shadow-lg ${
@@ -5932,7 +6078,17 @@ export default function NoGuidanceDemandGenPage() {
         <div className="flex items-center gap-3">
           {demandGenStep === "CAMPAIGN_SETTINGS" && (
             <button
-              onClick={() => setDemandGenStep("AD_GROUP")}
+              onClick={() => {
+                setSubmitError(null);
+                const campErrors = getReviewValidationErrors().filter(e => e.level === "Campaign");
+                if (campErrors.length > 0) {
+                  const first = campErrors[0];
+                  setSubmitError(`${first.parameter}: ${first.message}`);
+                  handleFixIssue(first);
+                  return;
+                }
+                setDemandGenStep("AD_GROUP");
+              }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >
               Continue to Ad Group
@@ -5941,7 +6097,17 @@ export default function NoGuidanceDemandGenPage() {
           )}
           {demandGenStep === "AD_GROUP" && (
             <button
-              onClick={() => setDemandGenStep("AD")}
+              onClick={() => {
+                setSubmitError(null);
+                const agErrors = getReviewValidationErrors().filter(e => e.level === "Ad group");
+                if (agErrors.length > 0) {
+                  const first = agErrors[0];
+                  setSubmitError(`${first.parameter}: ${first.message}`);
+                  handleFixIssue(first);
+                  return;
+                }
+                setDemandGenStep("AD");
+              }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >
               Continue to Ad
@@ -5950,7 +6116,17 @@ export default function NoGuidanceDemandGenPage() {
           )}
           {demandGenStep === "AD" && (
             <button
-              onClick={() => setDemandGenStep("REVIEW")}
+              onClick={() => {
+                setSubmitError(null);
+                const adErrors = getReviewValidationErrors().filter(e => e.level === "Ad");
+                if (adErrors.length > 0) {
+                  const first = adErrors[0];
+                  setSubmitError(`${first.parameter}: ${first.message}`);
+                  handleFixIssue(first);
+                  return;
+                }
+                setDemandGenStep("REVIEW");
+              }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >
               Review Campaign
@@ -5980,6 +6156,7 @@ export default function NoGuidanceDemandGenPage() {
                   const targetCid = customerId || "6587355041";
 
                   const validHeadlines = adHeadlines.filter(h => h && h.trim().length > 0);
+                  const validLongHeadlines = adLongHeadlines.filter(lh => lh && lh.trim().length > 0);
                   const validDescriptions = adDescriptions.filter(d => d && d.trim().length > 0);
                   const finalCampaignName = getUniqueCampaignName(demandGenCampaignName, existingCampaignsList);
 
@@ -5991,28 +6168,77 @@ export default function NoGuidanceDemandGenPage() {
                       customerId: targetCid,
                       campaignName: finalCampaignName,
                       channelType: "DEMAND_GEN",
-                      biddingStrategy: targetCpaDemandGen ? "TARGET_CPA" : demandGenGoal === "Clicks" ? "MAXIMIZE_CLICKS" : "MAXIMIZE_CONVERSIONS",
+                      campaignGoal: demandGenGoal,
+                      biddingStrategy: targetCpaDemandGen
+                        ? "TARGET_CPA"
+                        : demandGenGoal === "Conversion value"
+                        ? "TARGET_ROAS"
+                        : demandGenGoal === "Clicks"
+                        ? "MAXIMIZE_CLICKS"
+                        : "MAXIMIZE_CONVERSIONS",
                       budget: Number(demandGenBudgetAmount),
+                      dailyBudget: Number(demandGenBudgetAmount),
+                      demandGenBudgetType,
                       targetCpa: targetCpaDemandGen && targetCpaValue ? Number(targetCpaValue) : undefined,
+                      targetRoas: (demandGenGoal === "Conversion value" || targetRoasDemandGen) && targetRoasValue ? Number(targetRoasValue) : undefined,
                       startDate: startDate || getTodayFormattedDate(),
                       endDate: endDate || undefined,
+                      euPolitical: euPoliticalAds,
+                      brandGuidelines: {
+                        mainBrandColor: mainBrandColor || undefined,
+                        accentBrandColor: accentBrandColor || undefined,
+                        brandFont: brandFont || undefined
+                      },
+                      adGroups: adGroups.map(ag => ({ id: ag.id, name: ag.name, status: ag.status })),
+                      locations: selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["India"] : [customLocationInput],
+                      locationTargetType: locationTargetingType,
+                      languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
+                      channelTargeting,
+                      channels: channelTargeting === "ALL" 
+                        ? (includeDisplayNetwork ? ["YouTube", "YouTube in-stream", "YouTube in-feed", "YouTube Shorts", "Discover", "Gmail", "Google Display Network", "Maps New"] : ["YouTube", "YouTube in-stream", "YouTube in-feed", "YouTube Shorts", "Discover", "Gmail", "Maps New"])
+                        : selectedAdGroupChannels,
+                      deviceTargeting: deviceTargetingType,
+                      audience: {
+                        audienceName: audienceName || undefined,
+                        customSegments: customSegmentsList,
+                        yourData: yourDataList,
+                        lookalikes: lookalikeSegmentsList,
+                        interests: interestsList,
+                        exclusions: exclusionsList,
+                        genderTargeting,
+                        ageRangeStart,
+                        ageRangeEnd,
+                        ageUnknown,
+                        parentalStatus,
+                        incomeTargeting
+                      },
+                      optimizedTargeting: useOptimizedTargeting,
+                      customerAcquisitionMode: onlyNewCustomers ? "NEW_CUSTOMERS_ONLY" : "ALL_CUSTOMERS",
+                      adFormat: demandGenAdType,
+                      adName: adName.trim(),
                       finalUrl: adFinalUrl.trim(),
+                      mobileFinalUrl: useDiffMobileUrl && mobileFinalUrl.trim() ? mobileFinalUrl.trim() : undefined,
                       businessName: businessName.trim(),
+                      callToAction: adCallToAction,
                       headlines: validHeadlines.length > 0 ? validHeadlines : ["Explore Demand Gen"],
+                      longHeadlines: validLongHeadlines,
                       descriptions: validDescriptions.length > 0 ? validDescriptions : ["Discover great offers today with Demand Gen"],
                       images: demandGenAdType === "SINGLE_IMAGE" ? adImages : demandGenAdType === "VIDEO" ? adVideos : carouselCards.map(c => c.image),
                       logos: adLogos,
-                      adFormat: demandGenAdType,
-                      adName: adName.trim(),
+                      videos: adVideos,
+                      carouselCards: demandGenAdType === "CAROUSEL" ? carouselCards : [],
                       adSchedule: adScheduleStartTime && adScheduleEndTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45") ? [{ day: adScheduleDays, start: adScheduleStartTime, end: adScheduleEndTime }] : [],
-                      locations: selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["INDIA"] : [customLocationInput],
-                      languages: selectedLanguages,
-                      channels: selectedAdGroupChannels,
-                      optimizedTargeting: useOptimizedTargeting,
-                      customerAcquisitionMode: onlyNewCustomers ? "NEW_CUSTOMERS_ONLY" : "ALL_CUSTOMERS",
                       trackingTemplate: trackingTemplate || agTrackingTemplate || adTrackingTemplate || undefined,
                       finalUrlSuffix: finalUrlSuffix || agFinalUrlSuffix || adFinalUrlSuffix || undefined,
-                      euPolitical: euPoliticalAds,
+                      customParameters: [
+                        ...customParametersDemandGen.filter(p => p.name && p.value),
+                        ...agCustomParams.filter(p => p.name && p.value),
+                        ...adCustomParams.filter(p => p.name && p.value)
+                      ],
+                      ipExclusions: ipExclusionsInput.trim() || undefined,
+                      sitelinks: Array.isArray(adSitelinks) && adSitelinks.length > 0
+                        ? adSitelinks.map((s: any) => typeof s === "string" ? { text: s, url: adFinalUrl.trim() } : s)
+                        : [],
                       conversionGoals: []
                     })
                   });

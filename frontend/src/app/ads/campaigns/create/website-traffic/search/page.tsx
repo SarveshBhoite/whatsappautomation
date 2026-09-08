@@ -210,7 +210,7 @@ export default function WebsiteTrafficSearchPage() {
     { name: "Club Atlético River Plate", url: "https://www.cariverplate.com.ar/" },
     { name: "Bank Of America ATM", url: "https://locators.bankofamerica.com/" }
   ];
-  const [aiGenFinalUrl, setAiGenFinalUrl] = useState<string>("https://www.example.com");
+  const [aiGenFinalUrl, setAiGenFinalUrl] = useState<string>("");
 
   const [showMoreSettings, setShowMoreSettings] = useState<boolean>(false);
   const [openSetting, setOpenSetting] = useState<string | null>(null);
@@ -251,12 +251,12 @@ export default function WebsiteTrafficSearchPage() {
     { category: "PURCHASE", origin: "WEBSITE", biddable: true },
     { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE", biddable: true }
   ]);
-  const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
+  const [finalUrl, setFinalUrl] = useState<string>("");
   const [displayPath1, setDisplayPath1] = useState<string>("");
   const [displayPath2, setDisplayPath2] = useState<string>("");
-  const [headlines, setHeadlines] = useState<string[]>(["Automation Software", "Lead Gen Tool", "WhatsApp Marketing", "", "", "", ""]);
-  const [descriptions, setDescriptions] = useState<string[]>(["Automate your business communication with WhatsApp.", "Boost conversions with instant messaging."]);
-  const [businessName, setBusinessName] = useState<string>("JISNU DIGITAL SOLUTIONS PRIVATE LIMITED");
+  const [headlines, setHeadlines] = useState<string[]>(["", "", "", "", "", "", ""]);
+  const [descriptions, setDescriptions] = useState<string[]>(["", ""]);
+  const [businessName, setBusinessName] = useState<string>("");
   const [businessLogo, setBusinessLogo] = useState<string>("");
   const [businessLogos, setBusinessLogos] = useState<string[]>([]);
 
@@ -547,6 +547,153 @@ export default function WebsiteTrafficSearchPage() {
       .catch(() => {
         // Non-blocking fallback
       });
+
+    // Check for AI-Guided prefill campaign state from localStorage
+    try {
+      if (typeof window !== "undefined") {
+        const prefillRaw = localStorage.getItem("googleAds_prefill_campaign");
+        if (prefillRaw) {
+          const prefill = JSON.parse(prefillRaw);
+          if (prefill.campaignName) setCampaignName(prefill.campaignName);
+          if (prefill.businessName || prefill.business?.name) setBusinessName(prefill.businessName || prefill.business?.name);
+          if (prefill.website || prefill.finalUrl || prefill.websiteVisitsUrl) {
+            const urlVal = prefill.website || prefill.finalUrl || prefill.websiteVisitsUrl;
+            setFinalUrl(urlVal);
+            setAiGenFinalUrl(urlVal);
+            setKeywordScanUrl(urlVal);
+          }
+          if (prefill.dailyBudget || prefill.budget) {
+            const bVal = String(prefill.dailyBudget || prefill.budget);
+            setCustomBudgetValue(bVal);
+            setSelectedPresetBudget("CUSTOM");
+          }
+          if (prefill.biddingStrategy || prefill.biddingFocus) {
+            const strat = prefill.biddingStrategy || prefill.biddingFocus;
+            const bMap: Record<string, "Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share"> = {
+              "Maximize conversions": "Conversions",
+              "Conversions": "Conversions",
+              "Target CPA": "Target CPA",
+              "TARGET_CPA": "Target CPA",
+              "Maximize conversion value": "Conversion value",
+              "Conversion value": "Conversion value",
+              "Target ROAS": "Target ROAS",
+              "TARGET_ROAS": "Target ROAS",
+              "Maximize Clicks": "Clicks",
+              "Clicks": "Clicks",
+              "MAXIMIZE_CLICKS": "Clicks",
+              "Target Impression Share": "Impression share",
+              "Impression share": "Impression share",
+              "TARGET_IMPRESSION_SHARE": "Impression share"
+            };
+            if (bMap[strat]) {
+              setBiddingFocus(bMap[strat]);
+              if (bMap[strat] === "Target CPA") setSetTargetCpa(true);
+              if (bMap[strat] === "Target ROAS") setSetTargetRoas(true);
+              if (bMap[strat] === "Clicks" && prefill.maxCpcLimit) setSetMaxCpc(true);
+            }
+          }
+          if (prefill.targetCpa) {
+            setTargetCpaValue(String(prefill.targetCpa));
+            setSetTargetCpa(true);
+          }
+          if (prefill.targetRoas) {
+            setTargetRoasValue(String(prefill.targetRoas));
+            setSetTargetRoas(true);
+          }
+          if (prefill.maxCpcLimit) {
+            setMaxCpcLimit(String(prefill.maxCpcLimit));
+            setSetMaxCpc(true);
+          }
+          if (prefill.targetImpressionSharePercent) {
+            setTargetImpressionSharePercent(String(prefill.targetImpressionSharePercent));
+          }
+          if (prefill.impressionShareLocation) {
+            setImpressionShareLocation(prefill.impressionShareLocation);
+          }
+          if (prefill.maxCpcImpressionShare) {
+            setMaxCpcImpressionShare(String(prefill.maxCpcImpressionShare));
+          }
+          if (prefill.startDate) setStartDate(prefill.startDate);
+          if (prefill.endDate) setEndDate(prefill.endDate);
+          if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+            if (prefill.locations.length === 1 && (prefill.locations[0] === "All countries and territories" || prefill.locations[0] === "ALL")) {
+              setSelectedLocation("ALL");
+            } else if (prefill.locations.length === 1 && prefill.locations[0] === "India") {
+              setSelectedLocation("INDIA");
+            } else {
+              setSelectedLocation("CUSTOM");
+              setCustomLocationInput(prefill.locations.join(", "));
+              setTargetLocations(prefill.locations.map((locName: string) => ({
+                name: locName,
+                type: "Location",
+                reach: "Targeted",
+                canonicalName: locName
+              })));
+            }
+          }
+          if (prefill.language || prefill.languages) {
+            const rawLangs = prefill.languages || (prefill.language ? prefill.language.split(",") : []);
+            const langs = (Array.isArray(rawLangs) ? rawLangs : [rawLangs]).map((l: string) => l.trim()).filter(Boolean);
+            if (langs.length > 0) setSelectedLanguages(langs);
+          }
+          if (Array.isArray(prefill.keywords) && prefill.keywords.length > 0) {
+            setKeywordsText(prefill.keywords.join("\n"));
+          }
+          if (Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+            const paddedHeadlines = [...prefill.headlines];
+            while (paddedHeadlines.length < 7) paddedHeadlines.push("");
+            setHeadlines(paddedHeadlines.slice(0, 15));
+          }
+          if (Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+            const paddedDescriptions = [...prefill.descriptions];
+            while (paddedDescriptions.length < 2) paddedDescriptions.push("");
+            setDescriptions(paddedDescriptions.slice(0, 4));
+          }
+          if (prefill.euPolitical) {
+            setEuPoliticalAds(prefill.euPolitical);
+          }
+          // AI Max Search Parameters
+          if (prefill.aiMax !== undefined || prefill.enableAiMax !== undefined) {
+            setEnableAiMax(prefill.aiMax ?? prefill.enableAiMax ?? true);
+          }
+          if (prefill.textCustomization !== undefined || prefill.enableTextCustomization !== undefined) {
+            setEnableTextCustomization(prefill.textCustomization ?? prefill.enableTextCustomization ?? true);
+          }
+          if (prefill.finalUrlExpansion !== undefined || prefill.enableFinalUrlExpansion !== undefined) {
+            setEnableFinalUrlExpansion(prefill.finalUrlExpansion ?? prefill.enableFinalUrlExpansion ?? true);
+          }
+          if (Array.isArray(prefill.brandInclusions) && prefill.brandInclusions.length > 0) {
+            setBrandInclusions(prefill.brandInclusions);
+          }
+          if (Array.isArray(prefill.brandExclusions) && prefill.brandExclusions.length > 0) {
+            setBrandExclusions(prefill.brandExclusions);
+          }
+          // Extension prefill: promotions & lead forms
+          if (Array.isArray(prefill.promotions) && prefill.promotions.length > 0) {
+            const p = prefill.promotions[0];
+            if (p.promotionTarget) setPromoItem(p.promotionTarget);
+            if (p.finalUrl) setPromoFinalUrl(p.finalUrl);
+            if (p.occasion) setPromoOccasion(p.occasion);
+            if (p.percentOff) {
+              setPromoType("PERCENT");
+              setPromoValue(String(p.percentOff));
+            } else if (p.moneyAmountOff) {
+              setPromoType("MONETARY");
+              setPromoValue(String(p.moneyAmountOff));
+            }
+          }
+          if (Array.isArray(prefill.leadForms) && prefill.leadForms.length > 0) {
+            const lf = prefill.leadForms[0];
+            if (lf.headline) setLfHeadline(lf.headline);
+            if (lf.businessName) setLfBusinessName(lf.businessName);
+            if (lf.description) setLfDescription(lf.description);
+            if (lf.privacyPolicyUrl) setLfPrivacyPolicyUrl(lf.privacyPolicyUrl);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not parse googleAds_prefill_campaign for Website Traffic Search:", err);
+    }
   }, [customerId]);
 
   // Real-time check whenever campaignName or existingCampaigns changes
@@ -672,9 +819,9 @@ export default function WebsiteTrafficSearchPage() {
 
     // 3. Final URL validation (Required)
     const trimmedFinalUrl = finalUrl ? finalUrl.trim() : "";
-    if (!trimmedFinalUrl || (!trimmedFinalUrl.startsWith("http://") && !trimmedFinalUrl.startsWith("https://"))) {
-      setFieldErrors(prev => ({ ...prev, finalUrl: "Final URL is required and must begin with http:// or https://" }));
-      setSubmitError("Final URL is required and must start with a valid protocol (http:// or https://). Example: https://www.example.com");
+    if (!trimmedFinalUrl || trimmedFinalUrl.includes("example.com") || (!trimmedFinalUrl.startsWith("http://") && !trimmedFinalUrl.startsWith("https://"))) {
+      setFieldErrors(prev => ({ ...prev, finalUrl: trimmedFinalUrl.includes("example.com") ? "Final URL cannot be default example.com. Please enter your valid website URL." : "Final URL is required and must begin with http:// or https://" }));
+      setSubmitError(trimmedFinalUrl.includes("example.com") ? "Final URL cannot be default example.com. Please enter your valid website URL." : "Final URL is required and must start with a valid protocol (http:// or https://).");
       setWizardStep("KEYWORDS_ADS");
       setShowFinalUrlCard(true);
       return;
@@ -924,7 +1071,12 @@ export default function WebsiteTrafficSearchPage() {
         headlines: validHeadlines,
         descriptions: validDescriptions,
         keywords: uniqueKeywords,
-        callAsset: callPhone ? { countryCode: "IN", phoneNumber: callPhone.trim() } : undefined
+        callAsset: callPhone ? { countryCode: "IN", phoneNumber: callPhone.trim() } : undefined,
+        sitelinks: sitelinks.filter(s => s.text && s.url),
+        callouts: callouts.filter(c => typeof c === "string" && c.trim().length > 0),
+        structuredSnippets: snippetHeaderType && snippetHeaderType !== "Select header type" && snippetValuesList.filter(v => v.trim()).length >= 3 ? [{ header: snippetHeaderType, values: snippetValuesList.filter(v => v.trim()) }] : [],
+        promotions: promoItem && promoFinalUrl ? [{ promotionTarget: promoItem, finalUrl: promoFinalUrl, occasion: promoOccasion, ...(promoType === "PERCENT" ? { percentOff: Number(promoValue) || undefined } : { moneyAmountOff: Number(promoValue) || undefined }) }] : [],
+        leadForms: lfHeadline && lfBusinessName && lfPrivacyPolicyUrl ? [{ businessName: lfBusinessName, headline: lfHeadline, description: lfDescription, privacyPolicyUrl: lfPrivacyPolicyUrl, callToActionType: lfAdCta === "Apply now" ? "APPLY_NOW" : lfAdCta === "Contact us" ? "CONTACT_US" : "LEARN_MORE" }] : []
       };
 
       let res: Response;
@@ -3956,12 +4108,13 @@ export default function WebsiteTrafficSearchPage() {
                             <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
                           <p className="text-[11px] text-slate-500 leading-relaxed">
-                            This name should match your URL or your verified advertiser name, which is <strong className="text-slate-800">JISNU DIGITAL SOLUTIONS PRIVATE LIMITED</strong>.
+                            This name should match your URL or your verified advertiser name{accountInfo?.name ? <>, which is <strong className="text-slate-800">{accountInfo.name}</strong></> : ""}.
                           </p>
                           <input
                             type="text"
                             value={businessName}
                             onChange={(e) => setBusinessName(e.target.value)}
+                            placeholder={accountInfo?.name || "Enter business name"}
                             maxLength={25}
                             className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium"
                           />
@@ -4623,7 +4776,7 @@ export default function WebsiteTrafficSearchPage() {
                 const trimmedFinalUrl = finalUrl ? finalUrl.trim() : "";
                 const validHeadlines = headlines.filter(h => h && h.trim());
                 const validDescriptions = descriptions.filter(d => d && d.trim());
-                const hasAd = trimmedFinalUrl && validHeadlines.length >= 3 && validDescriptions.length >= 2;
+                const hasAd = trimmedFinalUrl && !trimmedFinalUrl.includes("example.com") && validHeadlines.length >= 3 && validDescriptions.length >= 2;
 
                 const issues: Array<{ title: string; desc: string; step: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"; openCard?: string }> = [];
 
@@ -4632,9 +4785,11 @@ export default function WebsiteTrafficSearchPage() {
                     title: "Create an ad",
                     desc: !trimmedFinalUrl 
                       ? "Get your ads running by adding a valid Final URL" 
-                      : validHeadlines.length < 3 
-                        ? `Add at least 3 headlines (currently ${validHeadlines.length}/3)` 
-                        : `Add at least 2 descriptions (currently ${validDescriptions.length}/2)`,
+                      : trimmedFinalUrl.includes("example.com")
+                        ? "Final URL cannot be default example.com. Please enter your genuine landing page URL."
+                        : validHeadlines.length < 3 
+                          ? `Add at least 3 headlines (currently ${validHeadlines.length}/3)` 
+                          : `Add at least 2 descriptions (currently ${validDescriptions.length}/2)`,
                     step: "KEYWORDS_ADS"
                   });
                 }

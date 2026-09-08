@@ -6,26 +6,50 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
     const {
       campaignName = "App promotion – App 1",
       platform = "ANDROID",
-      appId = "com.hubmate.app",
+      appId,
+      appName,
       locations = ["India"],
       languages = ["English"],
       headlines = [],
       descriptions = [],
-      targetCpa = 25,
-      dailyBudget = 1000
+      targetCpa,
+      dailyBudget,
+      budget,
+      businessName,
+      euPolitical = "NO"
     } = payload;
 
-    if (!headlines || headlines.length === 0 || !headlines[0]) {
-      throw new Error("At least 1 headline is required.");
-    }
-    if (!descriptions || descriptions.length === 0 || !descriptions[0]) {
-      throw new Error("At least 1 description is required.");
+    const trimmedAppId = (appId || "").trim();
+    if (!trimmedAppId) {
+      throw new Error("Mobile App package name (Android) or bundle ID (iOS) is required before this App campaign can be published.");
     }
 
-    const appStore = platform === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE";
+    const rawBudget = dailyBudget !== undefined && dailyBudget !== null && dailyBudget !== ""
+      ? dailyBudget
+      : (budget !== undefined && budget !== null && budget !== "" ? budget : null);
+
+    const effectiveBudget = Number(rawBudget);
+    if (!rawBudget || isNaN(effectiveBudget) || effectiveBudget <= 0) {
+      throw new Error("A valid daily budget greater than ₹0 is required for App campaigns.");
+    }
+
+    const rawTargetCpa = targetCpa !== undefined && targetCpa !== null && targetCpa !== "" ? Number(targetCpa) : null;
+    if (rawTargetCpa === null || isNaN(rawTargetCpa) || rawTargetCpa <= 0) {
+      throw new Error("A valid positive Target CPA is required for App install campaigns.");
+    }
+
+    if (!headlines || headlines.length === 0 || !headlines[0]) {
+      throw new Error("At least 1 headline is required for App promotion.");
+    }
+    if (!descriptions || descriptions.length === 0 || !descriptions[0]) {
+      throw new Error("At least 1 description is required for App promotion.");
+    }
+
+    const normPlatform = String(platform).toUpperCase().includes("IOS") ? "IOS" : "ANDROID";
+    const appStore = normPlatform === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE";
     const biddingStrategyGoalType = "OPTIMIZE_INSTALLS_TARGET_INSTALL_COST";
-    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
-    const targetCpaMicros = Math.round(Number(targetCpa) * 1_000_000);
+    const amountMicros = Math.round(effectiveBudget * 1_000_000);
+    const targetCpaMicros = Math.round(rawTargetCpa * 1_000_000);
 
     let apiResult: any = { campaignId: `app-cmp-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
     try {
@@ -42,14 +66,14 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
         advertisingChannelType: "MULTI_CHANNEL",
         advertisingChannelSubType: "APP_CAMPAIGN",
         appCampaignSetting: {
-          appId: appId || "com.hubmate.app",
+          appId: trimmedAppId,
           appStore: appStore,
           biddingStrategyGoalType
         },
         targetCpa: {
           targetCpaMicros: String(targetCpaMicros)
         },
-        containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+        containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
         campaignBudget: budgetRef
       };
 
@@ -86,6 +110,10 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
       throw new Error(GoogleAdsBaseService.formatGoogleAdsError(apiErr));
     }
 
+    const appStoreUrl = normPlatform === "IOS"
+      ? `https://apps.apple.com/app/id${trimmedAppId}`
+      : `https://play.google.com/store/apps/details?id=${trimmedAppId}`;
+
     const localCampaign = await this.saveCampaignToDatabase({
       organizationId,
       customerId,
@@ -93,16 +121,21 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
       name: campaignName,
       campaignType: "MULTI_CHANNEL",
       biddingStrategy: biddingStrategyGoalType,
-      budget: Number(dailyBudget),
+      budget: effectiveBudget,
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
       headlines,
       descriptions,
-      finalUrl: `https://play.google.com/store/apps/details?id=${appId}`,
+      finalUrl: payload.finalUrl || appStoreUrl,
       geoTargets: {
         locations,
         languages,
-        objective: "App Promotion"
+        objective: "App Promotion",
+        platform: normPlatform,
+        appId: trimmedAppId,
+        appName: appName || undefined,
+        businessName: businessName || undefined,
+        targetCpa: rawTargetCpa
       },
       advertisingChannelType: "MULTI_CHANNEL",
       amountMicros: BigInt(amountMicros),
@@ -122,7 +155,8 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
       },
       backendMapping: {
         app_store: appStore,
-        app_id: appId,
+        app_id: trimmedAppId,
+        target_cpa: rawTargetCpa,
         "CampaignBudget.amount_micros": amountMicros
       }
     };

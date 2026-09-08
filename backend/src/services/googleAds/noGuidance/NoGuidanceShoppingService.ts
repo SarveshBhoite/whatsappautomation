@@ -16,11 +16,22 @@ export class NoGuidanceShoppingService extends GoogleAdsBaseService {
       shoppingSetting
     } = payload;
 
-    const effectiveBudget = Number(dailyBudget || budget || 1000);
+    const rawBudget = dailyBudget !== undefined && dailyBudget !== null && dailyBudget !== ""
+      ? dailyBudget
+      : (budget !== undefined && budget !== null && budget !== "" ? budget : null);
+
+    const effectiveBudget = Number(rawBudget);
+    if (!rawBudget || isNaN(effectiveBudget) || effectiveBudget <= 0) {
+      throw new Error("A valid daily budget greater than 0 is required for Shopping campaigns.");
+    }
     const amountMicros = Math.round(effectiveBudget * 1_000_000);
     const cid = (customerId || "").replace(/-/g, "").trim();
 
     const mId = merchantCenterId || shoppingSetting?.merchantId;
+    if (!mId || !String(mId).trim()) {
+      throw new Error("Merchant Center ID is required before this Shopping campaign can be published.");
+    }
+
     const country = salesCountry || shoppingSetting?.salesCountry || "IN";
     const label = feedLabel || shoppingSetting?.feedLabel || country;
 
@@ -34,20 +45,30 @@ export class NoGuidanceShoppingService extends GoogleAdsBaseService {
 
       const { headers } = await this.getAdsHeaders(organizationId, customerId);
       
-      let biddingConfig: any = {};
-      const targetRoasRatio = targetRoas ? Number(targetRoas) / 100 : 2.0;
+      const normStrategy = (payload.biddingStrategy || payload.biddingFocus || "MAXIMIZE_CONVERSION_VALUE")
+        .toUpperCase()
+        .replace(/\s+/g, "_");
 
-      if (payload.biddingStrategy === "TARGET_ROAS" || payload.biddingFocus === "Target ROAS" || (targetRoas && Number(targetRoas) > 0 && payload.biddingStrategy !== "MANUAL_CPC" && payload.biddingStrategy !== "MAXIMIZE_CLICKS")) {
+      let biddingConfig: any = {};
+
+      if (normStrategy === "TARGET_ROAS") {
+        const roasNum = Number(targetRoas);
+        if (!targetRoas || isNaN(roasNum) || roasNum <= 0) {
+          throw new Error("Target ROAS is required and must be greater than 0% when Target ROAS bidding is selected.");
+        }
         biddingConfig = {
           targetRoas: {
-            targetRoas: targetRoasRatio
+            targetRoas: roasNum / 100
           }
         };
-      } else if (payload.biddingStrategy === "MAXIMIZE_CLICKS") {
+      } else if (normStrategy === "MAXIMIZE_CLICKS" || normStrategy === "CLICKS") {
+        const maxCpc = payload.maxCpcLimit ? Number(payload.maxCpcLimit) : undefined;
         biddingConfig = {
-          maximizeClicks: payload.maxCpcLimit ? { cpcBidCeilingMicros: String(Math.round(Number(payload.maxCpcLimit) * 1_000_000)) } : {}
+          maximizeClicks: maxCpc && maxCpc > 0
+            ? { cpcBidCeilingMicros: String(Math.round(maxCpc * 1_000_000)) }
+            : {}
         };
-      } else if (payload.biddingStrategy === "MANUAL_CPC") {
+      } else if (normStrategy === "MANUAL_CPC") {
         biddingConfig = {
           manualCpc: {
             enhancedCpcEnabled: false
@@ -59,16 +80,25 @@ export class NoGuidanceShoppingService extends GoogleAdsBaseService {
         };
       }
 
+      const priorityMap: Record<string, number> = {
+        LOW: 0,
+        MEDIUM: 1,
+        HIGH: 2
+      };
+      const rawPriority = String(payload.campaignPriority || shoppingSetting?.campaignPriority || "LOW").toUpperCase();
+      const numPriority = priorityMap[rawPriority] ?? 0;
+
       const baseCampaignObj: any = {
         name: campaignName,
         status: "PAUSED",
         advertisingChannelType: "SHOPPING",
         campaignBudget: budgetRef,
-        containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+        containsEuPoliticalAdvertising: (euPolitical === "YES" || payload.euPoliticalAds?.startsWith("Yes")) ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
         shoppingSetting: {
-          merchantId: mId ? String(mId) : "5840531233",
-          campaignPriority: 0,
-          feedLabel: label
+          merchantId: String(mId),
+          campaignPriority: numPriority,
+          feedLabel: label,
+          enableLocal: Boolean(payload.localProducts || shoppingSetting?.enableLocalProducts)
         },
         ...biddingConfig
       };
@@ -106,19 +136,23 @@ export class NoGuidanceShoppingService extends GoogleAdsBaseService {
       throw new Error(GoogleAdsBaseService.formatGoogleAdsError(apiErr));
     }
 
+    const normStrategy = (payload.biddingStrategy || payload.biddingFocus || "MAXIMIZE_CONVERSION_VALUE")
+      .toUpperCase()
+      .replace(/\s+/g, "_");
+
     const localCampaign = await this.saveCampaignToDatabase({
       organizationId,
       customerId,
       googleAdsCampaignId: apiResult.campaignId || `shopping-${Date.now()}`,
       name: campaignName,
       campaignType: "SHOPPING",
-      biddingStrategy: "TARGET_ROAS",
-      budget: Number(dailyBudget),
+      biddingStrategy: normStrategy,
+      budget: effectiveBudget,
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
-      finalUrl: "https://www.example.com",
-      headlines: [],
-      descriptions: [],
+      finalUrl: payload.finalUrl || payload.website || null,
+      headlines: Array.isArray(payload.headlines) ? payload.headlines : [],
+      descriptions: Array.isArray(payload.descriptions) ? payload.descriptions : [],
       geoTargets: { objective: "No Guidance", locations },
       advertisingChannelType: "SHOPPING",
       amountMicros: BigInt(amountMicros),

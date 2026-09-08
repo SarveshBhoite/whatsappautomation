@@ -20,6 +20,7 @@ import appPromotionRoutes from "./campaigns/appPromotionRoutes";
 import youtubeReachRoutes from "./campaigns/youtubeReachRoutes";
 import storeVisitsRoutes from "./campaigns/storeVisitsRoutes";
 import noGuidanceRoutes from "./campaigns/noGuidanceRoutes";
+import aiGuidedRoutes from "./campaigns/aiGuidedRoutes";
 
 router.use("/campaigns/sales", salesRoutes);
 router.use("/campaigns/leads", leadsRoutes);
@@ -28,6 +29,7 @@ router.use("/campaigns/app-promotion", appPromotionRoutes);
 router.use("/campaigns/youtube-reach", youtubeReachRoutes);
 router.use("/campaigns/store-visits", storeVisitsRoutes);
 router.use("/campaigns/no-guidance", noGuidanceRoutes);
+router.use("/ai-guided", aiGuidedRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ACCOUNTS (MCC-aware)
@@ -1216,7 +1218,7 @@ Return ONLY a JSON object:
         const response = await axios.post(
           GROQ_API_URL,
           {
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [{ role: "user", content: prompt }],
             temperature: 0.7,
             max_tokens: 800

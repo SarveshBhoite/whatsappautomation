@@ -2,13 +2,76 @@ import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
 import axios from "axios";
 
 export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
+  public static readonly GEO_TARGET_CONSTANT_MAP: Record<string, string> = {
+    "india": "2356",
+    "mumbai": "1007788",
+    "mumbai, maharashtra, india": "1007788",
+    "delhi": "1007785",
+    "delhi, india": "1007785",
+    "bengaluru": "1007768",
+    "bengaluru, karnataka, india": "1007768",
+    "bangalore": "1007768",
+    "hyderabad": "1007773",
+    "hyderabad, telangana, india": "1007773",
+    "pune": "1007801",
+    "pune, maharashtra, india": "1007801",
+    "kolkata": "1007743",
+    "kolkata, west bengal, india": "1007743",
+    "chennai": "1007809",
+    "chennai, tamil nadu, india": "1007809",
+    "ahmedabad": "1007753",
+    "ahmedabad, gujarat, india": "1007753",
+    "jaipur": "1007828",
+    "jaipur, rajasthan, india": "1007828",
+    "surat": "1007754",
+    "surat, gujarat, india": "1007754",
+    "lucknow": "1007782",
+    "lucknow, uttar pradesh, india": "1007782",
+    "united states": "2840",
+    "united kingdom": "2826",
+    "australia": "2036",
+    "canada": "2124",
+    "united arab emirates": "2784",
+    "singapore": "2702"
+  };
+
+  public static readonly LANGUAGE_CONSTANT_MAP: Record<string, string> = {
+    "english": "1000",
+    "spanish": "1003",
+    "french": "1002",
+    "german": "1001",
+    "italian": "1004",
+    "portuguese": "1014",
+    "dutch": "1010",
+    "russian": "1031",
+    "japanese": "1005",
+    "chinese": "1017",
+    "chinese (simplified)": "1017",
+    "chinese (traditional)": "1018",
+    "korean": "1012",
+    "arabic": "1019",
+    "hindi": "1023",
+    "bengali": "1056",
+    "gujarati": "1072",
+    "kannada": "1086",
+    "malayalam": "1098",
+    "marathi": "1101",
+    "punjabi": "1110",
+    "tamil": "1130",
+    "telugu": "1131",
+    "urdu": "1041"
+  };
+
   public static async createCampaign(organizationId: string, customerId: string, payload: any) {
+    const isAiGuided = payload?.source === "AI_GUIDED" || payload?.isAiGuided === true;
+
     const {
       campaignName = "Leads Performance Max",
       assetGroupName = "Asset Group 1",
       finalUrl,
       amountMicros,
       biddingFocus = "Maximize conversions",
+      targetCpa,
       targetCpaMicros,
       targetRoas,
       locations = ["India"],
@@ -19,47 +82,123 @@ export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
       images = [],
       dailyBudget,
       budget,
+      startDate,
+      endDate,
       euPolitical = "NO",
       businessName,
       logos = [],
       brandGuidelinesEnabled = false
     } = payload;
 
-    if (!finalUrl) throw new Error("Final URL is required.");
+    if (!finalUrl || !finalUrl.trim()) throw new Error("Final URL is required.");
 
-    const effectiveBudget = Number(dailyBudget || budget || 1000);
+    // Validate Daily Budget
+    const rawBudget = dailyBudget !== undefined && dailyBudget !== null && dailyBudget !== "" ? dailyBudget : budget;
+    if (isAiGuided) {
+      const budgetNum = Number(rawBudget);
+      if (!rawBudget || isNaN(budgetNum) || budgetNum <= 0) {
+        throw new Error("A valid positive daily budget greater than ₹0 is required for AI Guided Performance Max.");
+      }
+    }
+    const effectiveBudget = Number(rawBudget || 1000);
     const amountMicrosVal = amountMicros || Math.round(effectiveBudget * 1_000_000);
 
-    const validHeadlines = (headlines || []).filter((h: any) => h && h.trim());
-    const validLongHeadlines = (longHeadlines || []).filter((h: any) => h && h.trim());
-    const validDescriptions = (descriptions || []).filter((d: any) => d && d.trim());
+    const validHeadlines = (headlines || []).filter((h: any) => h && String(h).trim());
+    const validLongHeadlines = (longHeadlines || []).filter((h: any) => h && String(h).trim());
+    const validDescriptions = (descriptions || []).filter((d: any) => d && String(d).trim());
 
     // Clean & Sanitize Text Assets
     const cleanedHeadlines = validHeadlines
-      .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 30))
+      .map((text: string) => GoogleAdsBaseService.cleanAdText(String(text), 30))
       .filter((text: string) => text.length > 0);
-    const safeHeadlines = (cleanedHeadlines.length >= 3 ? cleanedHeadlines : [...cleanedHeadlines, "Best Solutions", "Top Quality Services", "Grow Your Business"]).slice(0, 5);
 
     const cleanedLongHeadlines = validLongHeadlines
-      .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 90))
+      .map((text: string) => GoogleAdsBaseService.cleanAdText(String(text), 90))
       .filter((text: string) => text.length > 0);
-    const safeLongHeadlines = (cleanedLongHeadlines.length >= 1 ? cleanedLongHeadlines : ["Experience premium digital services and fast business growth."]).slice(0, 5);
 
     const cleanedDescriptions = validDescriptions
-      .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 90))
+      .map((text: string) => GoogleAdsBaseService.cleanAdText(String(text), 90))
       .filter((text: string) => text.length > 0);
-    const safeDescriptions = (cleanedDescriptions.length >= 2 ? cleanedDescriptions : [...cleanedDescriptions, "Discover great offers and personalized support.", "Get in touch today for expert services."]).slice(0, 5);
 
-    const safeBusinessName = GoogleAdsBaseService.cleanAdText(businessName || "My Business", 25) || "My Business";
+    // AI Guided: Strict check with NO fake silent text fallbacks
+    if (isAiGuided) {
+      if (!businessName || !String(businessName).trim()) {
+        throw new Error("Business name is required (max 25 characters).");
+      }
+      if (String(businessName).trim().length > 25) {
+        throw new Error("Business name must be 25 characters or fewer.");
+      }
+      if (cleanedHeadlines.length < 3) {
+        throw new Error(`Performance Max requires at least 3 valid headlines (provided ${cleanedHeadlines.length}).`);
+      }
+      const uniqueH = Array.from(new Set(cleanedHeadlines.map((h: string) => h.toLowerCase())));
+      if (uniqueH.length < cleanedHeadlines.length) {
+        throw new Error("All headlines must be unique.");
+      }
+      if (cleanedLongHeadlines.length < 1) {
+        throw new Error("Performance Max requires at least 1 valid long headline.");
+      }
+      if (cleanedDescriptions.length < 2) {
+        throw new Error(`Performance Max requires at least 2 valid descriptions (provided ${cleanedDescriptions.length}).`);
+      }
+      const uniqueD = Array.from(new Set(cleanedDescriptions.map((d: string) => d.toLowerCase())));
+      if (uniqueD.length < cleanedDescriptions.length) {
+        throw new Error("All descriptions must be unique.");
+      }
+    }
+
+    const safeHeadlines = isAiGuided
+      ? cleanedHeadlines.slice(0, 5)
+      : (cleanedHeadlines.length >= 3 ? cleanedHeadlines : [...cleanedHeadlines, "Best Solutions", "Top Quality Services", "Grow Your Business"]).slice(0, 5);
+
+    const safeLongHeadlines = isAiGuided
+      ? cleanedLongHeadlines.slice(0, 5)
+      : (cleanedLongHeadlines.length >= 1 ? cleanedLongHeadlines : ["Experience premium digital services and fast business growth."]).slice(0, 5);
+
+    const safeDescriptions = isAiGuided
+      ? cleanedDescriptions.slice(0, 5)
+      : (cleanedDescriptions.length >= 2 ? cleanedDescriptions : [...cleanedDescriptions, "Discover great offers and personalized support.", "Get in touch today for expert services."]).slice(0, 5);
+
+    const safeBusinessName = isAiGuided
+      ? GoogleAdsBaseService.cleanAdText(String(businessName), 25)
+      : (GoogleAdsBaseService.cleanAdText(businessName || "My Business", 25) || "My Business");
 
     const cid = (customerId || "").replace(/-/g, "").trim();
 
+    // Bidding Strategy mapping
     let biddingConfig: any = {};
-    const normalizedFocus = biddingFocus.trim().toLowerCase();
+    const normalizedFocus = (biddingFocus || "maximize conversions").trim().toLowerCase();
+    const effectiveCpaMicros = targetCpaMicros || (targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined);
+
     if (normalizedFocus === "maximize conversion value" || normalizedFocus === "target roas") {
+      if (isAiGuided && (normalizedFocus === "target roas" || targetRoas !== undefined)) {
+        const roasVal = Number(targetRoas);
+        if (isNaN(roasVal) || roasVal <= 0) {
+          throw new Error("A positive Target ROAS is required when Target ROAS bidding is selected.");
+        }
+      }
       biddingConfig = { maximizeConversionValue: targetRoas ? { targetRoas: Number(targetRoas) } : {} };
     } else {
-      biddingConfig = { maximizeConversions: targetCpaMicros ? { targetCpaMicros: String(targetCpaMicros) } : {} };
+      if (isAiGuided && (normalizedFocus === "target cpa" || targetCpa !== undefined)) {
+        const cpaVal = Number(targetCpa);
+        if (isNaN(cpaVal) || cpaVal <= 0) {
+          throw new Error("A positive Target CPA is required when Target CPA bidding is selected.");
+        }
+      }
+      biddingConfig = { maximizeConversions: effectiveCpaMicros ? { targetCpaMicros: String(effectiveCpaMicros) } : {} };
+    }
+
+    // Dates validation
+    let formattedStartDate: string | undefined = undefined;
+    let formattedEndDate: string | undefined = undefined;
+    if (startDate) {
+      formattedStartDate = String(startDate).split("T")[0];
+    }
+    if (endDate) {
+      formattedEndDate = String(endDate).split("T")[0];
+      if (formattedStartDate && formattedEndDate <= formattedStartDate) {
+        throw new Error(`End date (${formattedEndDate}) must be after start date (${formattedStartDate}).`);
+      }
     }
 
     let apiResult: any = { campaignId: `leads-pmax-${Date.now()}` };
@@ -79,38 +218,42 @@ export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
       let effectiveCampaignName = campaignName;
       let campaignRes;
       try {
+        const createOp: any = {
+          name: effectiveCampaignName,
+          status: "PAUSED",
+          advertisingChannelType: "PERFORMANCE_MAX",
+          campaignBudget: budgetRef,
+          containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+          brandGuidelinesEnabled: false,
+          ...biddingConfig
+        };
+        if (formattedStartDate) createOp.startDate = formattedStartDate;
+        if (formattedEndDate) createOp.endDate = formattedEndDate;
+
         const campaignPayload = {
-          operations: [{
-            create: {
-              name: effectiveCampaignName,
-              status: "PAUSED",
-              advertisingChannelType: "PERFORMANCE_MAX",
-              campaignBudget: budgetRef,
-              containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-              brandGuidelinesEnabled: false,
-              ...biddingConfig
-            }
-          }]
+          operations: [{ create: createOp }]
         };
 
         campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
       } catch (campErr: any) {
         const errMsg = campErr?.response?.data?.error?.message || campErr?.message || "";
         const errDetails = JSON.stringify(campErr?.response?.data || "");
-        if (errMsg.includes("already assigned") || errDetails.includes("DUPLICATE_CAMPAIGN_NAME") || errDetails.includes("DUPLICATE_NAME") || errDetails.includes("already assigned")) {
+        if (errMsg.includes("already assigned") || errDetails.includes("DUPLICATE_CAMPAIGN_NAME") || errDetails.includes("DUPLICATE_NAME")) {
           effectiveCampaignName = `${campaignName} ${Date.now().toString().slice(-4)}`;
+          const retryOp: any = {
+            name: effectiveCampaignName,
+            status: "PAUSED",
+            advertisingChannelType: "PERFORMANCE_MAX",
+            campaignBudget: budgetRef,
+            containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            brandGuidelinesEnabled: false,
+            ...biddingConfig
+          };
+          if (formattedStartDate) retryOp.startDate = formattedStartDate;
+          if (formattedEndDate) retryOp.endDate = formattedEndDate;
+
           const retryPayload = {
-            operations: [{
-              create: {
-                name: effectiveCampaignName,
-                status: "PAUSED",
-                advertisingChannelType: "PERFORMANCE_MAX",
-                campaignBudget: budgetRef,
-                containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-                brandGuidelinesEnabled: false,
-                ...biddingConfig
-              }
-            }]
+            operations: [{ create: retryOp }]
           };
           campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, retryPayload, { headers });
         } else {
@@ -238,32 +381,35 @@ export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
         if (logoRef && !logoRefs.includes(logoRef)) logoRefs.push(logoRef);
       }
 
-      // Safe Aspect-Ratio-Preserving Fallbacks:
-      // 1. Logo fallback from Square Marketing Image (Both are 1:1 Square)
-      if (logoRefs.length === 0 && squareImageRefs.length > 0) {
-        logoRefs.push(squareImageRefs[0]);
-      }
-      // 2. Square Marketing Image fallback from Logo (Both are 1:1 Square)
-      if (squareImageRefs.length === 0 && logoRefs.length > 0) {
-        squareImageRefs.push(logoRefs[0]);
-      }
-      // 3. Marketing Image (Landscape 1.91:1) fallback via ImageKit URL transformation
-      if (marketingImageRefs.length === 0 && fallbackImageKitUrl) {
-        const landUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
-        const landRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Land_${Date.now()}`, landUrl);
-        if (landRef && !marketingImageRefs.includes(landRef)) marketingImageRefs.push(landRef);
-      }
-      // 4. Square Image fallback via ImageKit URL transformation
-      if (squareImageRefs.length === 0 && fallbackImageKitUrl) {
-        const sqUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
-        const sqRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Sq_${Date.now()}`, sqUrl);
-        if (sqRef && !squareImageRefs.includes(sqRef)) squareImageRefs.push(sqRef);
-      }
-      // 5. Logo fallback via ImageKit URL transformation
-      if (logoRefs.length === 0 && fallbackImageKitUrl) {
-        const logoUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
-        const logoRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Logo_${Date.now()}`, logoUrl);
-        if (logoRef && !logoRefs.includes(logoRef)) logoRefs.push(logoRef);
+      // Safe Aspect-Ratio-Preserving Fallbacks (MANUAL FLOW ONLY):
+      // In AI Guided, strict explicit asset types are required - no cross-asset borrowing!
+      if (!isAiGuided) {
+        // 1. Logo fallback from Square Marketing Image (Both are 1:1 Square)
+        if (logoRefs.length === 0 && squareImageRefs.length > 0) {
+          logoRefs.push(squareImageRefs[0]);
+        }
+        // 2. Square Marketing Image fallback from Logo (Both are 1:1 Square)
+        if (squareImageRefs.length === 0 && logoRefs.length > 0) {
+          squareImageRefs.push(logoRefs[0]);
+        }
+        // 3. Marketing Image (Landscape 1.91:1) fallback via ImageKit URL transformation
+        if (marketingImageRefs.length === 0 && fallbackImageKitUrl) {
+          const landUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          const landRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Land_${Date.now()}`, landUrl);
+          if (landRef && !marketingImageRefs.includes(landRef)) marketingImageRefs.push(landRef);
+        }
+        // 4. Square Image fallback via ImageKit URL transformation
+        if (squareImageRefs.length === 0 && fallbackImageKitUrl) {
+          const sqUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          const sqRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Sq_${Date.now()}`, sqUrl);
+          if (sqRef && !squareImageRefs.includes(sqRef)) squareImageRefs.push(sqRef);
+        }
+        // 5. Logo fallback via ImageKit URL transformation
+        if (logoRefs.length === 0 && fallbackImageKitUrl) {
+          const logoUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+          const logoRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Logo_${Date.now()}`, logoUrl);
+          if (logoRef && !logoRefs.includes(logoRef)) logoRefs.push(logoRef);
+        }
       }
 
       if (marketingImageRefs.length === 0 || squareImageRefs.length === 0 || logoRefs.length === 0) {
@@ -377,6 +523,52 @@ export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
       const mutateRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:mutate`, { mutateOperations }, { headers });
       const results = mutateRes.data.mutateOperationResponses;
       apiResult.assetGroupResourceName = results[0]?.assetGroupResult?.resourceName;
+
+      // 7. Add Campaign Criteria: Locations (geoTargetConstant) & Languages (languageConstant)
+      const criteriaOperations: any[] = [];
+
+      // Location targeting operations
+      const locList = Array.isArray(locations) ? locations : [locations].filter(Boolean);
+      for (const loc of locList) {
+        if (!loc || loc === "ALL" || loc === "All countries" || loc === "All countries and territories") continue;
+        const normLoc = String(loc).trim().toLowerCase();
+        const constantId = LeadsPerformanceMaxService.GEO_TARGET_CONSTANT_MAP[normLoc] || (/^\d+$/.test(String(loc)) ? String(loc) : null);
+        if (constantId) {
+          criteriaOperations.push({
+            create: {
+              campaign: campaignRef,
+              location: { geoTargetConstant: `geoTargetConstants/${constantId}` }
+            }
+          });
+        }
+      }
+
+      // Language targeting operations
+      const langList = Array.isArray(languages) ? languages : [languages].filter(Boolean);
+      for (const lang of langList) {
+        if (!lang) continue;
+        const normLang = String(lang).trim().toLowerCase();
+        const constantId = LeadsPerformanceMaxService.LANGUAGE_CONSTANT_MAP[normLang] || (/^\d+$/.test(String(lang)) ? String(lang) : null);
+        if (constantId) {
+          criteriaOperations.push({
+            create: {
+              campaign: campaignRef,
+              language: { languageConstant: `languageConstants/${constantId}` }
+            }
+          });
+        }
+      }
+
+      if (criteriaOperations.length > 0) {
+        try {
+          const critRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, {
+            operations: criteriaOperations
+          }, { headers });
+          apiResult.criteriaResults = critRes.data?.results || [];
+        } catch (critErr: any) {
+          console.warn("[Leads PMax] Warning: Failed to mutate campaign criteria:", critErr?.response?.data || critErr.message);
+        }
+      }
 
     } catch (err: any) {
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);

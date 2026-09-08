@@ -18,29 +18,29 @@ export default function SalesSearchPage() {
 
   // Wizard Step State: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY">("BIDDING");
-  const [campaignName, setCampaignName] = useState<string>("Sales-Search-1");
+  const [campaignName, setCampaignName] = useState<string>(`Sales-Search-${Date.now().toString().slice(-4)}`);
 
   // Step 1: Bidding State
   const [biddingFocus, setBiddingFocus] = useState<"Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Conversions");
   const [setTargetCpa, setSetTargetCpa] = useState<boolean>(false);
-  const [targetCpaValue, setTargetCpaValue] = useState<string>("166.11");
+  const [targetCpaValue, setTargetCpaValue] = useState<string>("");
   const [setTargetRoas, setSetTargetRoas] = useState<boolean>(false);
-  const [targetRoasValue, setTargetRoasValue] = useState<string>("200");
+  const [targetRoasValue, setTargetRoasValue] = useState<string>("");
   const [setMaxCpc, setSetMaxCpc] = useState<boolean>(false);
-  const [maxCpcLimit, setMaxCpcLimit] = useState<string>("10.00");
+  const [maxCpcLimit, setMaxCpcLimit] = useState<string>("");
   const [impressionShareLocation, setImpressionShareLocation] = useState<string>("Anywhere on results page");
   const [targetImpressionSharePercent, setTargetImpressionSharePercent] = useState<string>("50");
-  const [maxCpcImpressionShare, setMaxCpcImpressionShare] = useState<string>("10.00");
+  const [maxCpcImpressionShare, setMaxCpcImpressionShare] = useState<string>("");
   const [onlyBidNewCustomers, setOnlyBidNewCustomers] = useState<boolean>(false);
   const [adjustLapsedCustomers, setAdjustLapsedCustomers] = useState<boolean>(false);
 
   // Step 2: Campaign Settings State
   const [searchPartnersNetwork, setSearchPartnersNetwork] = useState<boolean>(true);
   const [displayNetwork, setDisplayNetwork] = useState<boolean>(true);
-  const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
+  const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("INDIA");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
   const [targetLocations, setTargetLocations] = useState<Array<{ name: string; type: string; reach: string; canonicalName?: string; id?: string }>>([
-    { name: "Mumbai, Maharashtra, India", type: "City", reach: "21,400,000", canonicalName: "Mumbai, Maharashtra, India" }
+    { name: "India", type: "Country", reach: "500,000,000", canonicalName: "India" }
   ]);
   const [isSearchingLocations, setIsSearchingLocations] = useState<boolean>(false);
   const [locationSearchResults, setLocationSearchResults] = useState<Array<{ id?: string; name: string; canonicalName: string; targetType: string; reach?: string }>>([]);
@@ -252,12 +252,12 @@ export default function SalesSearchPage() {
     { category: "PURCHASE", origin: "WEBSITE", biddable: true },
     { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE", biddable: true }
   ]);
-  const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
+  const [finalUrl, setFinalUrl] = useState<string>("");
   const [displayPath1, setDisplayPath1] = useState<string>("");
   const [displayPath2, setDisplayPath2] = useState<string>("");
-  const [headlines, setHeadlines] = useState<string[]>(["Automation Software", "Lead Gen Tool", "WhatsApp Marketing", "", "", "", ""]);
-  const [descriptions, setDescriptions] = useState<string[]>(["Automate your business communication with WhatsApp.", "Boost conversions with instant messaging."]);
-  const [businessName, setBusinessName] = useState<string>("JISNU DIGITAL SOLUTIONS PRIVATE LIMITED");
+  const [headlines, setHeadlines] = useState<string[]>(["", "", "", "", "", "", ""]);
+  const [descriptions, setDescriptions] = useState<string[]>(["", ""]);
+  const [businessName, setBusinessName] = useState<string>("");
   const [businessLogo, setBusinessLogo] = useState<string>("");
   const [businessLogos, setBusinessLogos] = useState<string[]>([]);
 
@@ -403,7 +403,7 @@ export default function SalesSearchPage() {
 
   // Step 4: Budget State
   const [budgetType, setBudgetType] = useState<"DAILY" | "TOTAL">("DAILY");
-  const [selectedPresetBudget, setSelectedPresetBudget] = useState<string>("1556.83");
+  const [selectedPresetBudget, setSelectedPresetBudget] = useState<string>("CUSTOM");
   const [customBudgetValue, setCustomBudgetValue] = useState<string>("");
 
   const timeOptions = [
@@ -536,7 +536,7 @@ export default function SalesSearchPage() {
             nextIndex++;
           }
           const defaultName = `Sales-Search-${nextIndex}`;
-          setCampaignName(defaultName);
+          setCampaignName(prev => (prev.startsWith("Sales-Search-") ? defaultName : prev));
           setDuplicateNameError(null);
           setFieldErrors(prev => {
             const updated = { ...prev };
@@ -548,6 +548,119 @@ export default function SalesSearchPage() {
       .catch(() => {
         // Non-blocking fallback
       });
+
+    // Check for AI-Guided prefill campaign state from localStorage
+    try {
+      if (typeof window !== "undefined") {
+        const prefillRaw = localStorage.getItem("googleAds_prefill_campaign");
+        if (prefillRaw) {
+          const prefill = JSON.parse(prefillRaw);
+          if (prefill.campaignName) setCampaignName(prefill.campaignName);
+          if (prefill.businessName || prefill.business?.name) setBusinessName(prefill.businessName || prefill.business?.name);
+          if (prefill.website || prefill.finalUrl) {
+            const urlVal = prefill.website || prefill.finalUrl;
+            setFinalUrl(urlVal);
+            setAiGenFinalUrl(urlVal);
+            setKeywordScanUrl(urlVal);
+          }
+          if (prefill.dailyBudget) {
+            setCustomBudgetValue(String(prefill.dailyBudget));
+            setSelectedPresetBudget("CUSTOM");
+          }
+          if (prefill.biddingStrategy) {
+            const bMap: Record<string, "Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share"> = {
+              "Maximize conversions": "Conversions",
+              "Conversions": "Conversions",
+              "Target CPA": "Target CPA",
+              "Maximize conversion value": "Conversion value",
+              "Conversion value": "Conversion value",
+              "Target ROAS": "Target ROAS",
+              "Maximize Clicks": "Clicks",
+              "Clicks": "Clicks",
+              "Target Impression Share": "Impression share",
+              "Impression share": "Impression share"
+            };
+            if (bMap[prefill.biddingStrategy]) {
+              setBiddingFocus(bMap[prefill.biddingStrategy]);
+              if (bMap[prefill.biddingStrategy] === "Target CPA") setSetTargetCpa(true);
+              if (bMap[prefill.biddingStrategy] === "Target ROAS") setSetTargetRoas(true);
+              if (bMap[prefill.biddingStrategy] === "Clicks" && prefill.maxCpcLimit) setSetMaxCpc(true);
+            }
+          }
+          if (prefill.targetCpa) {
+            setTargetCpaValue(String(prefill.targetCpa));
+            setSetTargetCpa(true);
+          }
+          if (prefill.targetRoas) {
+            setTargetRoasValue(String(prefill.targetRoas));
+            setSetTargetRoas(true);
+          }
+          if (prefill.maxCpcLimit) {
+            setMaxCpcLimit(String(prefill.maxCpcLimit));
+            setSetMaxCpc(true);
+          }
+          if (prefill.targetImpressionSharePercent) {
+            setTargetImpressionSharePercent(String(prefill.targetImpressionSharePercent));
+          }
+          if (prefill.impressionShareLocation) {
+            setImpressionShareLocation(prefill.impressionShareLocation);
+          }
+          if (prefill.startDate) setStartDate(prefill.startDate);
+          if (prefill.endDate) setEndDate(prefill.endDate);
+          if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+            if (prefill.locations.length === 1 && prefill.locations[0] === "All countries and territories") {
+              setSelectedLocation("ALL");
+            } else if (prefill.locations.length === 1 && prefill.locations[0] === "India") {
+              setSelectedLocation("INDIA");
+            } else {
+              setSelectedLocation("CUSTOM");
+              setCustomLocationInput(prefill.locations.join(", "));
+              setTargetLocations(prefill.locations.map((locName: string) => ({
+                name: locName,
+                type: "Location",
+                reach: "Targeted",
+                canonicalName: locName
+              })));
+            }
+          }
+          if (prefill.language) {
+            const langs = prefill.language.split(",").map((l: string) => l.trim()).filter(Boolean);
+            if (langs.length > 0) setSelectedLanguages(langs);
+          }
+          if (Array.isArray(prefill.keywords) && prefill.keywords.length > 0) {
+            setKeywordsText(prefill.keywords.join("\n"));
+          }
+          if (Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+            const paddedHeadlines = [...prefill.headlines];
+            while (paddedHeadlines.length < 7) paddedHeadlines.push("");
+            setHeadlines(paddedHeadlines.slice(0, 15));
+          }
+          if (Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+            const paddedDescriptions = [...prefill.descriptions];
+            while (paddedDescriptions.length < 2) paddedDescriptions.push("");
+            setDescriptions(paddedDescriptions.slice(0, 4));
+          }
+          // AI Max Search Parameters
+          if (prefill.aiMax !== undefined || prefill.enableAiMax !== undefined) {
+            setEnableAiMax(prefill.aiMax ?? prefill.enableAiMax ?? true);
+          }
+          if (prefill.textCustomization !== undefined || prefill.enableTextCustomization !== undefined) {
+            setEnableTextCustomization(prefill.textCustomization ?? prefill.enableTextCustomization ?? true);
+          }
+          if (prefill.finalUrlExpansion !== undefined || prefill.enableFinalUrlExpansion !== undefined) {
+            setEnableFinalUrlExpansion(prefill.finalUrlExpansion ?? prefill.enableFinalUrlExpansion ?? true);
+          }
+          if (Array.isArray(prefill.brandInclusions) && prefill.brandInclusions.length > 0) {
+            setBrandInclusions(prefill.brandInclusions);
+          }
+          if (Array.isArray(prefill.brandExclusions) && prefill.brandExclusions.length > 0) {
+            setBrandExclusions(prefill.brandExclusions);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not parse googleAds_prefill_campaign for Sales Search:", err);
+    }
   }, [customerId]);
 
   // Real-time check whenever campaignName or existingCampaigns changes
@@ -635,6 +748,148 @@ export default function SalesSearchPage() {
     return { friendlyMessage: errorMsg };
   };
 
+  // Step-by-Step Transition Validation Function
+  const validateStep = (step: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"): { isValid: boolean; message?: string } => {
+    if (step === "BIDDING") {
+      if (biddingFocus === "Target CPA" && setTargetCpa) {
+        const cpaNum = Number(targetCpaValue);
+        if (!targetCpaValue.trim() || isNaN(cpaNum) || cpaNum <= 0) {
+          setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
+          return { isValid: false, message: "Please enter a valid positive Target CPA amount." };
+        }
+      }
+      if (biddingFocus === "Target ROAS" && setTargetRoas) {
+        const roasNum = Number(targetRoasValue);
+        if (!targetRoasValue.trim() || isNaN(roasNum) || roasNum <= 0) {
+          setFieldErrors(prev => ({ ...prev, targetRoasValue: "Target ROAS must be a positive percentage greater than 0%." }));
+          return { isValid: false, message: "Please enter a valid positive Target ROAS percentage." };
+        }
+      }
+      if (biddingFocus === "Clicks" && setMaxCpc) {
+        const maxCpcNum = Number(maxCpcLimit);
+        if (!maxCpcLimit.trim() || isNaN(maxCpcNum) || maxCpcNum <= 0) {
+          setFieldErrors(prev => ({ ...prev, maxCpcLimit: "Maximum CPC bid limit must be a positive number greater than 0." }));
+          return { isValid: false, message: "Please enter a valid positive Maximum CPC bid limit." };
+        }
+      }
+      if (biddingFocus === "Impression share") {
+        const targetPercentNum = Number(targetImpressionSharePercent);
+        if (isNaN(targetPercentNum) || targetPercentNum < 1 || targetPercentNum > 100) {
+          setFieldErrors(prev => ({ ...prev, targetImpressionSharePercent: "Target impression share must be between 1% and 100%." }));
+          return { isValid: false, message: "Target impression share must be between 1% and 100%." };
+        }
+        if (maxCpcImpressionShare && Number(maxCpcImpressionShare) <= 0) {
+          setFieldErrors(prev => ({ ...prev, maxCpcImpressionShare: "Maximum CPC bid limit must be greater than 0." }));
+          return { isValid: false, message: "Maximum CPC bid limit for Impression share must be greater than 0." };
+        }
+      }
+      return { isValid: true };
+    }
+
+    if (step === "CAMPAIGN_SETTINGS") {
+      if (selectedLocation === "CUSTOM" && targetLocations.length === 0) {
+        return { isValid: false, message: "Please select at least 1 target location or choose 'All countries and territories' / 'India'." };
+      }
+      if (selectedLanguages.length === 0) {
+        return { isValid: false, message: "Please select at least 1 language for targeting." };
+      }
+      if (startDate && startDate < localToday) {
+        return { isValid: false, message: `Start Date (${startDate}) cannot be in the past.` };
+      }
+      if (startDate && endDate && endDate.trim() && endDate < startDate) {
+        return { isValid: false, message: `End Date (${endDate}) cannot be earlier than Start Date (${startDate}).` };
+      }
+      for (const sched of adScheduleList) {
+        if (sched.start && sched.end && !(sched.start === "00:00" && sched.end === "00:00")) {
+          if (sched.end <= sched.start) {
+            return { isValid: false, message: `Ad schedule end time (${sched.end}) must be strictly after start time (${sched.start}) for ${sched.day}.` };
+          }
+        }
+      }
+      return { isValid: true };
+    }
+
+    if (step === "KEYWORDS_ADS") {
+      const trimmedFinalUrl = finalUrl ? finalUrl.trim() : "";
+      if (!trimmedFinalUrl || (!trimmedFinalUrl.startsWith("http://") && !trimmedFinalUrl.startsWith("https://"))) {
+        setFieldErrors(prev => ({ ...prev, finalUrl: "Final URL is required and must begin with http:// or https://" }));
+        setShowFinalUrlCard(true);
+        return { isValid: false, message: "Final URL is required and must begin with http:// or https://" };
+      }
+      const cleanedKeywords = (keywordsText || "")
+        .split(/[\n,]+/)
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+      if (cleanedKeywords.length === 0) {
+        setFieldErrors(prev => ({ ...prev, keywordsText: "At least 1 valid keyword is required." }));
+        setShowKeywordsSection(true);
+        return { isValid: false, message: "At least 1 valid keyword is required." };
+      }
+      const validHeadlines = headlines.filter(h => h && h.trim() !== "");
+      if (validHeadlines.length < 3) {
+        setShowHeadlinesCard(true);
+        return { isValid: false, message: `Search ads require at least 3 headlines (currently ${validHeadlines.length}/3).` };
+      }
+      // Check duplicate headlines
+      const lowerHeadlines = validHeadlines.map(h => h.trim().toLowerCase());
+      const hasDuplicateHeadlines = new Set(lowerHeadlines).size !== lowerHeadlines.length;
+      if (hasDuplicateHeadlines) {
+        setShowHeadlinesCard(true);
+        return { isValid: false, message: "Headlines contain duplicates. Each headline must be unique." };
+      }
+
+      const validDescriptions = descriptions.filter(d => d && d.trim() !== "");
+      if (validDescriptions.length < 2) {
+        setShowDescriptionsCard(true);
+        return { isValid: false, message: `Search ads require at least 2 descriptions (currently ${validDescriptions.length}/2).` };
+      }
+      // Check duplicate descriptions
+      const lowerDescriptions = validDescriptions.map(d => d.trim().toLowerCase());
+      const hasDuplicateDescriptions = new Set(lowerDescriptions).size !== lowerDescriptions.length;
+      if (hasDuplicateDescriptions) {
+        setShowDescriptionsCard(true);
+        return { isValid: false, message: "Descriptions contain duplicates. Each description must be unique." };
+      }
+
+      // Check duplicate sitelinks
+      const filledSitelinks = sitelinks.filter(s => s.text && s.text.trim());
+      const lowerSitelinkTexts = filledSitelinks.map(s => s.text.trim().toLowerCase());
+      if (new Set(lowerSitelinkTexts).size !== lowerSitelinkTexts.length) {
+        setActiveModal("SITELINKS");
+        return { isValid: false, message: "Sitelinks contain duplicate link text. Each sitelink text must be unique." };
+      }
+
+      if (callPhone && callPhone.trim()) {
+        const digits = callPhone.replace(/[^0-9]/g, "");
+        const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+        if (clean10.length !== 10 || Number(clean10) <= 0) {
+          setShowCallsCard(true);
+          return { isValid: false, message: "Phone number for Call extension must be a valid positive 10-digit mobile number (e.g. 9876543210)." };
+        }
+      }
+      if (msgPhone && msgPhone.trim()) {
+        const digits = msgPhone.replace(/[^0-9]/g, "");
+        const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+        if (clean10.length !== 10 || Number(clean10) <= 0) {
+          return { isValid: false, message: "WhatsApp phone number must be a valid positive 10-digit mobile number (e.g. 9876543210)." };
+        }
+      }
+      return { isValid: true };
+    }
+
+    if (step === "BUDGET") {
+      const budgetVal = customBudgetValue.trim();
+      const numericBudget = Number(budgetVal);
+      if (!budgetVal || isNaN(numericBudget) || numericBudget <= 0) {
+        setFieldErrors(prev => ({ ...prev, customBudgetValue: "Daily Budget must be a positive number greater than 0." }));
+        return { isValid: false, message: "Daily Budget is required and must be a positive number greater than 0." };
+      }
+      return { isValid: true };
+    }
+
+    return { isValid: true };
+  };
+
   const handlePublishCampaign = async () => {
     setSubmitError(null);
 
@@ -662,7 +917,7 @@ export default function SalesSearchPage() {
     }
 
     // 2. Budget validation (Required and Non-Negative)
-    const budgetVal = customBudgetValue.trim() || selectedPresetBudget.trim();
+    const budgetVal = customBudgetValue.trim();
     const numericBudget = Number(budgetVal);
     if (!budgetVal || isNaN(numericBudget) || numericBudget <= 0) {
       setFieldErrors(prev => ({ ...prev, customBudgetValue: "Daily Budget must be a positive number greater than 0." }));
@@ -773,7 +1028,7 @@ export default function SalesSearchPage() {
       return;
     }
 
-    // 8. Headlines & Descriptions validation (Required min 3 headlines, min 2 descriptions)
+    // 8. Headlines & Descriptions validation (Required min 3 headlines, min 2 descriptions, no duplicates)
     const validHeadlines = headlines.filter(h => h && h.trim() !== "");
     if (validHeadlines.length < 3) {
       setSubmitError("Search Responsive Search Ads require at least 3 headlines (maximum 30 characters each).");
@@ -781,11 +1036,35 @@ export default function SalesSearchPage() {
       setShowHeadlinesCard(true);
       return;
     }
+    const lowerHeadlines = validHeadlines.map(h => h.trim().toLowerCase());
+    if (new Set(lowerHeadlines).size !== lowerHeadlines.length) {
+      setSubmitError("Duplicate headlines found. Each headline in your ad must be unique.");
+      setWizardStep("KEYWORDS_ADS");
+      setShowHeadlinesCard(true);
+      return;
+    }
+
     const validDescriptions = descriptions.filter(d => d && d.trim() !== "");
     if (validDescriptions.length < 2) {
       setSubmitError("Search Responsive Search Ads require at least 2 descriptions (maximum 90 characters each).");
       setWizardStep("KEYWORDS_ADS");
       setShowDescriptionsCard(true);
+      return;
+    }
+    const lowerDescriptions = validDescriptions.map(d => d.trim().toLowerCase());
+    if (new Set(lowerDescriptions).size !== lowerDescriptions.length) {
+      setSubmitError("Duplicate descriptions found. Each description in your ad must be unique.");
+      setWizardStep("KEYWORDS_ADS");
+      setShowDescriptionsCard(true);
+      return;
+    }
+
+    // Check duplicate sitelinks
+    const filledSitelinks = sitelinks.filter(s => s.text && s.text.trim());
+    const lowerSitelinkTexts = filledSitelinks.map(s => s.text.trim().toLowerCase());
+    if (new Set(lowerSitelinkTexts).size !== lowerSitelinkTexts.length) {
+      setSubmitError("Duplicate sitelinks found. Each sitelink must have unique text.");
+      setActiveModal("SITELINKS");
       return;
     }
 
@@ -801,14 +1080,23 @@ export default function SalesSearchPage() {
       }
     }
 
-    // 10. Phone number validation (Must be exactly 10 digits only and not negative)
+    // 10. Phone number validation (Must be exactly 10 digits only and positive)
     if (callPhone && callPhone.trim()) {
       const digits = callPhone.replace(/[^0-9]/g, "");
       const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
-      if (clean10.length !== 10) {
-        setSubmitError("Phone number for Call extension must be exactly 10 digits (e.g. 9876543210) and cannot contain negative symbols or extra digits.");
+      if (clean10.length !== 10 || Number(clean10) <= 0) {
+        setSubmitError("Phone number for Call extension must be a valid positive 10-digit mobile number (e.g. 9876543210) without negative or special symbols.");
         setWizardStep("KEYWORDS_ADS");
         setShowCallsCard(true);
+        return;
+      }
+    }
+    if (msgPhone && msgPhone.trim()) {
+      const digits = msgPhone.replace(/[^0-9]/g, "");
+      const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+      if (clean10.length !== 10 || Number(clean10) <= 0) {
+        setSubmitError("WhatsApp phone number must be a valid positive 10-digit mobile number (e.g. 9876543210) without negative or special symbols.");
+        setWizardStep("KEYWORDS_ADS");
         return;
       }
     }
@@ -820,18 +1108,10 @@ export default function SalesSearchPage() {
       return;
     }
 
-    // 13. Campaign Conversion Goals validation (Frontend-First)
-    const validConversionGoals = selectedConversionGoals.filter(
-      g => g && g.category && g.category.trim() && g.origin && g.origin.trim()
-    );
-
-    if (validConversionGoals.length === 0) {
-      const goalErrorMsg = "Please select at least one valid campaign conversion goal.";
-      setFieldErrors(prev => ({ ...prev, conversionGoals: goalErrorMsg }));
-      setSubmitError(goalErrorMsg);
-      setWizardStep("SUMMARY");
-      return;
-    }
+    // 13. Campaign Conversion Goals validation (Frontend-First fallback)
+    const validConversionGoals = selectedConversionGoals && selectedConversionGoals.length > 0
+      ? selectedConversionGoals.filter(g => g && g.category && g.category.trim())
+      : [{ category: "PURCHASE", origin: "WEBSITE", biddable: true }];
 
     setIsPublishing(true);
     try {
@@ -1334,8 +1614,28 @@ export default function SalesSearchPage() {
 
         {/* Main Content Area */}
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-6 max-w-4xl mx-auto">
-          
-          {/* STEP 1: BIDDING */}
+          {/* Top Error / Validation Notification Banner */}
+          {(submitError || duplicateNameError) && (
+            <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-800 flex items-start justify-between gap-3 animate-in fade-in duration-150">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-xs">Validation Action Required</h4>
+                  <p className="text-xs text-rose-700 mt-0.5">{submitError || duplicateNameError}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSubmitError(null);
+                  setDuplicateNameError(null);
+                }}
+                className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {wizardStep === "BIDDING" && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Bidding</h1>
@@ -3827,28 +4127,37 @@ export default function SalesSearchPage() {
                           </div>
 
                           <div className="space-y-2">
-                            {headlines.map((hl, i) => (
-                              <div key={i} className="space-y-0.5">
-                                <input
-                                  type="text"
-                                  value={hl}
-                                  onChange={(e) => {
-                                    const updated = [...headlines];
-                                    updated[i] = e.target.value;
-                                    setHeadlines(updated);
-                                  }}
-                                  placeholder={`Headline ${i + 1} (required: 3 min)`}
-                                  maxLength={30}
-                                  className={`w-full bg-white border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none ${
-                                    i < 3 && !hl.trim() ? "border-rose-300 focus:border-rose-500 bg-rose-50/20" : "border-slate-200 focus:border-primary"
-                                  }`}
-                                />
-                                <div className="flex justify-between text-[9px] text-slate-500 px-1">
-                                  <span className={i < 3 && !hl.trim() ? "text-rose-500 font-bold" : ""}>{i < 3 ? "Required" : "Optional"}</span>
-                                  <span>{hl.length} / 30</span>
+                            {headlines.map((hl, i) => {
+                              const isDuplicate = hl.trim() && headlines.some((other, idx) => idx !== i && other.trim().toLowerCase() === hl.trim().toLowerCase());
+                              return (
+                                <div key={i} className="space-y-0.5">
+                                  <input
+                                    type="text"
+                                    value={hl}
+                                    onChange={(e) => {
+                                      const updated = [...headlines];
+                                      updated[i] = e.target.value;
+                                      setHeadlines(updated);
+                                    }}
+                                    placeholder={`Headline ${i + 1} (required: 3 min)`}
+                                    maxLength={30}
+                                    className={`w-full bg-white border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none ${
+                                      isDuplicate
+                                        ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                        : i < 3 && !hl.trim()
+                                        ? "border-rose-300 focus:border-rose-500 bg-rose-50/20"
+                                        : "border-slate-200 focus:border-primary"
+                                    }`}
+                                  />
+                                  <div className="flex justify-between text-[9px] text-slate-500 px-1">
+                                    <span className={isDuplicate || (i < 3 && !hl.trim()) ? "text-rose-500 font-bold" : ""}>
+                                      {isDuplicate ? "Duplicate headline (must be unique)" : i < 3 ? "Required" : "Optional"}
+                                    </span>
+                                    <span>{hl.length} / 30</span>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
 
                             {headlines.length < 15 && (
                               <button
@@ -3905,28 +4214,37 @@ export default function SalesSearchPage() {
                           </div>
 
                           <div className="space-y-2">
-                            {descriptions.map((desc, i) => (
-                              <div key={i} className="space-y-0.5">
-                                <input
-                                  type="text"
-                                  value={desc}
-                                  onChange={(e) => {
-                                    const updated = [...descriptions];
-                                    updated[i] = e.target.value;
-                                    setDescriptions(updated);
-                                  }}
-                                  placeholder={`Description ${i + 1} (required: 2 min)`}
-                                  maxLength={90}
-                                  className={`w-full bg-white border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none ${
-                                    i < 2 && !desc.trim() ? "border-rose-300 focus:border-rose-500 bg-rose-50/20" : "border-slate-200 focus:border-primary"
-                                  }`}
-                                />
-                                <div className="flex justify-between text-[9px] text-slate-500 px-1">
-                                  <span className={i < 2 && !desc.trim() ? "text-rose-500 font-bold" : ""}>{i < 2 ? "Required" : "Optional"}</span>
-                                  <span>{desc.length} / 90</span>
+                            {descriptions.map((desc, i) => {
+                              const isDuplicate = desc.trim() && descriptions.some((other, idx) => idx !== i && other.trim().toLowerCase() === desc.trim().toLowerCase());
+                              return (
+                                <div key={i} className="space-y-0.5">
+                                  <input
+                                    type="text"
+                                    value={desc}
+                                    onChange={(e) => {
+                                      const updated = [...descriptions];
+                                      updated[i] = e.target.value;
+                                      setDescriptions(updated);
+                                    }}
+                                    placeholder={`Description ${i + 1} (required: 2 min)`}
+                                    maxLength={90}
+                                    className={`w-full bg-white border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none ${
+                                      isDuplicate
+                                        ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                        : i < 2 && !desc.trim()
+                                        ? "border-rose-300 focus:border-rose-500 bg-rose-50/20"
+                                        : "border-slate-200 focus:border-primary"
+                                    }`}
+                                  />
+                                  <div className="flex justify-between text-[9px] text-slate-500 px-1">
+                                    <span className={isDuplicate || (i < 2 && !desc.trim()) ? "text-rose-500 font-bold" : ""}>
+                                      {isDuplicate ? "Duplicate description (must be unique)" : i < 2 ? "Required" : "Optional"}
+                                    </span>
+                                    <span>{desc.length} / 90</span>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
 
                             {descriptions.length < 4 && (
                               <button
@@ -3970,12 +4288,13 @@ export default function SalesSearchPage() {
                             <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
                           <p className="text-[11px] text-slate-500 leading-relaxed">
-                            This name should match your URL or your verified advertiser name, which is <strong className="text-slate-800">JISNU DIGITAL SOLUTIONS PRIVATE LIMITED</strong>.
+                            This name should match your URL or your verified advertiser name{accountInfo?.name ? <>, which is <strong className="text-slate-800">{accountInfo.name}</strong></> : ""}.
                           </p>
                           <input
                             type="text"
                             value={businessName}
                             onChange={(e) => setBusinessName(e.target.value)}
+                            placeholder={accountInfo?.name || "Enter business name"}
                             maxLength={25}
                             className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium"
                           />
@@ -4515,20 +4834,28 @@ export default function SalesSearchPage() {
                                 <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-mono">₹</span>
                                 <input
                                   type="text"
-                                  value={customBudgetValue || selectedPresetBudget}
+                                  value={customBudgetValue}
                                   onChange={(e) => {
                                     const val = e.target.value.replace(/[^0-9.]/g, "");
                                     setCustomBudgetValue(val);
+                                    if (Number(val) > 0) {
+                                      setFieldErrors(prev => {
+                                        const updated = { ...prev };
+                                        delete updated.customBudgetValue;
+                                        delete updated.budget;
+                                        return updated;
+                                      });
+                                    }
                                   }}
                                   placeholder="Enter daily amount (required: > 0)"
                                   className={`w-full bg-white border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none font-mono ${
-                                    !(customBudgetValue.trim() || selectedPresetBudget.trim()) || Number(customBudgetValue.trim() || selectedPresetBudget.trim()) <= 0
+                                    !customBudgetValue.trim() || Number(customBudgetValue.trim()) <= 0
                                       ? "border-rose-300 focus:border-rose-500 bg-rose-50/20"
                                       : "border-slate-200 focus:border-primary"
                                   }`}
                                 />
                               </div>
-                              {(!(customBudgetValue.trim() || selectedPresetBudget.trim()) || Number(customBudgetValue.trim() || selectedPresetBudget.trim()) <= 0) && (
+                              {(!customBudgetValue.trim() || Number(customBudgetValue.trim()) <= 0) && (
                                 <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
                                   <AlertCircle className="h-3 w-3" /> Daily budget must be greater than 0
                                 </span>
@@ -4566,6 +4893,14 @@ export default function SalesSearchPage() {
                                   onChange={(e) => {
                                     const val = e.target.value.replace(/[^0-9.]/g, "");
                                     setCustomBudgetValue(val);
+                                    if (Number(val) > 0) {
+                                      setFieldErrors(prev => {
+                                        const updated = { ...prev };
+                                        delete updated.customBudgetValue;
+                                        delete updated.budget;
+                                        return updated;
+                                      });
+                                    }
                                   }}
                                   placeholder="Enter total amount (required: > 0)"
                                   className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
@@ -4629,7 +4964,7 @@ export default function SalesSearchPage() {
 
               {/* 1. Issues Section */}
               {(() => {
-                const currentBudget = customBudgetValue.trim() || selectedPresetBudget.trim();
+                const currentBudget = customBudgetValue.trim();
                 const numericBudget = Number(currentBudget);
                 const hasValidBudget = currentBudget && !isNaN(numericBudget) && numericBudget > 0;
                 const cleanedKeywords = keywordsText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
@@ -4637,56 +4972,109 @@ export default function SalesSearchPage() {
                 const trimmedFinalUrl = finalUrl ? finalUrl.trim() : "";
                 const validHeadlines = headlines.filter(h => h && h.trim());
                 const validDescriptions = descriptions.filter(d => d && d.trim());
-                const hasAd = trimmedFinalUrl && validHeadlines.length >= 3 && validDescriptions.length >= 2;
+                const lowerHeadlines = validHeadlines.map(h => h.trim().toLowerCase());
+                const hasDupHeadlines = new Set(lowerHeadlines).size !== lowerHeadlines.length;
+                const lowerDescriptions = validDescriptions.map(d => d.trim().toLowerCase());
+                const hasDupDescriptions = new Set(lowerDescriptions).size !== lowerDescriptions.length;
+                const filledSitelinks = sitelinks.filter(s => s.text && s.text.trim());
+                const lowerSitelinkTexts = filledSitelinks.map(s => s.text.trim().toLowerCase());
+                const hasDupSitelinks = new Set(lowerSitelinkTexts).size !== lowerSitelinkTexts.length;
 
-                const issues: Array<{ title: string; desc: string; step: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"; openCard?: string }> = [];
+                const issues: Array<{ title: string; desc: string; step: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"; openCard?: string; settingTab?: string; openModal?: string }> = [];
 
-                if (!hasAd) {
+                if (!trimmedFinalUrl || (!trimmedFinalUrl.startsWith("http://") && !trimmedFinalUrl.startsWith("https://"))) {
                   issues.push({
-                    title: "Create an ad",
-                    desc: !trimmedFinalUrl 
-                      ? "Get your ads running by adding a valid Final URL" 
-                      : validHeadlines.length < 3 
-                        ? `Add at least 3 headlines (currently ${validHeadlines.length}/3)` 
-                        : `Add at least 2 descriptions (currently ${validDescriptions.length}/2)`,
-                    step: "KEYWORDS_ADS"
+                    title: "Final URL is required",
+                    desc: "Enter a valid destination URL starting with https:// or http://",
+                    step: "KEYWORDS_ADS",
+                    openCard: "finalUrl"
+                  });
+                }
+
+                if (validHeadlines.length < 3) {
+                  issues.push({
+                    title: "Headlines required",
+                    desc: `Add at least 3 headlines (currently ${validHeadlines.length}/3)`,
+                    step: "KEYWORDS_ADS",
+                    openCard: "headlines"
+                  });
+                } else if (hasDupHeadlines) {
+                  issues.push({
+                    title: "Duplicate headlines",
+                    desc: "Each headline must be unique. Please remove or change duplicate headlines.",
+                    step: "KEYWORDS_ADS",
+                    openCard: "headlines"
+                  });
+                }
+
+                if (validDescriptions.length < 2) {
+                  issues.push({
+                    title: "Descriptions required",
+                    desc: `Add at least 2 descriptions (currently ${validDescriptions.length}/2)`,
+                    step: "KEYWORDS_ADS",
+                    openCard: "descriptions"
+                  });
+                } else if (hasDupDescriptions) {
+                  issues.push({
+                    title: "Duplicate descriptions",
+                    desc: "Each description must be unique. Please remove or change duplicate descriptions.",
+                    step: "KEYWORDS_ADS",
+                    openCard: "descriptions"
+                  });
+                }
+
+                if (hasDupSitelinks) {
+                  issues.push({
+                    title: "Duplicate sitelinks",
+                    desc: "Each sitelink text must be unique. Please remove or change duplicate sitelinks.",
+                    step: "KEYWORDS_ADS",
+                    openModal: "SITELINKS"
                   });
                 }
 
                 if (!hasKeywords) {
                   issues.push({
                     title: "Add keywords",
-                    desc: "Get your ads running by adding keywords to your ad group",
-                    step: "KEYWORDS_ADS"
+                    desc: "Add at least 1 keyword to your ad group to target searches",
+                    step: "KEYWORDS_ADS",
+                    openCard: "keywords"
                   });
                 }
 
                 if (!currentBudget) {
                   issues.push({
-                    title: "Add a budget",
-                    desc: "To publish your campaign, enter a budget",
+                    title: "Add a daily budget",
+                    desc: "To publish your campaign, enter a daily budget amount greater than 0",
                     step: "BUDGET"
                   });
                 } else if (!hasValidBudget) {
                   issues.push({
-                    title: "Budget",
-                    desc: "Value must be a positive number greater than 0",
+                    title: "Invalid daily budget",
+                    desc: "Daily budget must be a positive number greater than 0",
                     step: "BUDGET"
                   });
                 }
 
-                if (biddingFocus === "Target CPA" && (!targetCpaValue || Number(targetCpaValue) <= 0)) {
+                if (biddingFocus === "Target CPA" && setTargetCpa && (!targetCpaValue || Number(targetCpaValue) <= 0)) {
                   issues.push({
-                    title: "Target CPA",
+                    title: "Target CPA amount",
                     desc: "Target CPA must be a positive number greater than 0",
                     step: "BIDDING"
                   });
                 }
 
-                if (biddingFocus === "Target ROAS" && (!targetRoasValue || Number(targetRoasValue) <= 0)) {
+                if (biddingFocus === "Target ROAS" && setTargetRoas && (!targetRoasValue || Number(targetRoasValue) <= 0)) {
                   issues.push({
-                    title: "Target ROAS",
+                    title: "Target ROAS percentage",
                     desc: "Target ROAS percentage must be greater than 0%",
+                    step: "BIDDING"
+                  });
+                }
+
+                if (biddingFocus === "Clicks" && setMaxCpc && (!maxCpcLimit || Number(maxCpcLimit) <= 0)) {
+                  issues.push({
+                    title: "Max CPC limit",
+                    desc: "Maximum CPC limit must be a positive number greater than 0",
                     step: "BIDDING"
                   });
                 }
@@ -4697,6 +5085,65 @@ export default function SalesSearchPage() {
                     desc: "Target impression share must be between 1% and 100%",
                     step: "BIDDING"
                   });
+                }
+
+                if (selectedLocation === "CUSTOM" && targetLocations.length === 0) {
+                  issues.push({
+                    title: "Target Locations",
+                    desc: "Select at least 1 target location or choose 'All countries and territories' / 'India'",
+                    step: "CAMPAIGN_SETTINGS"
+                  });
+                }
+
+                if (selectedLanguages.length === 0) {
+                  issues.push({
+                    title: "Languages",
+                    desc: "Select at least 1 language for ad targeting",
+                    step: "CAMPAIGN_SETTINGS"
+                  });
+                }
+
+                if (startDate && startDate < localToday) {
+                  issues.push({
+                    title: "Start Date",
+                    desc: `Start Date (${startDate}) cannot be in the past`,
+                    step: "CAMPAIGN_SETTINGS",
+                    settingTab: "dates"
+                  });
+                }
+
+                if (startDate && endDate && endDate.trim() && endDate < startDate) {
+                  issues.push({
+                    title: "End Date",
+                    desc: `End Date (${endDate}) cannot be earlier than Start Date (${startDate})`,
+                    step: "CAMPAIGN_SETTINGS",
+                    settingTab: "dates"
+                  });
+                }
+
+                if (callPhone && callPhone.trim()) {
+                  const digits = callPhone.replace(/[^0-9]/g, "");
+                  const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+                  if (clean10.length !== 10 || Number(clean10) <= 0) {
+                    issues.push({
+                      title: "Call extension phone",
+                      desc: "Phone number must be a valid positive 10-digit mobile number",
+                      step: "KEYWORDS_ADS",
+                      openCard: "calls"
+                    });
+                  }
+                }
+
+                if (msgPhone && msgPhone.trim()) {
+                  const digits = msgPhone.replace(/[^0-9]/g, "");
+                  const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+                  if (clean10.length !== 10 || Number(clean10) <= 0) {
+                    issues.push({
+                      title: "WhatsApp phone",
+                      desc: "WhatsApp mobile number must be a valid positive 10-digit mobile number",
+                      step: "KEYWORDS_ADS"
+                    });
+                  }
                 }
 
                 if (issues.length === 0) {
@@ -4713,17 +5160,22 @@ export default function SalesSearchPage() {
 
                 return (
                   <div className="space-y-2">
-                    <div className="space-y-0.5">
-                      <h3 className="font-bold text-slate-800 text-xs">Issues</h3>
-                      <p className="text-[11px] text-slate-500">Fix these issues to run your campaign</p>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <h3 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                          <AlertCircle className="h-4 w-4 text-rose-500" />
+                          Issues ({issues.length})
+                        </h3>
+                        <p className="text-[11px] text-slate-500">Fix these issues to publish and run your campaign</p>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
                       {issues.map((issue, idx) => (
                         <div key={idx} className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                            <p className="text-slate-800">
+                            <Wrench className="h-4 w-4 text-rose-500 shrink-0" />
+                            <p className="text-slate-800 text-xs">
                               <strong className="text-slate-900 font-bold">{issue.title}:</strong> {issue.desc}
                             </p>
                           </div>
@@ -4731,15 +5183,27 @@ export default function SalesSearchPage() {
                             type="button"
                             onClick={() => {
                               setWizardStep(issue.step);
-                              if (issue.step === "KEYWORDS_ADS") {
-                                setShowFinalUrlCard(true);
-                                setShowHeadlinesCard(true);
-                                setShowDescriptionsCard(true);
+                              if (issue.openModal) {
+                                setActiveModal(issue.openModal as any);
+                              } else if (issue.step === "KEYWORDS_ADS") {
+                                if (issue.openCard === "finalUrl") setShowFinalUrlCard(true);
+                                else if (issue.openCard === "headlines") setShowHeadlinesCard(true);
+                                else if (issue.openCard === "descriptions") setShowDescriptionsCard(true);
+                                else if (issue.openCard === "keywords") setShowKeywordsSection(true);
+                                else if (issue.openCard === "calls") setShowCallsCard(true);
+                                else {
+                                  setShowFinalUrlCard(true);
+                                  setShowHeadlinesCard(true);
+                                  setShowDescriptionsCard(true);
+                                }
+                              } else if (issue.step === "CAMPAIGN_SETTINGS" && issue.settingTab) {
+                                setShowMoreSettings(true);
+                                setOpenSetting(issue.settingTab);
                               }
                             }}
-                            className="text-blue-500 hover:text-blue-600 font-bold hover:underline cursor-pointer text-xs"
+                            className="px-3 py-1 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 transition-all cursor-pointer text-xs shrink-0 shadow-sm"
                           >
-                            View
+                            Fix
                           </button>
                         </div>
                       ))}
@@ -5017,8 +5481,8 @@ export default function SalesSearchPage() {
                 <div>
                   <span className="text-slate-500 block text-[11px]">Daily / Total budget</span>
                   <div className="mt-1 font-bold text-slate-900 text-sm">
-                    {customBudgetValue.trim() || selectedPresetBudget.trim() ? (
-                      <span>₹{customBudgetValue.trim() || selectedPresetBudget.trim()}/day</span>
+                    {customBudgetValue.trim() && Number(customBudgetValue.trim()) > 0 ? (
+                      <span>₹{customBudgetValue.trim()}/day</span>
                     ) : (
                       <span className="text-rose-500 font-semibold flex items-center gap-1 text-xs">
                         <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
@@ -5056,6 +5520,14 @@ export default function SalesSearchPage() {
           {wizardStep !== "SUMMARY" ? (
             <button
               onClick={() => {
+                const validation = validateStep(wizardStep);
+                if (!validation.isValid) {
+                  setSubmitError(validation.message || "Please complete all required fields on this step before proceeding.");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                  return;
+                }
+                setSubmitError(null);
+
                 if (wizardStep === "BIDDING") setWizardStep("CAMPAIGN_SETTINGS");
                 else if (wizardStep === "CAMPAIGN_SETTINGS") setWizardStep("AI_MAX");
                 else if (wizardStep === "AI_MAX") setWizardStep("KEYWORD_ASSET_GEN");
@@ -5070,7 +5542,7 @@ export default function SalesSearchPage() {
             </button>
           ) : (
             <button
-              disabled={isPublishing || !campaignName.trim() || !!duplicateNameError || Object.keys(fieldErrors).length > 0}
+              disabled={isPublishing || !campaignName.trim() || !!duplicateNameError}
               onClick={handlePublishCampaign}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
             >
@@ -8001,18 +8473,25 @@ export default function SalesSearchPage() {
 
                       <div className="relative">
                         <input
-                          type="text"
+                          type="tel"
                           value={msgPhone}
-                          onChange={(e) => setMsgPhone(e.target.value)}
-                          placeholder="WhatsApp phone number"
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-mono"
+                          maxLength={10}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 10);
+                            setMsgPhone(val);
+                          }}
+                          placeholder="10-digit mobile number"
+                          className={`w-full bg-white border rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none font-mono ${
+                            msgPhone && msgPhone.length !== 10 ? "border-amber-300 focus:border-amber-500 bg-amber-50/20" : "border-slate-200 focus:border-primary"
+                          }`}
                         />
                         <HelpCircle className="absolute right-3.5 top-2.5 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                       </div>
                     </div>
-                    <span className="text-[10px] text-slate-500 block pl-1">
-                      {msgCountry.includes("India") ? "Example: 98765 43210" : "Example: (201) 555-0123"}
-                    </span>
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 px-1">
+                      <span>{msgPhone && msgPhone.length !== 10 ? <span className="text-amber-500 font-medium">Must be exactly 10 digits</span> : "Example: 9876543210"}</span>
+                      <span className="font-mono">{msgPhone.length} / 10</span>
+                    </div>
 
                     {/* Starter Message */}
                     <div className="space-y-1">

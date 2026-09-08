@@ -251,12 +251,12 @@ export default function LeadsSearchPage() {
     { category: "PURCHASE", origin: "WEBSITE", biddable: true },
     { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE", biddable: true }
   ]);
-  const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
+  const [finalUrl, setFinalUrl] = useState<string>("");
   const [displayPath1, setDisplayPath1] = useState<string>("");
   const [displayPath2, setDisplayPath2] = useState<string>("");
-  const [headlines, setHeadlines] = useState<string[]>(["Automation Software", "Lead Gen Tool", "WhatsApp Marketing", "", "", "", ""]);
-  const [descriptions, setDescriptions] = useState<string[]>(["Automate your business communication with WhatsApp.", "Boost conversions with instant messaging."]);
-  const [businessName, setBusinessName] = useState<string>("JISNU DIGITAL SOLUTIONS PRIVATE LIMITED");
+  const [headlines, setHeadlines] = useState<string[]>(["", "", "", "", "", "", ""]);
+  const [descriptions, setDescriptions] = useState<string[]>(["", ""]);
+  const [businessName, setBusinessName] = useState<string>("");
   const [businessLogo, setBusinessLogo] = useState<string>("");
   const [businessLogos, setBusinessLogos] = useState<string[]>([]);
 
@@ -547,6 +547,132 @@ export default function LeadsSearchPage() {
       .catch(() => {
         // Non-blocking fallback
       });
+
+    // Check for AI-Guided prefill campaign state from localStorage
+    try {
+      if (typeof window !== "undefined") {
+        const prefillRaw = localStorage.getItem("googleAds_prefill_campaign");
+        if (prefillRaw) {
+          const prefill = JSON.parse(prefillRaw);
+          if (prefill.campaignName) setCampaignName(prefill.campaignName);
+          if (prefill.businessName || prefill.business?.name) setBusinessName(prefill.businessName || prefill.business?.name);
+          if (prefill.website || prefill.finalUrl || prefill.websiteVisitsUrl) {
+            const urlVal = prefill.website || prefill.finalUrl || prefill.websiteVisitsUrl;
+            setFinalUrl(urlVal);
+            setAiGenFinalUrl(urlVal);
+            setKeywordScanUrl(urlVal);
+          }
+          if (prefill.dailyBudget || prefill.budget) {
+            const bVal = String(prefill.dailyBudget || prefill.budget);
+            setCustomBudgetValue(bVal);
+            setSelectedPresetBudget("CUSTOM");
+          }
+          if (prefill.biddingStrategy || prefill.biddingFocus) {
+            const strat = prefill.biddingStrategy || prefill.biddingFocus;
+            const bMap: Record<string, "Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share"> = {
+              "Maximize conversions": "Conversions",
+              "Conversions": "Conversions",
+              "Target CPA": "Target CPA",
+              "TARGET_CPA": "Target CPA",
+              "Maximize conversion value": "Conversion value",
+              "Conversion value": "Conversion value",
+              "Target ROAS": "Target ROAS",
+              "TARGET_ROAS": "Target ROAS",
+              "Maximize Clicks": "Clicks",
+              "Clicks": "Clicks",
+              "MAXIMIZE_CLICKS": "Clicks",
+              "Target Impression Share": "Impression share",
+              "Impression share": "Impression share",
+              "TARGET_IMPRESSION_SHARE": "Impression share"
+            };
+            if (bMap[strat]) {
+              setBiddingFocus(bMap[strat]);
+              if (bMap[strat] === "Target CPA") setSetTargetCpa(true);
+              if (bMap[strat] === "Target ROAS") setSetTargetRoas(true);
+              if (bMap[strat] === "Clicks" && prefill.maxCpcLimit) setSetMaxCpc(true);
+            }
+          }
+          if (prefill.targetCpa) {
+            setTargetCpaValue(String(prefill.targetCpa));
+            setSetTargetCpa(true);
+          }
+          if (prefill.targetRoas) {
+            setTargetRoasValue(String(prefill.targetRoas));
+            setSetTargetRoas(true);
+          }
+          if (prefill.maxCpcLimit) {
+            setMaxCpcLimit(String(prefill.maxCpcLimit));
+            setSetMaxCpc(true);
+          }
+          if (prefill.targetImpressionSharePercent) {
+            setTargetImpressionSharePercent(String(prefill.targetImpressionSharePercent));
+          }
+          if (prefill.impressionShareLocation) {
+            setImpressionShareLocation(prefill.impressionShareLocation);
+          }
+          if (prefill.maxCpcImpressionShare) {
+            setMaxCpcImpressionShare(String(prefill.maxCpcImpressionShare));
+          }
+          if (prefill.startDate) setStartDate(prefill.startDate);
+          if (prefill.endDate) setEndDate(prefill.endDate);
+          if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+            if (prefill.locations.length === 1 && (prefill.locations[0] === "All countries and territories" || prefill.locations[0] === "ALL")) {
+              setSelectedLocation("ALL");
+            } else if (prefill.locations.length === 1 && prefill.locations[0] === "India") {
+              setSelectedLocation("INDIA");
+            } else {
+              setSelectedLocation("CUSTOM");
+              setCustomLocationInput(prefill.locations.join(", "));
+              setTargetLocations(prefill.locations.map((locName: string) => ({
+                name: locName,
+                type: "Location",
+                reach: "Targeted",
+                canonicalName: locName
+              })));
+            }
+          }
+          if (prefill.language || prefill.languages) {
+            const rawLangs = prefill.languages || (prefill.language ? prefill.language.split(",") : []);
+            const langs = (Array.isArray(rawLangs) ? rawLangs : [rawLangs]).map((l: string) => l.trim()).filter(Boolean);
+            if (langs.length > 0) setSelectedLanguages(langs);
+          }
+          if (Array.isArray(prefill.keywords) && prefill.keywords.length > 0) {
+            setKeywordsText(prefill.keywords.join("\n"));
+          }
+          if (Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+            const paddedHeadlines = [...prefill.headlines];
+            while (paddedHeadlines.length < 7) paddedHeadlines.push("");
+            setHeadlines(paddedHeadlines.slice(0, 15));
+          }
+          if (Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+            const paddedDescriptions = [...prefill.descriptions];
+            while (paddedDescriptions.length < 2) paddedDescriptions.push("");
+            setDescriptions(paddedDescriptions.slice(0, 4));
+          }
+          if (prefill.euPolitical) {
+            setEuPoliticalAds(prefill.euPolitical);
+          }
+          // AI Max Search Parameters
+          if (prefill.aiMax !== undefined || prefill.enableAiMax !== undefined) {
+            setEnableAiMax(prefill.aiMax ?? prefill.enableAiMax ?? true);
+          }
+          if (prefill.textCustomization !== undefined || prefill.enableTextCustomization !== undefined) {
+            setEnableTextCustomization(prefill.textCustomization ?? prefill.enableTextCustomization ?? true);
+          }
+          if (prefill.finalUrlExpansion !== undefined || prefill.enableFinalUrlExpansion !== undefined) {
+            setEnableFinalUrlExpansion(prefill.finalUrlExpansion ?? prefill.enableFinalUrlExpansion ?? true);
+          }
+          if (Array.isArray(prefill.brandInclusions) && prefill.brandInclusions.length > 0) {
+            setBrandInclusions(prefill.brandInclusions);
+          }
+          if (Array.isArray(prefill.brandExclusions) && prefill.brandExclusions.length > 0) {
+            setBrandExclusions(prefill.brandExclusions);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not parse googleAds_prefill_campaign for Leads Search:", err);
+    }
   }, [customerId]);
 
   // Real-time check whenever campaignName or existingCampaigns changes
@@ -772,7 +898,7 @@ export default function LeadsSearchPage() {
       return;
     }
 
-    // 8. Headlines & Descriptions validation (Required min 3 headlines, min 2 descriptions)
+    // 8. Headlines & Descriptions validation (Required min 3 headlines, min 2 descriptions, no duplicates)
     const validHeadlines = headlines.filter(h => h && h.trim() !== "");
     if (validHeadlines.length < 3) {
       setSubmitError("Search Responsive Search Ads require at least 3 headlines (maximum 30 characters each).");
@@ -780,11 +906,35 @@ export default function LeadsSearchPage() {
       setShowHeadlinesCard(true);
       return;
     }
+    const lowerHeadlines = validHeadlines.map(h => h.trim().toLowerCase());
+    if (new Set(lowerHeadlines).size !== lowerHeadlines.length) {
+      setSubmitError("Duplicate headlines found. Each headline in your ad must be unique.");
+      setWizardStep("KEYWORDS_ADS");
+      setShowHeadlinesCard(true);
+      return;
+    }
+
     const validDescriptions = descriptions.filter(d => d && d.trim() !== "");
     if (validDescriptions.length < 2) {
       setSubmitError("Search Responsive Search Ads require at least 2 descriptions (maximum 90 characters each).");
       setWizardStep("KEYWORDS_ADS");
       setShowDescriptionsCard(true);
+      return;
+    }
+    const lowerDescriptions = validDescriptions.map(d => d.trim().toLowerCase());
+    if (new Set(lowerDescriptions).size !== lowerDescriptions.length) {
+      setSubmitError("Duplicate descriptions found. Each description in your ad must be unique.");
+      setWizardStep("KEYWORDS_ADS");
+      setShowDescriptionsCard(true);
+      return;
+    }
+
+    // Check duplicate sitelinks
+    const filledSitelinks = sitelinks.filter(s => s.text && s.text.trim());
+    const lowerSitelinkTexts = filledSitelinks.map(s => s.text.trim().toLowerCase());
+    if (new Set(lowerSitelinkTexts).size !== lowerSitelinkTexts.length) {
+      setSubmitError("Duplicate sitelinks found. Each sitelink must have unique text.");
+      setActiveModal("SITELINKS");
       return;
     }
 
@@ -804,10 +954,19 @@ export default function LeadsSearchPage() {
     if (callPhone && callPhone.trim()) {
       const digits = callPhone.replace(/[^0-9]/g, "");
       const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
-      if (clean10.length !== 10) {
-        setSubmitError("Phone number for Call extension must be exactly 10 digits (e.g. 9876543210) and cannot contain negative symbols or extra digits.");
+      if (clean10.length !== 10 || Number(clean10) <= 0) {
+        setSubmitError("Phone number for Call extension must be a valid positive 10-digit mobile number (e.g. 9876543210) without negative or special symbols.");
         setWizardStep("KEYWORDS_ADS");
         setShowCallsCard(true);
+        return;
+      }
+    }
+    if (msgPhone && msgPhone.trim()) {
+      const digits = msgPhone.replace(/[^0-9]/g, "");
+      const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+      if (clean10.length !== 10 || Number(clean10) <= 0) {
+        setSubmitError("WhatsApp phone number must be a valid positive 10-digit mobile number (e.g. 9876543210) without negative or special symbols.");
+        setWizardStep("KEYWORDS_ADS");
         return;
       }
     }
@@ -819,18 +978,10 @@ export default function LeadsSearchPage() {
       return;
     }
 
-    // 13. Campaign Conversion Goals validation (Frontend-First)
-    const validConversionGoals = selectedConversionGoals.filter(
-      g => g && g.category && g.category.trim() && g.origin && g.origin.trim()
-    );
-
-    if (validConversionGoals.length === 0) {
-      const goalErrorMsg = "Please select at least one valid campaign conversion goal.";
-      setFieldErrors(prev => ({ ...prev, conversionGoals: goalErrorMsg }));
-      setSubmitError(goalErrorMsg);
-      setWizardStep("SUMMARY");
-      return;
-    }
+    // 13. Campaign Conversion Goals validation (Frontend-First fallback)
+    const validConversionGoals = selectedConversionGoals && selectedConversionGoals.length > 0
+      ? selectedConversionGoals.filter(g => g && g.category && g.category.trim())
+      : [{ category: "SUBMIT_LEAD_FORM", origin: "WEBSITE", biddable: true }];
 
     setIsPublishing(true);
     try {
@@ -3956,12 +4107,13 @@ export default function LeadsSearchPage() {
                             <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
                           <p className="text-[11px] text-slate-500 leading-relaxed">
-                            This name should match your URL or your verified advertiser name, which is <strong className="text-slate-800">JISNU DIGITAL SOLUTIONS PRIVATE LIMITED</strong>.
+                            This name should match your URL or your verified advertiser name{accountInfo?.name ? <>, which is <strong className="text-slate-800">{accountInfo.name}</strong></> : ""}.
                           </p>
                           <input
                             type="text"
                             value={businessName}
                             onChange={(e) => setBusinessName(e.target.value)}
+                            placeholder={accountInfo?.name || "Enter business name"}
                             maxLength={25}
                             className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium"
                           />
@@ -4623,47 +4775,92 @@ export default function LeadsSearchPage() {
                 const trimmedFinalUrl = finalUrl ? finalUrl.trim() : "";
                 const validHeadlines = headlines.filter(h => h && h.trim());
                 const validDescriptions = descriptions.filter(d => d && d.trim());
-                const hasAd = trimmedFinalUrl && validHeadlines.length >= 3 && validDescriptions.length >= 2;
+                const lowerHeadlines = validHeadlines.map(h => h.trim().toLowerCase());
+                const hasDupHeadlines = new Set(lowerHeadlines).size !== lowerHeadlines.length;
+                const lowerDescriptions = validDescriptions.map(d => d.trim().toLowerCase());
+                const hasDupDescriptions = new Set(lowerDescriptions).size !== lowerDescriptions.length;
+                const filledSitelinks = sitelinks.filter(s => s.text && s.text.trim());
+                const lowerSitelinkTexts = filledSitelinks.map(s => s.text.trim().toLowerCase());
+                const hasDupSitelinks = new Set(lowerSitelinkTexts).size !== lowerSitelinkTexts.length;
 
-                const issues: Array<{ title: string; desc: string; step: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"; openCard?: string }> = [];
+                const issues: Array<{ title: string; desc: string; step: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"; openCard?: string; settingTab?: string; openModal?: string }> = [];
 
-                if (!hasAd) {
+                if (!trimmedFinalUrl || (!trimmedFinalUrl.startsWith("http://") && !trimmedFinalUrl.startsWith("https://"))) {
                   issues.push({
-                    title: "Create an ad",
-                    desc: !trimmedFinalUrl 
-                      ? "Get your ads running by adding a valid Final URL" 
-                      : validHeadlines.length < 3 
-                        ? `Add at least 3 headlines (currently ${validHeadlines.length}/3)` 
-                        : `Add at least 2 descriptions (currently ${validDescriptions.length}/2)`,
-                    step: "KEYWORDS_ADS"
+                    title: "Final URL is required",
+                    desc: "Enter a valid destination URL starting with https:// or http://",
+                    step: "KEYWORDS_ADS",
+                    openCard: "finalUrl"
+                  });
+                }
+
+                if (validHeadlines.length < 3) {
+                  issues.push({
+                    title: "Headlines required",
+                    desc: `Add at least 3 headlines (currently ${validHeadlines.length}/3)`,
+                    step: "KEYWORDS_ADS",
+                    openCard: "headlines"
+                  });
+                } else if (hasDupHeadlines) {
+                  issues.push({
+                    title: "Duplicate headlines",
+                    desc: "Each headline must be unique. Please remove or change duplicate headlines.",
+                    step: "KEYWORDS_ADS",
+                    openCard: "headlines"
+                  });
+                }
+
+                if (validDescriptions.length < 2) {
+                  issues.push({
+                    title: "Descriptions required",
+                    desc: `Add at least 2 descriptions (currently ${validDescriptions.length}/2)`,
+                    step: "KEYWORDS_ADS",
+                    openCard: "descriptions"
+                  });
+                } else if (hasDupDescriptions) {
+                  issues.push({
+                    title: "Duplicate descriptions",
+                    desc: "Each description must be unique. Please remove or change duplicate descriptions.",
+                    step: "KEYWORDS_ADS",
+                    openCard: "descriptions"
+                  });
+                }
+
+                if (hasDupSitelinks) {
+                  issues.push({
+                    title: "Duplicate sitelinks",
+                    desc: "Each sitelink text must be unique. Please remove or change duplicate sitelinks.",
+                    step: "KEYWORDS_ADS",
+                    openModal: "SITELINKS"
                   });
                 }
 
                 if (!hasKeywords) {
                   issues.push({
                     title: "Add keywords",
-                    desc: "Get your ads running by adding keywords to your ad group",
-                    step: "KEYWORDS_ADS"
+                    desc: "Add at least 1 keyword to your ad group to target searches",
+                    step: "KEYWORDS_ADS",
+                    openCard: "keywords"
                   });
                 }
 
                 if (!currentBudget) {
                   issues.push({
-                    title: "Add a budget",
-                    desc: "To publish your campaign, enter a budget",
+                    title: "Add a daily budget",
+                    desc: "To publish your campaign, enter a daily budget amount greater than 0",
                     step: "BUDGET"
                   });
                 } else if (!hasValidBudget) {
                   issues.push({
-                    title: "Budget",
-                    desc: "Value must be a positive number greater than 0",
+                    title: "Invalid daily budget",
+                    desc: "Daily budget must be a positive number greater than 0",
                     step: "BUDGET"
                   });
                 }
 
                 if (biddingFocus === "Target CPA" && (!targetCpaValue || Number(targetCpaValue) <= 0)) {
                   issues.push({
-                    title: "Target CPA",
+                    title: "Target CPA amount",
                     desc: "Target CPA must be a positive number greater than 0",
                     step: "BIDDING"
                   });
@@ -4671,8 +4868,16 @@ export default function LeadsSearchPage() {
 
                 if (biddingFocus === "Target ROAS" && (!targetRoasValue || Number(targetRoasValue) <= 0)) {
                   issues.push({
-                    title: "Target ROAS",
+                    title: "Target ROAS percentage",
                     desc: "Target ROAS percentage must be greater than 0%",
+                    step: "BIDDING"
+                  });
+                }
+
+                if (biddingFocus === "Clicks" && setMaxCpc && (!maxCpcLimit || Number(maxCpcLimit) <= 0)) {
+                  issues.push({
+                    title: "Max CPC limit",
+                    desc: "Maximum CPC limit must be a positive number greater than 0",
                     step: "BIDDING"
                   });
                 }
@@ -4683,6 +4888,65 @@ export default function LeadsSearchPage() {
                     desc: "Target impression share must be between 1% and 100%",
                     step: "BIDDING"
                   });
+                }
+
+                if (selectedLocation === "CUSTOM" && targetLocations.length === 0) {
+                  issues.push({
+                    title: "Target Locations",
+                    desc: "Select at least 1 target location or choose 'All countries and territories' / 'India'",
+                    step: "CAMPAIGN_SETTINGS"
+                  });
+                }
+
+                if (selectedLanguages.length === 0) {
+                  issues.push({
+                    title: "Languages",
+                    desc: "Select at least 1 language for ad targeting",
+                    step: "CAMPAIGN_SETTINGS"
+                  });
+                }
+
+                if (startDate && startDate < localToday) {
+                  issues.push({
+                    title: "Start Date",
+                    desc: `Start Date (${startDate}) cannot be in the past`,
+                    step: "CAMPAIGN_SETTINGS",
+                    settingTab: "dates"
+                  });
+                }
+
+                if (startDate && endDate && endDate.trim() && endDate < startDate) {
+                  issues.push({
+                    title: "End Date",
+                    desc: `End Date (${endDate}) cannot be earlier than Start Date (${startDate})`,
+                    step: "CAMPAIGN_SETTINGS",
+                    settingTab: "dates"
+                  });
+                }
+
+                if (callPhone && callPhone.trim()) {
+                  const digits = callPhone.replace(/[^0-9]/g, "");
+                  const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+                  if (clean10.length !== 10 || Number(clean10) <= 0) {
+                    issues.push({
+                      title: "Call extension phone",
+                      desc: "Phone number must be a valid positive 10-digit mobile number",
+                      step: "KEYWORDS_ADS",
+                      openCard: "calls"
+                    });
+                  }
+                }
+
+                if (msgPhone && msgPhone.trim()) {
+                  const digits = msgPhone.replace(/[^0-9]/g, "");
+                  const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+                  if (clean10.length !== 10 || Number(clean10) <= 0) {
+                    issues.push({
+                      title: "WhatsApp phone",
+                      desc: "WhatsApp mobile number must be a valid positive 10-digit mobile number",
+                      step: "KEYWORDS_ADS"
+                    });
+                  }
                 }
 
                 if (issues.length === 0) {
@@ -4699,17 +4963,22 @@ export default function LeadsSearchPage() {
 
                 return (
                   <div className="space-y-2">
-                    <div className="space-y-0.5">
-                      <h3 className="font-bold text-slate-800 text-xs">Issues</h3>
-                      <p className="text-[11px] text-slate-500">Fix these issues to run your campaign</p>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <h3 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                          <AlertCircle className="h-4 w-4 text-rose-500" />
+                          Issues ({issues.length})
+                        </h3>
+                        <p className="text-[11px] text-slate-500">Fix these issues to publish and run your campaign</p>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
                       {issues.map((issue, idx) => (
                         <div key={idx} className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                            <p className="text-slate-800">
+                            <Wrench className="h-4 w-4 text-rose-500 shrink-0" />
+                            <p className="text-slate-800 text-xs">
                               <strong className="text-slate-900 font-bold">{issue.title}:</strong> {issue.desc}
                             </p>
                           </div>
@@ -4717,15 +4986,27 @@ export default function LeadsSearchPage() {
                             type="button"
                             onClick={() => {
                               setWizardStep(issue.step);
-                              if (issue.step === "KEYWORDS_ADS") {
-                                setShowFinalUrlCard(true);
-                                setShowHeadlinesCard(true);
-                                setShowDescriptionsCard(true);
+                              if (issue.openModal) {
+                                setActiveModal(issue.openModal as any);
+                              } else if (issue.step === "KEYWORDS_ADS") {
+                                if (issue.openCard === "finalUrl") setShowFinalUrlCard(true);
+                                else if (issue.openCard === "headlines") setShowHeadlinesCard(true);
+                                else if (issue.openCard === "descriptions") setShowDescriptionsCard(true);
+                                else if (issue.openCard === "keywords") setShowKeywordsSection(true);
+                                else if (issue.openCard === "calls") setShowCallsCard(true);
+                                else {
+                                  setShowFinalUrlCard(true);
+                                  setShowHeadlinesCard(true);
+                                  setShowDescriptionsCard(true);
+                                }
+                              } else if (issue.step === "CAMPAIGN_SETTINGS" && issue.settingTab) {
+                                setShowMoreSettings(true);
+                                setOpenSetting(issue.settingTab);
                               }
                             }}
-                            className="text-blue-500 hover:text-blue-600 font-bold hover:underline cursor-pointer text-xs"
+                            className="px-3 py-1 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 transition-all cursor-pointer text-xs shrink-0 shadow-sm"
                           >
-                            View
+                            Fix
                           </button>
                         </div>
                       ))}
@@ -5056,7 +5337,7 @@ export default function LeadsSearchPage() {
             </button>
           ) : (
             <button
-              disabled={isPublishing || !campaignName.trim() || !!duplicateNameError || Object.keys(fieldErrors).length > 0}
+              disabled={isPublishing || !campaignName.trim() || !!duplicateNameError}
               onClick={handlePublishCampaign}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
             >

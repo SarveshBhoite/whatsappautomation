@@ -132,15 +132,15 @@ export default function AppPromotionWizard() {
   // Step 2: Campaign Settings State
   const [mobileAppPlatform, setMobileAppPlatform] = useState<"ANDROID" | "IOS">("ANDROID");
   const [mobileAppQuery, setMobileAppQuery] = useState<string>("");
-  const [selectedMobileApp, setSelectedMobileApp] = useState<AppOption | null>(PRESET_APPS_ANDROID[0]);
+  const [selectedMobileApp, setSelectedMobileApp] = useState<AppOption | null>(null);
   const [viewThroughConversion, setViewThroughConversion] = useState<boolean>(true);
   const [useDataFeed, setUseDataFeed] = useState<boolean>(false);
   const [dataFeedType, setDataFeedType] = useState<string>("Dynamic ad feed");
 
-  const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
+  const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("INDIA");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
   const [targetLocations, setTargetLocations] = useState<Array<{ name: string; type: string; reach: string }>>([
-    { name: "Mumbai, Maharashtra, India", type: "City", reach: "21,400,000" }
+    { name: "India", type: "Country", reach: "500,000,000" }
   ]);
   const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
   const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
@@ -308,7 +308,7 @@ export default function AppPromotionWizard() {
     { name: "Club Atlético River Plate", url: "https://www.cariverplate.com.ar/" },
     { name: "Bank Of America ATM", url: "https://locators.bankofamerica.com/" }
   ];
-  const [aiGenFinalUrl, setAiGenFinalUrl] = useState<string>("https://www.example.com");
+  const [aiGenFinalUrl, setAiGenFinalUrl] = useState<string>("");
 
   const [showMoreSettings, setShowMoreSettings] = useState<boolean>(false);
   const [openSetting, setOpenSetting] = useState<string | null>(null);
@@ -337,7 +337,7 @@ export default function AppPromotionWizard() {
   const [adGroupBrandInclusions, setAdGroupBrandInclusions] = useState<string[]>([]);
   const [adGroupLocationsOfInterest, setAdGroupLocationsOfInterest] = useState<string[]>([]);
   const [adGroupUrlInclusions, setAdGroupUrlInclusions] = useState<string[]>([]);
-  const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
+  const [finalUrl, setFinalUrl] = useState<string>("");
   const [displayPath1, setDisplayPath1] = useState<string>("");
   const [displayPath2, setDisplayPath2] = useState<string>("");
   const [headlines, setHeadlines] = useState<string[]>([""]);
@@ -409,7 +409,7 @@ export default function AppPromotionWizard() {
   const [assetScheduleEndDate, setAssetScheduleEndDate] = useState("");
   const [assetScheduleDays, setAssetScheduleDays] = useState("All days");
 
-  const [businessName, setBusinessName] = useState<string>("JISNU DIGITAL SOLUTIONS PRIVATE LIMITED");
+  const [businessName, setBusinessName] = useState<string>("");
   const [businessLogo, setBusinessLogo] = useState<string>("");
   const [businessLogos, setBusinessLogos] = useState<string[]>([]);
 
@@ -610,6 +610,71 @@ export default function AppPromotionWizard() {
         .catch(() => {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
         });
+    }
+
+    // Prefill from AI Guided flow if present
+    try {
+      const raw = localStorage.getItem("googleAds_prefill_campaign");
+      if (raw) {
+        const prefill = JSON.parse(raw);
+        if (prefill.campaignName) setCampaignName(prefill.campaignName);
+        if (prefill.platform) {
+          const plat = String(prefill.platform).toUpperCase() === "IOS" ? "IOS" : "ANDROID";
+          setMobileAppPlatform(plat);
+        }
+        if (prefill.appId) {
+          const plat = String(prefill.platform || "").toUpperCase() === "IOS" ? "IOS" : "ANDROID";
+          const presets = plat === "IOS" ? PRESET_APPS_IOS : PRESET_APPS_ANDROID;
+          const match = presets.find(p => p.packageName.toLowerCase() === prefill.appId.toLowerCase());
+          if (match) {
+            setSelectedMobileApp(match);
+          } else {
+            setSelectedMobileApp({
+              name: prefill.appName || prefill.appId,
+              packageName: prefill.appId,
+              icon: "https://ik.imagekit.io/automationjds/sample_web_portfolio.png",
+              publisher: prefill.businessName || "Unknown Publisher",
+              rating: "—",
+              downloads: "—",
+              store: plat === "IOS" ? "Apple App Store" : "Google Play Store"
+            });
+          }
+        }
+        if (prefill.businessName) setBusinessName(prefill.businessName);
+        if (prefill.targetCpa || prefill.biddingStrategy) {
+          setBiddingFocus("Target CPA");
+          setSetTargetCpa(true);
+          if (prefill.targetCpa) setTargetCpaValue(String(prefill.targetCpa));
+        }
+        if (prefill.budget || prefill.dailyBudget) {
+          const bVal = String(prefill.dailyBudget || prefill.budget);
+          setSelectedPresetBudget("CUSTOM");
+          setCustomBudgetValue(bVal);
+        }
+        if (prefill.headlines && Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+          setHeadlines(prefill.headlines.filter(Boolean));
+        }
+        if (prefill.descriptions && Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+          setDescriptions(prefill.descriptions.filter(Boolean));
+        }
+        if (prefill.finalUrl) {
+          setFinalUrl(prefill.finalUrl);
+        }
+        if (prefill.locations && Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+          setTargetLocations(prefill.locations.map((loc: string) => ({ name: loc, type: "Location", reach: "—" })));
+          setSelectedLocation("CUSTOM");
+        }
+        if (prefill.languages && Array.isArray(prefill.languages) && prefill.languages.length > 0) {
+          setSelectedLanguages(prefill.languages);
+        }
+        if (prefill.euPolitical) {
+          setEuPoliticalAds(prefill.euPolitical ? "YES" : "NO");
+        }
+        // Consume once
+        localStorage.removeItem("googleAds_prefill_campaign");
+      }
+    } catch (e) {
+      console.error("Failed to restore App Promotion prefill data", e);
     }
   }, [customerId]);
 
@@ -816,7 +881,7 @@ export default function AppPromotionWizard() {
                             checked={mobileAppPlatform === "ANDROID"}
                             onChange={() => {
                               setMobileAppPlatform("ANDROID");
-                              setSelectedMobileApp(PRESET_APPS_ANDROID[0]);
+                              setSelectedMobileApp(null);
                             }}
                             className="text-primary focus:ring-primary h-4 w-4 bg-slate-50 border-slate-300"
                           />
@@ -828,7 +893,7 @@ export default function AppPromotionWizard() {
                             checked={mobileAppPlatform === "IOS"}
                             onChange={() => {
                               setMobileAppPlatform("IOS");
-                              setSelectedMobileApp(PRESET_APPS_IOS[0]);
+                              setSelectedMobileApp(null);
                             }}
                             className="text-primary focus:ring-primary h-4 w-4 bg-slate-50 border-slate-300"
                           />
@@ -875,8 +940,8 @@ export default function AppPromotionWizard() {
                             onClick={() => {
                               setSelectedMobileApp({
                                 name: mobileAppQuery,
-                                packageName: mobileAppQuery.includes(".") ? mobileAppQuery : `com.${mobileAppQuery.toLowerCase().replace(/\s+/g, "")}.app`,
-                                icon: "https://play-lh.googleusercontent.com/12345",
+                                packageName: mobileAppQuery.trim(),
+                                icon: "https://ik.imagekit.io/automationjds/sample_web_portfolio.png",
                                 publisher: "Custom App",
                                 rating: "4.5 ★",
                                 downloads: "10K+",
@@ -887,10 +952,14 @@ export default function AppPromotionWizard() {
                             className="flex items-center gap-2 p-2 rounded-lg hover:bg-primary/10 text-primary font-medium text-xs cursor-pointer border-t border-slate-100 mt-1"
                           >
                             <Plus className="h-3.5 w-3.5" />
-                            <span>Use custom package: &quot;{mobileAppQuery}&quot;</span>
+                            <span>Use custom package: &quot;{mobileAppQuery.trim()}&quot;</span>
                           </div>
                         </div>
                       )}
+
+                      <p className="text-[11px] text-slate-500 max-w-md">
+                        <strong>Note:</strong> Google Ads validates the application package against the real {mobileAppPlatform === "ANDROID" ? "Google Play Store" : "Apple App Store"}. Please pick one from suggestions or enter a live published package name (e.g. <code>com.whatsapp.w4b</code>, <code>com.application.zomato</code>, <code>com.instagram.android</code>).
+                      </p>
 
                       {selectedMobileApp && (
                         <div className="mt-4 flex items-center gap-4 p-3 rounded-xl border border-primary/30 bg-primary/5 max-w-md">
@@ -2023,6 +2092,27 @@ export default function AppPromotionWizard() {
                     </div>
                   </div>
 
+                  {/* Business Name (Required) */}
+                  <div className="space-y-2 pt-2 border-t border-slate-200/40">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-slate-700 font-semibold">
+                        Business name <span className="text-rose-500 font-bold">*</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-mono">{businessName.length}/25</span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Enter business name (e.g. My Brand / Company Name)"
+                      value={businessName}
+                      maxLength={25}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      className={`w-full max-w-xl bg-slate-50 border rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none ${!businessName.trim() ? "border-slate-300 focus:border-primary" : "border-slate-200 focus:border-primary"}`}
+                    />
+                    <p className="text-[11px] text-slate-500">
+                      The business name is required and helps users identify your verified brand.
+                    </p>
+                  </div>
+
                   {/* Images, Videos & HTML5 */}
                   <div className="space-y-3 pt-2">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
@@ -2510,13 +2600,18 @@ export default function AppPromotionWizard() {
                     {/* ii) Target CPA */}
                     {biddingFocus === "Target CPA" && (
                       <div className="pt-2 space-y-2 animate-in fade-in duration-150 max-w-md">
-                        <label className="block text-slate-700 font-semibold">Target CPA</label>
+                        <label className="block text-slate-700 font-semibold">Target CPA *</label>
                         <div className="relative">
                           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
                           <input
                             type="number"
+                            min="0.01"
+                            step="0.01"
                             value={targetCpaValue}
-                            onChange={(e) => setTargetCpaValue(e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "" || Number(val) >= 0) setTargetCpaValue(val);
+                            }}
                             placeholder="0.00"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                           />
@@ -2537,12 +2632,17 @@ export default function AppPromotionWizard() {
                     {/* iv) Target ROAS */}
                     {biddingFocus === "Target ROAS" && (
                       <div className="pt-2 space-y-2 animate-in fade-in duration-150 max-w-md">
-                        <label className="block text-slate-700 font-semibold">Target ROAS</label>
+                        <label className="block text-slate-700 font-semibold">Target ROAS *</label>
                         <div className="relative">
                           <input
                             type="number"
+                            min="1"
+                            step="1"
                             value={targetRoasValue}
-                            onChange={(e) => setTargetRoasValue(e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "" || Number(val) >= 0) setTargetRoasValue(val);
+                            }}
                             placeholder="200"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                           />
@@ -2577,8 +2677,13 @@ export default function AppPromotionWizard() {
                               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
                               <input
                                 type="number"
+                                min="0.01"
+                                step="0.01"
                                 value={maxCpcLimit}
-                                onChange={(e) => setMaxCpcLimit(e.target.value)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === "" || Number(val) >= 0) setMaxCpcLimit(val);
+                                }}
                                 placeholder="0.00"
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                               />
@@ -2609,12 +2714,17 @@ export default function AppPromotionWizard() {
                         </div>
 
                         <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-500">Percent (%) impression share to target</label>
+                          <label className="block text-[11px] text-slate-500">Percent (%) impression share to target *</label>
                           <div className="relative">
                             <input
                               type="number"
+                              min="1"
+                              max="100"
                               value={targetImpressionSharePercent}
-                              onChange={(e) => setTargetImpressionSharePercent(e.target.value)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === "" || (Number(val) >= 0 && Number(val) <= 100)) setTargetImpressionSharePercent(val);
+                              }}
                               placeholder="10"
                               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                             />
@@ -2628,8 +2738,13 @@ export default function AppPromotionWizard() {
                             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
                             <input
                               type="number"
+                              min="0.01"
+                              step="0.01"
                               value={maxCpcImpressionShare}
-                              onChange={(e) => setMaxCpcImpressionShare(e.target.value)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === "" || Number(val) >= 0) setMaxCpcImpressionShare(val);
+                              }}
                               placeholder="0.00"
                               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                             />
@@ -2758,7 +2873,10 @@ export default function AppPromotionWizard() {
                                 <input
                                   type="text"
                                   value={customBudgetValue}
-                                  onChange={(e) => setCustomBudgetValue(e.target.value)}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                                    setCustomBudgetValue(val);
+                                  }}
                                   placeholder="Enter daily amount"
                                   className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                                 />
@@ -2844,7 +2962,7 @@ export default function AppPromotionWizard() {
               </div>
 
               {/* 1. Issues Section */}
-              {(!headlines.some(h => h.trim().length > 0) || !customBudgetValue.trim() || Number(customBudgetValue.replace(/,/g, "")) <= 0) && (
+              {(!headlines.some(h => h.trim().length > 0) || !businessName.trim() || (finalUrl.trim() && (finalUrl.includes("example.com") || (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")))) || !customBudgetValue.trim() || Number(customBudgetValue.replace(/,/g, "")) <= 0) && (
               <div className="space-y-2">
                 <div className="space-y-0.5">
                   <h3 className="font-bold text-slate-800 text-xs">Issues</h3>
@@ -2871,7 +2989,45 @@ export default function AppPromotionWizard() {
                   </div>
                   )}
 
-                  {/* Issue 2: Add a budget */}
+                  {/* Issue: Business name required */}
+                  {!businessName.trim() && (
+                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
+                      <p className="text-slate-800">
+                        <strong className="text-slate-900 font-bold">Business name:</strong> A valid business name is required for your ads
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep("AD_GROUP")}
+                      className="text-blue-500 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      Fix
+                    </button>
+                  </div>
+                  )}
+
+                  {/* Issue 2: Final URL invalid or default */}
+                  {finalUrl.trim() && (finalUrl.includes("example.com") || (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://"))) && (
+                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
+                      <p className="text-slate-800">
+                        <strong className="text-slate-900 font-bold">Final URL:</strong> {finalUrl.includes("example.com") ? "Final URL cannot be default example.com. Please enter your genuine landing page URL." : "Final URL must begin with http:// or https://"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep("AD_GROUP")}
+                      className="text-blue-500 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      Fix
+                    </button>
+                  </div>
+                  )}
+
+                  {/* Issue 3: Add a budget */}
                   {(!customBudgetValue.trim() || Number(customBudgetValue.replace(/,/g, "")) <= 0) && (
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -2973,11 +3129,11 @@ export default function AppPromotionWizard() {
                   </div>
                   <div className="p-4 flex items-center justify-between">
                     <span className="text-slate-500 w-48 font-medium">Locations</span>
-                    <span className="flex-1 text-slate-900 font-semibold">All countries and territories</span>
+                    <span className="flex-1 text-slate-900 font-semibold">{selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : targetLocations.map(l => l.name).join(", ") || "India"}</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
                     <span className="text-slate-500 w-48 font-medium">Languages</span>
-                    <span className="flex-1 text-slate-900 font-semibold">English</span>
+                    <span className="flex-1 text-slate-900 font-semibold">{selectedLanguages?.join(", ") || "English"}</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
                     <span className="text-slate-500 w-48 font-medium">Data feed</span>
@@ -3089,6 +3245,14 @@ export default function AppPromotionWizard() {
                     setPublishError("At least 1 description is required to create an ad.");
                     return;
                   }
+                  if (!businessName.trim()) {
+                    setPublishError("Business name is required.");
+                    return;
+                  }
+                  if (finalUrl.trim() && (finalUrl.includes("example.com") || (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")))) {
+                    setPublishError(finalUrl.includes("example.com") ? "Final URL cannot be default example.com. Please enter your valid landing page URL." : "Final URL must begin with http:// or https://");
+                    return;
+                  }
                   setWizardStep("BIDDING_BUDGET");
                 } else if (wizardStep === "BIDDING_BUDGET") {
                   const budgetNum = Number(customBudgetValue.replace(/,/g, ""));
@@ -3134,6 +3298,12 @@ export default function AppPromotionWizard() {
                   if (validDescriptions.length === 0) {
                     throw new Error("At least 1 description is required.");
                   }
+                  if (!businessName.trim()) {
+                    throw new Error("Business name is required.");
+                  }
+                  if (finalUrl.trim() && (finalUrl.includes("example.com") || (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")))) {
+                    throw new Error(finalUrl.includes("example.com") ? "Final URL cannot be default example.com. Please enter your valid landing page URL." : "Final URL must begin with http:// or https://");
+                  }
                   if (!customBudgetValue.trim() || isNaN(budgetNum) || budgetNum <= 0) {
                     throw new Error("A valid daily budget amount greater than ₹0 is required.");
                   }
@@ -3148,7 +3318,8 @@ export default function AppPromotionWizard() {
                       campaignName: campaignName.trim(),
                       platform: mobileAppPlatform,
                       appId: selectedMobileApp.packageName,
-                      locations: selectedLocation === "ALL" ? ["All countries and territories"] : targetLocations.map(l => l.name),
+                      businessName: businessName.trim(),
+                      locations: selectedLocation === "ALL" ? ["All countries and territories"] : selectedLocation === "INDIA" ? ["India"] : targetLocations.map(l => l.name),
                       languages: selectedLanguages || ["English"],
                       headlines: validHeadlines,
                       descriptions: validDescriptions,

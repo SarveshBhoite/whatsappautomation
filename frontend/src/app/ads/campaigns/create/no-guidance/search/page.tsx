@@ -18,7 +18,12 @@ export default function NoGuidanceSearchPage() {
 
   // Wizard Step State: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY">("BIDDING");
-  const [campaignName, setCampaignName] = useState<string>("NoGuidance-Search-1");
+  const [campaignName, setCampaignName] = useState<string>(`No-Guidance Search ${new Date().getTime()}`);
+
+  // Step 4: Budget State
+  const [budgetType, setBudgetType] = useState<"DAILY" | "TOTAL">("DAILY");
+  const [selectedPresetBudget, setSelectedPresetBudget] = useState<string>("CUSTOM");
+  const [customBudgetValue, setCustomBudgetValue] = useState<string>("");
 
   // Step 1: Bidding State
   const [biddingFocus, setBiddingFocus] = useState<"Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Conversions");
@@ -251,12 +256,12 @@ export default function NoGuidanceSearchPage() {
     { category: "PURCHASE", origin: "WEBSITE", biddable: true },
     { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE", biddable: true }
   ]);
-  const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
+  const [finalUrl, setFinalUrl] = useState<string>("");
   const [displayPath1, setDisplayPath1] = useState<string>("");
   const [displayPath2, setDisplayPath2] = useState<string>("");
-  const [headlines, setHeadlines] = useState<string[]>(["Automation Software", "Lead Gen Tool", "WhatsApp Marketing", "", "", "", ""]);
-  const [descriptions, setDescriptions] = useState<string[]>(["Automate your business communication with WhatsApp.", "Boost conversions with instant messaging."]);
-  const [businessName, setBusinessName] = useState<string>("JISNU DIGITAL SOLUTIONS PRIVATE LIMITED");
+  const [headlines, setHeadlines] = useState<string[]>(["", "", "", "", "", "", ""]);
+  const [descriptions, setDescriptions] = useState<string[]>(["", ""]);
+  const [businessName, setBusinessName] = useState<string>("");
   const [businessLogo, setBusinessLogo] = useState<string>("");
   const [businessLogos, setBusinessLogos] = useState<string[]>([]);
 
@@ -400,10 +405,6 @@ export default function NoGuidanceSearchPage() {
     { day: "All days", start: "00:00", end: "00:00" }
   ]);
 
-  // Step 4: Budget State
-  const [budgetType, setBudgetType] = useState<"DAILY" | "TOTAL">("DAILY");
-  const [selectedPresetBudget, setSelectedPresetBudget] = useState<string>("1556.83");
-  const [customBudgetValue, setCustomBudgetValue] = useState<string>("");
 
   const timeOptions = [
     "00:00", "00:15", "00:30", "00:45", "01:00", "01:15", "01:30", "01:45",
@@ -516,11 +517,158 @@ export default function NoGuidanceSearchPage() {
   const [existingCampaigns, setExistingCampaigns] = useState<Array<{ name?: string }>>([]);
   const [duplicateNameError, setDuplicateNameError] = useState<string | null>(null);
 
-  // Load existing campaigns from Google Ads / DB once on component mount
+  // Load existing campaigns from Google Ads / DB once on component mount & restore prefill
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
     const targetCid = customerId || "6587355041";
+
+    // Check for AI-Guided prefill campaign state from localStorage
+    try {
+      if (typeof window !== "undefined") {
+        const prefillRaw = localStorage.getItem("googleAds_prefill_campaign");
+        if (prefillRaw) {
+          const prefill = JSON.parse(prefillRaw);
+          if (prefill.campaignName) setCampaignName(prefill.campaignName);
+          if (prefill.businessName || prefill.business?.name) setBusinessName(prefill.businessName || prefill.business?.name);
+          if (prefill.website || prefill.finalUrl || prefill.websiteVisitsUrl) {
+            const urlVal = prefill.website || prefill.finalUrl || prefill.websiteVisitsUrl;
+            setFinalUrl(urlVal);
+            setAiGenFinalUrl(urlVal);
+            setKeywordScanUrl(urlVal);
+          }
+          if (prefill.dailyBudget || prefill.budget) {
+            const bVal = String(prefill.dailyBudget || prefill.budget);
+            setCustomBudgetValue(bVal);
+            setSelectedPresetBudget("CUSTOM");
+          }
+          if (prefill.biddingStrategy || prefill.biddingFocus) {
+            const strat = prefill.biddingStrategy || prefill.biddingFocus;
+            const bMap: Record<string, "Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share"> = {
+              "Maximize conversions": "Conversions",
+              "Conversions": "Conversions",
+              "Target CPA": "Target CPA",
+              "TARGET_CPA": "Target CPA",
+              "Maximize conversion value": "Conversion value",
+              "Conversion value": "Conversion value",
+              "Target ROAS": "Target ROAS",
+              "TARGET_ROAS": "Target ROAS",
+              "Maximize Clicks": "Clicks",
+              "Clicks": "Clicks",
+              "MAXIMIZE_CLICKS": "Clicks",
+              "Target Impression Share": "Impression share",
+              "Impression share": "Impression share",
+              "TARGET_IMPRESSION_SHARE": "Impression share"
+            };
+            if (bMap[strat]) {
+              setBiddingFocus(bMap[strat]);
+              if (bMap[strat] === "Target CPA") setSetTargetCpa(true);
+              if (bMap[strat] === "Target ROAS") setSetTargetRoas(true);
+              if (bMap[strat] === "Clicks" && prefill.maxCpcLimit) setSetMaxCpc(true);
+            }
+          }
+          if (prefill.targetCpa) {
+            setTargetCpaValue(String(prefill.targetCpa));
+            setSetTargetCpa(true);
+          }
+          if (prefill.targetRoas) {
+            setTargetRoasValue(String(prefill.targetRoas));
+            setSetTargetRoas(true);
+          }
+          if (prefill.maxCpcLimit) {
+            setMaxCpcLimit(String(prefill.maxCpcLimit));
+            setSetMaxCpc(true);
+          }
+          if (prefill.targetImpressionSharePercent) {
+            setTargetImpressionSharePercent(String(prefill.targetImpressionSharePercent));
+          }
+          if (prefill.impressionShareLocation) {
+            setImpressionShareLocation(prefill.impressionShareLocation);
+          }
+          if (prefill.maxCpcImpressionShare) {
+            setMaxCpcImpressionShare(String(prefill.maxCpcImpressionShare));
+          }
+          if (prefill.startDate) setStartDate(prefill.startDate);
+          if (prefill.endDate) setEndDate(prefill.endDate);
+          if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+            if (prefill.locations.length === 1 && (prefill.locations[0] === "All countries and territories" || prefill.locations[0] === "ALL")) {
+              setSelectedLocation("ALL");
+            } else if (prefill.locations.length === 1 && prefill.locations[0] === "India") {
+              setSelectedLocation("INDIA");
+            } else {
+              setSelectedLocation("CUSTOM");
+              setCustomLocationInput(prefill.locations.join(", "));
+              setTargetLocations(prefill.locations.map((locName: string) => ({
+                name: locName,
+                type: "Location",
+                reach: "Targeted",
+                canonicalName: locName
+              })));
+            }
+          }
+          if (prefill.language || prefill.languages) {
+            const rawLangs = prefill.languages || (prefill.language ? prefill.language.split(",") : []);
+            const langs = (Array.isArray(rawLangs) ? rawLangs : [rawLangs]).map((l: string) => l.trim()).filter(Boolean);
+            if (langs.length > 0) setSelectedLanguages(langs);
+          }
+          if (Array.isArray(prefill.keywords) && prefill.keywords.length > 0) {
+            setKeywordsText(prefill.keywords.join("\n"));
+          }
+          if (Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+            const paddedHeadlines = [...prefill.headlines];
+            while (paddedHeadlines.length < 7) paddedHeadlines.push("");
+            setHeadlines(paddedHeadlines.slice(0, 15));
+          }
+          if (Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+            const paddedDescriptions = [...prefill.descriptions];
+            while (paddedDescriptions.length < 2) paddedDescriptions.push("");
+            setDescriptions(paddedDescriptions.slice(0, 4));
+          }
+          if (prefill.euPolitical) {
+            setEuPoliticalAds(prefill.euPolitical);
+          }
+          // AI Max Search Parameters
+          if (prefill.aiMax !== undefined || prefill.enableAiMax !== undefined) {
+            setEnableAiMax(prefill.aiMax ?? prefill.enableAiMax ?? true);
+          }
+          if (prefill.textCustomization !== undefined || prefill.enableTextCustomization !== undefined) {
+            setEnableTextCustomization(prefill.textCustomization ?? prefill.enableTextCustomization ?? true);
+          }
+          if (prefill.finalUrlExpansion !== undefined || prefill.enableFinalUrlExpansion !== undefined) {
+            setEnableFinalUrlExpansion(prefill.finalUrlExpansion ?? prefill.enableFinalUrlExpansion ?? true);
+          }
+          if (Array.isArray(prefill.brandInclusions) && prefill.brandInclusions.length > 0) {
+            setBrandInclusions(prefill.brandInclusions);
+          }
+          if (Array.isArray(prefill.brandExclusions) && prefill.brandExclusions.length > 0) {
+            setBrandExclusions(prefill.brandExclusions);
+          }
+          // Extension prefill: promotions & lead forms
+          if (Array.isArray(prefill.promotions) && prefill.promotions.length > 0) {
+            const p = prefill.promotions[0];
+            if (p.promotionTarget) setPromoItem(p.promotionTarget);
+            if (p.finalUrl) setPromoFinalUrl(p.finalUrl);
+            if (p.occasion) setPromoOccasion(p.occasion);
+            if (p.percentOff) {
+              setPromoType("PERCENT");
+              setPromoValue(String(p.percentOff));
+            } else if (p.moneyAmountOff) {
+              setPromoType("MONETARY");
+              setPromoValue(String(p.moneyAmountOff));
+            }
+          }
+          if (Array.isArray(prefill.leadForms) && prefill.leadForms.length > 0) {
+            const lf = prefill.leadForms[0];
+            if (lf.headline) setLfHeadline(lf.headline);
+            if (lf.businessName) setLfBusinessName(lf.businessName);
+            if (lf.description) setLfDescription(lf.description);
+            if (lf.privacyPolicyUrl) setLfPrivacyPolicyUrl(lf.privacyPolicyUrl);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not parse googleAds_prefill_campaign for No Guidance Search:", err);
+    }
 
     fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(targetCid)}`)
       .then(r => r.ok ? r.json() : [])
@@ -535,7 +683,7 @@ export default function NoGuidanceSearchPage() {
             nextIndex++;
           }
           const defaultName = `NoGuidance-Search-${nextIndex}`;
-          setCampaignName(defaultName);
+          setCampaignName(prev => (prev && !prev.startsWith("No-Guidance Search") ? prev : defaultName));
           setDuplicateNameError(null);
           setFieldErrors(prev => {
             const updated = { ...prev };
@@ -924,7 +1072,12 @@ export default function NoGuidanceSearchPage() {
         headlines: validHeadlines,
         descriptions: validDescriptions,
         keywords: uniqueKeywords,
-        callAsset: callPhone ? { countryCode: "IN", phoneNumber: callPhone.trim() } : undefined
+        callAsset: callPhone ? { countryCode: "IN", phoneNumber: callPhone.trim() } : undefined,
+        sitelinks: sitelinks.filter(s => s.text && s.url),
+        callouts: callouts.filter(c => typeof c === "string" && c.trim().length > 0),
+        structuredSnippets: snippetHeaderType && snippetHeaderType !== "Select header type" && snippetValuesList.filter(v => v.trim()).length >= 3 ? [{ header: snippetHeaderType, values: snippetValuesList.filter(v => v.trim()) }] : [],
+        promotions: promoItem && promoFinalUrl ? [{ promotionTarget: promoItem, finalUrl: promoFinalUrl, occasion: promoOccasion, ...(promoType === "PERCENT" ? { percentOff: Number(promoValue) || undefined } : { moneyAmountOff: Number(promoValue) || undefined }) }] : [],
+        leadForms: lfHeadline && lfBusinessName && lfPrivacyPolicyUrl ? [{ businessName: lfBusinessName, headline: lfHeadline, description: lfDescription, privacyPolicyUrl: lfPrivacyPolicyUrl, callToActionType: lfAdCta === "Apply now" ? "APPLY_NOW" : lfAdCta === "Contact us" ? "CONTACT_US" : "LEARN_MORE" }] : []
       };
 
       let res: Response;
@@ -3956,12 +4109,13 @@ export default function NoGuidanceSearchPage() {
                             <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
                           <p className="text-[11px] text-slate-500 leading-relaxed">
-                            This name should match your URL or your verified advertiser name, which is <strong className="text-slate-800">JISNU DIGITAL SOLUTIONS PRIVATE LIMITED</strong>.
+                            This name should match your URL or your verified advertiser name{accountInfo?.name ? <>, which is <strong className="text-slate-800">{accountInfo.name}</strong></> : ""}.
                           </p>
                           <input
                             type="text"
                             value={businessName}
                             onChange={(e) => setBusinessName(e.target.value)}
+                            placeholder={accountInfo?.name || "Enter business name"}
                             maxLength={25}
                             className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium"
                           />
@@ -4501,20 +4655,20 @@ export default function NoGuidanceSearchPage() {
                                 <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-mono">₹</span>
                                 <input
                                   type="text"
-                                  value={customBudgetValue || selectedPresetBudget}
+                                  value={customBudgetValue}
                                   onChange={(e) => {
                                     const val = e.target.value.replace(/[^0-9.]/g, "");
                                     setCustomBudgetValue(val);
                                   }}
                                   placeholder="Enter daily amount (required: > 0)"
                                   className={`w-full bg-white border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none font-mono ${
-                                    !(customBudgetValue.trim() || selectedPresetBudget.trim()) || Number(customBudgetValue.trim() || selectedPresetBudget.trim()) <= 0
+                                    !customBudgetValue.trim() || Number(customBudgetValue.trim()) <= 0
                                       ? "border-rose-300 focus:border-rose-500 bg-rose-50/20"
                                       : "border-slate-200 focus:border-primary"
                                   }`}
                                 />
                               </div>
-                              {(!(customBudgetValue.trim() || selectedPresetBudget.trim()) || Number(customBudgetValue.trim() || selectedPresetBudget.trim()) <= 0) && (
+                              {(!customBudgetValue.trim() || Number(customBudgetValue.trim()) <= 0) && (
                                 <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
                                   <AlertCircle className="h-3 w-3" /> Daily budget must be greater than 0
                                 </span>
@@ -5042,12 +5196,60 @@ export default function NoGuidanceSearchPage() {
           {wizardStep !== "SUMMARY" ? (
             <button
               onClick={() => {
-                if (wizardStep === "BIDDING") setWizardStep("CAMPAIGN_SETTINGS");
-                else if (wizardStep === "CAMPAIGN_SETTINGS") setWizardStep("AI_MAX");
+                setSubmitError(null);
+                if (wizardStep === "BIDDING") {
+                  if (setTargetCpa && (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0)) {
+                    alert("Target CPA must be a positive number.");
+                    return;
+                  }
+                  if (setTargetRoas && (!targetRoasValue.trim() || isNaN(Number(targetRoasValue)) || Number(targetRoasValue) <= 0)) {
+                    alert("Target ROAS must be a positive percentage.");
+                    return;
+                  }
+                  if (setMaxCpc && (!maxCpcLimit.trim() || isNaN(Number(maxCpcLimit)) || Number(maxCpcLimit) <= 0)) {
+                    alert("Max CPC Limit must be a positive number.");
+                    return;
+                  }
+                  setWizardStep("CAMPAIGN_SETTINGS");
+                }
+                else if (wizardStep === "CAMPAIGN_SETTINGS") {
+                  if (!campaignName.trim()) {
+                    alert("Campaign name is required.");
+                    return;
+                  }
+                  if (selectedLocation === "CUSTOM" && targetLocations.length === 0 && !customLocationInput.trim()) {
+                    alert("Please select at least one targeted location.");
+                    return;
+                  }
+                  if (selectedLanguages.length === 0) {
+                    alert("Please select at least one language.");
+                    return;
+                  }
+                  setWizardStep("AI_MAX");
+                }
                 else if (wizardStep === "AI_MAX") setWizardStep("KEYWORD_ASSET_GEN");
                 else if (wizardStep === "KEYWORD_ASSET_GEN") setWizardStep("KEYWORDS_ADS");
-                else if (wizardStep === "KEYWORDS_ADS") setWizardStep("BUDGET");
-                else if (wizardStep === "BUDGET") setWizardStep("SUMMARY");
+                else if (wizardStep === "KEYWORDS_ADS") {
+                  const validHeadlines = headlines.filter(h => h && h.trim());
+                  const validDescriptions = descriptions.filter(d => d && d.trim());
+                  if (validHeadlines.length === 0) {
+                    alert("Please provide at least 1 headline for your ad.");
+                    return;
+                  }
+                  if (validDescriptions.length === 0) {
+                    alert("Please provide at least 1 description for your ad.");
+                    return;
+                  }
+                  setWizardStep("BUDGET");
+                }
+                else if (wizardStep === "BUDGET") {
+                  const bVal = customBudgetValue.trim();
+                  if (!bVal || isNaN(Number(bVal)) || Number(bVal) <= 0) {
+                    alert("Daily budget is required and must be greater than 0.");
+                    return;
+                  }
+                  setWizardStep("SUMMARY");
+                }
               }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >

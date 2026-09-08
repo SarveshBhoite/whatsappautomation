@@ -6,29 +6,53 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
     const {
       campaignName = "Sales Demand Gen",
       finalUrl = "https://www.example.com",
+      mobileFinalUrl,
       campaignGoal = "Sales",
       biddingStrategy = "MAXIMIZE_CONVERSIONS",
       biddingFocus, // fallback
       targetCpa,
       targetRoas,
+      startDate,
+      endDate,
       locations = ["India"],
+      locationTargetType,
       languages = ["English"],
       headlines = [],
+      longHeadlines = [],
       descriptions = [],
       images = [],
       logos = [],
+      videos = [],
+      carouselCards = [],
+      adFormat = "SINGLE_IMAGE",
+      adName = "Ad 1",
+      callToAction = "Automated",
       businessName = "",
       dailyBudget,
       budget,
+      demandGenBudgetType,
       euPolitical = "NO",
-      channels = []
+      channels = [],
+      channelTargeting = "ALL",
+      deviceTargeting = "ALL",
+      audience,
+      optimizedTargeting = true,
+      customerAcquisitionMode,
+      trackingTemplate,
+      finalUrlSuffix,
+      customParameters = [],
+      ipExclusions,
+      adSchedule = []
     } = payload;
 
-    const validHeadlines = headlines.filter((h: any) => h && h.trim());
+    const validHeadlines = (headlines || []).filter((h: any) => h && h.trim());
     if (validHeadlines.length < 1) {
       throw new Error("At least 1 headline is required.");
     }
-    const validDescriptions = descriptions.filter((d: any) => d && d.trim());
+    const validDescriptions = (descriptions || []).filter((d: any) => d && d.trim());
+    if (validDescriptions.length < 1) {
+      throw new Error("At least 1 description is required.");
+    }
     
     const effectiveBudget = Number(dailyBudget || budget || 1000);
     const amountMicros = Math.round(effectiveBudget * 1_000_000);
@@ -61,20 +85,22 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
       let effectiveCampaignName = campaignName;
       let res;
       try {
+        const createCampObj: any = {
+          name: effectiveCampaignName,
+          status: "PAUSED",
+          advertisingChannelType: "DEMAND_GEN",
+          campaignBudget: budgetRef,
+          containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+          demandGenCampaignSettings: {
+             upgradedTargeting: Boolean(optimizedTargeting)
+          },
+          ...biddingConfig
+        };
+
         const campaignPayload = {
           operations: [
             {
-              create: {
-                name: effectiveCampaignName,
-                status: "PAUSED",
-                advertisingChannelType: "DEMAND_GEN",
-                campaignBudget: budgetRef,
-                containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-                demandGenCampaignSettings: {
-                   upgradedTargeting: true
-                },
-                ...biddingConfig
-              }
+              create: createCampObj
             }
           ]
         };
@@ -85,20 +111,22 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
         const errDetails = JSON.stringify(campErr?.response?.data || "");
         if (errMsg.includes("already assigned") || errDetails.includes("DUPLICATE_CAMPAIGN_NAME") || errDetails.includes("DUPLICATE_NAME") || errDetails.includes("already assigned")) {
           effectiveCampaignName = `${campaignName} ${Date.now().toString().slice(-4)}`;
+          const retryCreateCampObj: any = {
+            name: effectiveCampaignName,
+            status: "PAUSED",
+            advertisingChannelType: "DEMAND_GEN",
+            campaignBudget: budgetRef,
+            containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            demandGenCampaignSettings: {
+               upgradedTargeting: Boolean(optimizedTargeting)
+            },
+            ...biddingConfig
+          };
+
           const retryPayload = {
             operations: [
               {
-                create: {
-                  name: effectiveCampaignName,
-                  status: "PAUSED",
-                  advertisingChannelType: "DEMAND_GEN",
-                  campaignBudget: budgetRef,
-                  containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-                  demandGenCampaignSettings: {
-                     upgradedTargeting: true
-                  },
-                  ...biddingConfig
-                }
+                create: retryCreateCampObj
               }
             ]
           };
@@ -288,6 +316,15 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
       geoTargets: {
         locations,
         languages,
+        channels,
+        audience,
+        brandGuidelines: {
+          mainBrandColor: payload.brandGuidelines?.mainBrandColor || null,
+          accentBrandColor: payload.brandGuidelines?.accentBrandColor || null,
+          brandFont: payload.brandGuidelines?.brandFont || null
+        },
+        deviceTargeting,
+        adSchedule,
         objective: "Sales"
       },
       advertisingChannelType: "DEMAND_GEN",

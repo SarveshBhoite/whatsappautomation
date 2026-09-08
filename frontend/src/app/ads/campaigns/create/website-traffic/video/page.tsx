@@ -64,6 +64,125 @@ export default function WebsiteTrafficVideoPage() {
       .catch(() => {
         // Non-blocking fallback
       });
+
+    // Check for AI-Guided prefill campaign state from localStorage
+    try {
+      if (typeof window !== "undefined") {
+        const prefillRaw = localStorage.getItem("googleAds_prefill_campaign");
+        if (prefillRaw) {
+          const prefill = JSON.parse(prefillRaw);
+          if (prefill.campaignName) setVideoCampaignName(prefill.campaignName);
+          if (prefill.businessName || prefill.business?.name) setBusinessName(prefill.businessName || prefill.business?.name);
+          if (prefill.website || prefill.finalUrl) {
+            setAdFinalUrl(prefill.website || prefill.finalUrl);
+          }
+          if (prefill.dailyBudget) {
+            setVideoBudgetAmount(String(prefill.dailyBudget));
+            setVideoBudgetType("Daily");
+          }
+          if (prefill.biddingStrategy) {
+            const b = prefill.biddingStrategy;
+            if (b === "Target CPA" || b === "TARGET_CPA") {
+              setVideoGoal("Conversions");
+              setTargetCpaVideo(true);
+              if (prefill.targetCpa) setTargetCpaValue(String(prefill.targetCpa));
+            } else if (b === "Target ROAS" || b === "TARGET_ROAS" || b === "Maximize conversion value" || b === "MAXIMIZE_CONVERSION_VALUE") {
+              setVideoGoal("Conversion value");
+            } else if (b === "Clicks" || b === "MAXIMIZE_CLICKS") {
+              setVideoGoal("Clicks");
+            } else if (b === "YouTube engagements" || b === "ENGAGEMENTS") {
+              setVideoGoal("YouTube engagements");
+            } else {
+              setVideoGoal("Conversions");
+            }
+          }
+          if (prefill.targetCpa) {
+            setTargetCpaValue(String(prefill.targetCpa));
+            setTargetCpaVideo(true);
+          }
+          if (prefill.startDate) setStartDate(prefill.startDate);
+          if (prefill.endDate) setEndDate(prefill.endDate);
+          if (prefill.euPolitical) setEuPoliticalAds(prefill.euPolitical);
+
+          // Location
+          if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+            if (prefill.locations.length === 1 && prefill.locations[0] === "All countries and territories") {
+              setSelectedLocation("ALL");
+            } else if (prefill.locations.length === 1 && prefill.locations[0] === "India") {
+              setSelectedLocation("INDIA");
+            } else {
+              setSelectedLocation("CUSTOM");
+              setCustomLocationInput(prefill.locations.join(", "));
+            }
+          }
+
+          // Languages
+          if (prefill.language) {
+            const langs = prefill.language.split(",").map((l: string) => l.trim()).filter(Boolean);
+            if (langs.length > 0) setSelectedLanguages(langs);
+          }
+
+          // Ad Format
+          if (prefill.adFormat && ["SINGLE_IMAGE", "VIDEO", "CAROUSEL"].includes(prefill.adFormat)) {
+            setVideoAdType(prefill.adFormat);
+          }
+
+          // Channels
+          if (prefill.channelTargeting) {
+            setChannelTargeting(prefill.channelTargeting);
+          }
+          if (Array.isArray(prefill.channels) && prefill.channels.length > 0) {
+            setSelectedAdGroupChannels(prefill.channels);
+          }
+
+          // Carousel Cards
+          if (Array.isArray(prefill.carouselCards) && prefill.carouselCards.length > 0) {
+            setCarouselCards(prefill.carouselCards);
+          }
+
+          // Headlines
+          if (Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+            const paddedHeadlines = [...prefill.headlines];
+            while (paddedHeadlines.length < 1) paddedHeadlines.push("");
+            setAdHeadlines(paddedHeadlines.slice(0, 5));
+          }
+
+          // Long Headlines
+          if (Array.isArray(prefill.longHeadlines) && prefill.longHeadlines.length > 0) {
+            const paddedLongHeadlines = [...prefill.longHeadlines];
+            while (paddedLongHeadlines.length < 1) paddedLongHeadlines.push("");
+            setAdLongHeadlines(paddedLongHeadlines.slice(0, 5));
+          }
+
+          // Descriptions
+          if (Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+            const paddedDescriptions = [...prefill.descriptions];
+            while (paddedDescriptions.length < 1) paddedDescriptions.push("");
+            setAdDescriptions(paddedDescriptions.slice(0, 5));
+          }
+
+          // Images
+          if (Array.isArray(prefill.images) && prefill.images.length > 0) {
+            const imgUrls = prefill.images.map((img: any) => (typeof img === "string" ? img : img?.url || img?.data || "")).filter(Boolean);
+            if (imgUrls.length > 0) setAdImages(imgUrls);
+          }
+
+          // Logos
+          if (Array.isArray(prefill.logos) && prefill.logos.length > 0) {
+            const logoUrls = prefill.logos.map((lg: any) => (typeof lg === "string" ? lg : lg?.url || lg?.data || "")).filter(Boolean);
+            if (logoUrls.length > 0) setAdLogos(logoUrls);
+          }
+
+          // Videos
+          if (Array.isArray(prefill.videos) && prefill.videos.length > 0) {
+            const vidUrls = prefill.videos.map((vd: any) => (typeof vd === "string" ? vd : vd?.url || vd?.data || "")).filter(Boolean);
+            if (vidUrls.length > 0) setAdVideos(vidUrls);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not parse googleAds_prefill_campaign for Website Traffic Video:", err);
+    }
   }, [customerId]);
 
   // Real-time check whenever videoCampaignName changes

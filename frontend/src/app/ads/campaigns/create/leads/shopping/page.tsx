@@ -121,6 +121,119 @@ export default function LeadsShoppingPage() {
           setCampaignName(defaultName);
           setDuplicateNameError(null);
         }
+
+        // Restore prefilled campaign data from AI Guided flow if available
+        try {
+          const prefillRaw = localStorage.getItem("googleAds_prefill_campaign");
+          if (prefillRaw) {
+            const prefill = JSON.parse(prefillRaw);
+            localStorage.removeItem("googleAds_prefill_campaign");
+            if (prefill && (prefill.campaignType === "SHOPPING" || !prefill.campaignType)) {
+              if (prefill.campaignName) {
+                setCampaignName(prefill.campaignName);
+              }
+              if (prefill.dailyBudget || prefill.budget) {
+                setBudgetAmount(String(prefill.dailyBudget || prefill.budget));
+              }
+              if (prefill.budgetType) {
+                setBudgetType(prefill.budgetType === "TOTAL" ? "total" : "daily");
+              }
+              if (prefill.biddingStrategy) {
+                const b = prefill.biddingStrategy;
+                if (b === "TARGET_ROAS" || b === "Target ROAS") {
+                  setBidStrategy("Target ROAS");
+                } else if (b === "MAXIMIZE_CLICKS" || b === "Maximize clicks" || b === "Maximize Clicks" || b === "Clicks") {
+                  setBidStrategy("Maximize clicks");
+                } else if (b === "MANUAL_CPC" || b === "Manual CPC") {
+                  setBidStrategy("Manual CPC");
+                } else if (b === "MAXIMIZE_CONVERSION_VALUE" || b === "Maximize conversion value") {
+                  setBidStrategy("Maximize conversion value");
+                }
+              }
+              if (prefill.targetRoas) {
+                setTargetRoas(String(prefill.targetRoas));
+              }
+              if (prefill.maxCpcLimit) {
+                setSetMaxCpcLimit(true);
+                setMaxCpcLimitAmount(String(prefill.maxCpcLimit));
+              }
+              if (prefill.merchantCenterId || prefill.merchantId) {
+                setMerchantCenterId(String(prefill.merchantCenterId || prefill.merchantId));
+              }
+              if (prefill.salesCountry || prefill.LeadsCountry) {
+                setLeadsCountry(prefill.salesCountry || prefill.LeadsCountry);
+              }
+              if (prefill.feedLabel) {
+                setFeedLabel(prefill.feedLabel);
+              }
+              if (prefill.adGroupName) {
+                setAdGroupName(prefill.adGroupName);
+              }
+              if (prefill.adGroupBid) {
+                setAdGroupBid(String(prefill.adGroupBid));
+              }
+              if (prefill.customerAcquisitionMode) {
+                setCustomerAcquisition(prefill.customerAcquisitionMode === "NEW_CUSTOMERS_ONLY");
+              }
+              if (prefill.campaignPriority) {
+                const p = String(prefill.campaignPriority).toUpperCase();
+                if (p === "HIGH") setCampaignPriority("High");
+                else if (p === "MEDIUM") setCampaignPriority("Medium");
+                else setCampaignPriority("Low (default)");
+              }
+              if (prefill.localProducts !== undefined || prefill.enableLocalProducts !== undefined) {
+                setLocalProducts(Boolean(prefill.localProducts ?? prefill.enableLocalProducts));
+                setEnableLocalProducts(Boolean(prefill.localProducts ?? prefill.enableLocalProducts));
+              }
+              if (prefill.euPolitical) {
+                setEuPoliticalAds(prefill.euPolitical === "YES" ? "Yes, this campaign has EU political ads" : "No, this campaign doesn't have EU political ads");
+              }
+              if (prefill.startDate) {
+                setStartDate(prefill.startDate);
+              }
+              if (prefill.endDate) {
+                setEndDateOption("Select a date");
+                setEndDate(prefill.endDate);
+              }
+              if (prefill.trackingTemplate) {
+                setTrackingTemplate(prefill.trackingTemplate);
+              }
+              if (prefill.finalUrlSuffix) {
+                setFinalUrlSuffix(prefill.finalUrlSuffix);
+              }
+              if (prefill.productGroupFilter) {
+                setProductGroupFilter(prefill.productGroupFilter);
+              }
+              if (prefill.productGroupSelectBy) {
+                setProductGroupSelectBy(prefill.productGroupSelectBy);
+              }
+              if (prefill.productGroupCustomLabel) {
+                setProductGroupCustomLabel(prefill.productGroupCustomLabel);
+              }
+              if (prefill.finalUrl || prefill.website) {
+                setFinalUrl(prefill.finalUrl || prefill.website);
+              }
+              if (Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+                setHeadlines(prefill.headlines);
+              }
+              if (Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+                setDescriptions(prefill.descriptions);
+              }
+              if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+                if (prefill.locations.length === 1 && (prefill.locations[0] === "ALL" || prefill.locations[0] === "All countries and territories")) {
+                  setLocationType("All");
+                } else if (prefill.locations.length === 1 && (prefill.locations[0] === "INDIA" || prefill.locations[0] === "India")) {
+                  setLocationType("India");
+                } else {
+                  setLocationType("Another");
+                  setCustomLocation(prefill.locations.join(", "));
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("Could not restore googleAds_prefill_campaign in Leads Shopping form:", err);
+        }
       })
       .catch(() => {});
   }, [customerId]);

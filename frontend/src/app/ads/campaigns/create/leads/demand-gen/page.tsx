@@ -28,8 +28,8 @@ export default function LeadsDemandGenPage() {
     return `${year}-${month}-${day}`;
   };
 
-  // Demand Gen Campaign States
-  const [demandGenCampaignName, setDemandGenCampaignName] = useState<string>(`Demand Gen - ${getTodayFormattedDate()}`);
+  // Demand Gen Campaign States (Initialize deterministically to avoid SSR hydration mismatch)
+  const [demandGenCampaignName, setDemandGenCampaignName] = useState<string>("Demand Gen Campaign");
   const [selectedSourceCampaign, setSelectedSourceCampaign] = useState<string | null>(null);
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState<boolean>(false);
   const [campaignSearchTerm, setCampaignSearchTerm] = useState<string>("");
@@ -59,8 +59,12 @@ export default function LeadsDemandGenPage() {
     return candidate;
   };
 
-  // Load existing campaigns from Google Ads API / DB once on component mount
+  // Client-side initialization: generate dynamic unique name and load existing campaigns
   useEffect(() => {
+    const dynamicName = `Demand-Gen-${Date.now().toString().slice(-4)}`;
+    setDemandGenCampaignName(dynamicName);
+    setStartDate(getTodayFormattedDate());
+
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
     const targetCid = customerId || "6587355041";
@@ -70,7 +74,7 @@ export default function LeadsDemandGenPage() {
       .then(data => {
         if (Array.isArray(data)) {
           setExistingCampaignsList(data);
-          setDemandGenCampaignName(prev => getUniqueCampaignName(prev, data));
+          setDemandGenCampaignName(prev => getUniqueCampaignName(prev || dynamicName, data));
           setDuplicateNameError(null);
           setFieldErrors(prev => {
             const updated = { ...prev };
@@ -82,6 +86,123 @@ export default function LeadsDemandGenPage() {
       .catch(() => {
         // Non-blocking fallback
       });
+
+    // Check for AI-Guided prefill campaign state from localStorage
+    try {
+      if (typeof window !== "undefined") {
+        const prefillRaw = localStorage.getItem("googleAds_prefill_campaign");
+        if (prefillRaw) {
+          const prefill = JSON.parse(prefillRaw);
+          if (prefill.campaignName) setDemandGenCampaignName(prefill.campaignName);
+          if (prefill.businessName || prefill.business?.name) setBusinessName(prefill.businessName || prefill.business?.name);
+          if (prefill.website || prefill.finalUrl) {
+            const urlVal = prefill.website || prefill.finalUrl;
+            setAdFinalUrl(urlVal);
+          }
+          if (prefill.dailyBudget) {
+            setDemandGenBudgetAmount(String(prefill.dailyBudget));
+            setDemandGenBudgetType("Daily");
+          }
+          if (prefill.biddingStrategy) {
+            const b = prefill.biddingStrategy;
+            if (b === "Target CPA" || b === "TARGET_CPA") {
+              setDemandGenGoal("Conversions");
+              setTargetCpaDemandGen(true);
+              if (prefill.targetCpa) setTargetCpaValue(String(prefill.targetCpa));
+            } else if (b === "Target ROAS" || b === "TARGET_ROAS" || b === "Maximize conversion value" || b === "MAXIMIZE_CONVERSION_VALUE") {
+              setDemandGenGoal("Conversion value");
+            } else if (b === "Clicks" || b === "MAXIMIZE_CLICKS") {
+              setDemandGenGoal("Clicks");
+            } else {
+              setDemandGenGoal("Conversions");
+            }
+          }
+          if (prefill.targetCpa) {
+            setTargetCpaValue(String(prefill.targetCpa));
+            setTargetCpaDemandGen(true);
+          }
+          if (prefill.startDate) setStartDate(prefill.startDate);
+          if (prefill.endDate) setEndDate(prefill.endDate);
+
+          // Location
+          if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+            if (prefill.locations.length === 1 && prefill.locations[0] === "All countries and territories") {
+              setSelectedLocation("ALL");
+            } else if (prefill.locations.length === 1 && prefill.locations[0] === "India") {
+              setSelectedLocation("INDIA");
+            } else {
+              setSelectedLocation("CUSTOM");
+              setCustomLocationInput(prefill.locations.join(", "));
+            }
+          }
+
+          // Languages
+          if (prefill.language) {
+            const langs = prefill.language.split(",").map((l: string) => l.trim()).filter(Boolean);
+            if (langs.length > 0) setSelectedLanguages(langs);
+          }
+
+          // Ad Format
+          if (prefill.adFormat && ["SINGLE_IMAGE", "VIDEO", "CAROUSEL"].includes(prefill.adFormat)) {
+            setDemandGenAdType(prefill.adFormat);
+          }
+
+          // Channels
+          if (prefill.channelTargeting) {
+            setChannelTargeting(prefill.channelTargeting);
+          }
+          if (Array.isArray(prefill.channels) && prefill.channels.length > 0) {
+            setSelectedAdGroupChannels(prefill.channels);
+          }
+
+          // Carousel Cards
+          if (Array.isArray(prefill.carouselCards) && prefill.carouselCards.length > 0) {
+            setCarouselCards(prefill.carouselCards);
+          }
+
+          // Headlines
+          if (Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+            const paddedHeadlines = [...prefill.headlines];
+            while (paddedHeadlines.length < 1) paddedHeadlines.push("");
+            setAdHeadlines(paddedHeadlines.slice(0, 5));
+          }
+
+          // Long Headlines
+          if (Array.isArray(prefill.longHeadlines) && prefill.longHeadlines.length > 0) {
+            const paddedLongHeadlines = [...prefill.longHeadlines];
+            while (paddedLongHeadlines.length < 1) paddedLongHeadlines.push("");
+            setAdLongHeadlines(paddedLongHeadlines.slice(0, 5));
+          }
+
+          // Descriptions
+          if (Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+            const paddedDescriptions = [...prefill.descriptions];
+            while (paddedDescriptions.length < 1) paddedDescriptions.push("");
+            setAdDescriptions(paddedDescriptions.slice(0, 5));
+          }
+
+          // Images
+          if (Array.isArray(prefill.images) && prefill.images.length > 0) {
+            const imgUrls = prefill.images.map((img: any) => (typeof img === "string" ? img : img?.url || img?.data || "")).filter(Boolean);
+            if (imgUrls.length > 0) setAdImages(imgUrls);
+          }
+
+          // Logos
+          if (Array.isArray(prefill.logos) && prefill.logos.length > 0) {
+            const logoUrls = prefill.logos.map((lg: any) => (typeof lg === "string" ? lg : lg?.url || lg?.data || "")).filter(Boolean);
+            if (logoUrls.length > 0) setAdLogos(logoUrls);
+          }
+
+          // Videos
+          if (Array.isArray(prefill.videos) && prefill.videos.length > 0) {
+            const vidUrls = prefill.videos.map((vd: any) => (typeof vd === "string" ? vd : vd?.url || vd?.data || "")).filter(Boolean);
+            if (vidUrls.length > 0) setAdVideos(vidUrls);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not parse googleAds_prefill_campaign for Leads Demand Gen:", err);
+    }
   }, [customerId]);
 
   // Real-time check whenever demandGenCampaignName changes
@@ -102,7 +223,7 @@ export default function LeadsDemandGenPage() {
         delete updated.demandGenCampaignName;
         return updated;
       });
-      return false;
+      return true;
     } else {
       setDuplicateNameError(null);
       setFieldErrors(prev => {
@@ -121,10 +242,10 @@ export default function LeadsDemandGenPage() {
   const [demandGenBudgetType, setDemandGenBudgetType] = useState<string>("Daily");
   const [demandGenBudgetAmount, setDemandGenBudgetAmount] = useState<string>("");
   const [onlyNewCustomers, setOnlyNewCustomers] = useState<boolean>(false);
-  const [mainBrandColor, setMainBrandColor] = useState<string>("#3b82f6");
-  const [accentBrandColor, setAccentBrandColor] = useState<string>("#10b981");
+  const [mainBrandColor, setMainBrandColor] = useState<string>("");
+  const [accentBrandColor, setAccentBrandColor] = useState<string>("");
   const [brandFont, setBrandFont] = useState<string>("Any font");
-  const [startDate, setStartDate] = useState<string>(getTodayFormattedDate());
+  const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
   const [openCampaignSetting, setOpenCampaignSetting] = useState<string | null>(null);
@@ -241,14 +362,14 @@ export default function LeadsDemandGenPage() {
   // Ad Level States
   const [adName, setAdName] = useState<string>("Ad 1");
   const [demandGenAdType, setDemandGenAdType] = useState<"SINGLE_IMAGE" | "VIDEO" | "CAROUSEL">("SINGLE_IMAGE");
-  const [adFinalUrl, setAdFinalUrl] = useState<string>("https://");
+  const [adFinalUrl, setAdFinalUrl] = useState<string>("");
   
   // Media asset lists
   const [adImages, setAdImages] = useState<string[]>([]);
   const [adLogos, setAdLogos] = useState<string[]>([]);
   const [adVideos, setAdVideos] = useState<string[]>([]);
   const [carouselCards, setCarouselCards] = useState<Array<{ id: string; image: string; headline: string; finalUrl: string }>>([
-    { id: "card-1", image: "", headline: "", finalUrl: "https://" }
+    { id: "card-1", image: "", headline: "", finalUrl: "" }
   ]);
 
   // Text assets
@@ -269,7 +390,7 @@ export default function LeadsDemandGenPage() {
 
   // URL options
   const [useDiffMobileUrl, setUseDiffMobileUrl] = useState<boolean>(false);
-  const [mobileFinalUrl, setMobileFinalUrl] = useState<string>("https://");
+  const [mobileFinalUrl, setMobileFinalUrl] = useState<string>("");
   const [adTrackingTemplate, setAdTrackingTemplate] = useState<string>("");
   const [adFinalUrlSuffix, setAdFinalUrlSuffix] = useState<string>("");
   const [adCustomParams, setAdCustomParams] = useState<Array<{ id: string; name: string; value: string }>>([
@@ -730,7 +851,17 @@ export default function LeadsDemandGenPage() {
           </button>
           <div className="flex items-center gap-2 border-l border-slate-200 pl-3 sm:pl-4">
             <Zap className="h-4 w-4 text-primary shrink-0" />
-            <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate max-w-[140px] sm:max-w-none">Demand Gen</span>
+            <input
+              type="text"
+              value={demandGenCampaignName}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDemandGenCampaignName(val);
+                checkDuplicateCampaignName(val);
+              }}
+              placeholder="Campaign Name"
+              className="text-xs sm:text-sm font-semibold text-slate-800 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-primary border border-transparent focus:border-slate-200 rounded px-1.5 py-0.5 max-w-[180px] sm:max-w-xs transition-all"
+            />
           </div>
         </div>
 
@@ -5932,7 +6063,17 @@ export default function LeadsDemandGenPage() {
         <div className="flex items-center gap-3">
           {demandGenStep === "CAMPAIGN_SETTINGS" && (
             <button
-              onClick={() => setDemandGenStep("AD_GROUP")}
+              onClick={() => {
+                setSubmitError(null);
+                const campErrors = getReviewValidationErrors().filter(e => e.level === "Campaign");
+                if (campErrors.length > 0) {
+                  const first = campErrors[0];
+                  setSubmitError(`${first.parameter}: ${first.message}`);
+                  handleFixIssue(first);
+                  return;
+                }
+                setDemandGenStep("AD_GROUP");
+              }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >
               Continue to Ad Group
@@ -5941,7 +6082,17 @@ export default function LeadsDemandGenPage() {
           )}
           {demandGenStep === "AD_GROUP" && (
             <button
-              onClick={() => setDemandGenStep("AD")}
+              onClick={() => {
+                setSubmitError(null);
+                const agErrors = getReviewValidationErrors().filter(e => e.level === "Ad group");
+                if (agErrors.length > 0) {
+                  const first = agErrors[0];
+                  setSubmitError(`${first.parameter}: ${first.message}`);
+                  handleFixIssue(first);
+                  return;
+                }
+                setDemandGenStep("AD");
+              }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >
               Continue to Ad
@@ -5950,7 +6101,17 @@ export default function LeadsDemandGenPage() {
           )}
           {demandGenStep === "AD" && (
             <button
-              onClick={() => setDemandGenStep("REVIEW")}
+              onClick={() => {
+                setSubmitError(null);
+                const adErrors = getReviewValidationErrors().filter(e => e.level === "Ad");
+                if (adErrors.length > 0) {
+                  const first = adErrors[0];
+                  setSubmitError(`${first.parameter}: ${first.message}`);
+                  handleFixIssue(first);
+                  return;
+                }
+                setDemandGenStep("REVIEW");
+              }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >
               Review Campaign
@@ -5980,6 +6141,7 @@ export default function LeadsDemandGenPage() {
                   const targetCid = customerId || "6587355041";
 
                   const validHeadlines = adHeadlines.filter(h => h && h.trim().length > 0);
+                  const validLongHeadlines = adLongHeadlines.filter(lh => lh && lh.trim().length > 0);
                   const validDescriptions = adDescriptions.filter(d => d && d.trim().length > 0);
                   const finalCampaignName = getUniqueCampaignName(demandGenCampaignName, existingCampaignsList);
 
@@ -5991,28 +6153,67 @@ export default function LeadsDemandGenPage() {
                       customerId: targetCid,
                       campaignName: finalCampaignName,
                       channelType: "DEMAND_GEN",
+                      campaignGoal: demandGenGoal,
                       biddingStrategy: targetCpaDemandGen ? "TARGET_CPA" : demandGenGoal === "Clicks" ? "MAXIMIZE_CLICKS" : "MAXIMIZE_CONVERSIONS",
                       budget: Number(demandGenBudgetAmount),
+                      dailyBudget: Number(demandGenBudgetAmount),
+                      demandGenBudgetType,
                       targetCpa: targetCpaDemandGen && targetCpaValue ? Number(targetCpaValue) : undefined,
                       startDate: startDate || getTodayFormattedDate(),
                       endDate: endDate || undefined,
+                      euPolitical: euPoliticalAds,
+                      brandGuidelines: {
+                        mainBrandColor: mainBrandColor || undefined,
+                        accentBrandColor: accentBrandColor || undefined,
+                        brandFont: brandFont || undefined
+                      },
+                      adGroups: adGroups.map(ag => ({ id: ag.id, name: ag.name, status: ag.status })),
+                      locations: selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["India"] : [customLocationInput],
+                      locationTargetType: locationTargetingType,
+                      languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
+                      channelTargeting,
+                      channels: channelTargeting === "ALL" 
+                        ? (includeDisplayNetwork ? ["YouTube", "YouTube in-stream", "YouTube in-feed", "YouTube Shorts", "Discover", "Gmail", "Google Display Network", "Maps New"] : ["YouTube", "YouTube in-stream", "YouTube in-feed", "YouTube Shorts", "Discover", "Gmail", "Maps New"])
+                        : selectedAdGroupChannels,
+                      deviceTargeting: deviceTargetingType,
+                      audience: {
+                        audienceName: audienceName || undefined,
+                        customSegments: customSegmentsList,
+                        yourData: yourDataList,
+                        lookalikes: lookalikeSegmentsList,
+                        interests: interestsList,
+                        exclusions: exclusionsList,
+                        genderTargeting,
+                        ageRangeStart,
+                        ageRangeEnd,
+                        ageUnknown,
+                        parentalStatus,
+                        incomeTargeting
+                      },
+                      optimizedTargeting: useOptimizedTargeting,
+                      customerAcquisitionMode: onlyNewCustomers ? "NEW_CUSTOMERS_ONLY" : "ALL_CUSTOMERS",
+                      adFormat: demandGenAdType,
+                      adName: adName.trim(),
                       finalUrl: adFinalUrl.trim(),
+                      mobileFinalUrl: useDiffMobileUrl && mobileFinalUrl.trim() ? mobileFinalUrl.trim() : undefined,
                       businessName: businessName.trim(),
+                      callToAction: adCallToAction,
                       headlines: validHeadlines.length > 0 ? validHeadlines : ["Explore Demand Gen"],
+                      longHeadlines: validLongHeadlines,
                       descriptions: validDescriptions.length > 0 ? validDescriptions : ["Discover great offers today with Demand Gen"],
                       images: demandGenAdType === "SINGLE_IMAGE" ? adImages : demandGenAdType === "VIDEO" ? adVideos : carouselCards.map(c => c.image),
                       logos: adLogos,
-                      adFormat: demandGenAdType,
-                      adName: adName.trim(),
+                      videos: adVideos,
+                      carouselCards: demandGenAdType === "CAROUSEL" ? carouselCards : [],
                       adSchedule: adScheduleStartTime && adScheduleEndTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45") ? [{ day: adScheduleDays, start: adScheduleStartTime, end: adScheduleEndTime }] : [],
-                      locations: selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["INDIA"] : [customLocationInput],
-                      languages: selectedLanguages,
-                      channels: selectedAdGroupChannels,
-                      optimizedTargeting: useOptimizedTargeting,
-                      customerAcquisitionMode: onlyNewCustomers ? "NEW_CUSTOMERS_ONLY" : "ALL_CUSTOMERS",
                       trackingTemplate: trackingTemplate || agTrackingTemplate || adTrackingTemplate || undefined,
                       finalUrlSuffix: finalUrlSuffix || agFinalUrlSuffix || adFinalUrlSuffix || undefined,
-                      euPolitical: euPoliticalAds,
+                      customParameters: [
+                        ...customParametersDemandGen.filter(p => p.name && p.value),
+                        ...agCustomParams.filter(p => p.name && p.value),
+                        ...adCustomParams.filter(p => p.name && p.value)
+                      ],
+                      ipExclusions: ipExclusionsInput.trim() || undefined,
                       conversionGoals: []
                     })
                   });

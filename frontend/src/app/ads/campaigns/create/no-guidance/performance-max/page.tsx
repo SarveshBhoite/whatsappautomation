@@ -776,6 +776,82 @@ function NoGuidancePerformanceMaxContent() {
           }
         })
         .catch(err => console.error("Error restoring draft:", err));
+    } else {
+      // Check for AI-Guided prefill campaign state from localStorage
+      try {
+        if (typeof window !== "undefined") {
+          const prefillRaw = localStorage.getItem("googleAds_prefill_campaign");
+          if (prefillRaw) {
+            const prefill = JSON.parse(prefillRaw);
+            if (prefill.campaignName) setCampaignName(prefill.campaignName);
+            if (prefill.businessName || prefill.business?.name) setBusinessName(prefill.businessName || prefill.business?.name);
+            if (prefill.website || prefill.finalUrl) setFinalUrl(prefill.website || prefill.finalUrl);
+            if (prefill.dailyBudget) setDailyBudgetValue(String(prefill.dailyBudget));
+            if (prefill.biddingStrategy) {
+              const bMap: Record<string, any> = {
+                "Maximize conversions": "Maximize conversions",
+                "Target CPA": "Target CPA",
+                "Maximize conversion value": "Maximize conversion value",
+                "Target ROAS": "Target ROAS"
+              };
+              if (bMap[prefill.biddingStrategy]) setBiddingFocus(bMap[prefill.biddingStrategy]);
+            }
+            if (prefill.targetCpa) setTargetCpaValue(String(prefill.targetCpa));
+            if (prefill.targetRoas) setTargetRoasValue(String(prefill.targetRoas));
+            if (prefill.startDate) setStartDate(prefill.startDate);
+            if (prefill.endDate) {
+              setEndDate(prefill.endDate);
+              setEndDateOption("SELECT");
+            }
+            if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
+              if (prefill.locations.length === 1 && prefill.locations[0] === "All countries and territories") {
+                setSelectedLocation("ALL");
+              } else if (prefill.locations.length === 1 && prefill.locations[0] === "India") {
+                setSelectedLocation("INDIA");
+              } else {
+                setSelectedLocation("CUSTOM");
+                setCustomLocationInput(prefill.locations.join(", "));
+              }
+            }
+            if (prefill.language) {
+              const langs = prefill.language.split(",").map((l: string) => l.trim()).filter(Boolean);
+              if (langs.length > 0) setSelectedLanguages(langs);
+            }
+            if (Array.isArray(prefill.headlines) && prefill.headlines.length > 0) {
+              setHeadlines(prefill.headlines);
+            }
+            if (Array.isArray(prefill.longHeadlines) && prefill.longHeadlines.length > 0) {
+              setLongHeadlines(prefill.longHeadlines);
+            }
+            if (Array.isArray(prefill.descriptions) && prefill.descriptions.length > 0) {
+              setDescriptions(prefill.descriptions);
+            }
+            if (Array.isArray(prefill.images) && prefill.images.length > 0) {
+              const mappedImgs = prefill.images.map((img: any) => {
+                if (typeof img === "string") return { data: img, fieldType: "MARKETING_IMAGE", name: "Uploaded image" };
+                return { data: img.url || img.data, fieldType: img.fieldType || "MARKETING_IMAGE", name: img.name || "Uploaded image" };
+              });
+              setUploadedImages(mappedImgs);
+            }
+            if (Array.isArray(prefill.logos) && prefill.logos.length > 0) {
+              const mappedLogos = prefill.logos.map((l: any) => (typeof l === "string" ? l : l.url || l.data));
+              setBrandLogos(mappedLogos.filter(Boolean));
+            }
+            if (Array.isArray(prefill.videos) && prefill.videos.length > 0) {
+              const mappedVideos = prefill.videos.map((v: any) => (typeof v === "string" ? v : v.url || v.name));
+              setUploadedVideos(mappedVideos.filter(Boolean));
+            }
+            if (Array.isArray(prefill.searchThemes) && prefill.searchThemes.length > 0) {
+              setSearchThemes(prefill.searchThemes);
+            }
+            if (prefill.euPolitical) {
+              setEuPoliticalAds(prefill.euPolitical);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not parse googleAds_prefill_campaign for No Guidance PMax:", err);
+      }
     }
   }, [customerId, draftId]);
 
@@ -4793,10 +4869,68 @@ function NoGuidancePerformanceMaxContent() {
           {wizardStep !== "SUMMARY" ? (
             <button
               onClick={() => {
-                if (wizardStep === "BIDDING") setWizardStep("CAMPAIGN_SETTINGS");
-                else if (wizardStep === "CAMPAIGN_SETTINGS") setWizardStep("ASSET_GROUP");
-                else if (wizardStep === "ASSET_GROUP") setWizardStep("BUDGET");
-                else if (wizardStep === "BUDGET") setWizardStep("SUMMARY");
+                setSubmitError(null);
+                if (wizardStep === "BIDDING") {
+                  if (biddingFocus === "Target CPA" && targetCpaValue) {
+                    const val = Number(targetCpaValue);
+                    if (isNaN(val) || val <= 0) {
+                      alert("Target CPA must be a positive number.");
+                      return;
+                    }
+                  }
+                  if (biddingFocus === "Target ROAS" && targetRoasValue) {
+                    const val = Number(targetRoasValue);
+                    if (isNaN(val) || val <= 0) {
+                      alert("Target ROAS percentage must be a positive number.");
+                      return;
+                    }
+                  }
+                  setWizardStep("CAMPAIGN_SETTINGS");
+                }
+                else if (wizardStep === "CAMPAIGN_SETTINGS") {
+                  if (!campaignName.trim()) {
+                    alert("Campaign name is required.");
+                    return;
+                  }
+                  if (selectedLocation === "CUSTOM" && selectedCustomLocations.length === 0 && !customLocationInput.trim()) {
+                    alert("Please select at least one targeted location.");
+                    return;
+                  }
+                  if (selectedLanguages.length === 0) {
+                    alert("Please select at least one language.");
+                    return;
+                  }
+                  setWizardStep("ASSET_GROUP");
+                }
+                else if (wizardStep === "ASSET_GROUP") {
+                  const trimmedFinalUrl = finalUrl ? finalUrl.trim() : "";
+                  if (!trimmedFinalUrl || (!trimmedFinalUrl.startsWith("http://") && !trimmedFinalUrl.startsWith("https://"))) {
+                    alert("Final URL is required and must start with http:// or https://");
+                    return;
+                  }
+                  const validHeadlines = headlines.filter(h => h && h.trim());
+                  if (validHeadlines.length < 3) {
+                    alert("Please provide at least 3 headlines in the Asset Group.");
+                    return;
+                  }
+                  const validDescriptions = descriptions.filter(d => d && d.trim());
+                  if (validDescriptions.length < 2) {
+                    alert("Please provide at least 2 descriptions in the Asset Group.");
+                    return;
+                  }
+                  if (uploadedImages.length === 0) {
+                    alert("Please upload at least 1 image for the Asset Group.");
+                    return;
+                  }
+                  setWizardStep("BUDGET");
+                }
+                else if (wizardStep === "BUDGET") {
+                  if (!dailyBudgetValue || isNaN(Number(dailyBudgetValue)) || Number(dailyBudgetValue) <= 0) {
+                    alert("Daily budget is required and must be greater than 0.");
+                    return;
+                  }
+                  setWizardStep("SUMMARY");
+                }
               }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >

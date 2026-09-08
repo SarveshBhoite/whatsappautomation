@@ -3157,10 +3157,51 @@ export default function NoGuidanceDisplayPage() {
           {displayStep !== "REVIEW" && (
             <button
               onClick={() => {
-                if (displayStep === "CAMPAIGN_SETTINGS") setDisplayStep("BUDGET_BIDDING");
-                else if (displayStep === "BUDGET_BIDDING") setDisplayStep("TARGETING");
+                if (displayStep === "CAMPAIGN_SETTINGS") {
+                  if (!displayCampaignName.trim()) {
+                    alert("Campaign name is required.");
+                    return;
+                  }
+                  if (selectedLocation === "CUSTOM" && selectedCustomLocations.length === 0 && !customLocationInput.trim()) {
+                    alert("Please select at least one targeted location.");
+                    return;
+                  }
+                  if (selectedLanguages.length === 0) {
+                    alert("Please select at least one language.");
+                    return;
+                  }
+                  setDisplayStep("BUDGET_BIDDING");
+                }
+                else if (displayStep === "BUDGET_BIDDING") {
+                  const numBudget = Number(dailyBudget);
+                  if (!dailyBudget.trim() || isNaN(numBudget) || numBudget <= 0) {
+                    alert("Daily budget is required and must be greater than 0.");
+                    return;
+                  }
+                  if (conversionBiddingType === "TARGET_CPA" && (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0)) {
+                    alert("Target CPA must be a positive number greater than 0.");
+                    return;
+                  }
+                  setDisplayStep("TARGETING");
+                }
                 else if (displayStep === "TARGETING") setDisplayStep("ADS");
-                else if (displayStep === "ADS") setDisplayStep("REVIEW");
+                else if (displayStep === "ADS") {
+                  const cleanHeadlines = headlines.filter(h => h && h.trim().length > 0);
+                  const cleanDescriptions = descriptions.filter(d => d && d.trim().length > 0);
+                  if (!finalUrl.trim() || (!finalUrl.trim().startsWith("http://") && !finalUrl.trim().startsWith("https://"))) {
+                    alert("Final URL is required and must start with http:// or https://");
+                    return;
+                  }
+                  if (cleanHeadlines.length === 0) {
+                    alert("At least 1 Headline is required for Display campaigns.");
+                    return;
+                  }
+                  if (cleanDescriptions.length === 0) {
+                    alert("At least 1 Description is required for Display campaigns.");
+                    return;
+                  }
+                  setDisplayStep("REVIEW");
+                }
               }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
             >
@@ -3173,13 +3214,26 @@ export default function NoGuidanceDisplayPage() {
             <button
               onClick={async () => {
                 // 1. Validation
-                const cleanHeadlines = headlines.filter(h => h && h.trim().length > 0);
-                const cleanDescriptions = descriptions.filter(d => d && d.trim().length > 0);
-                const numBudget = Number(dailyBudget);
+                if (!displayCampaignName.trim()) {
+                  alert("Campaign name is required.");
+                  setDisplayStep("CAMPAIGN_SETTINGS");
+                  return;
+                }
 
-                if (!dailyBudget || isNaN(numBudget) || numBudget <= 0) {
+                const numBudget = Number(dailyBudget);
+                if (!dailyBudget.trim() || isNaN(numBudget) || numBudget <= 0) {
                   alert("Daily Budget must be a positive number greater than 0.");
                   setDisplayStep("BUDGET_BIDDING");
+                  return;
+                }
+
+                const cleanHeadlines = headlines.filter(h => h && h.trim().length > 0);
+                const cleanLongHeadlines = longHeadlines.filter(h => h && h.trim().length > 0);
+                const cleanDescriptions = descriptions.filter(d => d && d.trim().length > 0);
+
+                if (!finalUrl.trim() || (!finalUrl.trim().startsWith("http://") && !finalUrl.trim().startsWith("https://"))) {
+                  alert("Final URL is required and must start with http:// or https://");
+                  setDisplayStep("ADS");
                   return;
                 }
 
@@ -3203,27 +3257,27 @@ export default function NoGuidanceDisplayPage() {
                   const payloadToLaunch = {
                     orgId,
                     customerId: targetCid,
-                    campaignName: displayCampaignName.trim() || `NoGuidance-Display-${Date.now()}`,
+                    campaignName: displayCampaignName.trim(),
                     channelType: "DISPLAY",
                     biddingStrategy: conversionBiddingType === "TARGET_CPA" ? "TARGET_CPA" : "MAXIMIZE_CONVERSIONS",
                     budget: numBudget,
+                    dailyBudget: numBudget,
                     targetCpa: conversionBiddingType === "TARGET_CPA" && targetCpaValue ? Number(targetCpaValue) : undefined,
                     startDate: startDate || new Date().toISOString().split("T")[0],
                     endDate: endDate || undefined,
-                    finalUrl: finalUrl.trim() || "https://www.JDS-automation.com",
+                    finalUrl: finalUrl.trim(),
                     businessName: businessName.trim() || "JDS",
-                    headlines: cleanHeadlines.length > 0 ? cleanHeadlines : ["Grow Your Business Online", "Digital Marketing Solutions", "Smart Business Automation"],
-                    descriptions: cleanDescriptions.length > 0 ? cleanDescriptions : [
-                      "Get powerful digital marketing and automation solutions for your business.",
-                      "Generate more leads and grow your business with smart automation."
-                    ],
+                    headlines: cleanHeadlines,
+                    longHeadline: cleanLongHeadlines[0] || cleanHeadlines[0] || "Grow Your Business Online",
+                    longHeadlines: cleanLongHeadlines,
+                    descriptions: cleanDescriptions,
                     images: imagesList.length > 0 ? imagesList : [
                       "https://ik.imagekit.io/automationjds/gads_dg_image_1787574968684_aimaths_YX-Kb7zvI.jpg"
                     ],
                     logos: logosList.length > 0 ? logosList : [
                       "https://ik.imagekit.io/automationjds/gads_dg_logo_1787574973938_google_ads_logo_FJndWjppS.jpg"
                     ],
-                    locations: selectedLocation === "INDIA" ? ["India"] : ["All countries and territories"],
+                    locations: selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["India"] : [customLocationInput],
                     languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
                     euPolitical: euPoliticalAds
                   };
