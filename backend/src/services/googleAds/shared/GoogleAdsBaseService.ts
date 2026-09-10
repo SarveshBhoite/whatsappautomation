@@ -79,6 +79,18 @@ export class GoogleAdsBaseService {
     return cleaned;
   }
 
+  public static cleanUrl(url: any): string {
+    if (!url || typeof url !== "string") return "";
+    let cleaned = url.trim();
+    // Remove enclosing quotes, brackets, or trailing punctuation (such as trailing dots, parentheses, colons, slashes)
+    cleaned = cleaned.replace(/^["'(\[<]+/, "").replace(/["')\]>.,;:]+$/, "").trim();
+    if (!cleaned) return "";
+    if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
+      cleaned = `https://${cleaned}`;
+    }
+    return cleaned;
+  }
+
   public static formatGoogleAdsError(error: any): string {
     if (error?.response?.data) {
       const data = error.response.data;

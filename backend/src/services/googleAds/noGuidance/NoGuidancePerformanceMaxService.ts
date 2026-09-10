@@ -91,13 +91,10 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
     } = payload;
 
     // Final URL Validation
-    if (!finalUrl || !String(finalUrl).trim()) throw new Error("Final URL is required.");
-    const trimmedUrl = String(finalUrl).trim();
+    const safeFinalUrl = GoogleAdsBaseService.cleanUrl(finalUrl);
+    if (!safeFinalUrl) throw new Error("A valid Final URL is required.");
     if (isAiGuided) {
-      if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
-        throw new Error("A valid URL starting with http:// or https:// is required.");
-      }
-      if (trimmedUrl.includes("example.com") || trimmedUrl.includes("localhost") || trimmedUrl.includes("example.org")) {
+      if (safeFinalUrl.includes("example.com") || safeFinalUrl.includes("localhost") || safeFinalUrl.includes("example.org")) {
         throw new Error("Example/localhost domains are not allowed.");
       }
     }
@@ -436,7 +433,7 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
               campaign: campaignRef,
               name: assetGroupName || `${campaignName} Asset Group 1`,
               status: "ENABLED",
-              finalUrls: [finalUrl]
+              finalUrls: [safeFinalUrl]
             }
           }
         },

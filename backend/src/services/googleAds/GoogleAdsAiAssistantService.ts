@@ -1,5 +1,6 @@
 import axios from "axios";
 import { GoogleAdsCampaignValidator, ValidationError } from "./shared/GoogleAdsCampaignValidator";
+import { GoogleAdsImageGenService, GeneratedCreativeImage } from "./GoogleAdsImageGenService";
 
 export interface BusinessContext {
   name?: string;
@@ -102,6 +103,7 @@ export interface AiChatResponse {
   message: string;
   suggestions: string[];
   campaignState: CampaignState;
+  generatedImages?: GeneratedCreativeImage[];
   missingFields: string[];
   validationErrors: ValidationError[];
   readyForReview: boolean;
@@ -543,10 +545,11 @@ ${JSON.stringify(currentState, null, 2)}
       ];
 
       const candidateModels = [
-        "llama-3.3-70b-versatile",
-        "openai/gpt-oss-120b",
         "llama-3.1-8b-instant",
-        "openai/gpt-oss-20b"
+        "llama3-70b-8192",
+        "llama3-8b-8192",
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it"
       ];
 
       let rawContent = "";
@@ -609,6 +612,24 @@ ${JSON.stringify(currentState, null, 2)}
       const userAskedForGen = lastUserMsg.includes("generate") || lastUserMsg.includes("create") || lastUserMsg.includes("headline") || lastUserMsg.includes("leadline") || lastUserMsg.includes("description") || lastUserMsg.includes("suggest") || lastUserMsg.includes("website") || lastUserMsg.includes("all required");
       const userConfirmedSettings = lastUserMsg.includes("use recommended") || lastUserMsg.includes("accept") || lastUserMsg.includes("confirm");
 
+      // Helper to normalize any date input (DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD) to ISO YYYY-MM-DD
+      const normalizeDateString = (dStr?: string): string | undefined => {
+        if (!dStr || typeof dStr !== "string") return undefined;
+        const trimmed = dStr.trim();
+        const parts = trimmed.split(/[-\/\.]/);
+        if (parts.length === 3) {
+          if (parts[0].length === 4) {
+            // YYYY-MM-DD
+            return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+          }
+          if (parts[2].length === 4) {
+            // DD-MM-YYYY or MM-DD-YYYY -> DD-MM-YYYY standard in India / EU
+            return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+          }
+        }
+        return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : undefined;
+      };
+
       // Extract explicit budget if stated in natural language in last user message
       let explicitBudget: number | null = null;
       const budgetMatch = lastUserMsg.match(/(?:budget|spend|cost)\s*(?:is|of|to)?\s*(?:rs\.?|₹|inr)?\s*(\d[\d,]*)/i) ||
@@ -619,6 +640,44 @@ ${JSON.stringify(currentState, null, 2)}
         if (!isNaN(parsedNum) && parsedNum > 0) {
           explicitBudget = parsedNum;
         }
+      }
+
+      // Extract explicit dates if stated in natural language in last user message
+      let explicitStartDate: string | undefined = undefined;
+      let explicitEndDate: string | undefined = undefined;
+      const startDateMatch = lastUserMsg.match(/start\s*(?:date)?\s*(?:is|:)?\s*(\d{1,4}[-\/\.]\d{1,2}[-\/\.]\d{1,4})/i);
+      if (startDateMatch && startDateMatch[1]) {
+        explicitStartDate = normalizeDateString(startDateMatch[1]);
+      }
+      const endDateMatch = lastUserMsg.match(/end\s*(?:date)?\s*(?:is|:)?\s*(\d{1,4}[-\/\.]\d{1,2}[-\/\.]\d{1,4})/i);
+      if (endDateMatch && endDateMatch[1]) {
+        explicitEndDate = normalizeDateString(endDateMatch[1]);
+      }
+
+      // Regex fallback for business name and website if LLM omitted them
+      const bizNameMatch = lastUserMsg.match(/(?:shop|business|company|store|brand)\s*(?:name)?\s*(?:is|:)?\s*["']([^"']+)["']/i);
+      const extractedBizName = bizNameMatch ? bizNameMatch[1].trim() : "";
+
+      const websiteMatch = lastUserMsg.match(/(?:website|url|site)\s*(?:is|:)?\s*["']?(https?:\/\/[^\s"']+)["']?/i);
+      const extractedWebsite = websiteMatch ? websiteMatch[1].trim() : "";
+
+      const resolvedBizName = cleanBizName || extractedBizName || currentState.businessName || currentState.business?.name || "";
+      const resolvedWebsite = cleanWebsite || extractedWebsite || currentState.website || currentState.business?.website || "";
+
+      // Regex fallback for campaign objective and type if explicitly requested
+      let resolvedObjective = parsedState.objective || currentState.objective || "";
+      let resolvedCampaignType = parsedState.campaignType || currentState.campaignType || "";
+
+      if (lastUserMsg.includes("performance max") || lastUserMsg.includes("pmax")) {
+        resolvedCampaignType = "PERFORMANCE_MAX";
+      } else if (lastUserMsg.includes("search")) {
+        resolvedCampaignType = "SEARCH";
+      }
+
+      if (lastUserMsg.includes("in sales") || lastUserMsg.includes("for sales") || lastUserMsg.includes("objective is sales") || lastUserMsg.includes("objective sales")) {
+        resolvedObjective = "SALES";
+      } else if (lastUserMsg.includes("in leads") || lastUserMsg.includes("for leads") || lastUserMsg.includes("objective is leads")) {
+        resolvedObjective = "LEADS";
       }
 
       const cleanLocations = (parsedState.locations && parsedState.locations.length > 0)
@@ -642,14 +701,14 @@ ${JSON.stringify(currentState, null, 2)}
         : this.sanitizeArray(currentState.longHeadlines);
 
       // Auto-guarantee minimum requirements for Google Ads compliance (min 3 headlines, min 1 long headline, min 2 descriptions)
-      if (userAskedForGen && cleanBizName) {
+      if ((userAskedForGen || Boolean(resolvedBizName)) && resolvedBizName) {
         if (cleanHeadlines.length < 3) {
           const defaultH = [
-            cleanBizName.slice(0, 30),
-            `Top ${cleanBizName} Solutions`.slice(0, 30),
-            "Get Started Today".slice(0, 30),
-            "Fast & Reliable Service".slice(0, 30),
-            "Exclusive Offers Now".slice(0, 30)
+            resolvedBizName.slice(0, 30),
+            `Buy Laptops & Computers`.slice(0, 30),
+            `Top ${resolvedBizName} Deals`.slice(0, 30),
+            "Best Price Guaranteed".slice(0, 30),
+            "Shop Latest Tech Now".slice(0, 30)
           ];
           for (const h of defaultH) {
             if (!cleanHeadlines.includes(h) && cleanHeadlines.length < 5) {
@@ -659,17 +718,33 @@ ${JSON.stringify(currentState, null, 2)}
         }
 
         if (cleanLongHeadlines.length < 1) {
-          cleanLongHeadlines.push(`Discover Premium ${cleanBizName} Services Tailored For Your Growth & Success`.slice(0, 90));
+          cleanLongHeadlines.push(`Shop Premium Laptops, Computers & Tech Accessories at ${resolvedBizName}`.slice(0, 90));
         }
 
         if (cleanDescriptions.length < 2) {
           const defaultD = [
-            `Connect with ${cleanBizName} today. Explore our expert services and trusted solutions.`.slice(0, 90),
-            `High quality offerings, dedicated support, and proven results. Inquire now!`.slice(0, 90)
+            `Discover top deals on laptops & computers at ${resolvedBizName}. Genuine warranty and fast delivery.`.slice(0, 90),
+            `Upgrade your setup with high-performance laptops and PC parts. Shop online or visit us today!`.slice(0, 90)
           ];
           for (const d of defaultD) {
             if (!cleanDescriptions.includes(d) && cleanDescriptions.length < 4) {
               cleanDescriptions.push(d);
+            }
+          }
+        }
+
+        if (cleanKeywords.length < 5) {
+          const defaultKw = [
+            "buy laptops online",
+            "computer shop near me",
+            "best gaming laptops",
+            "desktop computers for sale",
+            "laptop repair and sales",
+            "affordable laptops"
+          ];
+          for (const kw of defaultKw) {
+            if (!cleanKeywords.includes(kw) && cleanKeywords.length < 10) {
+              cleanKeywords.push(kw);
             }
           }
         }
@@ -686,10 +761,11 @@ ${JSON.stringify(currentState, null, 2)}
 
       // Contextual Campaign Name Formulation: [Business_Name] or [Business_Name] - [CampaignType]
       let derivedCampaignName = "";
-      if (cleanBizName) {
-        const underscoredBiz = cleanBizName.replace(/\s+/g, "_");
-        if (parsedState.campaignType) {
-          const formattedType = parsedState.campaignType
+      if (resolvedBizName) {
+        const underscoredBiz = resolvedBizName.replace(/\s+/g, "_");
+        const activeType = resolvedCampaignType || parsedState.campaignType;
+        if (activeType) {
+          const formattedType = activeType
             .split("_")
             .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
             .join(" ");
@@ -705,34 +781,73 @@ ${JSON.stringify(currentState, null, 2)}
           : derivedCampaignName
       );
 
+      const resolvedStartDate = explicitStartDate || normalizeDateString(parsedState.startDate) || currentState.startDate || new Date().toISOString().split("T")[0];
+      const resolvedEndDate = explicitEndDate || normalizeDateString(parsedState.endDate) || currentState.endDate || undefined;
+
+      // Check if user also asked to generate images/logo in prompt
+      let generatedCreativesList: GeneratedCreativeImage[] = [];
+      let mergedImages = currentState.images || [];
+      let mergedLogos = currentState.logos || [];
+
+      const userAskedForImages = lastUserMsg.includes("generate image") || lastUserMsg.includes("generate images") ||
+                                 lastUserMsg.includes("generate logo") || lastUserMsg.includes("create image") ||
+                                 lastUserMsg.includes("create logo") || lastUserMsg.includes("generate and auto fill") ||
+                                 lastUserMsg.includes("generate creatives") || (lastUserMsg.includes("image") && lastUserMsg.includes("logo"));
+
+      if (userAskedForImages && (resolvedBizName || resolvedWebsite)) {
+        try {
+          console.log(`[AI-GUIDED] Generating ad visuals for business: "${resolvedBizName}"`);
+          const tempStateForImg: CampaignState = {
+            ...currentState,
+            businessName: resolvedBizName,
+            website: resolvedWebsite,
+            business: {
+              name: resolvedBizName,
+              website: resolvedWebsite,
+              description: cleanBizDesc || `${resolvedBizName} products and services`
+            }
+          };
+          const imgGenRes = await GoogleAdsImageGenService.generateAdImages(lastUserMsg, tempStateForImg);
+          if (imgGenRes && imgGenRes.generatedImages && imgGenRes.generatedImages.length > 0) {
+            generatedCreativesList = imgGenRes.generatedImages;
+            mergedImages = imgGenRes.campaignState.images || [];
+            mergedLogos = imgGenRes.campaignState.logos || [];
+          }
+        } catch (imgErr: any) {
+          console.warn("[AI-GUIDED] Integrated visual asset generation warning:", imgErr?.message || imgErr);
+        }
+      }
+
       const mergedState: CampaignState = {
         ...currentState,
         ...parsedState,
         business: {
           ...(currentState.business || {}),
           ...(parsedState.business || {}),
-          name: cleanBizName,
+          name: resolvedBizName,
           description: cleanBizDesc,
-          website: cleanWebsite
+          website: resolvedWebsite
         },
-        businessName: cleanBizName,
+        businessName: resolvedBizName,
         campaignName: cleanCampaignName,
-        website: cleanWebsite,
-        conversionGoals: parsedState.conversionGoals || currentState.conversionGoals || [],
+        website: resolvedWebsite,
+        objective: (resolvedObjective as any) || parsedState.objective || currentState.objective || "",
+        campaignType: (resolvedCampaignType as any) || parsedState.campaignType || currentState.campaignType || "",
+        conversionGoals: parsedState.conversionGoals || currentState.conversionGoals || (resolvedObjective === "SALES" ? ["phone_leads", "contacts"] : []),
         locations: cleanLocations,
         language: resolvedLanguage,
         biddingStrategy: resolvedBiddingStrategy,
         targetCpa: resolvedTargetCpa,
         targetRoas: resolvedTargetRoas,
         dailyBudget: resolvedDailyBudget,
-        startDate: parsedState.startDate || currentState.startDate || new Date().toISOString().split("T")[0],
-        endDate: parsedState.endDate || currentState.endDate || undefined,
+        startDate: resolvedStartDate,
+        endDate: resolvedEndDate,
         keywords: cleanKeywords,
         headlines: cleanHeadlines,
         descriptions: cleanDescriptions,
         longHeadlines: cleanLongHeadlines,
-        images: currentState.images || [],
-        logos: currentState.logos || [],
+        images: mergedImages,
+        logos: mergedLogos,
         videos: currentState.videos || [],
         // App-specific properties preservation
         appId: parsedState.appId || currentState.appId || undefined,
@@ -835,6 +950,7 @@ ${JSON.stringify(currentState, null, 2)}
             ? ["Upload Media", "Use Recommended Settings", "Show Required Assets"]
             : ["Use Recommended Settings", "Show Other Options", "Change Budget"],
         campaignState: updatedState,
+        generatedImages: generatedCreativesList.length > 0 ? generatedCreativesList : undefined,
         missingFields,
         validationErrors,
         readyForReview: isReadyForReview,
@@ -884,16 +1000,76 @@ ${JSON.stringify(currentState, null, 2)}
         if (!isNaN(parsedNum) && parsedNum > 0) explicitBudget = parsedNum;
       }
 
+      // Regex fallback extraction for business, website, dates in fallback
+      const bizNameMatch = lastUserMsg.match(/(?:shop|business|company|store|brand)\s*(?:name)?\s*(?:is|:)?\s*["']([^"']+)["']/i);
+      const fallbackBizName = bizNameMatch ? bizNameMatch[1].trim() : (currentState.businessName || currentState.business?.name || "");
+
+      const websiteMatch = lastUserMsg.match(/(?:website|url|site)\s*(?:is|:)?\s*["']?(https?:\/\/[^\s"']+)["']?/i);
+      const fallbackWebsite = websiteMatch ? websiteMatch[1].trim() : (currentState.website || currentState.business?.website || "");
+
+      const normalizeDateString = (dStr?: string): string | undefined => {
+        if (!dStr || typeof dStr !== "string") return undefined;
+        const trimmed = dStr.trim();
+        const parts = trimmed.split(/[-\/\.]/);
+        if (parts.length === 3) {
+          if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+          if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+        }
+        return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : undefined;
+      };
+
+      const startDateMatch = lastUserMsg.match(/start\s*(?:date)?\s*(?:is|:)?\s*(\d{1,4}[-\/\.]\d{1,2}[-\/\.]\d{1,4})/i);
+      const fallbackStartDate = startDateMatch ? normalizeDateString(startDateMatch[1]) : (currentState.startDate || new Date().toISOString().split("T")[0]);
+
+      const endDateMatch = lastUserMsg.match(/end\s*(?:date)?\s*(?:is|:)?\s*(\d{1,4}[-\/\.]\d{1,2}[-\/\.]\d{1,4})/i);
+      const fallbackEndDate = endDateMatch ? normalizeDateString(endDateMatch[1]) : currentState.endDate;
+
+      let fallbackHeadlines = [...(currentState.headlines || [])];
+      let fallbackLongHeadlines = [...(currentState.longHeadlines || [])];
+      let fallbackDescriptions = [...(currentState.descriptions || [])];
+
+      if (fallbackBizName) {
+        if (fallbackHeadlines.length < 3) {
+          fallbackHeadlines = [
+            fallbackBizName.slice(0, 30),
+            `Buy Laptops & Computers`.slice(0, 30),
+            `Top ${fallbackBizName} Deals`.slice(0, 30),
+            "Best Price Guaranteed".slice(0, 30),
+            "Shop Latest Tech Now".slice(0, 30)
+          ];
+        }
+        if (fallbackLongHeadlines.length < 1) {
+          fallbackLongHeadlines = [`Shop Premium Laptops, Computers & Tech Accessories at ${fallbackBizName}`.slice(0, 90)];
+        }
+        if (fallbackDescriptions.length < 2) {
+          fallbackDescriptions = [
+            `Discover top deals on laptops & computers at ${fallbackBizName}. Genuine warranty and fast delivery.`.slice(0, 90),
+            `Upgrade your setup with high-performance laptops and PC parts. Shop online or visit us today!`.slice(0, 90)
+          ];
+        }
+      }
+
       const fallbackState: CampaignState = {
         ...currentState,
+        businessName: fallbackBizName,
+        website: fallbackWebsite,
+        business: {
+          ...(currentState.business || {}),
+          name: fallbackBizName,
+          website: fallbackWebsite
+        },
         objective: resolvedObjective as any,
         campaignType: resolvedCampaignType as any,
         conversionGoals: resolvedGoals,
         dailyBudget: explicitBudget,
-        startDate: currentState.startDate || new Date().toISOString().split("T")[0],
+        startDate: fallbackStartDate,
+        endDate: fallbackEndDate,
+        headlines: fallbackHeadlines,
+        longHeadlines: fallbackLongHeadlines,
+        descriptions: fallbackDescriptions,
         locations: currentState.locations?.length ? currentState.locations : ["India"],
         language: currentState.language || "English",
-        readyForReview: !!(currentState.businessName || currentState.website),
+        readyForReview: !!(fallbackBizName || fallbackWebsite),
         readyForPublish: false,
         stage: "collecting_campaign_data"
       };

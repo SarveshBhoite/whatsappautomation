@@ -2,6 +2,7 @@ import { Router } from "express";
 import { GoogleAdsAiAssistantService, CampaignState } from "../../services/googleAds/GoogleAdsAiAssistantService";
 import { GoogleAdsImageGenService } from "../../services/googleAds/GoogleAdsImageGenService";
 import { GoogleAdsCampaignValidator } from "../../services/googleAds/shared/GoogleAdsCampaignValidator";
+import { GoogleAdsBaseService } from "../../services/googleAds/shared/GoogleAdsBaseService";
 import { analyzeWebsiteUrl } from "../../services/googleAds/shared/websiteAnalyzer";
 import { SalesSearchService } from "../../services/googleAds/sales/SalesSearchService";
 import { SalesPerformanceMaxService } from "../../services/googleAds/sales/SalesPerformanceMaxService";
@@ -38,7 +39,8 @@ const router = Router();
 
 // POST /api/ads/ai-guided/analyze-url
 router.post("/analyze-url", async (req, res) => {
-  const { url } = req.body;
+  const rawUrl = req.body?.url;
+  const url = typeof rawUrl === "string" ? rawUrl.trim().replace(/^["'(\[]+|["')\].,]+$/g, "") : "";
   console.log(`[AI-GUIDED] URL detected / analyze-url request started: ${url}`);
   try {
     if (!url) {
@@ -389,11 +391,13 @@ router.post("/create-campaign", async (req, res) => {
       }
 
       case "PERFORMANCE_MAX": {
+        const rawPmaxUrl = state.website || state.finalUrl || "";
+        const cleanPmaxUrl = GoogleAdsBaseService.cleanUrl(rawPmaxUrl);
         const payload = {
           source: "AI_GUIDED",
           isAiGuided: true,
           campaignName,
-          finalUrl: state.website || state.finalUrl,
+          finalUrl: cleanPmaxUrl,
           businessName: state.businessName,
           dailyBudget,
           locations,
@@ -678,6 +682,15 @@ router.post("/create-campaign", async (req, res) => {
       default:
         return res.status(400).json({ error: `Unsupported campaign type: ${state.campaignType}` });
     }
+
+    console.log(`\n======================================================`);
+    console.log(`🚀 [GOOGLE ADS SUCCESS] Campaign Created Successfully!`);
+    console.log(`📌 Customer ID:   ${customerId}`);
+    console.log(`📌 Campaign Name: ${campaignName}`);
+    console.log(`📌 Campaign Type: ${state.campaignType}`);
+    console.log(`📌 Objective:     ${objective}`);
+    console.log(`📌 Daily Budget:  ₹${dailyBudget}`);
+    console.log(`======================================================\n`);
 
     return res.status(200).json({
       success: true,

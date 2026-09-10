@@ -9,6 +9,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   HelpCircle,
   ArrowRight,
   Globe,
@@ -110,9 +111,9 @@ export interface CampaignState {
   channels?: string[];
   carouselCards?: Array<{ id: string; image: string; headline: string; finalUrl: string }>;
   callToAction?: string;
-  images?: Array<string | { url?: string; data?: string; fieldType?: string; name?: string }>;
-  logos?: Array<string | { url?: string; data?: string; fieldType?: string; name?: string }>;
-  videos?: Array<string | { url?: string; data?: string; name?: string }>;
+  images?: Array<string | { url?: string; data?: string; fieldType?: string; name?: string; aspectRatio?: string; dimensions?: { width: number; height: number } }>;
+  logos?: Array<string | { url?: string; data?: string; fieldType?: string; name?: string; aspectRatio?: string; dimensions?: { width: number; height: number } }>;
+  videos?: Array<string | { url?: string; data?: string; name?: string; aspectRatio?: string; dimensions?: { width: number; height: number } }>;
   appId?: string;
   appName?: string;
   platform?: "ANDROID" | "IOS";
@@ -562,7 +563,7 @@ export const reconcileCampaignStateWithManualFlow = (
 interface GeneratedCreativeItem {
   url: string;
   name: string;
-  fieldType?: "MARKETING_IMAGE" | "LOGO";
+  fieldType?: "MARKETING_IMAGE" | "SQUARE_MARKETING_IMAGE" | "LOGO" | "VIDEO";
   aspectRatio?: string;
   dimensions?: { width: number; height: number };
   prompt?: string;
@@ -595,6 +596,8 @@ export default function AiGuidedCampaignPage() {
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
+  const [urlValidationError, setUrlValidationError] = useState<string | null>(null);
+  const [showMissingParamsModal, setShowMissingParamsModal] = useState<boolean>(false);
 
   // Mobile View Tab Selection ('chat' | 'cockpit')
   const [mobileActiveTab, setMobileActiveTab] = useState<"chat" | "cockpit">("chat");
@@ -907,17 +910,17 @@ export default function AiGuidedCampaignPage() {
     if (!val || !val.trim()) {
       return "Website URL is required.";
     }
-    const trimmed = val.trim();
+    let trimmed = val.trim();
     if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-      return "Invalid website URL. Please enter a valid URL starting with http:// or https://.";
+      trimmed = `https://${trimmed}`;
     }
     try {
       const parsed = new URL(trimmed);
       if (!parsed.hostname || !parsed.hostname.includes(".")) {
-        return "Invalid website URL. Please enter a valid URL starting with http:// or https://.";
+        return "Invalid website URL. Please enter a valid domain (e.g. yourbusiness.com).";
       }
     } catch {
-      return "Invalid website URL. Please enter a valid URL starting with http:// or https://.";
+      return "Invalid website URL. Please enter a valid domain (e.g. yourbusiness.com).";
     }
     return null;
   };
@@ -1014,6 +1017,7 @@ export default function AiGuidedCampaignPage() {
   };
 
   // Helper to generate canonical campaign name based on business name and optional confirmed campaign type
+  // Helper to generate canonical campaign name based on business name and optional confirmed campaign type
   const generateCampaignName = (businessName?: string, campaignType?: string) => {
     if (!businessName || !businessName.trim()) return "";
     const cleanBiz = businessName.trim().replace(/\s+/g, "_");
@@ -1022,6 +1026,315 @@ export default function AiGuidedCampaignPage() {
       return `${cleanBiz} - ${typeDisplay}`;
     }
     return cleanBiz;
+  };
+
+  // Helper to check if campaign state satisfies all Google Ads publishing requirements
+  const checkIsCampaignReady = (state: CampaignState): boolean => {
+    const cType = state.campaignType;
+    const isBudgetValid = cType === "DEMAND_GEN"
+      ? (state.dailyBudget && state.dailyBudget >= 416)
+      : (state.dailyBudget && state.dailyBudget > 0);
+    const hasBudget = Boolean(isBudgetValid);
+    const hasBizName = !!(state.businessName?.trim() || state.business?.name?.trim());
+    const hasName = !!(state.campaignName?.trim() || hasBizName);
+    const hasType = !!state.campaignType;
+
+    if (!hasBudget || !hasName || !hasType) return false;
+
+    const validHeadlines = (state.headlines || []).filter(h => h && h.trim().length > 0);
+    const validDescriptions = (state.descriptions || []).filter(d => d && d.trim().length > 0);
+    const validLongHeadlines = (state.longHeadlines || []).filter(lh => lh && lh.trim().length > 0);
+    const validKeywords = (state.keywords || []).filter(k => k && k.trim().length > 0);
+    const hasImages = (state.images?.length || 0) > 0;
+    const hasLogos = (state.logos?.length || 0) > 0;
+    const hasVideos = (state.videos?.length || 0) > 0;
+    const dgFormat = state.adFormat || "SINGLE_IMAGE";
+
+    if (cType === "SEARCH") {
+      return validKeywords.length >= 1 && validHeadlines.length >= 3 && validDescriptions.length >= 2;
+    }
+
+    if (cType === "PERFORMANCE_MAX") {
+      const allImgs = state.images || [];
+      const allLgs = state.logos || [];
+      let hasLand = false;
+      let hasSq = false;
+      let hasLg = allLgs.length > 0;
+
+      for (const im of allImgs) {
+        const raw = typeof im === "string" ? im : (im as any)?.url || (im as any)?.data || "";
+        const fType = typeof im === "object" ? (im as any)?.fieldType : null;
+        const ratio = typeof im === "object" ? (im as any)?.aspectRatio : null;
+        const name = (typeof im === "object" && (im as any)?.name) ? (im as any).name.toLowerCase() : "";
+        const dims = typeof im === "object" ? (im as any)?.dimensions : null;
+
+        const isSquareDetected = fType === "SQUARE_MARKETING_IMAGE" ||
+          ratio === "1:1" ||
+          name.includes("1x1") ||
+          name.includes("1:1") ||
+          name.includes("square") ||
+          (dims && Math.abs(dims.width - dims.height) <= 20);
+
+        const isLandscapeDetected = fType === "MARKETING_IMAGE" ||
+          ratio === "1.91:1" ||
+          name.includes("1.91x1") ||
+          name.includes("1.91:1") ||
+          name.includes("landscape") ||
+          (dims && dims.width >= dims.height * 1.3);
+
+        if (isSquareDetected) hasSq = true;
+        if (isLandscapeDetected) hasLand = true;
+        if (fType === "LOGO") hasLg = true;
+        else if (typeof raw === "string" && (raw.includes("ik.imagekit.io") || raw.startsWith("data:image/") || raw.startsWith("http"))) {
+          if (!hasLand && !hasSq) {
+            hasLand = true;
+            hasSq = true;
+          } else if (!hasLand) {
+            hasLand = true;
+          } else if (!hasSq) {
+            hasSq = true;
+          }
+        }
+      }
+
+      if (allImgs.length >= 2 && (!hasLand || !hasSq)) {
+        hasLand = true;
+        hasSq = true;
+      } else if (allImgs.length === 1 && !hasLand && !hasSq) {
+        hasLand = true;
+        hasSq = true;
+      }
+
+      const hasBiz = !!(state.businessName?.trim() && state.businessName.trim().length <= 25);
+      const hasUrl = !!(state.website && (state.website.startsWith("http://") || state.website.startsWith("https://")));
+      const bStrat = (state.biddingStrategy || "").toLowerCase();
+      let isBiddingValid = true;
+      if (bStrat === "target cpa" || bStrat === "target_cpa") {
+        const cpa = Number(state.targetCpa);
+        isBiddingValid = !isNaN(cpa) && cpa > 0;
+      } else if (bStrat === "target roas" || bStrat === "target_roas") {
+        const roas = Number(state.targetRoas);
+        isBiddingValid = !isNaN(roas) && roas > 0;
+      }
+
+      return hasLand && hasSq && hasLg && validHeadlines.length >= 3 && validLongHeadlines.length >= 1 && validDescriptions.length >= 2 && hasBiz && hasUrl && isBiddingValid;
+    }
+
+    if (cType === "DISPLAY") {
+      const hasLongHl = validLongHeadlines.length >= 1 || validHeadlines.length >= 1;
+      return hasImages && hasLogos && validHeadlines.length >= 1 && hasLongHl && validDescriptions.length >= 1;
+    }
+
+    if (cType === "DEMAND_GEN" || cType === "VIDEO") {
+      if (dgFormat === "VIDEO") {
+        return hasVideos && hasLogos && validHeadlines.length >= 1 && validLongHeadlines.length >= 1 && validDescriptions.length >= 1;
+      } else if (dgFormat === "CAROUSEL") {
+        const cards = state.carouselCards || [];
+        const validCards = cards.filter(c => c && c.image?.trim() && c.headline?.trim());
+        return validCards.length >= 2 && hasLogos && validHeadlines.length >= 1 && validDescriptions.length >= 1;
+      } else {
+        return hasImages && hasLogos && validHeadlines.length >= 1 && validDescriptions.length >= 1;
+      }
+    }
+
+    if (cType === "APP") {
+      const hasAppId = !!(state.appId && state.appId.trim());
+      const hasTargetCpa = state.targetCpa !== undefined && state.targetCpa !== null && !isNaN(Number(state.targetCpa)) && Number(state.targetCpa) > 0;
+      return Boolean(hasAppId && hasBizName && hasTargetCpa && validHeadlines.length >= 1 && validDescriptions.length >= 1 && hasBudget);
+    }
+
+    if (cType === "SHOPPING") {
+      const mId = (state.merchantCenterId || (state as any).merchantId || "").trim();
+      const isMidValid = /^\d+$/.test(mId);
+      const hasCountry = !!(state.salesCountry || (state as any).feedLabel);
+      const shoppingUrl = (state.website || "").trim();
+      const isUrlValid = shoppingUrl.startsWith("http://") || shoppingUrl.startsWith("https://");
+      return Boolean(isMidValid && hasCountry && isUrlValid && validHeadlines.length >= 1 && validDescriptions.length >= 1 && hasBudget);
+    }
+
+    return true;
+  };
+
+  // Helper to compute specific missing requirements and action buttons for Cockpit display
+  const computeMissingRequirementsCockpit = (state: CampaignState): Array<{ label: string; field: string; fixAction: () => void }> => {
+    const missing: Array<{ label: string; field: string; fixAction: () => void }> = [];
+    const cType = state.campaignType;
+
+    if (!state.businessName && !state.business?.name) {
+      missing.push({
+        label: "Business / Shop Name is required",
+        field: "businessName",
+        fixAction: () => startFieldEdit("businessName")
+      });
+    }
+
+    if (cType !== "APP" && (!state.website || (!state.website.startsWith("http://") && !state.website.startsWith("https://")))) {
+      missing.push({
+        label: "Valid Website Landing Page URL (http:// or https://) is required",
+        field: "website",
+        fixAction: () => startFieldEdit("website")
+      });
+    }
+
+    const isBudgetValid = cType === "DEMAND_GEN"
+      ? (state.dailyBudget && state.dailyBudget >= 416)
+      : (state.dailyBudget && state.dailyBudget > 0);
+    if (!isBudgetValid) {
+      missing.push({
+        label: cType === "DEMAND_GEN" ? "Daily Budget must be at least ₹416/day" : "Daily Budget is required (min ₹100/day)",
+        field: "dailyBudget",
+        fixAction: () => startFieldEdit("dailyBudget")
+      });
+    }
+
+    if (!cType) {
+      missing.push({
+        label: "Campaign Type selection is required",
+        field: "campaignType",
+        fixAction: () => startFieldEdit("campaignType")
+      });
+    }
+
+    const validHeadlines = (state.headlines || []).filter(h => h && h.trim().length > 0);
+    const validDescriptions = (state.descriptions || []).filter(d => d && d.trim().length > 0);
+    const validLongHeadlines = (state.longHeadlines || []).filter(lh => lh && lh.trim().length > 0);
+    const validKeywords = (state.keywords || []).filter(k => k && k.trim().length > 0);
+
+    if (cType === "SEARCH") {
+      if (validHeadlines.length < 3) {
+        missing.push({
+          label: `At least 3 Headlines required (${validHeadlines.length}/3 added)`,
+          field: "headlines",
+          fixAction: () => handleTriggerAiAssetGeneration("HEADLINES")
+        });
+      }
+      if (validDescriptions.length < 2) {
+        missing.push({
+          label: `At least 2 Descriptions required (${validDescriptions.length}/2 added)`,
+          field: "descriptions",
+          fixAction: () => handleTriggerAiAssetGeneration("DESCRIPTIONS")
+        });
+      }
+      if (validKeywords.length < 1) {
+        missing.push({
+          label: "At least 1 Keyword is required for Search campaigns",
+          field: "keywords",
+          fixAction: () => handleSendMessage("generate 10 high intent search keywords for my business")
+        });
+      }
+    } else if (cType === "PERFORMANCE_MAX") {
+      const allImgs = state.images || [];
+      const allLgs = state.logos || [];
+      let hasLand = false;
+      let hasSq = false;
+      let hasLg = allLgs.length > 0;
+
+      for (const im of allImgs) {
+        const raw = typeof im === "string" ? im : (im as any)?.url || (im as any)?.data || "";
+        const fType = typeof im === "object" ? (im as any)?.fieldType : null;
+        const ratio = typeof im === "object" ? (im as any)?.aspectRatio : null;
+        const name = (typeof im === "object" && (im as any)?.name) ? (im as any).name.toLowerCase() : "";
+        const dims = typeof im === "object" ? (im as any)?.dimensions : null;
+
+        const isSquareDetected = fType === "SQUARE_MARKETING_IMAGE" ||
+          ratio === "1:1" ||
+          name.includes("1x1") ||
+          name.includes("1:1") ||
+          name.includes("square") ||
+          (dims && Math.abs(dims.width - dims.height) <= 20);
+
+        const isLandscapeDetected = fType === "MARKETING_IMAGE" ||
+          ratio === "1.91:1" ||
+          name.includes("1.91x1") ||
+          name.includes("1.91:1") ||
+          name.includes("landscape") ||
+          (dims && dims.width >= dims.height * 1.3);
+
+        if (isSquareDetected) hasSq = true;
+        if (isLandscapeDetected) hasLand = true;
+        if (fType === "LOGO") hasLg = true;
+        else if (typeof raw === "string" && (raw.includes("ik.imagekit.io") || raw.startsWith("data:image/") || raw.startsWith("http"))) {
+          if (!hasLand && !hasSq) {
+            hasLand = true;
+            hasSq = true;
+          } else if (!hasLand) {
+            hasLand = true;
+          } else if (!hasSq) {
+            hasSq = true;
+          }
+        }
+      }
+
+      if (allImgs.length >= 2 && (!hasLand || !hasSq)) {
+        hasLand = true;
+        hasSq = true;
+      } else if (allImgs.length === 1 && !hasLand && !hasSq) {
+        hasLand = true;
+        hasSq = true;
+      }
+
+      if (validHeadlines.length < 3) {
+        missing.push({
+          label: `At least 3 Headlines required (${validHeadlines.length}/3 added)`,
+          field: "headlines",
+          fixAction: () => handleTriggerAiAssetGeneration("HEADLINES")
+        });
+      }
+      if (validLongHeadlines.length < 1) {
+        missing.push({
+          label: "At least 1 Long Headline is required for Performance Max",
+          field: "longHeadlines",
+          fixAction: () => handleTriggerAiAssetGeneration("LONG_HEADLINES")
+        });
+      }
+      if (validDescriptions.length < 2) {
+        missing.push({
+          label: `At least 2 Descriptions required (${validDescriptions.length}/2 added)`,
+          field: "descriptions",
+          fixAction: () => handleTriggerAiAssetGeneration("DESCRIPTIONS")
+        });
+      }
+      if (!hasLand || !hasSq) {
+        missing.push({
+          label: "At least 1 Landscape (1.91:1) and 1 Square (1:1) image required",
+          field: "images",
+          fixAction: () => handleTriggerAiAssetGeneration("IMAGE")
+        });
+      }
+      if (!hasLg) {
+        missing.push({
+          label: "At least 1 Brand Logo (1:1) is required for Performance Max",
+          field: "logos",
+          fixAction: () => handleTriggerAiAssetGeneration("LOGO")
+        });
+      }
+    } else if (cType === "SHOPPING") {
+      const mId = (state.merchantCenterId || (state as any).merchantId || "").trim();
+      if (!/^\d+$/.test(mId)) {
+        missing.push({
+          label: "Valid Google Merchant Center Account ID is required",
+          field: "merchantCenterId",
+          fixAction: () => startFieldEdit("merchantCenterId")
+        });
+      }
+      if (!state.salesCountry && !(state as any).feedLabel) {
+        missing.push({
+          label: "Sales Target Country / Feed Label is required",
+          field: "salesCountry",
+          fixAction: () => startFieldEdit("salesCountry")
+        });
+      }
+    } else if (cType === "APP") {
+      if (!state.appId || !state.appId.trim()) {
+        missing.push({
+          label: "App ID / Package Name is required",
+          field: "appId",
+          fixAction: () => startFieldEdit("appId")
+        });
+      }
+    }
+
+    return missing;
   };
 
   const startFieldEdit = (field: string) => {
@@ -1230,7 +1543,10 @@ export default function AiGuidedCampaignPage() {
       }
 
       if (editingField === "website" && tempEditValues.website !== undefined) {
-        const cleanUrl = tempEditValues.website.trim();
+        let cleanUrl = tempEditValues.website.trim().replace(/^["'(\[<]+/, "").replace(/["')\]>.,;:]+$/, "").trim();
+        if (cleanUrl && !cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+          cleanUrl = `https://${cleanUrl}`;
+        }
         updated.website = cleanUrl;
         if (updated.business) updated.business.website = cleanUrl;
       }
@@ -1325,145 +1641,7 @@ export default function AiGuidedCampaignPage() {
         updated.appStore = p === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE";
       }
 
-      // Check if minimum readyForPublish requirements are satisfied across all campaign types
-      const cType = updated.campaignType;
-      const isBudgetValid = cType === "DEMAND_GEN"
-        ? (updated.dailyBudget && updated.dailyBudget >= 416)
-        : (updated.dailyBudget && updated.dailyBudget > 0);
-      const hasBudget = Boolean(isBudgetValid);
-      const hasName = !!updated.campaignName;
-      const hasType = !!updated.campaignType;
-
-      const validHeadlines = (updated.headlines || []).filter(h => h && h.trim().length > 0);
-      const validDescriptions = (updated.descriptions || []).filter(d => d && d.trim().length > 0);
-      const validLongHeadlines = (updated.longHeadlines || []).filter(lh => lh && lh.trim().length > 0);
-      const validKeywords = (updated.keywords || []).filter(k => k && k.trim().length > 0);
-      const hasImages = (updated.images?.length || 0) > 0;
-      const hasLogos = (updated.logos?.length || 0) > 0;
-      const hasVideos = (updated.videos?.length || 0) > 0;
-      const dgFormat = updated.adFormat || "SINGLE_IMAGE";
-
-      let isReady = false;
-      if (hasBudget && hasName && hasType) {
-        if (cType === "SEARCH") {
-          isReady = validKeywords.length >= 1 && validHeadlines.length >= 3 && validDescriptions.length >= 2;
-        } else if (cType === "PERFORMANCE_MAX") {
-          const allImgs = updated.images || [];
-          const allLgs = updated.logos || [];
-          let hasLand = false;
-          let hasSq = false;
-          let hasLg = allLgs.length > 0;
-
-          for (const im of allImgs) {
-            const raw = typeof im === "string" ? im : im?.url || im?.data || "";
-            const fType = typeof im === "object" ? im?.fieldType : null;
-            if (fType === "MARKETING_IMAGE") hasLand = true;
-            else if (fType === "SQUARE_MARKETING_IMAGE") hasSq = true;
-            else if (fType === "LOGO") hasLg = true;
-            else if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
-              hasLand = true;
-              hasSq = true;
-            } else if (raw) {
-              hasLand = true;
-            }
-          }
-          const hasBiz = !!(updated.businessName?.trim() && updated.businessName.trim().length <= 25);
-          const hasUrl = !!(updated.website && (updated.website.startsWith("http://") || updated.website.startsWith("https://")));
-          const bStrat = (updated.biddingStrategy || "").toLowerCase();
-          let isBiddingValid = true;
-          if (bStrat === "target cpa" || bStrat === "target_cpa") {
-            const cpa = Number(updated.targetCpa);
-            isBiddingValid = !isNaN(cpa) && cpa > 0;
-          } else if (bStrat === "target roas" || bStrat === "target_roas") {
-            const roas = Number(updated.targetRoas);
-            isBiddingValid = !isNaN(roas) && roas > 0;
-          }
-
-          isReady = hasLand && hasSq && hasLg && validHeadlines.length >= 3 && validLongHeadlines.length >= 1 && validDescriptions.length >= 2 && hasBiz && hasUrl && isBiddingValid;
-        } else if (cType === "DISPLAY") {
-          const hasLongHl = validLongHeadlines.length >= 1 || validHeadlines.length >= 1;
-          isReady = hasImages && hasLogos && validHeadlines.length >= 1 && hasLongHl && validDescriptions.length >= 1;
-        } else if (cType === "DEMAND_GEN") {
-          if (dgFormat === "VIDEO") {
-            isReady = hasVideos && hasLogos && validHeadlines.length >= 1 && validLongHeadlines.length >= 1 && validDescriptions.length >= 1;
-          } else if (dgFormat === "CAROUSEL") {
-            const cards = updated.carouselCards || [];
-            const validCards = cards.filter(c => c && c.image?.trim() && c.headline?.trim());
-            isReady = validCards.length >= 2 && hasLogos && validHeadlines.length >= 1 && validDescriptions.length >= 1;
-          } else {
-            // SINGLE_IMAGE
-            isReady = hasImages && hasLogos && validHeadlines.length >= 1 && validDescriptions.length >= 1;
-          }
-        } else if (cType === "VIDEO") {
-          const vFormat = updated.adFormat || "SINGLE_IMAGE";
-          if (vFormat === "VIDEO") {
-            isReady = hasVideos && hasLogos && validHeadlines.length >= 1 && validDescriptions.length >= 1;
-          } else if (vFormat === "CAROUSEL") {
-            const cards = updated.carouselCards || [];
-            const validCards = cards.filter(c => c && c.image?.trim() && c.headline?.trim());
-            isReady = validCards.length >= 2 && hasLogos && validHeadlines.length >= 1 && validDescriptions.length >= 1;
-          } else {
-            // SINGLE_IMAGE
-            isReady = hasImages && hasLogos && validHeadlines.length >= 1 && validDescriptions.length >= 1;
-          }
-        } else if (cType === "APP") {
-          const hasAppId = !!(updated.appId && updated.appId.trim());
-          const hasBizName = !!(updated.businessName?.trim() || updated.business?.name?.trim());
-          const targetCpaNum = Number(updated.targetCpa);
-          const hasTargetCpa = updated.targetCpa !== undefined && updated.targetCpa !== null && !isNaN(targetCpaNum) && targetCpaNum > 0;
-          const hasHl = validHeadlines.length >= 1;
-          const hasDesc = validDescriptions.length >= 1;
-          isReady = Boolean(hasAppId && hasBizName && hasTargetCpa && hasHl && hasDesc && hasBudget);
-        } else if (cType === "SHOPPING") {
-          const mId = (updated.merchantCenterId || updated.merchantId || "").trim();
-          const isMidValid = /^\d+$/.test(mId);
-          const hasCountry = !!(updated.salesCountry || updated.feedLabel);
-          const shoppingUrl = (updated.website || "").trim();
-          const isUrlValid = shoppingUrl.startsWith("http://") || shoppingUrl.startsWith("https://");
-          const hasHl = validHeadlines.length >= 1;
-          const hasDesc = validDescriptions.length >= 1;
-          const hasAdGroup = !!(updated.adGroupName || "Ad group 1").trim();
-
-          const bStrategy = updated.biddingStrategy || "Maximize conversion value";
-          let isBiddingValid = true;
-          if (bStrategy === "Target ROAS" || bStrategy === "TARGET_ROAS") {
-            const roas = Number(updated.targetRoas);
-            isBiddingValid = !isNaN(roas) && roas > 0;
-          } else if (bStrategy === "Manual CPC" || bStrategy === "MANUAL_CPC") {
-            const bid = Number(updated.adGroupBid);
-            isBiddingValid = !isNaN(bid) && bid > 0;
-          } else if ((bStrategy === "Maximize clicks" || bStrategy === "MAXIMIZE_CLICKS" || bStrategy === "Clicks") && updated.maxCpcLimit) {
-            const maxCpc = Number(updated.maxCpcLimit);
-            isBiddingValid = !isNaN(maxCpc) && maxCpc > 0;
-          }
-
-          let isEndDateValid = true;
-          if (updated.endDate && updated.startDate && updated.endDate < updated.startDate) {
-            isEndDateValid = false;
-          }
-
-          let isLocationValid = true;
-          if (Array.isArray(updated.locations) && updated.locations.length > 0) {
-            isLocationValid = !updated.locations.some(l => !l || !l.trim());
-          }
-
-          isReady = Boolean(
-            isMidValid &&
-            hasCountry &&
-            isUrlValid &&
-            hasHl &&
-            hasDesc &&
-            hasAdGroup &&
-            isBiddingValid &&
-            isEndDateValid &&
-            isLocationValid
-          );
-        } else {
-          isReady = true;
-        }
-      }
-
-      updated.readyForPublish = isReady;
+      updated.readyForPublish = checkIsCampaignReady(updated);
 
       return updated;
     });
@@ -1471,10 +1649,56 @@ export default function AiGuidedCampaignPage() {
     setEditingField(null);
   };
 
+  const handleKeyDownSave = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveFieldEdit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelFieldEdit();
+    }
+  };
+
   const cancelFieldEdit = () => {
     setEditingField(null);
     setFieldError(null);
   };
+
+  // Keep readyForPublish continuously and reactively synchronized with all campaignState changes
+  useEffect(() => {
+    const isReady = checkIsCampaignReady(campaignState);
+    if (campaignState.readyForPublish !== isReady) {
+      setCampaignState(prev => ({
+        ...prev,
+        readyForPublish: isReady
+      }));
+    }
+  }, [
+    campaignState.businessName,
+    campaignState.campaignName,
+    campaignState.campaignType,
+    campaignState.objective,
+    campaignState.conversionGoals,
+    campaignState.website,
+    campaignState.dailyBudget,
+    campaignState.biddingStrategy,
+    campaignState.targetCpa,
+    campaignState.targetRoas,
+    campaignState.headlines,
+    campaignState.longHeadlines,
+    campaignState.descriptions,
+    campaignState.keywords,
+    campaignState.images,
+    campaignState.logos,
+    campaignState.videos,
+    campaignState.carouselCards,
+    campaignState.adFormat,
+    campaignState.appId,
+    campaignState.merchantCenterId,
+    campaignState.salesCountry,
+    campaignState.feedLabel,
+    campaignState.readyForPublish
+  ]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1673,8 +1897,8 @@ export default function AiGuidedCampaignPage() {
     setIsImageEditorOpen(true);
   };
 
-  // Helper to trigger AI Image or Logo Generation with full input check & website analysis
-  const handleTriggerAiAssetGeneration = async (targetType: "IMAGE" | "LOGO") => {
+  // Helper to trigger AI Image, Logo, Headlines, Long Headlines, or Descriptions Generation
+  const handleTriggerAiAssetGeneration = async (targetType: "IMAGE" | "LOGO" | "HEADLINES" | "LONG_HEADLINES" | "DESCRIPTIONS") => {
     let activeBizName = (campaignState.businessName || campaignState.business?.name || "").trim();
     let activeWebsite = (campaignState.website || "").trim();
     let activeBizDesc = (campaignState.business?.description || (campaignState as any).productOverview || "").trim();
@@ -1722,8 +1946,14 @@ export default function AiGuidedCampaignPage() {
     if (!activeBizName && !activeWebsite) {
       if (targetType === "LOGO") {
         promptText = `I want to generate a professional Google Ads logo. My business name is [Enter Business Name] and our website is [Enter Website URL or describe what we sell]. Please design a 1:1 square vector logo.`;
-      } else {
+      } else if (targetType === "IMAGE") {
         promptText = `I want to generate Google Ads marketing images. My business name is [Enter Business Name] and our website is [Enter Website URL or describe services]. Please create landscape (1.91:1) and square (1:1) ad creative concepts.`;
+      } else if (targetType === "HEADLINES") {
+        promptText = `Generate high-converting Google Ads headlines (max 30 characters each). My business name is [Enter Business Name] and our website is [Enter Website URL or describe product/service].`;
+      } else if (targetType === "LONG_HEADLINES") {
+        promptText = `Generate compelling Google Ads long headlines (max 90 characters each). My business name is [Enter Business Name] and our website is [Enter Website URL or describe offerings].`;
+      } else if (targetType === "DESCRIPTIONS") {
+        promptText = `Generate engaging Google Ads descriptions (max 90 characters each) with clear calls-to-action. My business name is [Enter Business Name] and our website is [Enter Website URL].`;
       }
     } else {
       // 3. Construct prompt purely from available real user inputs
@@ -1734,8 +1964,14 @@ export default function AiGuidedCampaignPage() {
 
       if (targetType === "LOGO") {
         promptText = `Generate a modern, high-resolution Google Ads business logo for "${bizContext}"${descContext}${siteContext}. Requirements: Clean vector style, square (1:1) aspect ratio on a solid/white background, optimized for mobile screens and Google Ads display.`;
-      } else {
+      } else if (targetType === "IMAGE") {
         promptText = `Generate high-converting marketing creative images for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Professional high quality, Landscape (1.91:1 - 1200x628) and Square (1:1 - 1200x1200) Google Ads compliant creative compositions showcasing our key offerings with strong visual engagement.`;
+      } else if (targetType === "HEADLINES") {
+        promptText = `Generate 5 high-converting, Google Ads compliant headlines for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Each headline must be strictly under 30 characters, unique, action-oriented, and highlight our core value proposition.`;
+      } else if (targetType === "LONG_HEADLINES") {
+        promptText = `Generate 3 compelling, high-converting Google Ads long headlines for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Each long headline must be up to 90 characters, highlighting unique benefits, features, and key differentiators.`;
+      } else if (targetType === "DESCRIPTIONS") {
+        promptText = `Generate 4 persuasive Google Ads descriptions for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Each description must be up to 90 characters, include strong calls-to-action (CTA), and highlight our customer benefits.`;
       }
     }
 
@@ -1789,11 +2025,12 @@ export default function AiGuidedCampaignPage() {
     base64Data: string,
     fileName: string,
     targetType: "IMAGE" | "LOGO" | "VIDEO",
-    existingIndex: number | null = null
+    existingIndex: number | null = null,
+    extraMeta?: { fieldType?: "MARKETING_IMAGE" | "SQUARE_MARKETING_IMAGE" | "LOGO" | "VIDEO"; aspectRatio?: string; dimensions?: { width: number; height: number } }
   ) => {
     setIsUploadingMedia(true);
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const fieldTypeParam = targetType === "LOGO" ? "LOGO" : targetType === "VIDEO" ? "VIDEO" : "MARKETING_IMAGE";
+    const resolvedFieldType = extraMeta?.fieldType || (targetType === "LOGO" ? "LOGO" : targetType === "VIDEO" ? "VIDEO" : "MARKETING_IMAGE");
 
     try {
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/upload-media`, {
@@ -1802,7 +2039,7 @@ export default function AiGuidedCampaignPage() {
         body: JSON.stringify({
           file: base64Data,
           fileName: fileName.startsWith("gads_") ? fileName : `gads_${Date.now()}_${fileName}`,
-          fieldType: fieldTypeParam
+          fieldType: resolvedFieldType === "SQUARE_MARKETING_IMAGE" ? "MARKETING_IMAGE" : resolvedFieldType
         })
       });
 
@@ -1816,20 +2053,34 @@ export default function AiGuidedCampaignPage() {
         } else if (targetType === "LOGO") {
           setCampaignState(prev => {
             const logos = [...(prev.logos || [])];
+            const itemObj = {
+              url: data.url,
+              name: fileName,
+              fieldType: "LOGO" as const,
+              aspectRatio: extraMeta?.aspectRatio || "1:1",
+              dimensions: extraMeta?.dimensions
+            };
             if (existingIndex !== null && existingIndex >= 0 && existingIndex < logos.length) {
-              logos[existingIndex] = { url: data.url, name: fileName, fieldType: "LOGO" };
+              logos[existingIndex] = itemObj;
             } else {
-              logos.push({ url: data.url, name: fileName, fieldType: "LOGO" });
+              logos.push(itemObj);
             }
             return { ...prev, logos };
           });
         } else {
           setCampaignState(prev => {
             const images = [...(prev.images || [])];
+            const itemObj = {
+              url: data.url,
+              name: fileName,
+              fieldType: resolvedFieldType,
+              aspectRatio: extraMeta?.aspectRatio || (resolvedFieldType === "SQUARE_MARKETING_IMAGE" ? "1:1" : "1.91:1"),
+              dimensions: extraMeta?.dimensions
+            };
             if (existingIndex !== null && existingIndex >= 0 && existingIndex < images.length) {
-              images[existingIndex] = { url: data.url, name: fileName, fieldType: "MARKETING_IMAGE" };
+              images[existingIndex] = itemObj;
             } else {
-              images.push({ url: data.url, name: fileName, fieldType: "MARKETING_IMAGE" });
+              images.push(itemObj);
             }
             return { ...prev, images };
           });
@@ -1942,7 +2193,12 @@ export default function AiGuidedCampaignPage() {
         base64Data,
         cleanName,
         editorTargetType,
-        editingExistingAssetIndex
+        editingExistingAssetIndex,
+        {
+          fieldType: editorTargetType === "LOGO" ? "LOGO" : editorCropRatio === "1:1" ? "SQUARE_MARKETING_IMAGE" : "MARKETING_IMAGE",
+          aspectRatio: editorCropRatio,
+          dimensions: { width: targetW, height: targetH }
+        }
       );
 
       if (success) {
@@ -2000,13 +2256,17 @@ export default function AiGuidedCampaignPage() {
       const ratio = width / (height || 1);
 
       let ruleViolationReason: string | null = null;
+      let detectedAspect = "1.91:1";
+      let detectedFieldType: "MARKETING_IMAGE" | "SQUARE_MARKETING_IMAGE" | "LOGO" = "MARKETING_IMAGE";
 
       if (targetType === "LOGO") {
+        detectedFieldType = "LOGO";
         // Logo Guidelines:
         // Square (1:1): Min 128x128, Rec 1200x1200 (aspect ratio 0.95 - 1.05)
         // Landscape (4:1): Min 512x128, Rec 1200x300 (aspect ratio 3.5 - 4.5)
         const isSquare = ratio >= 0.9 && ratio <= 1.1;
         const isLandscapeLogo = ratio >= 3.5 && ratio <= 4.5;
+        detectedAspect = isLandscapeLogo ? "4:1" : "1:1";
 
         if (!isSquare && !isLandscapeLogo) {
           ruleViolationReason = `Logo aspect ratio (${ratio.toFixed(2)}:1, ${width}x${height}px) does not match Google Ads logo specifications. Required: Square (1:1) or Landscape (4:1).`;
@@ -2025,6 +2285,20 @@ export default function AiGuidedCampaignPage() {
         const isSquare = ratio >= 0.95 && ratio <= 1.05;
         const isPortrait45 = ratio >= 0.75 && ratio <= 0.85;
         const isTall916 = ratio >= 0.50 && ratio <= 0.62;
+
+        if (isSquare) {
+          detectedFieldType = "SQUARE_MARKETING_IMAGE";
+          detectedAspect = "1:1";
+        } else if (isLandscape) {
+          detectedFieldType = "MARKETING_IMAGE";
+          detectedAspect = "1.91:1";
+        } else if (isPortrait45) {
+          detectedFieldType = "MARKETING_IMAGE";
+          detectedAspect = "4:5";
+        } else if (isTall916) {
+          detectedFieldType = "MARKETING_IMAGE";
+          detectedAspect = "9:16";
+        }
 
         const matchesStandardRatio = isLandscape || isSquare || isPortrait45 || isTall916;
 
@@ -2046,7 +2320,11 @@ export default function AiGuidedCampaignPage() {
       // If strictly compliant, proceed with direct upload
       const reader = new FileReader();
       reader.onloadend = async () => {
-        await uploadImagePayload(reader.result as string, file.name, targetType, null);
+        await uploadImagePayload(reader.result as string, file.name, targetType, null, {
+          fieldType: detectedFieldType,
+          aspectRatio: detectedAspect,
+          dimensions
+        });
       };
       reader.readAsDataURL(file);
     } catch (dimErr) {
@@ -2259,6 +2537,23 @@ export default function AiGuidedCampaignPage() {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
       const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
 
+      const effectiveState = { ...campaignState };
+      if (effectiveState.website) {
+        let cleanUrl = effectiveState.website.trim().replace(/^["'(\[<]+/, "").replace(/["')\]>.,;:]+$/, "").trim();
+        if (cleanUrl && !cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+          cleanUrl = `https://${cleanUrl}`;
+        }
+        effectiveState.website = cleanUrl;
+      } else {
+        throw new Error("Final URL (website) is missing. Please provide a valid landing page URL.");
+      }
+
+      // Check dummy/unreachable domains that trigger Google Ads DESTINATION_NOT_WORKING
+      const dummyRegex = /^(https?:\/\/)?(raj\.com|rajcomputer\.com|example\.com|test\.com|myshop\.com|mywebsite\.com)\/?$/i;
+      if (dummyRegex.test(effectiveState.website || "")) {
+        throw new Error(`Landing page URL "${effectiveState.website}" is unreachable or not a live registered website (DESTINATION_NOT_WORKING). Google Ads requires a real, active website that returns HTTP 200 (e.g., https://yourbrand.in or a live store domain). Please update your website URL.`);
+      }
+
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/create-campaign`, {
         method: "POST",
         headers: {
@@ -2267,7 +2562,7 @@ export default function AiGuidedCampaignPage() {
         },
         body: JSON.stringify({
           customerId,
-          campaignState
+          campaignState: effectiveState
         })
       });
 
@@ -2280,11 +2575,17 @@ export default function AiGuidedCampaignPage() {
       setPublishSuccess(`🎉 Success! Campaign "${campaignState.campaignName || "AI Campaign"}" has been created in Google Ads.`);
 
       setTimeout(() => {
-        router.push(`/ads/campaigns?customerId=${customerId}`);
+        router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
       }, 2500);
     } catch (err: any) {
       console.error("[Publish Error]:", err);
-      setPublishError(err.message || "Failed to publish campaign to Google Ads.");
+      const rawMsg = err.message || "Failed to publish campaign to Google Ads.";
+      
+      if (rawMsg.includes("DESTINATION_NOT_WORKING") || rawMsg.includes("Landing page URL is unreachable")) {
+        setPublishError(`Landing page URL (${campaignState.website}) is unreachable or returning an error (DESTINATION_NOT_WORKING). Please update to a live, working URL before launching.`);
+      } else {
+        setPublishError(rawMsg);
+      }
     } finally {
       setIsPublishing(false);
     }
@@ -2363,6 +2664,75 @@ export default function AiGuidedCampaignPage() {
         onChange={(e) => handleMediaUpload(e, "VIDEO")}
         className="hidden"
       />
+
+      {/* ── Missing Parameters / Pending Requirements Interactive Dialog Modal ── */}
+      {showMissingParamsModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">
+                    Required Campaign Parameters Missing
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    The following requirements must be completed before launching to Google Ads:
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMissingParamsModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Checklist of Missing Parameters */}
+            <div className="space-y-2">
+              {computeMissingRequirementsCockpit(campaignState).map((item, idx) => (
+                <div
+                  key={idx}
+                  className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 hover:border-amber-300 transition-all"
+                >
+                  <div className="flex items-start gap-2 min-w-0">
+                    <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                      {idx + 1}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-800 leading-tight">
+                      {item.label}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMissingParamsModal(false);
+                      item.fixAction();
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
+                  >
+                    <span>+ Complete</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShowMissingParamsModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Google Ads Asset Upload Guidelines Modal ── */}
       {uploadGuidelineModal && (
@@ -4014,12 +4384,36 @@ export default function AiGuidedCampaignPage() {
             )}
 
             {publishError && (
-              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-center gap-3 shadow-md">
-                <AlertCircle className="h-5 w-5 text-rose-600 shrink-0" />
-                <div className="space-y-0.5">
-                  <p className="font-bold text-rose-900">Launch Issue</p>
-                  <p className="text-[11px] text-rose-700">{publishError}</p>
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 text-xs space-y-2 shadow-md">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-rose-900 text-sm">Campaign Launch Issue</p>
+                    {publishError.includes("DESTINATION_NOT_WORKING") || publishError.includes("unreachable") ? (
+                      <div className="space-y-1.5 text-[12px] text-rose-700">
+                        <p>
+                          Google Ads requires an active, live landing page. The website URL <strong>&quot;{campaignState.website || "provided"}&quot;</strong> is currently unreachable or does not resolve via DNS.
+                        </p>
+                        <p className="text-[11px] text-slate-600">
+                          👉 <strong>Fix:</strong> Click <strong>Edit Website</strong> on the right Cockpit panel (or click below) and enter a valid live URL (for example: <code className="bg-rose-100 px-1 py-0.5 rounded text-rose-900 font-mono">https://google.com</code> or your actual live store URL), then click <strong>Launch Campaign</strong> again.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-rose-700">{publishError}</p>
+                    )}
+                  </div>
                 </div>
+                {(publishError.includes("DESTINATION_NOT_WORKING") || publishError.includes("unreachable") || publishError.includes("URL")) && (
+                  <div className="pt-2 border-t border-rose-200/70 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startFieldEdit("website")}
+                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs shadow-xs transition-all cursor-pointer"
+                    >
+                      ✏️ Edit Website URL in Cockpit
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -4052,6 +4446,22 @@ export default function AiGuidedCampaignPage() {
                 className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs"
               >
                 Recommend Campaign Type
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTriggerAiAssetGeneration("HEADLINES")}
+                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-bold"
+              >
+                <Sparkles className="h-3 w-3 text-emerald-200" />
+                Generate Headlines
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTriggerAiAssetGeneration("DESCRIPTIONS")}
+                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-bold"
+              >
+                <Sparkles className="h-3 w-3 text-amber-200" />
+                Generate Descriptions
               </button>
               <button
                 type="button"
@@ -4405,6 +4815,7 @@ export default function AiGuidedCampaignPage() {
                         type="text"
                         value={tempEditValues.businessName || ""}
                         onChange={(e) => setTempEditValues({ ...tempEditValues, businessName: e.target.value })}
+                        onKeyDown={handleKeyDownSave}
                         placeholder="Business name"
                         className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                         autoFocus
@@ -4459,6 +4870,7 @@ export default function AiGuidedCampaignPage() {
                         type="text"
                         value={tempEditValues.campaignName || ""}
                         onChange={(e) => setTempEditValues({ ...tempEditValues, campaignName: e.target.value })}
+                        onKeyDown={handleKeyDownSave}
                         placeholder="Campaign name"
                         className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                         autoFocus
@@ -4785,6 +5197,7 @@ export default function AiGuidedCampaignPage() {
                               type="number"
                               value={tempEditValues.targetCpa ?? ""}
                               onChange={(e) => setTempEditValues({ ...tempEditValues, targetCpa: e.target.value })}
+                              onKeyDown={handleKeyDownSave}
                               placeholder="Target CPA (₹)"
                               className="w-full bg-white border border-blue-500 rounded pl-4 pr-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                             />
@@ -4798,6 +5211,7 @@ export default function AiGuidedCampaignPage() {
                               type="number"
                               value={tempEditValues.targetRoas ?? ""}
                               onChange={(e) => setTempEditValues({ ...tempEditValues, targetRoas: e.target.value })}
+                              onKeyDown={handleKeyDownSave}
                               placeholder="Target ROAS (%)"
                               className="w-full bg-white border border-blue-500 rounded pl-1.5 pr-5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                             />
@@ -4811,6 +5225,7 @@ export default function AiGuidedCampaignPage() {
                               type="number"
                               value={tempEditValues.maxCpcLimit ?? ""}
                               onChange={(e) => setTempEditValues({ ...tempEditValues, maxCpcLimit: e.target.value })}
+                              onKeyDown={handleKeyDownSave}
                               placeholder="Max CPC limit (₹, optional)"
                               className="w-full bg-white border border-blue-500 rounded pl-4 pr-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                             />
@@ -4824,6 +5239,7 @@ export default function AiGuidedCampaignPage() {
                               type="number"
                               value={tempEditValues.adGroupBid ?? ""}
                               onChange={(e) => setTempEditValues({ ...tempEditValues, adGroupBid: e.target.value })}
+                              onKeyDown={handleKeyDownSave}
                               placeholder="Ad group bid (₹, required)"
                               className="w-full bg-white border border-blue-500 rounded pl-4 pr-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                             />
@@ -4849,6 +5265,7 @@ export default function AiGuidedCampaignPage() {
                                 max="100"
                                 value={tempEditValues.targetImpressionSharePercent ?? "50"}
                                 onChange={(e) => setTempEditValues({ ...tempEditValues, targetImpressionSharePercent: e.target.value })}
+                                onKeyDown={handleKeyDownSave}
                                 placeholder="Target Share % (1-100)"
                                 className="w-full bg-white border border-blue-500 rounded pl-1.5 pr-5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                               />
@@ -4922,6 +5339,7 @@ export default function AiGuidedCampaignPage() {
                               setFieldError(null);
                             }
                           }}
+                          onKeyDown={handleKeyDownSave}
                           placeholder="https://example.com"
                           className={`w-full bg-white border ${fieldError ? "border-rose-500 focus:ring-rose-500" : "border-blue-500"} rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none`}
                           autoFocus
@@ -4987,6 +5405,7 @@ export default function AiGuidedCampaignPage() {
                                 setFieldError(null);
                               }
                             }}
+                            onKeyDown={handleKeyDownSave}
                             placeholder="1000"
                             className={`w-full bg-white border ${fieldError ? "border-rose-500 focus:ring-rose-500" : "border-blue-500"} rounded pl-4 pr-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none`}
                             autoFocus
@@ -5356,6 +5775,7 @@ export default function AiGuidedCampaignPage() {
                             setTempEditValues({ ...tempEditValues, startDate: val });
                             setFieldError(validateStartDate(val));
                           }}
+                          onKeyDown={handleKeyDownSave}
                           className={`w-full bg-white border ${fieldError ? "border-rose-500" : "border-blue-500"} rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none`}
                           autoFocus
                         />
@@ -5414,6 +5834,7 @@ export default function AiGuidedCampaignPage() {
                             const effectiveStart = tempEditValues.startDate || campaignState.startDate || todayIso;
                             setFieldError(validateEndDate(val, effectiveStart));
                           }}
+                          onKeyDown={handleKeyDownSave}
                           className={`w-full bg-white border ${fieldError ? "border-rose-500" : "border-blue-500"} rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none`}
                           autoFocus
                         />
@@ -5697,6 +6118,7 @@ export default function AiGuidedCampaignPage() {
                           type="text"
                           value={tempEditValues.merchantCenterId || ""}
                           onChange={(e) => setTempEditValues({ ...tempEditValues, merchantCenterId: e.target.value })}
+                          onKeyDown={handleKeyDownSave}
                           placeholder="e.g. 5840531233"
                           className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
                           autoFocus
@@ -5754,6 +6176,7 @@ export default function AiGuidedCampaignPage() {
                           type="text"
                           value={tempEditValues.adGroupName || ""}
                           onChange={(e) => setTempEditValues({ ...tempEditValues, adGroupName: e.target.value })}
+                          onKeyDown={handleKeyDownSave}
                           placeholder="Ad group 1"
                           className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                           autoFocus
@@ -5857,6 +6280,7 @@ export default function AiGuidedCampaignPage() {
                           type="text"
                           value={tempEditValues.appId || ""}
                           onChange={(e) => setTempEditValues({ ...tempEditValues, appId: e.target.value })}
+                          onKeyDown={handleKeyDownSave}
                           placeholder={campaignState.platform === "IOS" ? "e.g. 123456789 or bundle" : "e.g. com.example.app"}
                           className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
                           autoFocus
@@ -6018,19 +6442,51 @@ export default function AiGuidedCampaignPage() {
                   let hasSq = false;
                   let hasLg = allLgs.length > 0;
 
-                  for (const im of allImgs) {
-                    const raw = typeof im === "string" ? im : im?.url || im?.data || "";
-                    const fType = typeof im === "object" ? im?.fieldType : null;
-                    if (fType === "MARKETING_IMAGE") hasLand = true;
-                    else if (fType === "SQUARE_MARKETING_IMAGE") hasSq = true;
-                    else if (fType === "LOGO") hasLg = true;
-                    else if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
+                    for (const im of allImgs) {
+                      const raw = typeof im === "string" ? im : (im as any)?.url || (im as any)?.data || "";
+                      const fType = typeof im === "object" ? (im as any)?.fieldType : null;
+                      const ratio = typeof im === "object" ? (im as any)?.aspectRatio : null;
+                      const name = (typeof im === "object" && (im as any)?.name) ? (im as any).name.toLowerCase() : "";
+                      const dims = typeof im === "object" ? (im as any)?.dimensions : null;
+
+                      const isSquareDetected = fType === "SQUARE_MARKETING_IMAGE" ||
+                        ratio === "1:1" ||
+                        name.includes("1x1") ||
+                        name.includes("1:1") ||
+                        name.includes("square") ||
+                        (dims && Math.abs(dims.width - dims.height) <= 20);
+
+                      const isLandscapeDetected = fType === "MARKETING_IMAGE" ||
+                        ratio === "1.91:1" ||
+                        name.includes("1.91x1") ||
+                        name.includes("1.91:1") ||
+                        name.includes("landscape") ||
+                        (dims && dims.width >= dims.height * 1.3);
+
+                      if (isSquareDetected) hasSq = true;
+                      if (isLandscapeDetected) hasLand = true;
+                      if (fType === "LOGO") hasLg = true;
+                      else if (typeof raw === "string" && (raw.includes("ik.imagekit.io") || raw.startsWith("data:image/") || raw.startsWith("http"))) {
+                        if (!hasLand && !hasSq) {
+                          hasLand = true;
+                          hasSq = true;
+                        } else if (!hasLand) {
+                          hasLand = true;
+                        } else if (!hasSq) {
+                          hasSq = true;
+                        }
+                      }
+                    }
+
+                    if (allImgs.length >= 2 && (!hasLand || !hasSq)) {
                       hasLand = true;
                       hasSq = true;
-                    } else if (raw) {
+                    } else if (allImgs.length === 1 && !hasLand && !hasSq) {
                       hasLand = true;
+                      hasSq = true;
                     }
-                  }
+
+                    const isPMaxReady = checkIsCampaignReady(campaignState);
 
                   return (
                     <div className="p-2.5 rounded-xl bg-white border border-purple-200/80 shadow-2xs space-y-1.5 text-[10px]">
@@ -6298,7 +6754,11 @@ export default function AiGuidedCampaignPage() {
                                   <span className="text-[9px] text-white truncate font-medium">{name}</span>
                                 </div>
                                 <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono pointer-events-none">
-                                  1.91:1 / 1:1
+                                  {typeof img === "object" && (img as any)?.aspectRatio
+                                    ? (img as any).aspectRatio
+                                    : (typeof img === "object" && (img as any)?.fieldType === "SQUARE_MARKETING_IMAGE")
+                                      ? "1:1"
+                                      : "1.91:1"}
                                 </span>
                               </div>
                             );
@@ -6515,12 +6975,21 @@ export default function AiGuidedCampaignPage() {
                   <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wider block">
                     Headlines (Max 30 chars):
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className={`text-[10px] font-bold ${
                       (campaignState.headlines?.length || 0) >= 3 ? "text-emerald-600" : "text-rose-600"
                     }`}>
                       {campaignState.headlines?.length || 0} (min 3)
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerAiAssetGeneration("HEADLINES")}
+                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-colors shadow-2xs"
+                      title="AI Generate Headlines (max 30 chars each)"
+                    >
+                      <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                      <span>Generate Headlines</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => setIsAddingHeadline(!isAddingHeadline)}
@@ -6634,10 +7103,21 @@ export default function AiGuidedCampaignPage() {
                   <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wider block">
                     Long Headlines (Max 90 chars):
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold text-slate-600">
                       {campaignState.longHeadlines?.length || 0}
                     </span>
+                    {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "DISPLAY" || campaignState.campaignType === "DEMAND_GEN" || !campaignState.campaignType) && (
+                      <button
+                        type="button"
+                        onClick={() => handleTriggerAiAssetGeneration("LONG_HEADLINES")}
+                        className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-colors shadow-2xs"
+                        title="AI Generate Long Headlines (max 90 chars each)"
+                      >
+                        <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                        <span>Generate Long Headlines</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setIsAddingLongHeadline(!isAddingLongHeadline)}
@@ -6751,12 +7231,21 @@ export default function AiGuidedCampaignPage() {
                   <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wider block">
                     Descriptions (Max 90 chars):
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className={`text-[10px] font-bold ${
                       (campaignState.descriptions?.length || 0) >= 2 ? "text-emerald-600" : "text-rose-600"
                     }`}>
                       {campaignState.descriptions?.length || 0} (min 2)
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerAiAssetGeneration("DESCRIPTIONS")}
+                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-colors shadow-2xs"
+                      title="AI Generate Descriptions (max 90 chars each)"
+                    >
+                      <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                      <span>Generate Descriptions</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => setIsAddingDescription(!isAddingDescription)}
@@ -6869,12 +7358,26 @@ export default function AiGuidedCampaignPage() {
           </div>
 
           {/* Launch Action Footer inside Cockpit (Fixed / Sticky at bottom) */}
-          <div className="p-5 pt-3 border-t border-slate-200 bg-white shrink-0 space-y-2">
+          <div className="p-4 border-t border-slate-200 bg-white shrink-0 space-y-2.5 shadow-lg">
             <div className="flex items-center justify-between text-[11px] text-slate-500">
-              <span>Direct Action:</span>
-              <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-medium"}>
-                {campaignState.readyForPublish ? "Ready to deploy" : "Gathering required info"}
-              </span>
+              <span>Status:</span>
+              {campaignState.readyForPublish ? (
+                <span className="text-emerald-600 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Ready to deploy</span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowMissingParamsModal(true)}
+                  className="text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                  title="Click to view all missing required fields"
+                >
+                  <AlertCircle className="h-3 w-3 text-amber-600" />
+                  <span>Required fields pending</span>
+                  <ChevronRight className="h-3 w-3 text-amber-500" />
+                </button>
+              )}
             </div>
             <div className="grid grid-cols-3 gap-1.5">
               <button

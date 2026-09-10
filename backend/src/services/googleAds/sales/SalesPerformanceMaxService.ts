@@ -25,7 +25,8 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       brandGuidelinesEnabled = false
     } = payload;
 
-    if (!finalUrl) throw new Error("Final URL is required.");
+    const safeFinalUrl = GoogleAdsBaseService.cleanUrl(finalUrl);
+    if (!safeFinalUrl) throw new Error("A valid Final URL is required.");
 
     const effectiveBudget = Number(dailyBudget || budget || 1000);
     const amountMicrosVal = amountMicros || Math.round(effectiveBudget * 1_000_000);
@@ -280,7 +281,7 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
               campaign: campaignRef,
               name: assetGroupName || `${campaignName} Asset Group 1`,
               status: "ENABLED",
-              finalUrls: [finalUrl]
+              finalUrls: [safeFinalUrl]
             }
           }
         },

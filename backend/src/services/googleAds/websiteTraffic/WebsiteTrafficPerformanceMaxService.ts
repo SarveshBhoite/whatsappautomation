@@ -90,7 +90,8 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
       brandGuidelinesEnabled = false
     } = payload;
 
-    if (!finalUrl || !finalUrl.trim()) throw new Error("Final URL is required.");
+    const safeFinalUrl = GoogleAdsBaseService.cleanUrl(finalUrl);
+    if (!safeFinalUrl) throw new Error("A valid Final URL is required.");
 
     // Validate Daily Budget
     const rawBudget = dailyBudget !== undefined && dailyBudget !== null && dailyBudget !== "" ? dailyBudget : budget;
@@ -426,7 +427,7 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
               campaign: campaignRef,
               name: assetGroupName || `${campaignName} Asset Group 1`,
               status: "ENABLED",
-              finalUrls: [finalUrl]
+              finalUrls: [safeFinalUrl]
             }
           }
         },

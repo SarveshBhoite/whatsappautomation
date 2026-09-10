@@ -25,9 +25,15 @@ export class GoogleAdsImageGenService {
     const hasAction = actionWords.some(w => lower.includes(w));
     const hasTarget = targetWords.some(w => lower.includes(w));
 
-    // If user prompt also asks for headlines, long headlines, or descriptions, let the LLM generate copy and call image generation if needed
-    const textCopyWords = ["headline", "headlines", "leadline", "leadlines", "long headline", "description", "descriptions", "ad copy", "copy", "keywords"];
-    const mentionsTextCopy = textCopyWords.some(w => lower.includes(w));
+    // If user prompt asks for headlines, descriptions, or general campaign parameters/autofill, do NOT intercept as image-only
+    const campaignParamWords = [
+      "headline", "headlines", "leadline", "leadlines", "long headline", "long headlines",
+      "description", "descriptions", "ad copy", "copy", "keywords", "budget", "per day", "daily",
+      "shop name", "business is", "my business", "website is", "start date", "end date",
+      "performance max", "search campaign", "sales", "leads", "website traffic",
+      "auto fill", "autofill", "all require", "all parameter", "all parameters", "set my campaign"
+    ];
+    const mentionsCampaignParams = campaignParamWords.some(w => lower.includes(w));
 
     // Also match explicit prompts from the UI buttons
     const explicitPrompts = [
@@ -48,7 +54,7 @@ export class GoogleAdsImageGenService {
       return true;
     }
 
-    if (mentionsTextCopy) {
+    if (mentionsCampaignParams) {
       return false;
     }
 
@@ -62,13 +68,13 @@ export class GoogleAdsImageGenService {
     bizName: string,
     bizDesc: string,
     website: string,
-    isLogoOnly: boolean
+    mode: "IMAGE_ONLY" | "LOGO_ONLY" | "ALL"
   ) {
     const brand = bizName || "our brand";
     const context = bizDesc ? `${bizDesc}. ` : "";
     const siteContext = website ? `Official website: ${website}. ` : "";
 
-    if (isLogoOnly) {
+    if (mode === "LOGO_ONLY") {
       return [
         {
           aspectRatio: "1:1" as const,
@@ -76,6 +82,25 @@ export class GoogleAdsImageGenService {
           fieldType: "LOGO" as const,
           suffix: "Logo (1:1)",
           prompt: `Professional high-resolution vector brand logo for "${brand}". ${context}${siteContext}Minimalist, clean flat modern typography, vector icon badge on a pure solid clean background, symmetrical, premium tech/commercial branding, highly recognizable on mobile screens and Google Ads.`
+        }
+      ];
+    }
+
+    if (mode === "IMAGE_ONLY") {
+      return [
+        {
+          aspectRatio: "1.91:1" as const,
+          dimensions: { width: 1200, height: 628 },
+          fieldType: "MARKETING_IMAGE" as const,
+          suffix: "Landscape (1.91:1)",
+          prompt: `Award-winning commercial advertising photography for "${brand}". ${context}${siteContext}Landscape 1.91:1 aspect ratio. Hyper-realistic, professional studio lighting, showcasing premium products and services, vibrant commercial aesthetic, modern clean environment, authentic customer engagement, 8k resolution, cinematic depth of field, Google Ads compliant.`
+        },
+        {
+          aspectRatio: "1:1" as const,
+          dimensions: { width: 1200, height: 1200 },
+          fieldType: "SQUARE_MARKETING_IMAGE" as const,
+          suffix: "Square (1:1)",
+          prompt: `High-converting square advertising creative for "${brand}". ${context}${siteContext}Square 1:1 aspect ratio. Eye-catching commercial product/service showcase, sleek modern layout, ultra-sharp focus, vivid studio lighting, luxurious aesthetic, Google Ads Performance Max and Display ready.`
         }
       ];
     }
@@ -91,7 +116,7 @@ export class GoogleAdsImageGenService {
       {
         aspectRatio: "1:1" as const,
         dimensions: { width: 1200, height: 1200 },
-        fieldType: "MARKETING_IMAGE" as const,
+        fieldType: "SQUARE_MARKETING_IMAGE" as const,
         suffix: "Square (1:1)",
         prompt: `High-converting square advertising creative for "${brand}". ${context}${siteContext}Square 1:1 aspect ratio. Eye-catching commercial product/service showcase, sleek modern layout, ultra-sharp focus, vivid studio lighting, luxurious aesthetic, Google Ads Performance Max and Display ready.`
       },
@@ -116,12 +141,24 @@ export class GoogleAdsImageGenService {
     generatedImages: GeneratedCreativeImage[];
     campaignState: CampaignState;
   }> {
-    const isLogoOnly = userPrompt.toLowerCase().includes("logo") && !userPrompt.toLowerCase().includes("images") && !userPrompt.toLowerCase().includes("creative");
+    const lowerPrompt = userPrompt.toLowerCase();
+    const mentionsLogo = lowerPrompt.includes("logo");
+    const mentionsImages = lowerPrompt.includes("image") || lowerPrompt.includes("creative") || lowerPrompt.includes("photo") || lowerPrompt.includes("picture");
+
+    let mode: "IMAGE_ONLY" | "LOGO_ONLY" | "ALL" = "ALL";
+    if (mentionsLogo && !mentionsImages) {
+      mode = "LOGO_ONLY";
+    } else if (mentionsImages && !mentionsLogo) {
+      mode = "IMAGE_ONLY";
+    } else {
+      mode = "ALL";
+    }
+
     const bizName = (state.businessName || state.business?.name || "").trim() || "Commercial Business";
     const bizDesc = (state.business?.description || (state as any).productOverview || "").trim();
     const website = (state.website || state.business?.website || "").trim();
 
-    const promptConfigs = this.buildVisualPrompts(bizName, bizDesc, website, isLogoOnly);
+    const promptConfigs = this.buildVisualPrompts(bizName, bizDesc, website, mode);
     const results: GeneratedCreativeImage[] = [];
 
     const grokKey = process.env.GROK_API_KEY || process.env.XAI_API_KEY || "";
@@ -213,13 +250,17 @@ export class GoogleAdsImageGenService {
         updatedLogos.push({
           url: item.url,
           name: item.name,
-          fieldType: "LOGO"
+          fieldType: "LOGO",
+          aspectRatio: item.aspectRatio,
+          dimensions: item.dimensions
         });
       } else {
         updatedImages.push({
           url: item.url,
           name: item.name,
-          fieldType: "MARKETING_IMAGE"
+          fieldType: item.fieldType,
+          aspectRatio: item.aspectRatio,
+          dimensions: item.dimensions
         });
       }
     });

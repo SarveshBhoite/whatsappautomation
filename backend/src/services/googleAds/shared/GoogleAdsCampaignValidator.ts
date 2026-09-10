@@ -163,15 +163,38 @@ export class GoogleAdsCampaignValidator {
         for (const img of allImages) {
           const raw = typeof img === "string" ? img : img?.url || img?.data || "";
           const fType = typeof img === "object" ? img?.fieldType : null;
+          const ratio = typeof img === "object" ? img?.aspectRatio : null;
+          const name = (typeof img === "object" && img?.name) ? img.name.toLowerCase() : "";
+          const dims = typeof img === "object" ? img?.dimensions : null;
 
-          if (fType === "MARKETING_IMAGE") hasLandscape = true;
-          else if (fType === "SQUARE_MARKETING_IMAGE") hasSquare = true;
-          else if (fType === "LOGO") hasLogo = true;
-          else if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
+          const isSquareDetected = fType === "SQUARE_MARKETING_IMAGE" ||
+            ratio === "1:1" ||
+            name.includes("1x1") ||
+            name.includes("1:1") ||
+            name.includes("square") ||
+            (dims && Math.abs(dims.width - dims.height) <= 20);
+
+          const isLandscapeDetected = fType === "MARKETING_IMAGE" ||
+            ratio === "1.91:1" ||
+            name.includes("1.91x1") ||
+            name.includes("1.91:1") ||
+            name.includes("landscape") ||
+            (dims && dims.width >= dims.height * 1.3);
+
+          if (isSquareDetected) {
+            hasSquare = true;
+          }
+          if (isLandscapeDetected) {
+            hasLandscape = true;
+          }
+          if (fType === "LOGO") {
+            hasLogo = true;
+          } else if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
             // ImageKit transformation allows auto-deriving landscape and square
             hasLandscape = true;
             hasSquare = true;
-          } else if (raw) {
+          } else if (raw && !isSquareDetected && !isLandscapeDetected) {
+            // Default generic image fallback
             hasLandscape = true;
           }
         }

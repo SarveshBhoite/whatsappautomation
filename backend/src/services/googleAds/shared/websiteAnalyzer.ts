@@ -83,21 +83,19 @@ export async function isSafeUrlWithDns(inputUrl: string): Promise<{ safe: boolea
   }
 }
 
-/**
- * Safely fetches and extracts content from a given website URL.
- */
 export async function analyzeWebsiteUrl(targetUrl: string): Promise<WebsiteAnalysisResult> {
-  const safetyCheck = await isSafeUrlWithDns(targetUrl);
+  const cleanedUrl = (targetUrl || "").trim().replace(/^["'(\[]+|["')\].,]+$/g, "");
+  const safetyCheck = await isSafeUrlWithDns(cleanedUrl);
   if (!safetyCheck.safe) {
     return {
       success: false,
-      url: targetUrl,
+      url: cleanedUrl,
       error: safetyCheck.error || "Invalid or restricted URL."
     };
   }
 
   try {
-    const response = await axios.get(targetUrl, {
+    const response = await axios.get(cleanedUrl, {
       timeout: 10000,
       maxContentLength: 5 * 1024 * 1024, // 5MB max
       maxRedirects: 5,
