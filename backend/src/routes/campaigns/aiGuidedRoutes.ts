@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { GoogleAdsAiAssistantService, CampaignState } from "../../services/googleAds/GoogleAdsAiAssistantService";
+import { GoogleAdsImageGenService } from "../../services/googleAds/GoogleAdsImageGenService";
 import { GoogleAdsCampaignValidator } from "../../services/googleAds/shared/GoogleAdsCampaignValidator";
 import { analyzeWebsiteUrl } from "../../services/googleAds/shared/websiteAnalyzer";
 import { SalesSearchService } from "../../services/googleAds/sales/SalesSearchService";
@@ -17,11 +18,14 @@ import { LeadsShoppingService } from "../../services/googleAds/leads/LeadsShoppi
 import { WebsiteTrafficSearchService } from "../../services/googleAds/websiteTraffic/WebsiteTrafficSearchService";
 import { WebsiteTrafficPerformanceMaxService } from "../../services/googleAds/websiteTraffic/WebsiteTrafficPerformanceMaxService";
 import { WebsiteTrafficDemandGenService } from "../../services/googleAds/websiteTraffic/WebsiteTrafficDemandGenService";
+import { WebsiteTrafficDisplayService } from "../../services/googleAds/websiteTraffic/WebsiteTrafficDisplayService";
 import { WebsiteTrafficVideoService } from "../../services/googleAds/websiteTraffic/WebsiteTrafficVideoService";
 import { WebsiteTrafficShoppingService } from "../../services/googleAds/websiteTraffic/WebsiteTrafficShoppingService";
 import { YoutubeVideoService } from "../../services/googleAds/youtubeReach/YoutubeVideoService";
 import { YoutubeDemandGenService } from "../../services/googleAds/youtubeReach/YoutubeDemandGenService";
+import { YoutubeDisplayLocalService } from "../../services/googleAds/youtubeReach/YoutubeDisplayLocalService";
 import { NoGuidanceSearchService } from "../../services/googleAds/noGuidance/NoGuidanceSearchService";
+import { NoGuidanceDisplayService } from "../../services/googleAds/noGuidance/NoGuidanceDisplayService";
 import { NoGuidanceVideoService } from "../../services/googleAds/noGuidance/NoGuidanceVideoService";
 import { NoGuidanceShoppingService } from "../../services/googleAds/noGuidance/NoGuidanceShoppingService";
 import { NoGuidanceDemandGenService } from "../../services/googleAds/noGuidance/NoGuidanceDemandGenService";
@@ -264,6 +268,26 @@ router.post("/chat", async (req, res) => {
       return res.status(400).json({ error: "messages array is required" });
     }
 
+    const lastUserMsg = messages.filter((m: any) => m.role === "user").pop()?.content || "";
+
+    // If user message is requesting AI image or logo generation, call image generation pipeline
+    if (GoogleAdsImageGenService.isImageGenRequest(lastUserMsg)) {
+      console.log(`[AI-GUIDED] Image generation intent detected for: "${lastUserMsg.slice(0, 80)}..."`);
+      const imgGenResponse = await GoogleAdsImageGenService.generateAdImages(lastUserMsg, campaignState);
+      return res.status(200).json({
+        message: imgGenResponse.message,
+        suggestions: ["Add More Images", "Generate Logo", "Use Recommended Settings", "Show Required Assets"],
+        campaignState: imgGenResponse.campaignState,
+        generatedImages: imgGenResponse.generatedImages,
+        missingFields: GoogleAdsAiAssistantService.computeMissingFields(imgGenResponse.campaignState),
+        validationErrors: GoogleAdsCampaignValidator.validate(imgGenResponse.campaignState).errors,
+        readyForReview: Boolean(imgGenResponse.campaignState.businessName || imgGenResponse.campaignState.website),
+        readyForPublish: GoogleAdsCampaignValidator.validate(imgGenResponse.campaignState).isValid,
+        stage: imgGenResponse.campaignState.stage || "collecting_assets"
+      });
+    }
+
+    // Normal Google Ads text and campaign strategic advisory via Groq
     const aiResponse = await GoogleAdsAiAssistantService.processChat(messages, campaignState);
     return res.status(200).json(aiResponse);
   } catch (error: any) {
@@ -403,27 +427,83 @@ router.post("/create-campaign", async (req, res) => {
       }
 
       case "DISPLAY": {
+        const anyState = state as any;
         const payload = {
+          source: "AI_GUIDED",
+          isAiGuided: true,
           campaignName,
-          finalUrl: state.website || "https://www.google.com",
-          businessName: state.businessName || "My Business",
-          dailyBudget,
-          locations,
-          languages,
+          finalUrl: state.website || state.finalUrl,
+          mobileFinalUrl: anyState.mobileFinalUrl || undefined,
+          businessName: state.businessName,
+          dailyBudget: anyState.dailyBudget !== undefined ? Number(anyState.dailyBudget) : dailyBudget,
+          budget: anyState.budget !== undefined ? Number(anyState.budget) : dailyBudget,
+          locations: (state.locations && state.locations.length > 0) ? state.locations : locations,
+          languages: (anyState.languages && anyState.languages.length > 0) ? anyState.languages : languages,
           biddingStrategy: state.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+          biddingFocus: state.biddingStrategy || "MAXIMIZE_CONVERSIONS",
           targetCpa: state.targetCpa || undefined,
           targetRoas: state.targetRoas || undefined,
+          targetCpc: anyState.targetCpc || anyState.maxCpc || undefined,
+          maxCpc: anyState.maxCpc || undefined,
+          cpcBid: anyState.cpcBid || undefined,
+          viewableCpmBid: anyState.viewableCpmBid || undefined,
           startDate: state.startDate,
           endDate: state.endDate,
-          headlines: validHeadlines.length > 0 ? validHeadlines : ["Discover Quality Solutions", "Top Rated Services"],
-          longHeadlines: state.longHeadlines && state.longHeadlines.length > 0 ? state.longHeadlines : [validHeadlines[0] || "Discover Quality Solutions and Tailored Services"],
-          descriptions: validDescriptions.length > 0 ? validDescriptions : ["Reach out today to learn more about our tailored solutions."],
+          headlines: validHeadlines,
+          longHeadlines: state.longHeadlines && state.longHeadlines.length > 0 ? state.longHeadlines : (validHeadlines.length > 0 ? [validHeadlines[0]] : []),
+          descriptions: validDescriptions,
           images: state.images && state.images.length > 0 ? state.images : [],
           logos: state.logos && state.logos.length > 0 ? state.logos : [],
-          euPolitical: state.euPolitical || "NO"
+          videos: state.videos && state.videos.length > 0 ? state.videos : [],
+          callToAction: anyState.callToAction || anyState.callToActionText || "Automated",
+          euPolitical: state.euPolitical || "NO",
+          deviceTargeting: anyState.deviceTargeting || anyState.deviceOption || "ALL",
+          devices: anyState.devices || [],
+          adSchedule: anyState.adSchedule || anyState.adScheduleList || [],
+          adRotation: anyState.adRotation || anyState.adRotationOption || "OPTIMIZE",
+          trackingTemplate: anyState.trackingTemplate || undefined,
+          finalUrlSuffix: anyState.finalUrlSuffix || undefined,
+          customParameters: anyState.customParameters || anyState.customParamsList || [],
+          ipExclusions: anyState.ipExclusions || undefined,
+          audiences: anyState.audiences || anyState.selectedAudiences || [],
+          selectedAudiences: anyState.selectedAudiences || [],
+          audience: anyState.audience || undefined,
+          demographicsGender: anyState.demographicsGender || undefined,
+          demographicsAge: anyState.demographicsAge || undefined,
+          demographicsParental: anyState.demographicsParental || undefined,
+          demographicsIncome: anyState.demographicsIncome || undefined,
+          demographics: anyState.demographics || undefined,
+          topics: anyState.topics || anyState.selectedTopics || [],
+          selectedTopics: anyState.selectedTopics || [],
+          placements: anyState.placements || anyState.selectedPlacements || [],
+          selectedPlacements: anyState.selectedPlacements || [],
+          keywords: anyState.keywords || [],
+          enteredKeywordsText: anyState.enteredKeywordsText || undefined,
+          contentLabels: anyState.contentLabels || undefined,
+          sensitiveContent: anyState.sensitiveContent || undefined,
+          contentTypeExclusions: anyState.contentTypeExclusions || undefined,
+          useOptimizedTargeting: anyState.useOptimizedTargeting !== undefined ? Boolean(anyState.useOptimizedTargeting) : true,
+          optimizedTargeting: anyState.optimizedTargeting !== undefined ? Boolean(anyState.optimizedTargeting) : true,
+          useAssetEnhancements: anyState.useAssetEnhancements !== undefined ? Boolean(anyState.useAssetEnhancements) : undefined,
+          useAutoGeneratedVideo: anyState.useAutoGeneratedVideo !== undefined ? Boolean(anyState.useAutoGeneratedVideo) : undefined,
+          useNativeFormats: anyState.useNativeFormats !== undefined ? Boolean(anyState.useNativeFormats) : undefined,
+          useDynamicFeed: anyState.useDynamicFeed !== undefined ? Boolean(anyState.useDynamicFeed) : undefined,
+          sitelinks: anyState.sitelinks || [],
+          callouts: anyState.callouts || [],
+          structuredSnippets: anyState.structuredSnippets || [],
+          promotions: anyState.promotions || [],
+          callAsset: anyState.callAsset || undefined,
+          leadFormAsset: anyState.leadFormAsset || undefined,
+          conversionGoals: anyState.conversionGoals || []
         };
         if (objective === "LEADS") {
           result = await LeadsDisplayService.createCampaign(orgId, customerId, payload);
+        } else if (objective === "WEBSITE_TRAFFIC" || objective === "WEBSITE-TRAFFIC") {
+          result = await WebsiteTrafficDisplayService.createCampaign(orgId, customerId, payload);
+        } else if (objective === "AWARENESS" || objective === "YOUTUBE_REACH") {
+          result = await YoutubeDisplayLocalService.createCampaign(orgId, customerId, payload);
+        } else if (objective === "NO_GUIDANCE") {
+          result = await NoGuidanceDisplayService.createCampaign(orgId, customerId, payload);
         } else {
           result = await SalesDisplayService.createCampaign(orgId, customerId, payload);
         }
@@ -545,7 +625,9 @@ router.post("/create-campaign", async (req, res) => {
           descriptions: validDescriptions,
           targetCpa: state.targetCpa,
           dailyBudget: Number(state.dailyBudget),
-          euPolitical: state.euPolitical || "NO"
+          euPolitical: state.euPolitical || "NO",
+          images: (state as any).images || (state as any).marketingImages || [],
+          videos: (state as any).videos || (state as any).youtubeVideos || []
         };
         result = await AppPromotionAppService.createCampaign(orgId, customerId, payload);
         break;

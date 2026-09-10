@@ -408,46 +408,14 @@ export class LeadsSearchService extends GoogleAdsBaseService {
         apiResult.adGroupAdResourceName = adRes.data?.results?.[0]?.resourceName;
       }
 
-      // ── 9. CREATE CAMPAIGN CRITERIA (Locations & Languages) ──
-      const campaignCriteriaOperations: any[] = [];
-
-      // Location targeting
-      const locList = Array.isArray(locations) ? locations : [locations].filter(Boolean);
-      for (const loc of locList) {
-        if (!loc || loc === "ALL" || loc === "All countries" || loc === "All countries and territories") continue;
-        const geoConstantId = await this.resolveGeoTargetConstant(String(loc), headers, isAiGuided);
-        if (geoConstantId) {
-          campaignCriteriaOperations.push({
-            create: {
-              campaign: campaignRef,
-              location: { geoTargetConstant: `geoTargetConstants/${geoConstantId}` }
-            }
-          });
-        }
-      }
-
-      // Language targeting
-      const langList = Array.isArray(languages) ? languages : [languages].filter(Boolean);
-      for (const lang of langList) {
-        if (!lang) continue;
-        const normLang = String(lang).trim().toLowerCase();
-        const langConstantId = LeadsSearchService.LANGUAGE_CONSTANT_MAP[normLang] || (/^\d+$/.test(String(lang)) ? String(lang) : null);
-        if (langConstantId) {
-          campaignCriteriaOperations.push({
-            create: {
-              campaign: campaignRef,
-              language: { languageConstant: `languageConstants/${langConstantId}` }
-            }
-          });
-        } else if (isAiGuided) {
-          throw new Error(`Language "${lang}" is not supported. Please select a supported Google Ads language.`);
-        }
-      }
-
-      if (campaignCriteriaOperations.length > 0) {
-        const criteriaRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, { operations: campaignCriteriaOperations }, { headers });
-        apiResult.criteriaResourceNames = (criteriaRes.data?.results || []).map((r: any) => r.resourceName);
-      }
+      // ── 9. CREATE CAMPAIGN CRITERIA (Locations & Languages via GoogleAdsBaseService) ──
+      const criteriaRes = await GoogleAdsBaseService.mutateCampaignGeoAndLanguageCriteria(
+        organizationId,
+        customerId,
+        campaignRef,
+        { locations, languages, headers }
+      );
+      apiResult.criteriaResourceNames = (criteriaRes || []).map((r: any) => r.resourceName);
 
     } catch (apiErr: any) {
       // ── ATOMIC ROLLBACK / CLEANUP ──

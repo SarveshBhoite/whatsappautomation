@@ -455,6 +455,13 @@ Stage 6: **VALIDATION & REVIEW**
   * Do NOT ask more technical questions.
   * Recommend the single best option based on what is known so far, explain WHY simply, and provide actionable suggestion chips like ["Use Recommended Settings", "Show Other Options"].
 
+### @ CAMPAIGN REFERENCE CONTEXT REUSE (CRITICAL FOR TOKEN & QUESTION MINIMIZATION):
+- If the user references an existing campaign via "@[Campaign Name]" or if \`currentState\` already has fields pre-filled from an existing referenced campaign (e.g. \`businessName\`, \`website\`, \`locations\`, \`language\`, \`dailyBudget\`, \`keywords\`, \`headlines\`, \`descriptions\`, \`images\`, \`logos\`, \`biddingStrategy\`):
+  1. **DO NOT ask redundant questions** for information that is already provided or inherited from the referenced campaign (e.g. do NOT ask "What is your business name?", "What is your website URL?", "What is your target location?").
+  2. **Acknowledge the referenced campaign context**: Warmly state that you've imported the business profile, locations, assets, and parameters from the referenced campaign.
+  3. **Focus ONLY on what is missing or changed**: Ask ONLY about the specific goal or changes needed for this new campaign (e.g. new campaign objective, adjusted budget, or new product focus).
+  4. **Preserve existing high-quality assets**: Inherit and retain headlines, descriptions, keywords, images, and logos from the reference context, making only relevant adaptations if requested.
+
 ### STRICT DATA ACCURACY & SYNCHRONIZATION RULES:
 1. **OBJECTIVE INTEGRITY**:
    - NEVER assume or default \`objective\` to \`LEADS\`.
@@ -473,10 +480,13 @@ Stage 6: **VALIDATION & REVIEW**
    - Do NOT invent fake or placeholder URLs for images or logos in \`campaignState.images\` or \`campaignState.logos\`.
 5. **DEFAULT LOCATION & LANGUAGE**:
    - Provide standard practical defaults if not specified: \`locations: ["India"]\`, \`language: "English"\`. If the user specifies different locations (e.g. "Pune", "United States", "Global") or languages (e.g. "Hindi", "Spanish"), update them immediately.
-6. **REAL AD COPY GENERATION**:
-   - When generating headlines and descriptions, tailor them specifically to the user's business name, products/services, and website benefits.
-   - Headlines must be <= 30 characters each.
-   - Descriptions and Long Headlines must be <= 90 characters each.
+6. **MANDATORY GOOGLE ADS COPY REQUIREMENTS (NEVER GENERATE ONLY 1 HEADLINE OR DESCRIPTION)**:
+   - When the user asks to "generate headlines", "generate ad copy", "create headlines and descriptions", "generate all required", or when ad copy is needed for the campaign:
+     * **HEADLINES (REQUIRED: MINIMUM 3 TO 5 DISTINCT HEADLINES)**: You MUST generate at least 3 to 5 unique, punchy headlines. NEVER generate only 1 headline. Each headline must be <= 30 characters.
+     * **LONG HEADLINES (REQUIRED: MINIMUM 1 TO 2 LONG HEADLINES)**: You MUST generate at least 1 to 2 long headlines. Each long headline must be <= 90 characters.
+     * **DESCRIPTIONS (REQUIRED: MINIMUM 2 TO 4 DISTINCT DESCRIPTIONS)**: You MUST generate at least 2 to 4 distinct descriptions. NEVER generate only 1 description. Each description must be <= 90 characters.
+     * **KEYWORDS (REQUIRED: MINIMUM 5 TO 10 KEYWORDS)**: If campaign type is Search or includes keywords, generate 5 to 10 high purchase-intent keywords.
+   - Tailor all copy specifically to the user's business name, products/services, and website value propositions.
 
 ### OUTPUT JSON SCHEMA:
 You MUST reply strictly with valid, parseable JSON matching this schema:
@@ -596,7 +606,7 @@ ${JSON.stringify(currentState, null, 2)}
 
       // Check if user explicitly asked to generate copy/assets in conversation
       const lastUserMsg = messages.filter(m => m.role === "user").pop()?.content?.toLowerCase() || "";
-      const userAskedForGen = lastUserMsg.includes("generate") || lastUserMsg.includes("create headlines") || lastUserMsg.includes("suggest keywords") || lastUserMsg.includes("website");
+      const userAskedForGen = lastUserMsg.includes("generate") || lastUserMsg.includes("create") || lastUserMsg.includes("headline") || lastUserMsg.includes("leadline") || lastUserMsg.includes("description") || lastUserMsg.includes("suggest") || lastUserMsg.includes("website") || lastUserMsg.includes("all required");
       const userConfirmedSettings = lastUserMsg.includes("use recommended") || lastUserMsg.includes("accept") || lastUserMsg.includes("confirm");
 
       // Extract explicit budget if stated in natural language in last user message
@@ -615,21 +625,55 @@ ${JSON.stringify(currentState, null, 2)}
         ? this.sanitizeArray(parsedState.locations)
         : (currentState.locations && currentState.locations.length > 0 ? currentState.locations : ["India"]);
 
-      const cleanKeywords = (userAskedForGen || userConfirmedSettings || (parsedState.keywords && parsedState.keywords.length > 0))
+      let cleanKeywords = (userAskedForGen || userConfirmedSettings || (parsedState.keywords && parsedState.keywords.length > 0))
         ? this.sanitizeArray(parsedState.keywords || currentState.keywords)
         : this.sanitizeArray(currentState.keywords);
 
-      const cleanHeadlines = (userAskedForGen || userConfirmedSettings || (parsedState.headlines && parsedState.headlines.length > 0))
+      let cleanHeadlines = (userAskedForGen || userConfirmedSettings || (parsedState.headlines && parsedState.headlines.length > 0))
         ? this.sanitizeArray(parsedState.headlines || currentState.headlines)
         : this.sanitizeArray(currentState.headlines);
 
-      const cleanDescriptions = (userAskedForGen || userConfirmedSettings || (parsedState.descriptions && parsedState.descriptions.length > 0))
+      let cleanDescriptions = (userAskedForGen || userConfirmedSettings || (parsedState.descriptions && parsedState.descriptions.length > 0))
         ? this.sanitizeArray(parsedState.descriptions || currentState.descriptions)
         : this.sanitizeArray(currentState.descriptions);
 
-      const cleanLongHeadlines = (userAskedForGen || userConfirmedSettings || (parsedState.longHeadlines && parsedState.longHeadlines.length > 0))
+      let cleanLongHeadlines = (userAskedForGen || userConfirmedSettings || (parsedState.longHeadlines && parsedState.longHeadlines.length > 0))
         ? this.sanitizeArray(parsedState.longHeadlines || currentState.longHeadlines)
         : this.sanitizeArray(currentState.longHeadlines);
+
+      // Auto-guarantee minimum requirements for Google Ads compliance (min 3 headlines, min 1 long headline, min 2 descriptions)
+      if (userAskedForGen && cleanBizName) {
+        if (cleanHeadlines.length < 3) {
+          const defaultH = [
+            cleanBizName.slice(0, 30),
+            `Top ${cleanBizName} Solutions`.slice(0, 30),
+            "Get Started Today".slice(0, 30),
+            "Fast & Reliable Service".slice(0, 30),
+            "Exclusive Offers Now".slice(0, 30)
+          ];
+          for (const h of defaultH) {
+            if (!cleanHeadlines.includes(h) && cleanHeadlines.length < 5) {
+              cleanHeadlines.push(h);
+            }
+          }
+        }
+
+        if (cleanLongHeadlines.length < 1) {
+          cleanLongHeadlines.push(`Discover Premium ${cleanBizName} Services Tailored For Your Growth & Success`.slice(0, 90));
+        }
+
+        if (cleanDescriptions.length < 2) {
+          const defaultD = [
+            `Connect with ${cleanBizName} today. Explore our expert services and trusted solutions.`.slice(0, 90),
+            `High quality offerings, dedicated support, and proven results. Inquire now!`.slice(0, 90)
+          ];
+          for (const d of defaultD) {
+            if (!cleanDescriptions.includes(d) && cleanDescriptions.length < 4) {
+              cleanDescriptions.push(d);
+            }
+          }
+        }
+      }
 
       // User confirmed values vs recommendation values
       const resolvedBiddingStrategy = parsedState.biddingStrategy || currentState.biddingStrategy || "Maximize conversions";

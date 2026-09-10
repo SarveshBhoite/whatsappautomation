@@ -3,6 +3,7 @@ import { LanguageDropdown } from "@/components/LanguageDropdown";
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { GoogleAdsLocationRadiusSelector, GeoTargetItem } from "@/components/ads/GoogleAdsLocationRadiusSelector";
 import {
   X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall, Play, BarChart2,
   Search, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, Sparkles, Image as ImageIcon, Video as VideoIcon, Upload, Phone, DollarSign, Tag, FileText, MessageSquare, Smartphone, SlidersHorizontal, Globe, Users, Settings, Edit3, Lock, ShieldAlert, Layers, Crop, ZoomIn, RotateCcw, Menu
@@ -90,11 +91,9 @@ function WebsiteTrafficPerformanceMaxContent() {
   const [isEUPoliticalAdsOpen, setIsEUPoliticalAdsOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
-  const [selectedCustomLocations, setSelectedCustomLocations] = useState<Array<{ name: string; id?: string; canonicalName?: string }>>([]);
-  const [isSearchingLocations, setIsSearchingLocations] = useState<boolean>(false);
-  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ name: string; id?: string; canonicalName?: string; targetType?: string }>>([]);
-  const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
-  const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
+  const [selectedCustomLocations, setSelectedCustomLocations] = useState<GeoTargetItem[]>([]);
+  const [locationOptionsPresence, setLocationOptionsPresence] = useState<string>("PRESENCE_INTEREST");
+  const [locationOptionsExclude, setLocationOptionsExclude] = useState<string>("PRESENCE");
   
   // Language Selection State with API simulation
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
@@ -124,62 +123,6 @@ function WebsiteTrafficPerformanceMaxContent() {
       setLanguageSearchResults([]);
     }
   }, [languageSearchInput, selectedLanguages]);
-
-  // Live Location Search from backend API
-  useEffect(() => {
-    if (customLocationInput.trim().length >= 2) {
-      setIsSearchingLocations(true);
-      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
-      const cid = customerId || "8627341950";
-
-      const timer = setTimeout(async () => {
-        try {
-          const res = await fetch(`${BACKEND}/api/ads/geo-targets/search?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}&q=${encodeURIComponent(customLocationInput.trim())}`);
-          if (res.ok) {
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : (data.results || data.data || []);
-            const formatted = list.map((item: any) => ({
-              id: item.id || item.geoTargetConstant?.id || item.resourceName?.split("/").pop(),
-              name: item.name || item.geoTargetConstant?.name || item.canonicalName || item.geoTargetConstant?.canonicalName,
-              canonicalName: item.canonicalName || item.geoTargetConstant?.canonicalName || item.name,
-              targetType: item.targetType || item.geoTargetConstant?.targetType || "Location"
-            }));
-            setLocationSearchResults(formatted);
-          } else {
-            // Fallback to local filtering if search API returns 400/500
-            const localFallback = [
-              { name: "Mumbai", canonicalName: "Mumbai, Maharashtra, India", targetType: "City" },
-              { name: "Delhi", canonicalName: "Delhi, India", targetType: "Union territory" },
-              { name: "Bengaluru", canonicalName: "Bengaluru, Karnataka, India", targetType: "City" },
-              { name: "Hyderabad", canonicalName: "Hyderabad, Telangana, India", targetType: "City" },
-              { name: "Ahmedabad", canonicalName: "Ahmedabad, Gujarat, India", targetType: "City" },
-              { name: "Chennai", canonicalName: "Chennai, Tamil Nadu, India", targetType: "City" },
-              { name: "Kolkata", canonicalName: "Kolkata, West Bengal, India", targetType: "City" },
-              { name: "Pune", canonicalName: "Pune, Maharashtra, India", targetType: "City" },
-              { name: "Surat", canonicalName: "Surat, Gujarat, India", targetType: "City" },
-              { name: "Jaipur", canonicalName: "Jaipur, Rajasthan, India", targetType: "City" },
-              { name: "United States", canonicalName: "United States", targetType: "Country" },
-              { name: "United Kingdom", canonicalName: "United Kingdom", targetType: "Country" },
-              { name: "Canada", canonicalName: "Canada", targetType: "Country" },
-              { name: "Australia", canonicalName: "Australia", targetType: "Country" },
-              { name: "United Arab Emirates", canonicalName: "United Arab Emirates", targetType: "Country" }
-            ].filter(loc => loc.canonicalName.toLowerCase().includes(customLocationInput.toLowerCase()));
-            setLocationSearchResults(localFallback);
-          }
-        } catch (err) {
-          console.error("Location search error:", err);
-          setLocationSearchResults([]);
-        } finally {
-          setIsSearchingLocations(false);
-        }
-      }, 250);
-      return () => clearTimeout(timer);
-    } else {
-      setLocationSearchResults([]);
-      setIsSearchingLocations(false);
-    }
-  }, [customLocationInput, customerId]);
 
   const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
   const [showMoreCampaignSettings, setShowMoreCampaignSettings] = useState<boolean>(false);
@@ -1469,138 +1412,17 @@ function WebsiteTrafficPerformanceMaxContent() {
                     </button>
                   </div>
                   
-                  <div className="space-y-4 pt-1">
-                    <p className="text-slate-500">Select locations for this campaign</p>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="radio" name="WebsiteTrafficPmaxLoc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-primary h-4 w-4" />
-                        <span>All countries and territories</span>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="radio" name="WebsiteTrafficPmaxLoc" checked={selectedLocation === "INDIA"} onChange={() => setSelectedLocation("INDIA")} className="text-primary h-4 w-4" />
-                        <span>India</span>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="radio" name="WebsiteTrafficPmaxLoc" checked={selectedLocation === "CUSTOM"} onChange={() => setSelectedLocation("CUSTOM")} className="text-primary h-4 w-4" />
-                        <span>Enter another location</span>
-                      </label>
-                    </div>
-
-                    {selectedLocation === "CUSTOM" && (
-                      <div className="pt-2 max-w-md space-y-2">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={customLocationInput}
-                            onChange={(e) => setCustomLocationInput(e.target.value)}
-                            placeholder="Enter a location to target (e.g. Mumbai, Gujarat, India)"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
-                          />
-                          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          {isSearchingLocations && (
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                              <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Live Location Search Dropdown Results */}
-                        {locationSearchResults.length > 0 && (
-                          <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 z-10 relative">
-                            {locationSearchResults.map((loc, idx) => (
-                              <div
-                                key={idx}
-                                onClick={() => {
-                                  if (!selectedCustomLocations.some(l => l.canonicalName === loc.canonicalName)) {
-                                    setSelectedCustomLocations(prev => [...prev, loc]);
-                                  }
-                                  setCustomLocationInput("");
-                                  setLocationSearchResults([]);
-                                }}
-                                className="p-2.5 hover:bg-primary/10 cursor-pointer flex items-center justify-between transition-colors text-xs"
-                              >
-                                <div>
-                                  <span className="font-semibold text-slate-800 block">{loc.canonicalName || loc.name}</span>
-                                  {loc.id && <span className="text-[10px] text-slate-500 font-mono">ID: {loc.id}</span>}
-                                </div>
-                                <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-medium">
-                                  {loc.targetType || "Location"}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Unlisted / Invalid City Warning Message */}
-                        {customLocationInput.trim().length >= 2 && !isSearchingLocations && locationSearchResults.length === 0 && (
-                          <div className="p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 text-xs font-semibold flex items-center gap-2">
-                            <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
-                            <span>No matching locations found for "{customLocationInput}". Only verified cities/locations from Google Ads API can be added.</span>
-                          </div>
-                        )}
-
-                        {/* Selected Custom Locations Chips */}
-                        {selectedCustomLocations.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            {selectedCustomLocations.map((loc, i) => (
-                              <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary rounded-lg text-xs font-semibold">
-                                {loc.canonicalName || loc.name}
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedCustomLocations(prev => prev.filter((_, idx) => idx !== i))}
-                                  className="hover:text-rose-500"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Location Options Accordion */}
-                    <div className="pt-2 border-t border-slate-200">
-                      <button
-                        type="button"
-                        onClick={() => setShowLocationOptions(!showLocationOptions)}
-                        className="flex items-center justify-between w-full py-1 text-slate-700 font-semibold cursor-pointer"
-                      >
-                        <span>Location options</span>
-                        <Edit3 className="h-3.5 w-3.5 text-slate-400 hover:text-primary" />
-                      </button>
-
-                      {showLocationOptions && (
-                        <div className="mt-3 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 animate-in fade-in duration-150">
-                          <span className="font-semibold text-slate-800 block">Include</span>
-                          <label className="flex items-start gap-3 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="locTargetType"
-                              checked={locationTargetingType === "PRESENCE_INTEREST"}
-                              onChange={() => setLocationTargetingType("PRESENCE_INTEREST")}
-                              className="mt-0.5 text-primary h-4 w-4"
-                            />
-                            <div>
-                              <span className="font-semibold text-slate-800 block">Presence or interest: People in, regularly in, or who've shown interest in your included locations (recommended)</span>
-                            </div>
-                          </label>
-                          <label className="flex items-start gap-3 cursor-pointer border-t border-slate-200 pt-2">
-                            <input
-                              type="radio"
-                              name="locTargetType"
-                              checked={locationTargetingType === "PRESENCE"}
-                              onChange={() => setLocationTargetingType("PRESENCE")}
-                              className="mt-0.5 text-primary h-4 w-4"
-                            />
-                            <div>
-                              <span className="font-semibold text-slate-800 block">Presence: People in or regularly in your included locations</span>
-                            </div>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <GoogleAdsLocationRadiusSelector
+                    selectedLocation={selectedLocation}
+                    onLocationTypeChange={setSelectedLocation}
+                    customLocations={selectedCustomLocations}
+                    onCustomLocationsChange={setSelectedCustomLocations}
+                    customerId={customerId || accountInfo?.customerId}
+                    locationOptionsPresence={locationOptionsPresence}
+                    onLocationOptionsPresenceChange={setLocationOptionsPresence}
+                    locationOptionsExclude={locationOptionsExclude}
+                    onLocationOptionsExcludeChange={setLocationOptionsExclude}
+                  />
                 </div>
               ) : (
                 <div 
@@ -1611,8 +1433,14 @@ function WebsiteTrafficPerformanceMaxContent() {
                     <div className="w-56">
                       <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
                     </div>
-                    <div className="text-xs text-slate-500 font-medium">
-                      {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : customLocationInput || "Custom locations"}
+                    <div className="text-xs text-slate-500 font-medium truncate max-w-md">
+                      {selectedLocation === "ALL"
+                        ? "All countries and territories"
+                        : selectedLocation === "INDIA"
+                          ? "India"
+                          : selectedCustomLocations.length > 0
+                            ? `${selectedCustomLocations.filter(l => !l.isExcluded).length} targeted, ${selectedCustomLocations.filter(l => l.isExcluded).length} excluded (${selectedCustomLocations.map(l => l.name).slice(0, 2).join(", ")}${selectedCustomLocations.length > 2 ? ` +${selectedCustomLocations.length - 2} more` : ""})`
+                            : "Custom locations"}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
@@ -5138,11 +4966,12 @@ function WebsiteTrafficPerformanceMaxContent() {
                       ? ["India"]
                       : selectedLocation === "CUSTOM"
                         ? (selectedCustomLocations.length > 0
-                            ? selectedCustomLocations.map(l => l.canonicalName || l.name)
-                            : (customLocationInput ? [customLocationInput] : ["India"]))
+                            ? selectedCustomLocations
+                            : ["India"])
                         : ["All countries"],
                     languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
                     euPolitical: euPoliticalAds,
+                    locationTargetingType: locationOptionsPresence,
                     assetGroupName: assetGroupName || `${campaignName} Asset Group 1`,
                     headlines: validHeadlines,
                     longHeadlines: longHeadlines.filter(lh => lh && lh.trim()),
@@ -5201,7 +5030,6 @@ function WebsiteTrafficPerformanceMaxContent() {
                       description: lfDescription,
                       privacyPolicyUrl: lfPrivacyPolicyUrl
                     } : undefined,
-                    locationTargetingType: locationTargetingType,
                     brandExclusions: selectedBrandsList.map(b => b.name),
                     urlRulesList: urlRulesList.length > 0 ? urlRulesList : undefined,
                     assetOptimizations: {

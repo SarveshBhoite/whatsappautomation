@@ -904,19 +904,83 @@ export class GoogleAdsService {
   // ─────────────────────────────────────────────────────────────────────────
 
   public static async searchGeoTargets(organizationId: string, customerId: string, query: string, locale = "en") {
-    const { headers } = await this.getAdsHeaders(organizationId, customerId);
-    const res = await axios.get(`${ADS_BASE}/geoTargetConstants:suggest`, {
-      params: { "location_names.names": query, locale },
-      headers
-    });
-    return (res.data.geoTargetConstantSuggestions || []).map((s: any) => ({
-      id: s.geoTargetConstant?.id,
-      name: s.geoTargetConstant?.name,
-      countryCode: s.geoTargetConstant?.countryCode,
-      targetType: s.geoTargetConstant?.targetType,
-      resourceName: s.geoTargetConstant?.resourceName,
-      canonicalName: s.canonicalName
-    }));
+    const qTrimmed = (query || "").trim();
+    if (!qTrimmed) return [];
+
+    // 1. Try Google Ads API GeoTargetConstants Suggest if customerId is present
+    try {
+      if (customerId && customerId !== "1234567890") {
+        const { headers } = await this.getAdsHeaders(organizationId, customerId);
+        const res = await axios.get(`${ADS_BASE}/geoTargetConstants:suggest`, {
+          params: { "location_names.names": qTrimmed, locale },
+          headers,
+          timeout: 5000
+        });
+        const list = (res.data.geoTargetConstantSuggestions || []).map((s: any) => ({
+          id: s.geoTargetConstant?.id,
+          name: s.geoTargetConstant?.name,
+          countryCode: s.geoTargetConstant?.countryCode,
+          targetType: s.geoTargetConstant?.targetType,
+          resourceName: s.geoTargetConstant?.resourceName,
+          canonicalName: s.canonicalName
+        }));
+        if (list.length > 0) return list;
+      }
+    } catch (adsErr: any) {
+      console.warn("[GoogleAdsService] Ads API geoTargetConstants:suggest notice (falling back to Places):", adsErr?.message);
+    }
+
+    // 2. Google Places API Autocomplete using GOOGLE_PLACES_API_KEY
+    const placesApiKey = process.env.GOOGLE_PLACES_API_KEY;
+    if (placesApiKey) {
+      try {
+        // Query Google Places Autocomplete for regions/cities/towns/districts
+        let autocompleteUrl = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(qTrimmed)}&language=${encodeURIComponent(locale || "en")}&key=${placesApiKey}`;
+        let pRes = await axios.get(autocompleteUrl, { timeout: 8000 });
+        let rawPredictions = pRes.data?.predictions || [];
+
+        if (rawPredictions.length > 0) {
+          const suggestions = rawPredictions.map((pred: any) => {
+            const primary = pred.structured_formatting?.main_text || pred.description;
+            const secondary = pred.structured_formatting?.secondary_text || "";
+            const fullName = secondary ? `${primary}, ${secondary}` : primary;
+            const isCountry = pred.types?.includes("country");
+            const isState = pred.types?.includes("administrative_area_level_1");
+            const isCity = pred.types?.includes("locality") || pred.types?.includes("administrative_area_level_2") || pred.types?.includes("administrative_area_level_3");
+            const targetType = isCountry ? "Country" : isState ? "State / Region" : isCity ? "City" : "Location";
+
+            return {
+              id: pred.place_id,
+              name: primary,
+              canonicalName: fullName,
+              targetType,
+              countryCode: pred.terms?.slice(-1)[0]?.value || "IN"
+            };
+          });
+          return suggestions;
+        }
+      } catch (placesErr: any) {
+        console.warn("[GoogleAdsService] Google Places API search notice:", placesErr.message);
+      }
+    }
+
+    // 3. Fallback to common pre-mapped Indian & Global cities if query matches
+    const qLower = qTrimmed.toLowerCase();
+    const matchedConstants = Object.entries(GoogleAdsService.GEO_TARGET_CONSTANT_MAP)
+      .filter(([key]) => key.includes(qLower) || qLower.includes(key))
+      .map(([key, id]) => ({
+        id,
+        name: key.split(",")[0].replace(/\b\w/g, l => l.toUpperCase()),
+        canonicalName: key.replace(/\b\w/g, l => l.toUpperCase()),
+        targetType: key.includes(",") ? "City" : (key === "india" || key === "united states" ? "Country" : "City"),
+        countryCode: "IN"
+      }));
+
+    if (matchedConstants.length > 0) {
+      return matchedConstants;
+    }
+
+    return [];
   }
 
   // Map common names to official Google Ads GeoTarget Constant IDs

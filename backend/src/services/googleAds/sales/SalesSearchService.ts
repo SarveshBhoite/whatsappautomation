@@ -141,46 +141,13 @@ export class SalesSearchService extends GoogleAdsBaseService {
       };
       await axios.post(`${ADS_BASE}/customers/${cid}/adGroupAds:mutate`, adGroupAdPayload, { headers });
 
-      // 4. Create Campaign Criteria (Locations and Languages)
-      const campaignCriteriaOperations: any[] = [];
-      
-      // Locations
-      if (locations && locations.length > 0) {
-        locations.forEach((loc: string) => {
-          if (loc !== "All countries" && loc !== "All") {
-            const locLower = loc.toLowerCase();
-            let geoId = "2840"; // US default fallback
-            if (locLower === "india") geoId = "2356";
-            
-            campaignCriteriaOperations.push({
-              create: {
-                campaign: apiResult.campaignResourceName,
-                location: { geoTargetConstant: `geoTargetConstants/${geoId}` }
-              }
-            });
-          }
-        });
-      }
-
-      // Languages
-      if (languages && languages.length > 0) {
-        languages.forEach((lang: string) => {
-          const langLower = lang.toLowerCase();
-          let langId = "1000"; // English
-          if (langLower === "spanish") langId = "1003";
-          
-          campaignCriteriaOperations.push({
-            create: {
-              campaign: apiResult.campaignResourceName,
-              language: { languageConstant: `languageConstants/${langId}` }
-            }
-          });
-        });
-      }
-
-      if (campaignCriteriaOperations.length > 0) {
-        await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, { operations: campaignCriteriaOperations }, { headers });
-      }
+      // 4. Create Campaign Criteria (Locations and Languages via GoogleAdsBaseService)
+      await GoogleAdsBaseService.mutateCampaignGeoAndLanguageCriteria(
+        organizationId,
+        customerId,
+        apiResult.campaignResourceName,
+        { locations, languages, headers }
+      );
 
     } catch (apiErr: any) {
       if (apiErr?.response?.data) {

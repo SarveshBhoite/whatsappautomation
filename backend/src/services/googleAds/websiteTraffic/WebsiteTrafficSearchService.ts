@@ -535,60 +535,34 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
         apiResult.adGroupAdResourceName = adRes.data?.results?.[0]?.resourceName;
       }
 
-      // ── 9. CREATE CAMPAIGN CRITERIA (Locations, Languages, & Ad Schedule) ──
-      const campaignCriteriaOperations: any[] = [];
-
-      // Location targeting
-      const locList = Array.isArray(locations) ? locations : [locations].filter(Boolean);
-      for (const loc of locList) {
-        if (!loc || loc === "ALL" || loc === "All countries" || loc === "All countries and territories") continue;
-        const geoConstantId = await this.resolveGeoTargetConstant(String(loc), headers, isAiGuided);
-        if (geoConstantId) {
-          campaignCriteriaOperations.push({
-            create: {
-              campaign: campaignRef,
-              location: { geoTargetConstant: `geoTargetConstants/${geoConstantId}` }
-            }
-          });
-        }
-      }
-
-      // Language targeting
-      const langList = Array.isArray(languages) ? languages : [languages].filter(Boolean);
-      for (const lang of langList) {
-        if (!lang) continue;
-        const normLang = String(lang).trim().toLowerCase();
-        const langConstantId = WebsiteTrafficSearchService.LANGUAGE_CONSTANT_MAP[normLang] || (/^\d+$/.test(String(lang)) ? String(lang) : null);
-        if (langConstantId) {
-          campaignCriteriaOperations.push({
-            create: {
-              campaign: campaignRef,
-              language: { languageConstant: `languageConstants/${langConstantId}` }
-            }
-          });
-        } else if (isAiGuided) {
-          throw new Error(`Language "${lang}" is not supported. Please select a supported Google Ads language.`);
-        }
-      }
+      // ── 9. CREATE CAMPAIGN CRITERIA (Locations, Languages via GoogleAdsBaseService, & Ad Schedule) ──
+      const geoAndLangResults = await GoogleAdsBaseService.mutateCampaignGeoAndLanguageCriteria(
+        organizationId,
+        customerId,
+        campaignRef,
+        { locations, languages, headers }
+      );
+      const criteriaResourceNames = (geoAndLangResults || []).map((r: any) => r.resourceName);
 
       // Ad Schedule targeting (CampaignCriterion -> adSchedule)
       const scheduleList = Array.isArray(adSchedule) ? adSchedule : [];
       if (scheduleList.length > 0) {
+        const scheduleOperations: any[] = [];
         const scheduleCriteria = WebsiteTrafficSearchService.buildAdScheduleCriteria(scheduleList);
         for (const sched of scheduleCriteria) {
-          campaignCriteriaOperations.push({
+          scheduleOperations.push({
             create: {
               campaign: campaignRef,
               adSchedule: sched
             }
           });
         }
+        if (scheduleOperations.length > 0) {
+          const schedRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, { operations: scheduleOperations }, { headers });
+          (schedRes.data?.results || []).forEach((r: any) => criteriaResourceNames.push(r.resourceName));
+        }
       }
-
-      if (campaignCriteriaOperations.length > 0) {
-        const criteriaRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, { operations: campaignCriteriaOperations }, { headers });
-        apiResult.criteriaResourceNames = (criteriaRes.data?.results || []).map((r: any) => r.resourceName);
-      }
+      apiResult.criteriaResourceNames = criteriaResourceNames;
 
       // ── 10. CREATE SEARCH EXTENSIONS (Google Ads Assets & CampaignAsset Associations) ──
       const campaignAssetOperations: any[] = [];

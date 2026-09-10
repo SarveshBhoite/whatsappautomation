@@ -1,5 +1,6 @@
 "use client";
 import { LanguageDropdown } from "@/components/LanguageDropdown";
+import { GoogleAdsLocationRadiusSelector, GeoTargetItem } from "@/components/ads/GoogleAdsLocationRadiusSelector";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -38,14 +39,11 @@ export default function SalesSearchPage() {
   const [searchPartnersNetwork, setSearchPartnersNetwork] = useState<boolean>(true);
   const [displayNetwork, setDisplayNetwork] = useState<boolean>(true);
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("INDIA");
-  const [customLocationInput, setCustomLocationInput] = useState<string>("");
-  const [targetLocations, setTargetLocations] = useState<Array<{ name: string; type: string; reach: string; canonicalName?: string; id?: string }>>([
-    { name: "India", type: "Country", reach: "500,000,000", canonicalName: "India" }
+  const [selectedCustomLocations, setSelectedCustomLocations] = useState<GeoTargetItem[]>([
+    { name: "India", targetType: "Country", canonicalName: "India", id: "2356", isExcluded: false, mode: "LOCATION" }
   ]);
-  const [isSearchingLocations, setIsSearchingLocations] = useState<boolean>(false);
-  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ id?: string; name: string; canonicalName: string; targetType: string; reach?: string }>>([]);
-  const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
-  const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
+  const [locationOptionsPresence, setLocationOptionsPresence] = useState<string>("PRESENCE_INTEREST");
+  const [locationOptionsExclude, setLocationOptionsExclude] = useState<string>("PRESENCE");
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
   
   
@@ -428,70 +426,7 @@ export default function SalesSearchPage() {
 
   
 
-  const locationSuggestionsList = [
-    { name: "Mumbai, Maharashtra, India", type: "City", reach: "21,400,000" },
-    { name: "Delhi, India", type: "Union territory", reach: "30,200,000" },
-    { name: "Bengaluru, Karnataka, India", type: "City", reach: "13,100,000" },
-    { name: "Hyderabad, Telangana, India", type: "City", reach: "10,500,000" },
-    { name: "Pune, Maharashtra, India", type: "City", reach: "7,800,000" },
-    { name: "United States", type: "Country", reach: "280,000,000" },
-    { name: "United Kingdom", type: "Country", reach: "55,000,000" }
-  ];
 
-  // Live Location Search from backend API / env
-  useEffect(() => {
-    if (customLocationInput.trim().length >= 2) {
-      setIsSearchingLocations(true);
-      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
-      const cid = customerId || "6587355041";
-
-      const timer = setTimeout(async () => {
-        try {
-          const res = await fetch(`${BACKEND}/api/ads/geo-targets/search?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}&q=${encodeURIComponent(customLocationInput.trim())}`);
-          if (res.ok) {
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : (data.results || data.data || []);
-            const formatted = list.map((item: any) => ({
-              id: item.id || item.geoTargetConstant?.id || item.resourceName?.split("/").pop(),
-              name: item.name || item.geoTargetConstant?.name || item.canonicalName || item.geoTargetConstant?.canonicalName,
-              canonicalName: item.canonicalName || item.geoTargetConstant?.canonicalName || item.name,
-              targetType: item.targetType || item.geoTargetConstant?.targetType || "Location"
-            }));
-            setLocationSearchResults(formatted);
-          } else {
-            // Fallback to local filtering
-            const localFallback = locationSuggestionsList
-              .filter(loc => loc.name.toLowerCase().includes(customLocationInput.toLowerCase()))
-              .map(loc => ({
-                name: loc.name,
-                canonicalName: loc.name,
-                targetType: loc.type,
-                reach: loc.reach
-              }));
-            setLocationSearchResults(localFallback);
-          }
-        } catch (err) {
-          console.error("Location search error:", err);
-          const localFallback = locationSuggestionsList
-            .filter(loc => loc.name.toLowerCase().includes(customLocationInput.toLowerCase()))
-            .map(loc => ({
-              name: loc.name,
-              canonicalName: loc.name,
-              targetType: loc.type,
-              reach: loc.reach
-            }));
-          setLocationSearchResults(localFallback);
-        } finally {
-          setIsSearchingLocations(false);
-        }
-      }, 250);
-      return () => clearTimeout(timer);
-    } else {
-      setLocationSearchResults([]);
-      setIsSearchingLocations(false);
-    }
-  }, [customLocationInput, customerId]);
 
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -608,19 +543,39 @@ export default function SalesSearchPage() {
           if (prefill.startDate) setStartDate(prefill.startDate);
           if (prefill.endDate) setEndDate(prefill.endDate);
           if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
-            if (prefill.locations.length === 1 && prefill.locations[0] === "All countries and territories") {
+            if (prefill.locations.length === 1 && (prefill.locations[0] === "All countries and territories" || prefill.locations[0] === "All countries" || prefill.locations[0] === "ALL")) {
               setSelectedLocation("ALL");
-            } else if (prefill.locations.length === 1 && prefill.locations[0] === "India") {
+            } else if (prefill.locations.length === 1 && (prefill.locations[0] === "India" || prefill.locations[0] === "INDIA")) {
               setSelectedLocation("INDIA");
             } else {
               setSelectedLocation("CUSTOM");
-              setCustomLocationInput(prefill.locations.join(", "));
-              setTargetLocations(prefill.locations.map((locName: string) => ({
-                name: locName,
-                type: "Location",
-                reach: "Targeted",
-                canonicalName: locName
-              })));
+              const parsedGeoItems: GeoTargetItem[] = prefill.locations.map((item: any) => {
+                if (typeof item === "object" && item !== null) {
+                  return {
+                    id: item.id ? String(item.id) : undefined,
+                    name: item.name || item.canonicalName || "Location",
+                    canonicalName: item.canonicalName || item.name || "Location",
+                    type: item.type || item.targetType || (item.mode === "RADIUS" ? "Radius" : "Location"),
+                    reach: item.reach,
+                    isExcluded: Boolean(item.isExcluded),
+                    mode: item.mode || (item.radius ? "RADIUS" : "LOCATION"),
+                    radius: item.radius ? Number(item.radius) : undefined,
+                    radiusUnit: item.radiusUnit || "km",
+                    lat: item.lat ? Number(item.lat) : undefined,
+                    lng: item.lng ? Number(item.lng) : undefined,
+                    placeId: item.placeId
+                  };
+                }
+                const locStr = String(item);
+                return {
+                  name: locStr,
+                  canonicalName: locStr,
+                  type: "Location",
+                  isExcluded: false,
+                  mode: "LOCATION"
+                };
+              });
+              setSelectedCustomLocations(parsedGeoItems);
             }
           }
           if (prefill.language) {
@@ -787,7 +742,7 @@ export default function SalesSearchPage() {
     }
 
     if (step === "CAMPAIGN_SETTINGS") {
-      if (selectedLocation === "CUSTOM" && targetLocations.length === 0) {
+      if (selectedLocation === "CUSTOM" && selectedCustomLocations.length === 0) {
         return { isValid: false, message: "Please select at least 1 target location or choose 'All countries and territories' / 'India'." };
       }
       if (selectedLanguages.length === 0) {
@@ -1135,7 +1090,7 @@ export default function SalesSearchPage() {
       const resolvedGeoTargets = selectedLocation === "INDIA"
         ? ["India"]
         : selectedLocation === "CUSTOM"
-        ? targetLocations.map(l => l.name)
+        ? (selectedCustomLocations.length > 0 ? selectedCustomLocations : ["India"])
         : ["All countries"];
 
       const payload = {
@@ -1169,7 +1124,9 @@ export default function SalesSearchPage() {
         geoTargetIds: resolvedGeoTargets,
         locations: resolvedGeoTargets,
         // Param 14: Location Targeting Mode
-        locationTargetingType,
+        locationTargetingType: locationOptionsPresence,
+        locationOptionsPresence,
+        locationOptionsExclude,
         // Param 15: Languages Targeting
         languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
         // Param 16: EU Political Ads
@@ -2088,160 +2045,28 @@ export default function SalesSearchPage() {
               {/* 2. Locations */}
               {openMainSetting === "locations" ? (
                 <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
-                    <h2 className="text-base font-semibold text-slate-900">Locations</h2>
-                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
+                    <button 
+                      type="button"
+                      onClick={() => setOpenMainSetting(null)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
+                    >
+                      Save
+                    </button>
                   </div>
-                  <div className="space-y-3 text-xs">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="searchLoc"
-                        checked={selectedLocation === "ALL"}
-                        onChange={() => setSelectedLocation("ALL")}
-                        className="text-primary focus:ring-primary h-4 w-4"
-                      />
-                      <span className="text-slate-800 font-medium">All countries and territories</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="searchLoc"
-                        checked={selectedLocation === "INDIA"}
-                        onChange={() => setSelectedLocation("INDIA")}
-                        className="text-primary focus:ring-primary h-4 w-4"
-                      />
-                      <span className="text-slate-800 font-medium">India</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="searchLoc"
-                        checked={selectedLocation === "CUSTOM"}
-                        onChange={() => setSelectedLocation("CUSTOM")}
-                        className="text-primary focus:ring-primary h-4 w-4"
-                      />
-                      <span className="text-slate-800 font-medium">Enter another location</span>
-                    </label>
-
-                    {selectedLocation === "CUSTOM" && (
-                      <div className="ml-7 pt-2 space-y-3 animate-in fade-in duration-200">
-                        <div className="relative max-w-md">
-                          <SearchIcon className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
-                          <input
-                            type="text"
-                            value={customLocationInput}
-                            onChange={(e) => setCustomLocationInput(e.target.value)}
-                            placeholder="Enter a location to target (e.g. Mumbai, Gujarat, India)"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                          />
-                          {isSearchingLocations && (
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                              <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Live Location Search Dropdown Results from Geo-Targets API / Env */}
-                        {locationSearchResults.length > 0 && (
-                          <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 max-w-md z-10 relative">
-                            {locationSearchResults.map((loc, idx) => (
-                              <div
-                                key={idx}
-                                onClick={() => {
-                                  if (!targetLocations.some(l => l.name === (loc.canonicalName || loc.name))) {
-                                    setTargetLocations(prev => [...prev, {
-                                      name: loc.canonicalName || loc.name,
-                                      type: loc.targetType || "Location",
-                                      reach: loc.reach || "Targeted",
-                                      canonicalName: loc.canonicalName || loc.name,
-                                      id: loc.id
-                                    }]);
-                                  }
-                                  setCustomLocationInput("");
-                                  setLocationSearchResults([]);
-                                }}
-                                className="p-2.5 hover:bg-primary/10 cursor-pointer flex items-center justify-between transition-colors text-xs"
-                              >
-                                <div>
-                                  <span className="font-semibold text-slate-800 block">{loc.canonicalName || loc.name}</span>
-                                  {loc.id && <span className="text-[10px] text-slate-500 font-mono">ID: {loc.id}</span>}
-                                </div>
-                                <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-medium">
-                                  {loc.targetType || "Location"}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Unlisted / Invalid City Warning Message */}
-                        {customLocationInput.trim().length >= 2 && !isSearchingLocations && locationSearchResults.length === 0 && (
-                          <div className="p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 text-xs font-semibold flex items-center gap-2 max-w-md">
-                            <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
-                            <span>No matching locations found for "{customLocationInput}". Only verified cities/locations from Google Ads API can be added.</span>
-                          </div>
-                        )}
-
-                        {/* Selected Target Locations Chips / Cards */}
-                        {targetLocations.length > 0 && (
-                          <div className="space-y-2 max-w-md">
-                            {targetLocations.map((loc, idx) => (
-                              <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50">
-                                <div>
-                                  <span className="font-semibold text-slate-800 block text-xs">{loc.name}</span>
-                                  <span className="text-[10px] text-slate-500">{loc.type} {loc.reach ? `• Reach: ${loc.reach}` : ""}</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setTargetLocations(prev => prev.filter((_, i) => i !== idx))}
-                                  className="text-slate-400 hover:text-rose-500 transition-colors p-1"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t border-slate-200">
-                      <button
-                        type="button"
-                        onClick={() => setShowLocationOptions(!showLocationOptions)}
-                        className="text-xs text-primary font-semibold hover:underline flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showLocationOptions ? "rotate-180" : ""}`} />
-                        Location options
-                      </button>
-
-                      {showLocationOptions && (
-                        <div className="mt-3 ml-4 space-y-2 text-xs animate-in fade-in duration-200">
-                          <label className="flex items-center gap-3 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="searchLocOpt"
-                              checked={locationTargetingType === "PRESENCE_INTEREST"}
-                              onChange={() => setLocationTargetingType("PRESENCE_INTEREST")}
-                              className="text-primary h-4 w-4"
-                            />
-                            <span className="text-slate-700">Presence or interest: People in, regularly in, or who've shown interest in your targeted locations (recommended)</span>
-                          </label>
-                          <label className="flex items-center gap-3 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="searchLocOpt"
-                              checked={locationTargetingType === "PRESENCE"}
-                              onChange={() => setLocationTargetingType("PRESENCE")}
-                              className="text-primary h-4 w-4"
-                            />
-                            <span className="text-slate-700">Presence: People in or regularly in your targeted locations</span>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  
+                  <GoogleAdsLocationRadiusSelector
+                    selectedLocation={selectedLocation}
+                    onLocationTypeChange={setSelectedLocation}
+                    customLocations={selectedCustomLocations}
+                    onCustomLocationsChange={setSelectedCustomLocations}
+                    customerId={customerId || accountInfo?.customerId}
+                    locationOptionsPresence={locationOptionsPresence}
+                    onLocationOptionsPresenceChange={setLocationOptionsPresence}
+                    locationOptionsExclude={locationOptionsExclude}
+                    onLocationOptionsExcludeChange={setLocationOptionsExclude}
+                  />
                 </div>
               ) : (
                 <div 
@@ -2252,8 +2077,14 @@ export default function SalesSearchPage() {
                     <div className="w-56">
                       <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
                     </div>
-                    <div className="text-xs text-slate-500 font-medium">
-                      {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : targetLocations.map(l => l.name).join(", ") || "Custom locations"}
+                    <div className="text-xs text-slate-500 font-medium truncate max-w-md">
+                      {selectedLocation === "ALL"
+                        ? "All countries and territories"
+                        : selectedLocation === "INDIA"
+                          ? "India"
+                          : selectedCustomLocations.length > 0
+                            ? `${selectedCustomLocations.filter(l => !l.isExcluded).length} targeted, ${selectedCustomLocations.filter(l => l.isExcluded).length} excluded (${selectedCustomLocations.map(l => l.name).slice(0, 2).join(", ")}${selectedCustomLocations.length > 2 ? ` +${selectedCustomLocations.length - 2} more` : ""})`
+                            : "Enter another location"}
                     </div>
                   </div>
                   <button
@@ -5087,7 +4918,7 @@ export default function SalesSearchPage() {
                   });
                 }
 
-                if (selectedLocation === "CUSTOM" && targetLocations.length === 0) {
+                if (selectedLocation === "CUSTOM" && selectedCustomLocations.length === 0) {
                   issues.push({
                     title: "Target Locations",
                     desc: "Select at least 1 target location or choose 'All countries and territories' / 'India'",
@@ -5359,7 +5190,13 @@ export default function SalesSearchPage() {
                   <div>
                     <span className="text-slate-500 block text-[11px]">Locations</span>
                     <span className="font-medium text-slate-800">
-                      {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : targetLocations.map(l => l.name).join(", ") || "Custom locations"}
+                      {selectedLocation === "ALL"
+                        ? "All countries and territories"
+                        : selectedLocation === "INDIA"
+                          ? "India"
+                          : selectedCustomLocations.length > 0
+                            ? `${selectedCustomLocations.filter(l => !l.isExcluded).length} targeted, ${selectedCustomLocations.filter(l => l.isExcluded).length} excluded (${selectedCustomLocations.map(l => l.name).slice(0, 2).join(", ")}${selectedCustomLocations.length > 2 ? ` +${selectedCustomLocations.length - 2} more` : ""})`
+                            : "Custom locations"}
                     </span>
                   </div>
                   <div>

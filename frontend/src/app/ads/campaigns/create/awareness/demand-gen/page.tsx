@@ -835,6 +835,10 @@ export default function DemandGenCampaignCreatePage() {
     }
   }, [customerId]);
 
+  function getUniqueCampaignName(demandGenCampaignName: string, existingCampaignsList: { name?: string; }[]) {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ────────────────── */}

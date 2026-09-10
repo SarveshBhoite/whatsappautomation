@@ -35,7 +35,29 @@ import {
   MessageSquare,
   SlidersHorizontal,
   Plus,
-  Key
+  Key,
+  Star,
+  ExternalLink,
+  Play,
+  Mail,
+  Navigation,
+  Compass,
+  Eye,
+  Info,
+  Trash2,
+  Monitor,
+  AtSign,
+  Bookmark,
+  History,
+  Clock,
+  ChevronRight,
+  Crop,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Scissors,
+  Move,
+  Wand2
 } from "lucide-react";
 
 export interface BusinessContext {
@@ -235,6 +257,7 @@ export const NO_GUIDANCE_SHOPPING_GOALS: GoalDefinition[] = [
 
 // Standard Google Ads Languages Constants
 export const GOOGLE_ADS_LANGUAGES: Array<{ id: string; name: string; code: string }> = [
+  { id: "ALL", name: "All languages", code: "all" },
   { id: "1000", name: "English", code: "en" },
   { id: "1023", name: "Hindi", code: "hi" },
   { id: "1056", name: "Bengali", code: "bn" },
@@ -536,12 +559,22 @@ export const reconcileCampaignStateWithManualFlow = (
   return updated;
 };
 
+interface GeneratedCreativeItem {
+  url: string;
+  name: string;
+  fieldType?: "MARKETING_IMAGE" | "LOGO";
+  aspectRatio?: string;
+  dimensions?: { width: number; height: number };
+  prompt?: string;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   suggestions?: string[];
   campaignState?: CampaignState;
+  generatedImages?: GeneratedCreativeItem[];
   readyForReview?: boolean;
   readyForPublish?: boolean;
   timestamp: string;
@@ -577,7 +610,7 @@ export default function AiGuidedCampaignPage() {
     website: "",
     dailyBudget: null,
     locations: ["India"],
-    language: "English",
+    language: "All languages",
     startDate: todayIso,
     endDate: undefined,
     keywords: [],
@@ -605,8 +638,185 @@ export default function AiGuidedCampaignPage() {
   const [selectedLocationsList, setSelectedLocationsList] = useState<string[]>(["India"]);
 
   // Language multi-selection in Cockpit
-  const [selectedLanguagesList, setSelectedLanguagesList] = useState<string[]>(["English"]);
+  const [selectedLanguagesList, setSelectedLanguagesList] = useState<string[]>(["All languages"]);
   const [languageSearchQuery, setLanguageSearchQuery] = useState<string>("");
+
+  // Existing Campaigns for @ Mention / Reference Context & History Modal
+  const [existingCampaignsList, setExistingCampaignsList] = useState<Array<any>>([]);
+  const [isCampaignDropdownOpen, setIsCampaignDropdownOpen] = useState<boolean>(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+  const [campaignSearchQuery, setCampaignSearchQuery] = useState<string>("");
+  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState<boolean>(false);
+  const [referencedCampaign, setReferencedCampaign] = useState<any | null>(null);
+
+  // New Ad Copy Add Inputs in Cockpit
+  const [newHeadlineInput, setNewHeadlineInput] = useState<string>("");
+  const [isAddingHeadline, setIsAddingHeadline] = useState<boolean>(false);
+  const [newLongHeadlineInput, setNewLongHeadlineInput] = useState<string>("");
+  const [isAddingLongHeadline, setIsAddingLongHeadline] = useState<boolean>(false);
+  const [newDescriptionInput, setNewDescriptionInput] = useState<string>("");
+  const [isAddingDescription, setIsAddingDescription] = useState<boolean>(false);
+
+  // Fetch user's existing campaigns for @ Reference
+  useEffect(() => {
+    const fetchExistingCampaigns = async () => {
+      try {
+        setIsLoadingCampaigns(true);
+        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+        const cid = customerId || "6587355041";
+        const res = await fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setExistingCampaignsList(data);
+          }
+        }
+      } catch (err) {
+        console.warn("[AI-GUIDED] Failed to load existing campaigns for @ mention:", err);
+      } finally {
+        setIsLoadingCampaigns(false);
+      }
+    };
+
+    fetchExistingCampaigns();
+  }, [customerId]);
+
+  // Handle selecting an existing campaign to reuse context
+  const handleSelectReferenceCampaign = (camp: any) => {
+    setReferencedCampaign(camp);
+    setIsCampaignDropdownOpen(false);
+
+    // Extract reusable data from existing campaign
+    const rawBudget = camp.budget ? Number(camp.budget) : (camp.amountMicros ? Number(camp.amountMicros) / 1_000_000 : null);
+    const parsedBudget = rawBudget && rawBudget > 0 ? rawBudget : null;
+    const extractedBiz = camp.businessName || camp.name?.split(/[-–|]/)[0]?.trim() || "";
+    const extractedWebsite = camp.website || camp.finalUrl || "";
+    const extractedLocs = Array.isArray(camp.locations) && camp.locations.length > 0 ? camp.locations : (camp.location ? [camp.location] : ["India"]);
+    const extractedLang = camp.language || "All languages";
+    const extractedHeadlines = Array.isArray(camp.headlines) && camp.headlines.length > 0 ? camp.headlines : [];
+    const extractedDescriptions = Array.isArray(camp.descriptions) && camp.descriptions.length > 0 ? camp.descriptions : [];
+    const extractedKeywords = Array.isArray(camp.keywords) && camp.keywords.length > 0 ? camp.keywords : [];
+    const extractedImages = Array.isArray(camp.images) && camp.images.length > 0 ? camp.images : [];
+    const extractedLogos = Array.isArray(camp.logos) && camp.logos.length > 0 ? camp.logos : [];
+
+    // Automatically synchronize Live Campaign Cockpit with referenced campaign data
+    setCampaignState((prev) => {
+      const merged: CampaignState = {
+        ...prev,
+        businessName: prev.businessName || extractedBiz,
+        website: prev.website || extractedWebsite,
+        business: {
+          ...(prev.business || {}),
+          name: prev.business?.name || extractedBiz,
+          website: prev.business?.website || extractedWebsite
+        },
+        dailyBudget: prev.dailyBudget || parsedBudget,
+        locations: (prev.locations && prev.locations.length > 0 && prev.locations[0] !== "India") ? prev.locations : extractedLocs,
+        language: prev.language && prev.language !== "All languages" ? prev.language : extractedLang,
+        headlines: prev.headlines && prev.headlines.length > 0 ? prev.headlines : extractedHeadlines,
+        descriptions: prev.descriptions && prev.descriptions.length > 0 ? prev.descriptions : extractedDescriptions,
+        keywords: prev.keywords && prev.keywords.length > 0 ? prev.keywords : extractedKeywords,
+        images: prev.images && prev.images.length > 0 ? prev.images : extractedImages,
+        logos: prev.logos && prev.logos.length > 0 ? prev.logos : extractedLogos,
+        biddingStrategy: prev.biddingStrategy || camp.biddingStrategy || "Maximize conversions"
+      };
+      return merged;
+    });
+
+    if (extractedLocs && extractedLocs.length > 0) {
+      setSelectedLocationsList(extractedLocs);
+    }
+
+    // Prefill prompt input with @ reference tag and instructions
+    const promptMessage = `Use settings and context from @[${camp.name}] (Business: ${extractedBiz || camp.name}, Budget: ₹${parsedBudget || 'same'}, Type: ${camp.campaignType || 'Existing'}). Create a new campaign keeping these base details and advise what goal/changes I should make.`;
+    
+    // Automatically trigger or set input
+    setInputVal(promptMessage);
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
+  // Multi-Channel Preview Tab & Device State on Left Side
+  const [pmaxPreviewChannel, setPmaxPreviewChannel] = useState<"all" | "youtube" | "display" | "search" | "discover" | "gmail" | "maps">("all");
+  const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
+
+  const getPreviewChannelsConfig = () => {
+    const cType = campaignState.campaignType || "PERFORMANCE_MAX";
+    let allowedChannels: Array<{ id: "youtube" | "display" | "search" | "discover" | "gmail" | "maps"; label: string }> = [];
+    let previewTitle = "Ad Preview";
+    let previewBadge = "Channels Across Google";
+
+    if (cType === "SEARCH" || cType === "SHOPPING") {
+      allowedChannels = [{ id: "search", label: "Search" }];
+      previewTitle = cType === "SHOPPING" ? "Shopping Search Preview" : "Google Search Preview";
+      previewBadge = "Search Network";
+    } else if (cType === "DEMAND_GEN") {
+      allowedChannels = [
+        { id: "youtube", label: "YouTube" },
+        { id: "gmail", label: "Gmail" },
+        { id: "maps", label: "Maps" },
+        { id: "discover", label: "Discover" },
+        { id: "display", label: "Display" }
+      ];
+      previewTitle = "Demand Gen Multi-Channel Preview";
+      previewBadge = "5 Channels Across Google";
+    } else if (cType === "VIDEO") {
+      allowedChannels = [
+        { id: "youtube", label: "YouTube" },
+        { id: "display", label: "Display" }
+      ];
+      previewTitle = "Video Campaign Preview";
+      previewBadge = "YouTube & Display";
+    } else if (cType === "DISPLAY") {
+      allowedChannels = [
+        { id: "youtube", label: "YouTube" },
+        { id: "gmail", label: "Gmail" },
+        { id: "display", label: "Display" }
+      ];
+      previewTitle = "Display Network Preview";
+      previewBadge = "YouTube, Gmail & Display";
+    } else {
+      allowedChannels = [
+        { id: "youtube", label: "YouTube" },
+        { id: "display", label: "Display" },
+        { id: "search", label: "Search" },
+        { id: "discover", label: "Discover" },
+        { id: "gmail", label: "Gmail" },
+        { id: "maps", label: "Maps" }
+      ];
+      previewTitle = "Performance Max Multi-Channel Preview";
+      previewBadge = "6 Channels Across Google";
+    }
+
+    return { allowedChannels, previewTitle, previewBadge };
+  };
+
+  // Media Upload Guidelines Modal & Mode ("IMAGE" | "LOGO" | "VIDEO" | null)
+  const [uploadGuidelineModal, setUploadGuidelineModal] = useState<"IMAGE" | "LOGO" | "VIDEO" | null>(null);
+  const [activeUploadTarget, setActiveUploadTarget] = useState<"IMAGE" | "LOGO" | "VIDEO">("IMAGE");
+  const [uploadValidationError, setUploadValidationError] = useState<string | null>(null);
+
+  // ── Image Editor & Cropper Modal State ──
+  const [isImageEditorOpen, setIsImageEditorOpen] = useState<boolean>(false);
+  const [editorFile, setEditorFile] = useState<File | null>(null);
+  const [editorImageSrc, setEditorImageSrc] = useState<string>("");
+  const [editorFileName, setEditorFileName] = useState<string>("");
+  const [editorTargetType, setEditorTargetType] = useState<"IMAGE" | "LOGO">("IMAGE");
+  const [editorCropRatio, setEditorCropRatio] = useState<"1.91:1" | "1:1" | "4:5" | "9:16" | "4:1">("1.91:1");
+  const [editorZoom, setEditorZoom] = useState<number>(1);
+  const [editorPanX, setEditorPanX] = useState<number>(0);
+  const [editorPanY, setEditorPanY] = useState<number>(0);
+  const [editorImageDimensions, setEditorImageDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [editorRuleViolationReason, setEditorRuleViolationReason] = useState<string | null>(null);
+  const [isApplyingCrop, setIsApplyingCrop] = useState<boolean>(false);
+  const [editingExistingAssetIndex, setEditingExistingAssetIndex] = useState<number | null>(null);
+
+  // Dedicated file input refs for distinct media types
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   // Search Keywords input state in Cockpit
   const [newKeywordInput, setNewKeywordInput] = useState<string>("");
@@ -841,13 +1051,13 @@ export default function AiGuidedCampaignPage() {
     setLocationSearchResults(GOOGLE_ADS_LOCATION_PRESETS.slice(0, 6));
 
     // Initialize languages list
-    let currentLangs: string[] = ["English"];
+    let currentLangs: string[] = ["All languages"];
     if (campaignState.language) {
       currentLangs = campaignState.language
         .split(",")
         .map(l => l.trim())
         .filter(Boolean);
-      if (currentLangs.length === 0) currentLangs = ["English"];
+      if (currentLangs.length === 0) currentLangs = ["All languages"];
     }
     setSelectedLanguagesList(currentLangs);
     setLanguageSearchQuery("");
@@ -867,7 +1077,7 @@ export default function AiGuidedCampaignPage() {
       targetImpressionSharePercent: campaignState.targetImpressionSharePercent !== null && campaignState.targetImpressionSharePercent !== undefined ? campaignState.targetImpressionSharePercent : "50",
       impressionShareLocation: campaignState.impressionShareLocation || "Anywhere on results page",
       locations: currentLocs.join(", "),
-      language: campaignState.language || "English",
+      language: campaignState.language || "All languages",
       startDate: campaignState.startDate || todayIso,
       endDate: campaignState.endDate || "",
       merchantCenterId: campaignState.merchantCenterId || "",
@@ -1422,62 +1632,438 @@ export default function AiGuidedCampaignPage() {
     }
   };
 
-  // Direct Media File Upload Handler (triggers file selector, uploads to ImageKit, updates Cockpit)
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Helper to open the Image Editor Cropper Modal
+  const triggerImageEditor = (
+    imageSrc: string,
+    targetType: "IMAGE" | "LOGO",
+    fileName: string,
+    fileObj: File | null,
+    dimensions: { width: number; height: number },
+    violationReason: string | null,
+    existingIndex: number | null = null
+  ) => {
+    setEditorImageSrc(imageSrc);
+    setEditorTargetType(targetType);
+    setEditorFileName(fileName);
+    setEditorFile(fileObj);
+    setEditorImageDimensions(dimensions);
+    setEditorRuleViolationReason(violationReason);
+    setEditingExistingAssetIndex(existingIndex);
+    setEditorZoom(1);
+    setEditorPanX(0);
+    setEditorPanY(0);
+
+    // Pick best default crop ratio
+    if (targetType === "LOGO") {
+      const isWide = dimensions.width / (dimensions.height || 1) >= 2.5;
+      setEditorCropRatio(isWide ? "4:1" : "1:1");
+    } else {
+      const ratio = dimensions.width / (dimensions.height || 1);
+      if (ratio >= 1.4) {
+        setEditorCropRatio("1.91:1");
+      } else if (ratio <= 0.65) {
+        setEditorCropRatio("9:16");
+      } else if (ratio <= 0.85) {
+        setEditorCropRatio("4:5");
+      } else {
+        setEditorCropRatio("1:1");
+      }
+    }
+
+    setIsImageEditorOpen(true);
+  };
+
+  // Helper to trigger AI Image or Logo Generation with full input check & website analysis
+  const handleTriggerAiAssetGeneration = async (targetType: "IMAGE" | "LOGO") => {
+    let activeBizName = (campaignState.businessName || campaignState.business?.name || "").trim();
+    let activeWebsite = (campaignState.website || "").trim();
+    let activeBizDesc = (campaignState.business?.description || (campaignState as any).productOverview || "").trim();
+    const effectiveCampType = campaignState.campaignType ? formatCampaignTypeDisplay(campaignState.campaignType) : "";
+
+    // 1. If website is present but details (business name/description) haven't been analyzed yet, analyze first!
+    if (activeWebsite && (!activeBizName || !activeBizDesc)) {
+      setIsAnalyzingUrl(true);
+      try {
+        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+        const res = await fetch(`${BACKEND}/api/ads/ai-guided/analyze-url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: activeWebsite })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const derivedBiz = data.derivedBusinessName || data.title?.split(/[-|]/)[0]?.trim() || "";
+          if (!activeBizName && derivedBiz) activeBizName = derivedBiz;
+          if (!activeBizDesc && data.description) activeBizDesc = data.description;
+
+          setCampaignState(prev => ({
+            ...prev,
+            businessName: prev.businessName || derivedBiz,
+            business: {
+              ...(prev.business || {}),
+              name: prev.business?.name || derivedBiz,
+              description: prev.business?.description || data.description || ""
+            },
+            headlines: (data.headlines && data.headlines.length > 0) ? data.headlines : prev.headlines,
+            longHeadlines: (data.longHeadlines && data.longHeadlines.length > 0) ? data.longHeadlines : prev.longHeadlines,
+            descriptions: (data.descriptions && data.descriptions.length > 0) ? data.descriptions : prev.descriptions,
+            keywords: (data.keywords && data.keywords.length > 0) ? data.keywords : prev.keywords
+          }));
+        }
+      } catch (err) {
+        console.warn("Auto website analysis error:", err);
+      } finally {
+        setIsAnalyzingUrl(false);
+      }
+    }
+
+    // 2. Check if essential inputs are missing. If so, request missing information in chat!
+    let promptText = "";
+    if (!activeBizName && !activeWebsite) {
+      if (targetType === "LOGO") {
+        promptText = `I want to generate a professional Google Ads logo. My business name is [Enter Business Name] and our website is [Enter Website URL or describe what we sell]. Please design a 1:1 square vector logo.`;
+      } else {
+        promptText = `I want to generate Google Ads marketing images. My business name is [Enter Business Name] and our website is [Enter Website URL or describe services]. Please create landscape (1.91:1) and square (1:1) ad creative concepts.`;
+      }
+    } else {
+      // 3. Construct prompt purely from available real user inputs
+      const bizContext = activeBizName || "our brand";
+      const descContext = activeBizDesc ? ` specializing in ${activeBizDesc}` : "";
+      const siteContext = activeWebsite ? ` (Website: ${activeWebsite})` : "";
+      const typeContext = effectiveCampType ? ` for our ${effectiveCampType} campaign` : "";
+
+      if (targetType === "LOGO") {
+        promptText = `Generate a modern, high-resolution Google Ads business logo for "${bizContext}"${descContext}${siteContext}. Requirements: Clean vector style, square (1:1) aspect ratio on a solid/white background, optimized for mobile screens and Google Ads display.`;
+      } else {
+        promptText = `Generate high-converting marketing creative images for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Professional high quality, Landscape (1.91:1 - 1200x628) and Square (1:1 - 1200x1200) Google Ads compliant creative compositions showcasing our key offerings with strong visual engagement.`;
+      }
+    }
+
+    // If on mobile, switch to chat tab
+    setMobileActiveTab("chat");
+    setInputVal(promptText);
+
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.style.height = "auto";
+        inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 140)}px`;
+      }
+    }, 120);
+  };
+
+  // Helper to open editor for an existing uploaded image or logo in Cockpit
+  const handleEditExistingAsset = async (type: "IMAGE" | "LOGO", index: number) => {
+    try {
+      const assetList = type === "LOGO" ? campaignState.logos : campaignState.images;
+      const asset = assetList?.[index];
+      if (!asset) return;
+
+      const url = typeof asset === "string" ? asset : asset?.url || "";
+      const name = (typeof asset === "object" && asset?.name) ? asset.name : `${type.toLowerCase()}_${index + 1}.png`;
+
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        triggerImageEditor(
+          url,
+          type,
+          name,
+          null,
+          { width: img.width, height: img.height },
+          null,
+          index
+        );
+      };
+      img.onerror = () => {
+        alert("Unable to load asset for editing. Please try re-uploading.");
+      };
+      img.src = url;
+    } catch (err) {
+      console.error("Error opening asset in editor:", err);
+    }
+  };
+
+  // Upload raw or cropped image directly to backend API
+  const uploadImagePayload = async (
+    base64Data: string,
+    fileName: string,
+    targetType: "IMAGE" | "LOGO" | "VIDEO",
+    existingIndex: number | null = null
+  ) => {
+    setIsUploadingMedia(true);
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    const fieldTypeParam = targetType === "LOGO" ? "LOGO" : targetType === "VIDEO" ? "VIDEO" : "MARKETING_IMAGE";
+
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/upload-media`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file: base64Data,
+          fileName: fileName.startsWith("gads_") ? fileName : `gads_${Date.now()}_${fileName}`,
+          fieldType: fieldTypeParam
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.url) {
+        if (targetType === "VIDEO") {
+          setCampaignState(prev => ({
+            ...prev,
+            videos: [...(prev.videos || []), { url: data.url, name: fileName }]
+          }));
+        } else if (targetType === "LOGO") {
+          setCampaignState(prev => {
+            const logos = [...(prev.logos || [])];
+            if (existingIndex !== null && existingIndex >= 0 && existingIndex < logos.length) {
+              logos[existingIndex] = { url: data.url, name: fileName, fieldType: "LOGO" };
+            } else {
+              logos.push({ url: data.url, name: fileName, fieldType: "LOGO" });
+            }
+            return { ...prev, logos };
+          });
+        } else {
+          setCampaignState(prev => {
+            const images = [...(prev.images || [])];
+            if (existingIndex !== null && existingIndex >= 0 && existingIndex < images.length) {
+              images[existingIndex] = { url: data.url, name: fileName, fieldType: "MARKETING_IMAGE" };
+            } else {
+              images.push({ url: data.url, name: fileName, fieldType: "MARKETING_IMAGE" });
+            }
+            return { ...prev, images };
+          });
+        }
+        return true;
+      } else {
+        throw new Error(data.error || "Upload response unsuccessful");
+      }
+    } catch (err: any) {
+      console.error("[Upload Error]:", err);
+      setUploadValidationError("Upload failed. Please check file format and try again.");
+      alert("Upload failed. Please try again.");
+      return false;
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
+  // Crop & Apply current image from canvas in Image Editor Modal
+  const handleApplyCropAndSave = async () => {
+    if (!editorImageSrc) return;
+    setIsApplyingCrop(true);
+
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Failed to load image for cropping"));
+        img.src = editorImageSrc;
+      });
+
+      // Target aspect ratio mapping
+      let targetRatio = 1.91;
+      let targetW = 1200;
+      let targetH = 628;
+
+      if (editorCropRatio === "1.91:1") {
+        targetRatio = 1200 / 628;
+        targetW = 1200;
+        targetH = 628;
+      } else if (editorCropRatio === "1:1") {
+        targetRatio = 1;
+        targetW = 1200;
+        targetH = 1200;
+      } else if (editorCropRatio === "4:5") {
+        targetRatio = 4 / 5;
+        targetW = 960;
+        targetH = 1200;
+      } else if (editorCropRatio === "9:16") {
+        targetRatio = 9 / 16;
+        targetW = 1080;
+        targetH = 1920;
+      } else if (editorCropRatio === "4:1") {
+        targetRatio = 4 / 1;
+        targetW = 1200;
+        targetH = 300;
+      }
+
+      // Compute source crop box centering with zoom and pan
+      const srcW = img.width;
+      const srcH = img.height;
+      const srcRatio = srcW / srcH;
+
+      let cropW = srcW;
+      let cropH = srcH;
+
+      if (srcRatio > targetRatio) {
+        // Image is wider than target ratio -> crop width
+        cropW = srcH * targetRatio;
+        cropH = srcH;
+      } else {
+        // Image is taller than target ratio -> crop height
+        cropW = srcW;
+        cropH = srcW / targetRatio;
+      }
+
+      // Apply zoom factor (zoom > 1 shrinks crop box window inside image)
+      const effectiveZoom = Math.max(1, Math.min(3, editorZoom));
+      cropW = cropW / effectiveZoom;
+      cropH = cropH / effectiveZoom;
+
+      // Centered crop coordinates with pan offset
+      let cropX = (srcW - cropW) / 2 + (editorPanX * (srcW - cropW) * 0.5);
+      let cropY = (srcH - cropH) / 2 + (editorPanY * (srcH - cropH) * 0.5);
+
+      // Boundary clamp
+      cropX = Math.max(0, Math.min(srcW - cropW, cropX));
+      cropY = Math.max(0, Math.min(srcH - cropH, cropY));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) throw new Error("Could not initialize 2D canvas context");
+
+      // Draw background white for transparent PNG logos
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, targetW, targetH);
+
+      // Draw cropped and scaled image onto canvas
+      ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+
+      const base64Data = canvas.toDataURL("image/jpeg", 0.92);
+      const cleanName = (editorFileName || "cropped_asset.jpg").replace(/\.[^/.]+$/, "") + `_${editorCropRatio.replace(":", "x")}.jpg`;
+
+      const success = await uploadImagePayload(
+        base64Data,
+        cleanName,
+        editorTargetType,
+        editingExistingAssetIndex
+      );
+
+      if (success) {
+        setIsImageEditorOpen(false);
+        setEditorRuleViolationReason(null);
+      }
+    } catch (err: any) {
+      console.error("Error cropping image:", err);
+      alert("Failed to crop image. Please adjust and try again.");
+    } finally {
+      setIsApplyingCrop(false);
+    }
+  };
+
+  // Direct Media File Upload Handler with Google Ads Rule Verification & Smart Editor Opener
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>, targetType: "IMAGE" | "LOGO" | "VIDEO") => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsUploadingMedia(true);
-    try {
+    // Reset validation error
+    setUploadValidationError(null);
+
+    // Rule 1: The maximum file size for any image/logo is 5120 KB (5 MB)
+    const maxSizeBytes = 5120 * 1024;
+    if (file.size > maxSizeBytes && targetType !== "VIDEO") {
+      const errMsg = `File is too large (${(file.size / 1024).toFixed(0)} KB). Maximum allowed file size is 5120 KB (5 MB).`;
+      setUploadValidationError(errMsg);
+      alert(errMsg);
+      if (e.target) e.target.value = "";
+      return;
+    }
+
+    // Direct Video Upload
+    if (targetType === "VIDEO" || file.type.startsWith("video/")) {
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const base64Data = reader.result as string;
-        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-
-        const res = await fetch(`${BACKEND}/api/ads/ai-guided/upload-media`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            file: base64Data,
-            fileName: `gads_${Date.now()}_${file.name}`,
-            fieldType: file.name.toLowerCase().includes("logo") ? "LOGO" : "MARKETING_IMAGE"
-          })
-        });
-
-        const data = await res.json();
-        if (data.success && data.url) {
-          const isLogo = data.fieldType === "LOGO" || file.name.toLowerCase().includes("logo");
-          const isVideo = file.type.startsWith("video/");
-
-          if (isVideo) {
-            setCampaignState(prev => ({
-              ...prev,
-              videos: [...(prev.videos || []), { url: data.url, name: file.name }]
-            }));
-          } else if (isLogo) {
-            setCampaignState(prev => ({
-              ...prev,
-              logos: [...(prev.logos || []), { url: data.url, name: file.name, fieldType: "LOGO" }]
-            }));
-          } else {
-            setCampaignState(prev => ({
-              ...prev,
-              images: [
-                ...(prev.images || []),
-                { url: data.url, name: `${file.name} (Landscape & Square)`, fieldType: "MARKETING_IMAGE" }
-              ]
-            }));
-          }
-        }
-        setIsUploadingMedia(false);
+        await uploadImagePayload(reader.result as string, file.name, "VIDEO");
       };
       reader.readAsDataURL(file);
-    } catch (err: any) {
-      console.error("[Upload Error]:", err);
-      setIsUploadingMedia(false);
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (e.target) e.target.value = "";
+      return;
     }
+
+    // Validate image/logo aspect ratio and minimum dimensions
+    try {
+      const fileUrl = URL.createObjectURL(file);
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => reject(new Error("Unable to read image dimensions"));
+        img.src = fileUrl;
+      });
+
+      const { width, height } = dimensions;
+      const ratio = width / (height || 1);
+
+      let ruleViolationReason: string | null = null;
+
+      if (targetType === "LOGO") {
+        // Logo Guidelines:
+        // Square (1:1): Min 128x128, Rec 1200x1200 (aspect ratio 0.95 - 1.05)
+        // Landscape (4:1): Min 512x128, Rec 1200x300 (aspect ratio 3.5 - 4.5)
+        const isSquare = ratio >= 0.9 && ratio <= 1.1;
+        const isLandscapeLogo = ratio >= 3.5 && ratio <= 4.5;
+
+        if (!isSquare && !isLandscapeLogo) {
+          ruleViolationReason = `Logo aspect ratio (${ratio.toFixed(2)}:1, ${width}x${height}px) does not match Google Ads logo specifications. Required: Square (1:1) or Landscape (4:1).`;
+        } else if (isSquare && (width < 128 || height < 128)) {
+          ruleViolationReason = `Square logo must be at least 128x128 pixels (uploaded: ${width}x${height}px).`;
+        } else if (isLandscapeLogo && (width < 512 || height < 128)) {
+          ruleViolationReason = `Landscape logo (4:1) must be at least 512x128 pixels (uploaded: ${width}x${height}px).`;
+        }
+      } else if (targetType === "IMAGE") {
+        // Marketing Image Guidelines:
+        // Landscape (1.91:1): Min 600x314, Rec 1200x628 (ratio ~1.85 - 2.05)
+        // Square (1:1): Min 300x300, Rec 1200x1200 (ratio ~0.95 - 1.05)
+        // Portrait (4:5): Min 480x600, Rec 960x1200 (ratio ~0.75 - 0.85)
+        // Tall Portrait (9:16): Min 600x1067, Rec 1080x1920 (ratio ~0.50 - 0.62)
+        const isLandscape = ratio >= 1.8 && ratio <= 2.05;
+        const isSquare = ratio >= 0.95 && ratio <= 1.05;
+        const isPortrait45 = ratio >= 0.75 && ratio <= 0.85;
+        const isTall916 = ratio >= 0.50 && ratio <= 0.62;
+
+        const matchesStandardRatio = isLandscape || isSquare || isPortrait45 || isTall916;
+
+        if (!matchesStandardRatio) {
+          ruleViolationReason = `Image aspect ratio (${ratio.toFixed(2)}:1, ${width}x${height}px) does not match Google Ads standard creative ratios (Landscape 1.91:1, Square 1:1, Portrait 4:5, or Story 9:16).`;
+        } else if (width < 300 || height < 300) {
+          ruleViolationReason = `Marketing image must have at least 300x300px minimum dimension (uploaded: ${width}x${height}px).`;
+        }
+      }
+
+      // If rules are violated -> Open Image Editor & Cropper Modal automatically!
+      if (ruleViolationReason) {
+        setUploadValidationError(ruleViolationReason);
+        triggerImageEditor(fileUrl, targetType, file.name, file, dimensions, ruleViolationReason, null);
+        if (e.target) e.target.value = "";
+        return;
+      }
+
+      // If strictly compliant, proceed with direct upload
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        await uploadImagePayload(reader.result as string, file.name, targetType, null);
+      };
+      reader.readAsDataURL(file);
+    } catch (dimErr) {
+      console.warn("Could not verify dimensions directly, proceeding with direct upload:", dimErr);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        await uploadImagePayload(reader.result as string, file.name, targetType, null);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  // Backwards compatible trigger
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleMediaUpload(e, activeUploadTarget);
   };
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -1557,6 +2143,9 @@ export default function AiGuidedCampaignPage() {
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setInputVal("");
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+    }
     setIsLoading(true);
     setPublishError(null);
 
@@ -1639,6 +2228,7 @@ export default function AiGuidedCampaignPage() {
         content: data.message || "I've updated the campaign setup based on your input.",
         suggestions: data.suggestions || [],
         campaignState: data.campaignState,
+        generatedImages: data.generatedImages || [],
         readyForReview: data.readyForReview,
         readyForPublish: data.readyForPublish,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -1700,88 +2290,20 @@ export default function AiGuidedCampaignPage() {
     }
   };
 
-  // Navigates to the specialized campaign creation form prefilling current AI campaign state
+  // Clears all input information and navigates directly to campaign creation page
   const handleEditDetailsInForm = () => {
     try {
       if (typeof window !== "undefined") {
-        localStorage.setItem("googleAds_prefill_campaign", JSON.stringify(campaignState));
+        localStorage.removeItem("googleAds_prefill_campaign");
+        localStorage.removeItem("googleAds_pending_campaign");
+        localStorage.removeItem("googleAds_pmax_draft");
       }
     } catch (e) {
-      console.warn("Could not write prefill draft to localStorage", e);
+      console.warn("Could not clear localStorage drafts", e);
     }
     
-    // Route to the dedicated form for the selected objective and campaignType
-    const obj = (campaignState.objective || "SALES").toLowerCase().replace(/_/g, "-");
-    const cType = campaignState.campaignType;
-    const cidQuery = customerId ? `?customerId=${customerId}` : "";
-
-    if (cType === "SEARCH") {
-      if (obj === "no-guidance" || obj === "no_guidance") {
-        router.push(`/ads/campaigns/create/no-guidance/search${cidQuery}`);
-      } else if (obj === "leads") {
-        router.push(`/ads/campaigns/create/leads/search${cidQuery}`);
-      } else if (obj === "website-traffic") {
-        router.push(`/ads/campaigns/create/website-traffic/search${cidQuery}`);
-      } else {
-        router.push(`/ads/campaigns/create/sales/search${cidQuery}`);
-      }
-    } else if (cType === "PERFORMANCE_MAX") {
-      if (obj === "leads") {
-        router.push(`/ads/campaigns/create/leads/performance-max${cidQuery}`);
-      } else if (obj === "website-traffic") {
-        router.push(`/ads/campaigns/create/website-traffic/performance-max${cidQuery}`);
-      } else if (obj === "local" || obj === "store-visits") {
-        router.push(`/ads/campaigns/create/local/performance-max${cidQuery}`);
-      } else if (obj === "no-guidance" || obj === "no_guidance") {
-        router.push(`/ads/campaigns/create/no-guidance/performance-max${cidQuery}`);
-      } else {
-        router.push(`/ads/campaigns/create/sales/performance-max${cidQuery}`);
-      }
-    } else if (cType === "DISPLAY") {
-      if (obj === "leads") {
-        router.push(`/ads/campaigns/create/leads/display${cidQuery}`);
-      } else if (obj === "website-traffic") {
-        router.push(`/ads/campaigns/create/website-traffic/display${cidQuery}`);
-      } else if (obj === "awareness") {
-        router.push(`/ads/campaigns/create/awareness/display${cidQuery}`);
-      } else {
-        router.push(`/ads/campaigns/create/sales/display${cidQuery}`);
-      }
-    } else if (cType === "DEMAND_GEN") {
-      if (obj === "leads") {
-        router.push(`/ads/campaigns/create/leads/demand-gen${cidQuery}`);
-      } else if (obj === "website-traffic") {
-        router.push(`/ads/campaigns/create/website-traffic/demand-gen${cidQuery}`);
-      } else if (obj === "awareness") {
-        router.push(`/ads/campaigns/create/awareness/demand-gen${cidQuery}`);
-      } else {
-        router.push(`/ads/campaigns/create/sales/demand-gen${cidQuery}`);
-      }
-    } else if (cType === "VIDEO") {
-      if (obj === "leads") {
-        router.push(`/ads/campaigns/create/leads/video${cidQuery}`);
-      } else if (obj === "website-traffic") {
-        router.push(`/ads/campaigns/create/website-traffic/video${cidQuery}`);
-      } else if (obj === "awareness") {
-        router.push(`/ads/campaigns/create/awareness/video${cidQuery}`);
-      } else {
-        router.push(`/ads/campaigns/create/sales/video${cidQuery}`);
-      }
-    } else if (cType === "SHOPPING") {
-      if (obj === "leads") {
-        router.push(`/ads/campaigns/create/leads/shopping${cidQuery}`);
-      } else if (obj === "website-traffic" || obj === "traffic") {
-        router.push(`/ads/campaigns/create/website-traffic/shopping${cidQuery}`);
-      } else if (obj === "no-guidance" || obj === "without_guidance" || obj === "no_guidance") {
-        router.push(`/ads/campaigns/create/no-guidance/shopping${cidQuery}`);
-      } else {
-        router.push(`/ads/campaigns/create/sales/shopping${cidQuery}`);
-      }
-    } else if (cType === "APP") {
-      router.push(`/ads/campaigns/create/app-promotion/app${cidQuery}`);
-    } else {
-      router.push(`/ads/campaigns/create${cidQuery}`);
-    }
+    const cid = customerId || "6587355041";
+    router.push(`/ads/campaigns/create?customerId=${cid}`);
   };
 
   const getCampaignIcon = (type?: string) => {
@@ -1812,7 +2334,7 @@ export default function AiGuidedCampaignPage() {
   return (
     <div className="h-screen max-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans overflow-hidden">
       
-      {/* Hidden File Input for Native Media Picker */}
+      {/* Hidden File Inputs for Native Media Picker */}
       <input
         ref={fileInputRef}
         type="file"
@@ -1820,6 +2342,203 @@ export default function AiGuidedCampaignPage() {
         onChange={handleFileUpload}
         className="hidden"
       />
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        onChange={(e) => handleMediaUpload(e, "IMAGE")}
+        className="hidden"
+      />
+      <input
+        ref={logoInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        onChange={(e) => handleMediaUpload(e, "LOGO")}
+        className="hidden"
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/mp4,video/quicktime,video/webm"
+        onChange={(e) => handleMediaUpload(e, "VIDEO")}
+        className="hidden"
+      />
+
+      {/* ── Google Ads Asset Upload Guidelines Modal ── */}
+      {uploadGuidelineModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className={`p-2 rounded-xl ${
+                  uploadGuidelineModal === "LOGO" ? "bg-purple-50 text-purple-700" : uploadGuidelineModal === "VIDEO" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-700"
+                }`}>
+                  {uploadGuidelineModal === "LOGO" ? <ImageIcon className="h-4 w-4" /> : uploadGuidelineModal === "VIDEO" ? <Video className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">
+                    {uploadGuidelineModal === "LOGO" ? "Business Logo Guidelines" : uploadGuidelineModal === "VIDEO" ? "Video Creative Guidelines" : "Marketing Image Guidelines"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Google Ads Performance Max & Multi-Channel Standards</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUploadGuidelineModal(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {uploadValidationError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Validation Alert</p>
+                  <p className="text-[11px] mt-0.5">{uploadValidationError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Body with Specifications */}
+            {uploadGuidelineModal === "IMAGE" && (
+              <div className="space-y-3 text-xs text-slate-700">
+                <p className="text-slate-600 leading-relaxed text-[11px]">
+                  Add images that meet or can be cropped to these recommended sizes.
+                </p>
+
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-[11px] text-amber-900 space-y-1">
+                  <span className="font-bold flex items-center gap-1">
+                    <Info className="h-3.5 w-3.5 text-amber-700" />
+                    Important Size Limit:
+                  </span>
+                  <p>The maximum file size for any image is <strong>5120 KB (5 MB)</strong>. Selected images may be auto-cropped. You can always edit afterwards.</p>
+                </div>
+
+                <div className="space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50">
+                  <span className="font-bold text-[11px] text-slate-900 block uppercase tracking-wider">Image Guidelines:</span>
+                  
+                  <div className="space-y-2 text-[11px]">
+                    <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <p className="font-bold text-slate-900">Landscape image (1.91:1) <span className="text-purple-600 font-semibold">(Required for PMax)</span></p>
+                      <p className="text-slate-600 text-[10px]">Recommended size: <strong className="text-slate-800">1200 x 628</strong></p>
+                      <p className="text-slate-500 text-[10px]">Min. size: 600 x 314</p>
+                    </div>
+
+                    <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <p className="font-bold text-slate-900">Square image (1:1) <span className="text-purple-600 font-semibold">(Required for PMax)</span></p>
+                      <p className="text-slate-600 text-[10px]">Recommended size: <strong className="text-slate-800">1200 x 1200</strong></p>
+                      <p className="text-slate-500 text-[10px]">Min. size: 300 x 300</p>
+                    </div>
+
+                    <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <p className="font-bold text-slate-900">(Optional) Portrait image (4:5)</p>
+                      <p className="text-slate-600 text-[10px]">Recommended size: <strong className="text-slate-800">960 x 1200</strong></p>
+                      <p className="text-slate-500 text-[10px]">Min. size: 480 x 600</p>
+                    </div>
+
+                    <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <p className="font-bold text-slate-900">(Optional) Tall Portrait image (9:16)</p>
+                      <p className="text-slate-600 text-[10px]">Recommended: <strong className="text-slate-800">1080 x 1920</strong></p>
+                      <p className="text-slate-500 text-[10px]">Min. required: 600 x 1067</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {uploadGuidelineModal === "LOGO" && (
+              <div className="space-y-3 text-xs text-slate-700">
+                <p className="text-slate-600 leading-relaxed text-[11px]">
+                  Business logos should be clear and recognizable even when very small. Only approved logos will appear in your ads.
+                </p>
+
+                <div className="space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50">
+                  <span className="font-bold text-[11px] text-slate-900 block uppercase tracking-wider">Logo Guidelines:</span>
+                  
+                  <div className="space-y-2 text-[11px]">
+                    <div className="p-2 bg-white rounded-lg border border-purple-200 bg-purple-50/20">
+                      <p className="font-bold text-slate-900">Square logo (1:1) <span className="text-purple-700 font-semibold">(Recommended)</span></p>
+                      <p className="text-slate-600 text-[10px]">Recommended size: <strong className="text-slate-800">1200 x 1200 pixels</strong></p>
+                      <p className="text-slate-500 text-[10px]">Minimum size: 128 x 128 pixels</p>
+                      <p className="text-slate-500 text-[10px]">Maximum file size: 5120 KB (5 MB)</p>
+                    </div>
+
+                    <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <p className="font-bold text-slate-900">Landscape logo (4:1) <span className="text-slate-500 font-normal">(Optional)</span></p>
+                      <p className="text-slate-600 text-[10px]">Recommended size: <strong className="text-slate-800">1200 x 300 pixels</strong></p>
+                      <p className="text-slate-500 text-[10px]">Minimum size: 512 x 128 pixels</p>
+                      <p className="text-slate-500 text-[10px]">Maximum file size: 5120 KB (5 MB)</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-[10px] text-blue-900 flex items-start gap-1.5">
+                  <Info className="h-3.5 w-3.5 text-blue-700 shrink-0 mt-0.5" />
+                  <div>
+                    <span>Selected images may be auto-cropped, but you can edit them afterwards. Only approved logos will appear in your ads. </span>
+                    <a
+                      href="https://support.google.com/google-ads/answer/15996355?hl=en&sjid=10284739279272388071-EU"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-700 underline font-semibold hover:text-blue-900 inline-flex items-center gap-0.5"
+                    >
+                      Learn more about logo assets in Performance Max
+                      <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {uploadGuidelineModal === "VIDEO" && (
+              <div className="space-y-3 text-xs text-slate-700">
+                <p className="text-slate-600 leading-relaxed text-[11px]">
+                  Performance Max and Video campaigns can utilize YouTube video assets (Horizontal 16:9, Vertical 9:16 Shorts, or Square 1:1) to drive conversions on YouTube and partner sites.
+                </p>
+
+                <div className="space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50 text-[11px]">
+                  <span className="font-bold text-slate-900 block uppercase tracking-wider text-[10px]">Video Formats:</span>
+                  <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-1">
+                    <p className="font-bold text-slate-900">Landscape (16:9) & Vertical Shorts (9:16)</p>
+                    <p className="text-slate-500 text-[10px]">Recommended: High-definition 1080p, duration 15-60 seconds.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setUploadGuidelineModal(null)}
+                className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = uploadGuidelineModal;
+                  setUploadGuidelineModal(null);
+                  if (target === "IMAGE") {
+                    imageInputRef.current?.click();
+                  } else if (target === "LOGO") {
+                    logoInputRef.current?.click();
+                  } else if (target === "VIDEO") {
+                    videoInputRef.current?.click();
+                  }
+                }}
+                className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                <span>Select & Upload {uploadGuidelineModal === "LOGO" ? "Logo" : uploadGuidelineModal === "VIDEO" ? "Video" : "Image"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Top Header ── */}
       <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 z-50">
@@ -1863,11 +2582,26 @@ export default function AiGuidedCampaignPage() {
 
         <div className="flex items-center gap-2 sm:gap-3">
           <button
+            onClick={() => setIsHistoryModalOpen(true)}
+            title="View AI Generated & Published Campaigns History"
+            className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          >
+            <History className="h-3.5 w-3.5 text-purple-600" />
+            <span className="hidden sm:inline">Campaign History</span>
+            {existingCampaignsList.length > 0 && (
+              <span className="px-1.5 py-0.2 bg-purple-200/80 text-purple-800 text-[10px] rounded-full font-mono">
+                {existingCampaignsList.length}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => {
               setMessages([]);
               setIsCustomCampaignName(false);
               setIsEditingCockpit(false);
               setEditingField(null);
+              setReferencedCampaign(null);
               setCampaignState({
                 business: {},
                 desiredOutcome: "",
@@ -1957,8 +2691,12 @@ export default function AiGuidedCampaignPage() {
                 }`}
               >
                 <div
-                  className={`flex gap-3 max-w-[92%] sm:max-w-[85%] ${
-                    msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                  className={`flex gap-3 ${
+                    msg.role === "user"
+                      ? "flex-row-reverse max-w-[92%] sm:max-w-[85%]"
+                      : (msg.readyForReview || msg.campaignState?.readyForReview || campaignState.readyForReview)
+                        ? "flex-row w-full max-w-full"
+                        : "flex-row max-w-[92%] sm:max-w-[85%]"
                   }`}
                 >
                   {/* Avatar */}
@@ -1977,7 +2715,7 @@ export default function AiGuidedCampaignPage() {
                     className={`rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-xs ${
                       msg.role === "user"
                         ? "bg-blue-600 text-white rounded-tr-xs font-medium"
-                        : "bg-slate-50 border border-slate-200 text-slate-800 rounded-tl-xs"
+                        : "bg-slate-50 border border-slate-200 text-slate-800 rounded-tl-xs flex-1 min-w-0"
                     }`}
                   >
                     {msg.role === "user" ? (
@@ -1988,11 +2726,124 @@ export default function AiGuidedCampaignPage() {
                       </div>
                     )}
 
-                    {/* Dynamic In-Chat Review Card */}
-                    {msg.role === "assistant" && (msg.readyForReview || msg.campaignState?.readyForReview || campaignState.readyForReview) && (() => {
-                      const isReadyToPublish = !!campaignState.readyForPublish;
-                      const isPmax = campaignState.campaignType === "PERFORMANCE_MAX";
+                    {/* AI-Generated Creative Images Gallery in Chat */}
+                    {msg.role === "assistant" && msg.generatedImages && msg.generatedImages.length > 0 && (
+                      <div className="mt-3.5 pt-3 border-t border-slate-200/80 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Wand2 className="h-4 w-4 text-purple-600 shrink-0" />
+                            <span className="font-bold text-xs text-slate-900 tracking-tight">
+                              AI-Generated Google Ads Creatives
+                            </span>
+                            <span className="text-[9px] px-2 py-0.5 font-bold bg-purple-100 text-purple-800 rounded-full">
+                              {msg.generatedImages.length} Ready
+                            </span>
+                          </div>
+                        </div>
 
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {msg.generatedImages.map((imgItem, imgIdx) => (
+                            <div
+                              key={imgIdx}
+                              className="group relative bg-white border border-slate-200 hover:border-purple-300 rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col"
+                            >
+                              {/* Aspect ratio preview container */}
+                              <div className="relative bg-slate-900 overflow-hidden flex items-center justify-center min-h-[140px] max-h-[170px]">
+                                <img
+                                  src={imgItem.url}
+                                  alt={imgItem.name || "Generated creative"}
+                                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                                />
+                                <div className="absolute top-2 left-2 flex items-center gap-1">
+                                  <span className="bg-slate-900/85 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                                    {imgItem.aspectRatio || (imgItem.fieldType === "LOGO" ? "1:1" : "1.91:1")}
+                                  </span>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs text-white ${
+                                    imgItem.fieldType === "LOGO" ? "bg-amber-600" : "bg-blue-600"
+                                  }`}>
+                                    {imgItem.fieldType === "LOGO" ? "Logo" : "Marketing Image"}
+                                  </span>
+                                </div>
+                                <a
+                                  href={imgItem.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="absolute top-2 right-2 p-1.5 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Open full size"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </div>
+
+                              {/* Card Meta & Quick Actions */}
+                              <div className="p-2.5 space-y-2 bg-white flex-1 flex flex-col justify-between">
+                                <div>
+                                  <p className="text-[11px] font-bold text-slate-900 truncate">
+                                    {imgItem.name}
+                                  </p>
+                                  {imgItem.dimensions && (
+                                    <p className="text-[9px] text-slate-500">
+                                      {imgItem.dimensions.width} × {imgItem.dimensions.height}px
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1.5 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const img = new Image();
+                                      img.crossOrigin = "anonymous";
+                                      img.onload = () => {
+                                        triggerImageEditor(
+                                          imgItem.url,
+                                          imgItem.fieldType === "LOGO" ? "LOGO" : "IMAGE",
+                                          imgItem.name,
+                                          null,
+                                          { width: img.width, height: img.height },
+                                          null,
+                                          null
+                                        );
+                                      };
+                                      img.src = imgItem.url;
+                                    }}
+                                    className="flex-1 py-1 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                  >
+                                    <Crop className="h-3 w-3 text-slate-600" />
+                                    <span>Crop / Edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (imgItem.fieldType === "LOGO") {
+                                        setCampaignState(prev => ({
+                                          ...prev,
+                                          logos: [...(prev.logos || []), { url: imgItem.url, name: imgItem.name, fieldType: "LOGO" }]
+                                        }));
+                                      } else {
+                                        setCampaignState(prev => ({
+                                          ...prev,
+                                          images: [...(prev.images || []), { url: imgItem.url, name: imgItem.name, fieldType: "MARKETING_IMAGE" }]
+                                        }));
+                                      }
+                                      alert(`"${imgItem.name}" added to Live Cockpit!`);
+                                    }}
+                                    className="py-1 px-2.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                    title="Add duplicate/additional asset"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    <span>Add</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dynamic Multi-Channel Campaign Preview in Chat */}
+                    {msg.role === "assistant" && (msg.readyForReview || msg.campaignState?.readyForReview || campaignState.readyForReview) && (() => {
                       const allImages = [
                         ...(Array.isArray(campaignState.images) ? campaignState.images : [])
                       ];
@@ -2000,381 +2851,1095 @@ export default function AiGuidedCampaignPage() {
                         ...(Array.isArray(campaignState.logos) ? campaignState.logos : [])
                       ];
 
-                      let hasLandscape = false;
-                      let hasSquare = false;
-                      let hasLogo = allLogos.length > 0;
+                      const { allowedChannels, previewTitle, previewBadge } = getPreviewChannelsConfig();
+                      const showAllTab = allowedChannels.length > 1;
+                      const isChannelActive = (chId: string) => {
+                        if (pmaxPreviewChannel === "all") return true;
+                        const isAllowed = allowedChannels.some(c => c.id === pmaxPreviewChannel);
+                        if (!isAllowed) return true;
+                        return pmaxPreviewChannel === chId;
+                      };
 
-                      for (const img of allImages) {
-                        const raw = typeof img === "string" ? img : img?.url || img?.data || "";
-                        const fType = typeof img === "object" ? img?.fieldType : null;
-                        if (fType === "MARKETING_IMAGE") hasLandscape = true;
-                        else if (fType === "SQUARE_MARKETING_IMAGE") hasSquare = true;
-                        else if (fType === "LOGO") hasLogo = true;
-                        else if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
-                          hasLandscape = true;
-                          hasSquare = true;
-                        } else if (raw) {
-                          hasLandscape = true;
-                        }
-                      }
+                      const previewHeadline = campaignState.headlines?.[0] || campaignState.longHeadlines?.[0] || campaignState.businessName || "Exclusive Deals & Premium Services";
+                      const previewDesc = campaignState.descriptions?.[0] || "Discover high-quality solutions tailored for your needs. Connect with us today and explore best offers!";
+                      const previewBiz = campaignState.businessName || campaignState.business?.name || "Your Business";
+                      const previewUrl = campaignState.website || "www.example.com";
+                      const displayDomain = previewUrl.replace(/^https?:\/\//, '').split('/')[0] || "example.com";
+                      const previewCta = campaignState.callToAction || "Learn More";
+
+                      const imgObj = allImages[0];
+                      const heroImg = typeof imgObj === "string" ? imgObj : imgObj?.url || imgObj?.data || "";
+                      const logoObj = allLogos[0];
+                      const heroLogo = typeof logoObj === "string" ? logoObj : logoObj?.url || logoObj?.data || "";
 
                       return (
-                        <div className="mt-3.5 p-4 rounded-2xl bg-white border border-blue-200 text-slate-800 space-y-3 shadow-md">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 rounded-lg bg-blue-50 border border-blue-100">
-                                {getCampaignIcon(campaignState.campaignType)}
-                              </div>
-                              <div>
-                                <span className="font-bold text-xs uppercase tracking-wider text-slate-900 block">
-                                  {campaignState.campaignType || "Campaign"} Configuration
-                                </span>
-                                <span className="text-[10px] text-slate-500">Review & Launch Readiness</span>
-                              </div>
-                            </div>
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase flex items-center gap-1 ${
-                                isReadyToPublish
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200"
-                              }`}
-                            >
-                              {isReadyToPublish ? (
-                                <>
-                                  <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Ready
-                                </>
-                              ) : (
-                                <>
-                                  <AlertCircle className="h-3 w-3 text-amber-600" /> Action Required
-                                </>
-                              )}
-                            </span>
-                          </div>
-
-                          {/* Key Parameters */}
-                          <div className="grid grid-cols-2 gap-2.5 text-[11px] bg-slate-50 p-3 rounded-xl border border-slate-200">
-                            <div>
-                              <span className="text-slate-500 block text-[10px] uppercase font-semibold">Objective</span>
-                              <span className="font-bold text-blue-700">{campaignState.objective || "Not set"}</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-500 block text-[10px] uppercase font-semibold">Daily Budget</span>
-                              <span className="font-mono font-bold text-emerald-600">
-                                {campaignState.dailyBudget ? `₹${campaignState.dailyBudget}/day` : "Not set"}
+                        <div className="mt-3.5 p-3.5 rounded-2xl bg-white border border-slate-200 text-slate-800 space-y-2.5 shadow-sm w-full">
+                          {/* Top Controls Header - Sticky / Fully visible */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 pb-1 border-b border-slate-100">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Eye className="h-4 w-4 text-blue-600 shrink-0" />
+                              <span className="font-bold text-xs text-slate-900 tracking-tight">
+                                {previewTitle}
+                              </span>
+                              <span className="text-[9px] px-2 py-0.5 font-semibold bg-purple-50 text-purple-700 border border-purple-200 rounded-full shrink-0">
+                                {previewBadge}
                               </span>
                             </div>
-                            <div>
-                              <span className="text-slate-500 block text-[10px] uppercase font-semibold">Business</span>
-                              <span className="font-semibold text-slate-800 truncate block">
-                                {campaignState.businessName || campaignState.business?.name || "Pending discovery"}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-slate-500 block text-[10px] uppercase font-semibold">Campaign Name</span>
-                              <span className="font-semibold text-slate-800 truncate block">
-                                {campaignState.campaignName || "Auto-generated"}
-                              </span>
-                            </div>
-                            {campaignState.website && (
-                              <div className="col-span-2 pt-1 border-t border-slate-200">
-                                <span className="text-slate-500 block text-[10px] uppercase font-semibold">Target URL</span>
-                                <span className="font-mono text-blue-600 truncate block text-[11px]">
-                                  {campaignState.website}
-                                </span>
-                              </div>
-                            )}
-                          </div>
 
-                          {/* Assets Checklist for PMax vs Search */}
-                          {isPmax && (
-                            <div className="pt-2 border-t border-slate-100">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-slate-600 font-bold text-[10px] uppercase tracking-wider">Required Assets:</span>
-                              </div>
-                              <div className="grid grid-cols-3 gap-2">
-                                <div className={`p-2 rounded-lg border text-center ${hasLandscape ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                  <div className="text-[10px] font-bold">Landscape (1.91:1)</div>
-                                  <div className="text-[9px] mt-0.5">{hasLandscape ? "✓ Attached" : "Missing"}</div>
-                                </div>
-                                <div className={`p-2 rounded-lg border text-center ${hasSquare ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                  <div className="text-[10px] font-bold">Square (1:1)</div>
-                                  <div className="text-[9px] mt-0.5">{hasSquare ? "✓ Attached" : "Missing"}</div>
-                                </div>
-                                <div className={`p-2 rounded-lg border text-center ${hasLogo ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                  <div className="text-[10px] font-bold">Logo</div>
-                                  <div className="text-[9px] mt-0.5">{hasLogo ? "✓ Attached" : "Missing"}</div>
-                                </div>
-                              </div>
-
-                              {(!hasLandscape || !hasSquare || !hasLogo) && (
+                            {/* Mobile / Desktop Toggle */}
+                            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shadow-2xs">
                                 <button
                                   type="button"
-                                  onClick={() => fileInputRef.current?.click()}
-                                  className="w-full mt-2.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-[11px] transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                                  onClick={() => setPreviewDevice("mobile")}
+                                  className={`px-2.5 py-1 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                                    previewDevice === "mobile"
+                                      ? "bg-white text-slate-900 shadow-xs border border-slate-200"
+                                      : "text-slate-500 hover:text-slate-800"
+                                  }`}
+                                  title="Mobile Preview"
                                 >
-                                  <Upload className="h-3.5 w-3.5 text-blue-600" />
-                                  Upload Creative Assets & Logo
+                                  <Smartphone className="h-3 w-3 text-blue-600" />
+                                  <span>Mobile</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDevice("desktop")}
+                                  className={`px-2.5 py-1 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                                    previewDevice === "desktop"
+                                      ? "bg-white text-blue-700 shadow-xs border border-slate-200"
+                                      : "text-slate-500 hover:text-slate-800"
+                                  }`}
+                                  title="Desktop Preview"
+                                >
+                                  <Monitor className="h-3 w-3 text-indigo-600" />
+                                  <span>Desktop</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Channel Filter Tabs */}
+                          {allowedChannels.length > 1 && (
+                            <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px] font-semibold scrollbar-none">
+                              {showAllTab && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPmaxPreviewChannel("all")}
+                                  className={`px-2.5 py-1 rounded-lg shrink-0 transition-all cursor-pointer ${
+                                    pmaxPreviewChannel === "all" || !allowedChannels.some(c => c.id === pmaxPreviewChannel)
+                                      ? "bg-slate-900 text-white font-bold shadow-xs"
+                                      : "bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200"
+                                  }`}
+                                >
+                                  All Channels
                                 </button>
                               )}
+                              {allowedChannels.map((tab) => {
+                                const isActive = pmaxPreviewChannel === tab.id;
+                                return (
+                                  <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setPmaxPreviewChannel(tab.id as any)}
+                                    className={`px-2.5 py-1 rounded-lg shrink-0 transition-all cursor-pointer ${
+                                      isActive
+                                        ? "bg-slate-900 text-white font-bold shadow-xs"
+                                        : "bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200"
+                                    }`}
+                                  >
+                                    {tab.label}
+                                  </button>
+                                );
+                              })}
                             </div>
                           )}
 
-                          {/* Search Checklist */}
-                          {campaignState.campaignType === "SEARCH" && (
-                            <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                              <div className="flex items-center justify-between text-[10px]">
-                                <span className="text-slate-600 font-bold uppercase tracking-wider">Search Ad Readiness:</span>
-                                <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
-                                  {campaignState.readyForPublish ? "Publish Ready ✓" : "Review Missing"}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
-                                <div className={`p-1.5 rounded-lg border ${(campaignState.keywords?.length || 0) >= 1 ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                  <div className="font-bold">Keywords</div>
-                                  <div className="text-[9px]">{(campaignState.keywords?.length || 0) >= 1 ? `✓ ${campaignState.keywords?.length}` : "Missing"}</div>
+                          {/* Multi-Device Mockup Container (Mobile Phone Frame vs Desktop Browser Window Frame) */}
+                          <div className="w-full overflow-x-auto pb-2 scrollbar-thin">
+                            <div className="flex gap-4 min-w-max py-1 px-0.5">
+                                  
+                              {/* 1. YOUTUBE PREVIEW */}
+                              {allowedChannels.some(c => c.id === "youtube") && isChannelActive("youtube") && (
+                                <div className={`${previewDevice === "desktop" ? "w-[300px]" : "w-[210px]"} flex flex-col items-center shrink-0 transition-all`}>
+                                  <div className="flex items-center gap-1.5 mb-2">
+                                    <div className="w-5 h-5 rounded-md bg-red-600 flex items-center justify-center text-white shadow-xs">
+                                      <Play className="h-2.5 w-2.5 fill-white" />
+                                    </div>
+                                    <span className="text-[11px] font-bold text-slate-800">YouTube</span>
+                                  </div>
+
+                                  {previewDevice === "desktop" ? (
+                                    /* Desktop Browser Window Frame */
+                                    <div className="w-full bg-white rounded-xl border border-slate-300 shadow-md flex flex-col overflow-hidden">
+                                      {/* Mac / Browser Header Bar */}
+                                      <div className="bg-slate-100 px-2.5 py-1.5 flex items-center gap-1.5 border-b border-slate-200">
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-2 h-2 rounded-full bg-rose-400" />
+                                          <div className="w-2 h-2 rounded-full bg-amber-400" />
+                                          <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                                        </div>
+                                        <div className="flex-1 bg-white rounded px-2 py-0.5 text-[8px] text-slate-500 font-mono flex items-center gap-1 border border-slate-200/80 shadow-2xs">
+                                          <Globe className="h-2 w-2 text-slate-400" />
+                                          <span className="truncate">youtube.com/watch</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Desktop YouTube Web Interface */}
+                                      <div className="bg-white flex flex-col">
+                                        {/* YouTube Top Navbar */}
+                                        <div className="px-2.5 py-1 bg-white border-b border-slate-100 flex items-center justify-between">
+                                          <div className="flex items-center gap-1">
+                                            <div className="w-3 h-2 bg-red-600 rounded-xs flex items-center justify-center">
+                                              <Play className="h-1 w-1 fill-white text-white" />
+                                            </div>
+                                            <span className="text-[9px] font-black tracking-tighter text-slate-900">YouTube</span>
+                                          </div>
+                                          <div className="w-24 h-3 bg-slate-100 rounded-full border border-slate-200" />
+                                          <div className="w-3.5 h-3.5 rounded-full bg-slate-200" />
+                                        </div>
+
+                                        {/* Desktop Video Player Area with Side Video Suggestions Layout */}
+                                        <div className="p-2 grid grid-cols-12 gap-2 bg-slate-50">
+                                          {/* Main Video Screen with Overlay */}
+                                          <div className="col-span-8 flex flex-col">
+                                            <div className="relative aspect-video w-full bg-slate-900 rounded overflow-hidden flex items-center justify-center">
+                                              {heroImg ? (
+                                                <img src={heroImg} alt="YouTube Desktop Ad" className="w-full h-full object-cover" />
+                                              ) : (
+                                                <div className="text-center p-2 text-slate-400">
+                                                  <Play className="h-5 w-5 mx-auto mb-1 opacity-60 text-white" />
+                                                  <span className="text-[7px] text-slate-300 block">Video Ad (Desktop)</span>
+                                                </div>
+                                              )}
+                                              {/* YouTube Skip Ad Overlay */}
+                                              <div className="absolute bottom-1.5 left-1.5 px-1 py-0.5 bg-black/80 rounded text-[7px] font-bold text-amber-400">
+                                                Ad · 0:15
+                                              </div>
+                                              <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 hover:bg-black text-white rounded text-[7px] font-medium border border-white/20">
+                                                Skip Ad &gt;|
+                                              </div>
+                                            </div>
+
+                                            {/* Under Video Title & Actions */}
+                                            <div className="mt-1.5 space-y-1 bg-white p-1.5 rounded border border-slate-200">
+                                              <p className="text-[9px] font-bold text-slate-900 line-clamp-1 leading-tight">
+                                                {previewHeadline}
+                                              </p>
+                                              <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1">
+                                                  {heroLogo ? (
+                                                    <img src={heroLogo} alt="Logo" className="w-3.5 h-3.5 rounded-full object-cover border border-slate-100" />
+                                                  ) : (
+                                                    <div className="w-3.5 h-3.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[7px] flex items-center justify-center">
+                                                      {previewBiz.charAt(0).toUpperCase()}
+                                                    </div>
+                                                  )}
+                                                  <span className="text-[8px] font-bold text-slate-800 truncate max-w-[80px]">{previewBiz}</span>
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  className="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-[8px] flex items-center gap-0.5 shadow-2xs"
+                                                >
+                                                  <span>{previewCta}</span>
+                                                  <ExternalLink className="h-2 w-2" />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* Right Sidebar Suggested Videos Skeleton */}
+                                          <div className="col-span-4 space-y-1.5">
+                                            <div className="space-y-1">
+                                              <div className="aspect-video w-full bg-slate-200 rounded" />
+                                              <div className="w-full h-1 bg-slate-200 rounded" />
+                                              <div className="w-2/3 h-1 bg-slate-200 rounded" />
+                                            </div>
+                                            <div className="space-y-1">
+                                              <div className="aspect-video w-full bg-slate-200 rounded" />
+                                              <div className="w-3/4 h-1 bg-slate-200 rounded" />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Mobile Phone Shell */
+                                    <div className="w-full bg-white rounded-3xl p-2 border-2 border-slate-300 shadow-sm flex flex-col">
+                                      {/* Speaker notch */}
+                                      <div className="w-8 h-1 bg-slate-200 rounded-full mx-auto mb-1.5" />
+
+                                      {/* Screen Frame */}
+                                      <div className="rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden flex flex-col">
+                                        {/* YouTube Header */}
+                                        <div className="bg-white px-2 py-1.5 flex items-center justify-between border-b border-slate-100">
+                                          <div className="flex items-center gap-1">
+                                            <div className="w-3.5 h-2.5 bg-red-600 rounded-xs flex items-center justify-center">
+                                              <Play className="h-1.5 w-1.5 fill-white text-white" />
+                                            </div>
+                                            <span className="text-[9px] font-bold tracking-tighter text-slate-900">YouTube</span>
+                                          </div>
+                                          <div className="w-3.5 h-3.5 rounded-full bg-slate-200" />
+                                        </div>
+
+                                        {/* Video / Thumbnail Area */}
+                                        <div className="relative aspect-video w-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                                          {heroImg ? (
+                                            <img src={heroImg} alt="YouTube Ad" className="w-full h-full object-cover" />
+                                          ) : (
+                                            <div className="text-center p-2 text-slate-400">
+                                              <Play className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                                              <span className="text-[8px] block">Video Creative</span>
+                                            </div>
+                                          )}
+                                          <div className="absolute bottom-1 right-1 px-1 py-0.5 bg-black/70 text-white rounded text-[8px] font-mono">
+                                            0:30
+                                          </div>
+                                        </div>
+
+                                        {/* In-feed / In-stream Info */}
+                                        <div className="p-2 bg-white flex flex-col gap-1.5">
+                                          <div className="flex items-start gap-1.5">
+                                            {heroLogo ? (
+                                              <img src={heroLogo} alt="Logo" className="w-5 h-5 rounded-full object-cover border border-slate-100 shrink-0" />
+                                            ) : (
+                                              <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[8px] flex items-center justify-center shrink-0">
+                                                {previewBiz.charAt(0).toUpperCase()}
+                                              </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-[9px] font-bold text-slate-900 line-clamp-2 leading-tight">
+                                                {previewHeadline}
+                                              </p>
+                                              <div className="flex items-center gap-1 mt-0.5 text-[8px] text-slate-500">
+                                                <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 font-bold text-[7px]">Ad</span>
+                                                <span className="truncate">{previewBiz}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            className="w-full py-1 rounded-md bg-blue-600 text-white font-bold text-[9px] flex items-center justify-center gap-1 shadow-xs"
+                                          >
+                                            <span>{previewCta}</span>
+                                            <ExternalLink className="h-2 w-2" />
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Home indicator */}
+                                      <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mt-2" />
+                                    </div>
+                                  )}
                                 </div>
-                                <div className={`p-1.5 rounded-lg border ${(campaignState.headlines?.length || 0) >= 3 ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                  <div className="font-bold">Headlines</div>
-                                  <div className="text-[9px]">{campaignState.headlines?.length || 0}/15 (min 3)</div>
+                              )}
+
+                              {/* 2. DISPLAY PREVIEW */}
+                              {allowedChannels.some(c => c.id === "display") && isChannelActive("display") && (
+                                <div className={`${previewDevice === "desktop" ? "w-[300px]" : "w-[210px]"} flex flex-col items-center shrink-0 transition-all`}>
+                                  <div className="flex items-center gap-1.5 mb-2">
+                                    <div className="w-5 h-5 rounded-md bg-emerald-600 flex items-center justify-center text-white shadow-xs">
+                                      <LayoutGrid className="h-2.5 w-2.5" />
+                                    </div>
+                                    <span className="text-[11px] font-bold text-slate-800">Display</span>
+                                  </div>
+
+                                  {previewDevice === "desktop" ? (
+                                    /* Desktop Browser Window Frame (Website Publisher with 300x250 / 336x280 Sidebar Display Ad) */
+                                    <div className="w-full bg-white rounded-xl border border-slate-300 shadow-md flex flex-col overflow-hidden">
+                                      {/* Mac / Browser Header Bar */}
+                                      <div className="bg-slate-100 px-2.5 py-1.5 flex items-center gap-1.5 border-b border-slate-200">
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-2 h-2 rounded-full bg-rose-400" />
+                                          <div className="w-2 h-2 rounded-full bg-amber-400" />
+                                          <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                                        </div>
+                                        <div className="flex-1 bg-white rounded px-2 py-0.5 text-[8px] text-slate-500 font-mono flex items-center gap-1 border border-slate-200/80 shadow-2xs">
+                                          <Globe className="h-2 w-2 text-slate-400" />
+                                          <span className="truncate">thedailyjournal.com/news</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Desktop News Publisher Layout */}
+                                      <div className="p-2 bg-white flex flex-col">
+                                        {/* Publisher Header */}
+                                        <div className="pb-1.5 border-b border-slate-200 flex items-center justify-between">
+                                          <span className="font-serif font-black text-[10px] text-slate-900 tracking-tight">The Daily Journal</span>
+                                          <div className="flex items-center gap-1 text-[7px] text-slate-400 font-medium">
+                                            <span>Home</span>
+                                            <span>•</span>
+                                            <span>Business</span>
+                                            <span>•</span>
+                                            <span>Tech</span>
+                                          </div>
+                                        </div>
+
+                                        {/* Article Content + Right Side Ad Unit */}
+                                        <div className="pt-2 grid grid-cols-12 gap-2">
+                                          {/* Article Skeleton */}
+                                          <div className="col-span-6 space-y-1.5">
+                                            <div className="w-full h-1.5 bg-slate-300 rounded" />
+                                            <div className="w-4/5 h-1.5 bg-slate-300 rounded" />
+                                            <div className="w-full h-8 bg-slate-100 rounded" />
+                                            <div className="w-full h-1 bg-slate-200 rounded" />
+                                            <div className="w-full h-1 bg-slate-200 rounded" />
+                                            <div className="w-3/4 h-1 bg-slate-200 rounded" />
+                                          </div>
+
+                                          {/* Google Display Sidebar Banner (Responsive / Medium Rectangle) */}
+                                          <div className="col-span-6 p-1.5 rounded-lg bg-sky-50/70 border border-sky-200 flex flex-col justify-between shadow-2xs">
+                                            <div>
+                                              <div className="flex items-center justify-between text-[6px] text-slate-400 mb-1">
+                                                <span className="bg-sky-200 text-sky-800 px-1 rounded font-bold">Ad</span>
+                                                <span className="truncate max-w-[60px]">{displayDomain}</span>
+                                              </div>
+
+                                              <div className="aspect-[1.91/1] w-full rounded bg-slate-100 overflow-hidden relative mb-1">
+                                                {heroImg ? (
+                                                  <img src={heroImg} alt="Display Ad" className="w-full h-full object-cover" />
+                                                ) : (
+                                                  <div className="w-full h-full flex items-center justify-center text-slate-400 text-[6px]">
+                                                    Display Banner
+                                                  </div>
+                                                )}
+                                              </div>
+
+                                              <p className="text-[8px] font-bold text-slate-900 leading-tight line-clamp-1">
+                                                {previewHeadline}
+                                              </p>
+                                              <p className="text-[7px] text-slate-600 line-clamp-2 leading-tight mt-0.5">
+                                                {previewDesc}
+                                              </p>
+                                            </div>
+
+                                            <button
+                                              type="button"
+                                              className="mt-1.5 w-full py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-[8px] flex items-center justify-center gap-1 shadow-2xs"
+                                            >
+                                              <span>{previewCta}</span>
+                                              <ExternalLink className="h-2 w-2" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Mobile Phone Shell */
+                                    <div className="w-full bg-white rounded-3xl p-2 border-2 border-slate-300 shadow-sm flex flex-col">
+                                      <div className="w-8 h-1 bg-slate-200 rounded-full mx-auto mb-1.5" />
+
+                                      {/* Screen Frame */}
+                                      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden flex flex-col">
+                                        {/* Web Page Skeleton Header */}
+                                        <div className="px-2 py-1.5 bg-slate-50 border-b border-slate-100 space-y-1">
+                                          <div className="w-16 h-1 bg-slate-300 rounded" />
+                                          <div className="w-24 h-1 bg-slate-200 rounded" />
+                                        </div>
+
+                                        {/* Native Responsive Display Banner Card */}
+                                        <div className="m-1.5 p-2 rounded-xl bg-gradient-to-b from-blue-50/50 to-white border border-blue-100 shadow-xs flex flex-col gap-1.5">
+                                          <div className="flex items-center justify-between text-[7px] text-slate-400">
+                                            <span className="px-1 py-0.2 bg-blue-100 text-blue-800 rounded font-bold">Google Ad</span>
+                                            <span className="truncate max-w-[90px]">{displayDomain}</span>
+                                          </div>
+
+                                          <div className="aspect-[1.91/1] w-full rounded-lg bg-slate-100 overflow-hidden relative">
+                                            {heroImg ? (
+                                              <img src={heroImg} alt="Display" className="w-full h-full object-cover" />
+                                            ) : (
+                                              <div className="w-full h-full flex items-center justify-center text-slate-400 text-[8px]">
+                                                1.91:1 Landscape
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          <div className="space-y-0.5">
+                                            <p className="text-[9px] font-bold text-slate-900 leading-tight line-clamp-1">
+                                              {previewHeadline}
+                                            </p>
+                                            <p className="text-[8px] text-slate-600 line-clamp-2 leading-tight">
+                                              {previewDesc}
+                                            </p>
+                                          </div>
+
+                                          <div className="flex items-center justify-between pt-1">
+                                            <div className="flex items-center gap-1">
+                                              {heroLogo && (
+                                                <img src={heroLogo} alt="Logo" className="w-4 h-4 rounded-full object-cover border border-slate-100" />
+                                              )}
+                                              <span className="text-[8px] font-bold text-slate-800 truncate max-w-[70px]">{previewBiz}</span>
+                                            </div>
+                                            <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                                              <ChevronRight className="h-3 w-3" />
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Body skeleton lines */}
+                                        <div className="p-2 space-y-1 bg-white">
+                                          <div className="w-full h-1 bg-slate-100 rounded" />
+                                          <div className="w-5/6 h-1 bg-slate-100 rounded" />
+                                          <div className="w-4/6 h-1 bg-slate-100 rounded" />
+                                        </div>
+                                      </div>
+
+                                      <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mt-2" />
+                                    </div>
+                                  )}
                                 </div>
-                                <div className={`p-1.5 rounded-lg border ${(campaignState.descriptions?.length || 0) >= 2 ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                  <div className="font-bold">Descriptions</div>
-                                  <div className="text-[9px]">{campaignState.descriptions?.length || 0}/4 (min 2)</div>
+                              )}
+
+                              {/* 3. GOOGLE SEARCH PREVIEW */}
+                              {allowedChannels.some(c => c.id === "search") && isChannelActive("search") && (
+                                <div className={`${previewDevice === "desktop" ? "w-[300px]" : "w-[210px]"} flex flex-col items-center shrink-0 transition-all`}>
+                                  <div className="flex items-center gap-1.5 mb-2">
+                                    <div className="w-5 h-5 rounded-md bg-white border border-slate-200 flex items-center justify-center shadow-xs">
+                                      <span className="text-[10px] font-black text-blue-600">G</span>
+                                    </div>
+                                    <span className="text-[11px] font-bold text-slate-800">Search</span>
+                                  </div>
+
+                                  {previewDevice === "desktop" ? (
+                                    /* Desktop Google Search Results Page Window */
+                                    <div className="w-full bg-white rounded-xl border border-slate-300 shadow-md flex flex-col overflow-hidden">
+                                      {/* Mac / Browser Header Bar */}
+                                      <div className="bg-slate-100 px-2.5 py-1.5 flex items-center gap-1.5 border-b border-slate-200">
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-2 h-2 rounded-full bg-rose-400" />
+                                          <div className="w-2 h-2 rounded-full bg-amber-400" />
+                                          <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                                        </div>
+                                        <div className="flex-1 bg-white rounded px-2 py-0.5 text-[8px] text-slate-500 font-mono flex items-center gap-1 border border-slate-200/80 shadow-2xs">
+                                          <Globe className="h-2 w-2 text-slate-400" />
+                                          <span className="truncate">google.com/search?q={encodeURIComponent(previewBiz)}</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Desktop Google Search Header & Filters */}
+                                      <div className="p-2.5 bg-white border-b border-slate-100">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[11px] font-bold">
+                                            <span className="text-blue-500">G</span>
+                                            <span className="text-red-500">o</span>
+                                            <span className="text-amber-500">o</span>
+                                            <span className="text-blue-500">g</span>
+                                            <span className="text-emerald-500">l</span>
+                                            <span className="text-red-500">e</span>
+                                          </span>
+                                          <div className="flex-1 h-5 px-2 bg-white rounded-full border border-slate-300 flex items-center justify-between text-[8px] text-slate-700 shadow-2xs">
+                                            <span className="truncate">{previewBiz.toLowerCase()} online services</span>
+                                            <Search className="h-2.5 w-2.5 text-blue-500" />
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 text-[7px] text-slate-500 pt-1.5 pl-8">
+                                          <span className="text-blue-600 font-bold border-b border-blue-600 pb-0.5">All</span>
+                                          <span>Images</span>
+                                          <span>Shopping</span>
+                                          <span>Videos</span>
+                                          <span>News</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Desktop Search Sponsored Ad Card */}
+                                      <div className="p-2.5 space-y-1 border-b border-slate-100 bg-white">
+                                        {/* Favicon + Domain */}
+                                        <div className="flex items-center gap-1.5 text-[8px]">
+                                          {heroLogo ? (
+                                            <img src={heroLogo} alt="Logo" className="w-3.5 h-3.5 rounded-full object-cover border border-slate-100" />
+                                          ) : (
+                                            <div className="w-3.5 h-3.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[7px] flex items-center justify-center">
+                                              G
+                                            </div>
+                                          )}
+                                          <div className="flex flex-col">
+                                            <span className="font-semibold text-slate-800 leading-none">{previewBiz}</span>
+                                            <span className="text-[7px] text-slate-500">{previewUrl}</span>
+                                          </div>
+                                        </div>
+
+                                        {/* Sponsored Tag + Headline */}
+                                        <div className="pt-0.5">
+                                          <span className="font-bold text-[8px] text-slate-900 mr-1">Sponsored ·</span>
+                                          <span className="text-[10px] font-bold text-blue-800 hover:underline cursor-pointer leading-tight">
+                                            {previewHeadline}
+                                          </span>
+                                        </div>
+
+                                        {/* Description */}
+                                        <p className="text-[8px] text-slate-600 leading-relaxed">
+                                          {previewDesc}
+                                        </p>
+
+                                        {/* Sitelinks Extensions (2-Column Grid on Desktop) */}
+                                        <div className="grid grid-cols-2 gap-1.5 pt-1">
+                                          <div className="bg-slate-50 p-1 rounded border border-slate-100">
+                                            <span className="text-[7px] font-bold text-blue-700 block hover:underline cursor-pointer">Official Website</span>
+                                            <span className="text-[6px] text-slate-500 block">Explore verified products</span>
+                                          </div>
+                                          <div className="bg-slate-50 p-1 rounded border border-slate-100">
+                                            <span className="text-[7px] font-bold text-blue-700 block hover:underline cursor-pointer">Special Deals</span>
+                                            <span className="text-[6px] text-slate-500 block">Save on top packages</span>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Desktop Organic Results Skeleton */}
+                                      <div className="p-2 space-y-1.5 bg-slate-50/50">
+                                        <div className="w-24 h-1 bg-slate-200 rounded" />
+                                        <div className="w-40 h-1.5 bg-blue-300 rounded" />
+                                        <div className="w-full h-1 bg-slate-200 rounded" />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Mobile Phone Shell */
+                                    <div className="w-full bg-white rounded-3xl p-2 border-2 border-slate-300 shadow-sm flex flex-col">
+                                      <div className="w-8 h-1 bg-slate-200 rounded-full mx-auto mb-1.5" />
+
+                                      {/* Screen Frame */}
+                                      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden flex flex-col">
+                                        {/* Google Search Bar Header */}
+                                        <div className="p-2 bg-slate-50 border-b border-slate-100">
+                                          <div className="text-center font-bold text-[10px] mb-1">
+                                            <span className="text-blue-500">G</span>
+                                            <span className="text-red-500">o</span>
+                                            <span className="text-amber-500">o</span>
+                                            <span className="text-blue-500">g</span>
+                                            <span className="text-emerald-500">l</span>
+                                            <span className="text-red-500">e</span>
+                                          </div>
+                                          <div className="h-5 px-2 bg-white rounded-full border border-slate-200 flex items-center justify-between text-[8px] text-slate-500 shadow-xs">
+                                            <span className="truncate">{previewBiz.toLowerCase()}</span>
+                                            <Search className="h-2.5 w-2.5 text-blue-500" />
+                                          </div>
+                                        </div>
+
+                                        {/* Search Ad Result Item */}
+                                        <div className="p-2 space-y-1 border-b border-slate-100">
+                                          {/* Breadcrumb + Favicon */}
+                                          <div className="flex items-center gap-1 text-[8px]">
+                                            {heroLogo ? (
+                                              <img src={heroLogo} alt="Logo" className="w-3.5 h-3.5 rounded-full object-cover border border-slate-100" />
+                                            ) : (
+                                              <div className="w-3.5 h-3.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[7px] flex items-center justify-center">
+                                                G
+                                              </div>
+                                            )}
+                                            <div className="flex items-center gap-1 truncate text-slate-700">
+                                              <span className="font-semibold">{previewBiz}</span>
+                                              <span className="text-slate-400">›</span>
+                                              <span className="text-slate-500 truncate">{displayDomain}</span>
+                                            </div>
+                                          </div>
+
+                                          {/* Sponsored Tag + Headline */}
+                                          <div>
+                                            <span className="font-bold text-[8px] text-slate-900 mr-1">Sponsored ·</span>
+                                            <span className="text-[9px] font-bold text-blue-700 hover:underline cursor-pointer leading-tight">
+                                              {previewHeadline}
+                                            </span>
+                                          </div>
+
+                                          {/* Description */}
+                                          <p className="text-[8px] text-slate-600 line-clamp-2 leading-relaxed">
+                                            {previewDesc}
+                                          </p>
+
+                                          {/* Extension Callouts */}
+                                          <div className="pt-1 flex flex-wrap gap-1">
+                                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-[7px] text-slate-700 font-medium">
+                                              Official Site
+                                            </span>
+                                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-[7px] text-slate-700 font-medium">
+                                              Top Rated
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        {/* Organic Search Skeleton */}
+                                        <div className="p-2 space-y-1">
+                                          <div className="w-20 h-1 bg-slate-200 rounded" />
+                                          <div className="w-28 h-1.5 bg-blue-300 rounded" />
+                                          <div className="w-full h-1 bg-slate-100 rounded" />
+                                        </div>
+                                      </div>
+
+                                      <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mt-2" />
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
+                              )}
+
+                              {/* 4. GOOGLE DISCOVER PREVIEW */}
+                              {allowedChannels.some(c => c.id === "discover") && isChannelActive("discover") && (
+                                <div className={`${previewDevice === "desktop" ? "w-[300px]" : "w-[210px]"} flex flex-col items-center shrink-0 transition-all`}>
+                                  <div className="flex items-center gap-1.5 mb-2">
+                                    <div className="w-5 h-5 rounded-md bg-amber-500 flex items-center justify-center text-white shadow-xs">
+                                      <Compass className="h-2.5 w-2.5" />
+                                    </div>
+                                    <span className="text-[11px] font-bold text-slate-800">Discover</span>
+                                  </div>
+
+                                  {previewDevice === "desktop" ? (
+                                    /* Desktop Google Homepage / Discover Feed Window */
+                                    <div className="w-full bg-white rounded-xl border border-slate-300 shadow-md flex flex-col overflow-hidden">
+                                      {/* Mac / Browser Header Bar */}
+                                      <div className="bg-slate-100 px-2.5 py-1.5 flex items-center gap-1.5 border-b border-slate-200">
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-2 h-2 rounded-full bg-rose-400" />
+                                          <div className="w-2 h-2 rounded-full bg-amber-400" />
+                                          <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                                        </div>
+                                        <div className="flex-1 bg-white rounded px-2 py-0.5 text-[8px] text-slate-500 font-mono flex items-center gap-1 border border-slate-200/80 shadow-2xs">
+                                          <Globe className="h-2 w-2 text-slate-400" />
+                                          <span className="truncate">google.com/discover</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Google Central Search Bar */}
+                                      <div className="pt-2 pb-1 text-center">
+                                        <span className="text-[11px] font-bold">
+                                          <span className="text-blue-500">G</span>
+                                          <span className="text-red-500">o</span>
+                                          <span className="text-amber-500">o</span>
+                                          <span className="text-blue-500">g</span>
+                                          <span className="text-emerald-500">l</span>
+                                          <span className="text-red-500">e</span>
+                                        </span>
+                                        <div className="w-4/5 h-4 mx-auto mt-1 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-between px-2 text-[7px] text-slate-400">
+                                          <span>Search or type URL</span>
+                                          <Search className="h-2 w-2 text-slate-400" />
+                                        </div>
+                                      </div>
+
+                                      {/* Discover 2-Column Feed Cards */}
+                                      <div className="p-2 grid grid-cols-2 gap-2 bg-slate-50/60 border-t border-slate-100">
+                                        {/* Discover Ad Sponsored Card */}
+                                        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-2xs flex flex-col justify-between">
+                                          <div>
+                                            <div className="aspect-[1.91/1] w-full bg-slate-100 overflow-hidden relative">
+                                              {heroImg ? (
+                                                <img src={heroImg} alt="Discover" className="w-full h-full object-cover" />
+                                              ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-slate-400 text-[6px]">
+                                                  Hero Image
+                                                </div>
+                                              )}
+                                            </div>
+                                            <div className="p-1.5 space-y-0.5">
+                                              <p className="text-[8px] font-bold text-slate-900 leading-tight line-clamp-2">
+                                                {previewHeadline}
+                                              </p>
+                                            </div>
+                                          </div>
+
+                                          <div className="p-1.5 pt-0 flex items-center justify-between text-[7px] text-slate-500">
+                                            <div className="flex items-center gap-1">
+                                              {heroLogo ? (
+                                                <img src={heroLogo} alt="Logo" className="w-2.5 h-2.5 rounded-full object-cover" />
+                                              ) : (
+                                                <span className="w-2 h-2 rounded-full bg-blue-300 inline-block" />
+                                              )}
+                                              <span className="truncate max-w-[50px] font-medium text-slate-700">{previewBiz}</span>
+                                            </div>
+                                            <span className="bg-slate-100 text-slate-700 px-1 rounded text-[6px] font-bold">Ad</span>
+                                          </div>
+                                        </div>
+
+                                        {/* Organic Discover Article Card */}
+                                        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-2xs flex flex-col justify-between">
+                                          <div>
+                                            <div className="aspect-[1.91/1] w-full bg-amber-100/60 overflow-hidden flex items-center justify-center">
+                                              <Compass className="h-4 w-4 text-amber-500 opacity-60" />
+                                            </div>
+                                            <div className="p-1.5 space-y-1">
+                                              <div className="w-full h-1.5 bg-slate-300 rounded" />
+                                              <div className="w-3/4 h-1 bg-slate-200 rounded" />
+                                            </div>
+                                          </div>
+                                          <div className="p-1.5 pt-0 flex items-center justify-between text-[7px] text-slate-400">
+                                            <span>Trending Story</span>
+                                            <span>2h ago</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Mobile Phone Shell */
+                                    <div className="w-full bg-white rounded-3xl p-2 border-2 border-slate-300 shadow-sm flex flex-col">
+                                      <div className="w-8 h-1 bg-slate-200 rounded-full mx-auto mb-1.5" />
+
+                                      {/* Screen Frame */}
+                                      <div className="rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden flex flex-col">
+                                        {/* Discover Header */}
+                                        <div className="p-2 bg-white border-b border-slate-100 space-y-1">
+                                          <div className="w-12 h-1 bg-slate-300 rounded" />
+                                          <div className="w-full h-1 bg-slate-200 rounded" />
+                                        </div>
+
+                                        {/* Discover Large Feed Card */}
+                                        <div className="m-1.5 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                                          <div className="aspect-[1.91/1] w-full bg-slate-100 overflow-hidden relative">
+                                            {heroImg ? (
+                                              <img src={heroImg} alt="Discover" className="w-full h-full object-cover" />
+                                            ) : (
+                                              <div className="w-full h-full flex items-center justify-center text-slate-400 text-[8px]">
+                                                Discover Hero Image
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          <div className="p-2 space-y-1.5">
+                                            <p className="text-[9px] font-bold text-slate-900 leading-tight line-clamp-2">
+                                              {previewHeadline}
+                                            </p>
+
+                                            <div className="flex items-center justify-between text-[8px] text-slate-500 pt-1 border-t border-slate-100">
+                                              <div className="flex items-center gap-1">
+                                                {heroLogo ? (
+                                                  <img src={heroLogo} alt="Logo" className="w-3 h-3 rounded-full object-cover" />
+                                                ) : (
+                                                  <span className="w-2.5 h-2.5 rounded-full bg-purple-200 inline-block" />
+                                                )}
+                                                <span className="truncate max-w-[80px] font-medium text-slate-700">{previewBiz}</span>
+                                              </div>
+                                              <span className="px-1 py-0.2 rounded bg-slate-100 text-[7px] font-bold">Ad</span>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Discover Tab Bar Skeleton */}
+                                        <div className="mt-auto p-1.5 bg-white border-t border-slate-200 flex justify-around text-slate-400">
+                                          <div className="w-4 h-1 bg-blue-500 rounded" />
+                                          <div className="w-4 h-1 bg-slate-200 rounded" />
+                                          <div className="w-4 h-1 bg-slate-200 rounded" />
+                                        </div>
+                                      </div>
+
+                                      <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mt-2" />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 5. GMAIL PREVIEW */}
+                              {allowedChannels.some(c => c.id === "gmail") && isChannelActive("gmail") && (
+                                <div className={`${previewDevice === "desktop" ? "w-[300px]" : "w-[210px]"} flex flex-col items-center shrink-0 transition-all`}>
+                                  <div className="flex items-center gap-1.5 mb-2">
+                                    <div className="w-5 h-5 rounded-md bg-rose-500 flex items-center justify-center text-white shadow-xs">
+                                      <Mail className="h-2.5 w-2.5" />
+                                    </div>
+                                    <span className="text-[11px] font-bold text-slate-800">Gmail</span>
+                                  </div>
+
+                                  {previewDevice === "desktop" ? (
+                                    /* Desktop Gmail Web Client Window */
+                                    <div className="w-full bg-white rounded-xl border border-slate-300 shadow-md flex flex-col overflow-hidden">
+                                      {/* Mac / Browser Header Bar */}
+                                      <div className="bg-slate-100 px-2.5 py-1.5 flex items-center gap-1.5 border-b border-slate-200">
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-2 h-2 rounded-full bg-rose-400" />
+                                          <div className="w-2 h-2 rounded-full bg-amber-400" />
+                                          <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                                        </div>
+                                        <div className="flex-1 bg-white rounded px-2 py-0.5 text-[8px] text-slate-500 font-mono flex items-center gap-1 border border-slate-200/80 shadow-2xs">
+                                          <Globe className="h-2 w-2 text-slate-400" />
+                                          <span className="truncate">mail.google.com/mail/u/0</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Desktop Gmail Search & Navigation Bar */}
+                                      <div className="px-2.5 py-1.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                                        <div className="flex items-center gap-1">
+                                          <Mail className="h-3 w-3 text-rose-500" />
+                                          <span className="text-[9px] font-bold text-slate-700">Gmail</span>
+                                        </div>
+                                        <div className="w-36 h-4 bg-white rounded-full border border-slate-200 flex items-center px-2 text-[7px] text-slate-400">
+                                          <Search className="h-2 w-2 text-slate-400 mr-1" />
+                                          <span>Search mail</span>
+                                        </div>
+                                        <div className="w-3.5 h-3.5 rounded-full bg-slate-300" />
+                                      </div>
+
+                                      {/* Desktop Gmail Two-Column Layout (Sidebar + Email Table) */}
+                                      <div className="grid grid-cols-12 bg-white">
+                                        {/* Gmail Sidebar */}
+                                        <div className="col-span-3 border-r border-slate-100 p-1.5 space-y-1 bg-slate-50/50">
+                                          <div className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[7px] font-bold text-center">
+                                            + Compose
+                                          </div>
+                                          <div className="space-y-0.5 pt-1 text-[7px] text-slate-600">
+                                            <div className="px-1 py-0.5 rounded font-bold text-slate-800">Inbox</div>
+                                            <div className="px-1 py-0.5 text-slate-400">Starred</div>
+                                            <div className="px-1 py-0.5 text-slate-400">Sent</div>
+                                          </div>
+                                        </div>
+
+                                        {/* Gmail Email List with Promotions Tab */}
+                                        <div className="col-span-9 p-1.5 space-y-1">
+                                          {/* Promotions Header Tab */}
+                                          <div className="flex items-center gap-2 border-b border-slate-100 pb-1 text-[7px]">
+                                            <span className="text-slate-400">Primary</span>
+                                            <span className="text-emerald-600 font-bold border-b border-emerald-600 pb-0.5">Promotions</span>
+                                            <span className="text-slate-400">Social</span>
+                                          </div>
+
+                                          {/* Sponsored Top Ad Row */}
+                                          <div className="p-1 rounded bg-emerald-50/60 border border-emerald-100 flex items-center gap-1.5">
+                                            {heroLogo ? (
+                                              <img src={heroLogo} alt="Logo" className="w-3.5 h-3.5 rounded-full object-cover border border-slate-200 shrink-0" />
+                                            ) : (
+                                              <div className="w-3.5 h-3.5 rounded-full bg-emerald-600 text-white font-bold text-[7px] flex items-center justify-center shrink-0">
+                                                {previewBiz.charAt(0).toUpperCase()}
+                                              </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-1">
+                                                <span className="text-[8px] font-bold text-slate-900 truncate">{previewBiz}</span>
+                                                <span className="bg-emerald-200 text-emerald-800 px-1 rounded text-[6px] font-bold">Ad</span>
+                                              </div>
+                                              <p className="text-[7px] text-slate-700 truncate leading-tight">
+                                                {previewHeadline} - {previewDesc}
+                                              </p>
+                                            </div>
+                                          </div>
+
+                                          {/* Regular Email Rows Skeleton */}
+                                          <div className="space-y-1 opacity-40 pt-0.5">
+                                            <div className="flex items-center gap-1 text-[7px]">
+                                              <div className="w-2 h-2 rounded-xs border border-slate-300" />
+                                              <div className="w-12 h-1 bg-slate-300 rounded" />
+                                              <div className="w-24 h-1 bg-slate-200 rounded" />
+                                            </div>
+                                            <div className="flex items-center gap-1 text-[7px]">
+                                              <div className="w-2 h-2 rounded-xs border border-slate-300" />
+                                              <div className="w-14 h-1 bg-slate-300 rounded" />
+                                              <div className="w-20 h-1 bg-slate-200 rounded" />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Mobile Phone Shell */
+                                    <div className="w-full bg-white rounded-3xl p-2 border-2 border-slate-300 shadow-sm flex flex-col">
+                                      <div className="w-8 h-1 bg-slate-200 rounded-full mx-auto mb-1.5" />
+
+                                      {/* Screen Frame */}
+                                      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden flex flex-col">
+                                        {/* Gmail Search / Top Bar */}
+                                        <div className="p-1.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+                                          <div className="flex items-center gap-1">
+                                            <Mail className="h-2.5 w-2.5 text-rose-500" />
+                                            <span className="text-[8px] font-bold text-slate-700">Promotions</span>
+                                          </div>
+                                          <div className="w-3 h-3 rounded-full bg-slate-300" />
+                                        </div>
+
+                                        {/* Sponsored Gmail Promotion Row (Closed State) */}
+                                        <div className="p-2 bg-emerald-50/40 border-b border-slate-100 flex items-start gap-1.5">
+                                          {heroLogo ? (
+                                            <img src={heroLogo} alt="Logo" className="w-5 h-5 rounded-full object-cover border border-slate-200 shrink-0" />
+                                          ) : (
+                                            <div className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[8px] flex items-center justify-center shrink-0">
+                                              {previewBiz.charAt(0).toUpperCase()}
+                                            </div>
+                                          )}
+
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between text-[8px]">
+                                              <span className="font-bold text-slate-900 truncate">{previewBiz}</span>
+                                              <span className="px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold text-[6px]">Ad</span>
+                                            </div>
+                                            <p className="text-[8px] font-semibold text-slate-800 truncate">
+                                              {previewHeadline}
+                                            </p>
+                                            <p className="text-[7px] text-slate-500 truncate">
+                                              {previewDesc}
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* Standard Email Rows Skeleton */}
+                                        <div className="p-2 space-y-2">
+                                          <div className="flex items-center gap-1.5 opacity-40">
+                                            <div className="w-4 h-4 rounded-full bg-slate-200 shrink-0" />
+                                            <div className="flex-1 space-y-0.5">
+                                              <div className="w-16 h-1 bg-slate-300 rounded" />
+                                              <div className="w-24 h-1 bg-slate-200 rounded" />
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-1.5 opacity-40">
+                                            <div className="w-4 h-4 rounded-full bg-slate-200 shrink-0" />
+                                            <div className="flex-1 space-y-0.5">
+                                              <div className="w-20 h-1 bg-slate-300 rounded" />
+                                              <div className="w-28 h-1 bg-slate-200 rounded" />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mt-2" />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 6. GOOGLE MAPS PREVIEW */}
+                              {allowedChannels.some(c => c.id === "maps") && isChannelActive("maps") && (
+                                <div className={`${previewDevice === "desktop" ? "w-[300px]" : "w-[210px]"} flex flex-col items-center shrink-0 transition-all`}>
+                                  <div className="flex items-center gap-1.5 mb-2">
+                                    <div className="w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center text-white shadow-xs">
+                                      <MapPin className="h-2.5 w-2.5" />
+                                    </div>
+                                    <span className="text-[11px] font-bold text-slate-800">Maps</span>
+                                  </div>
+
+                                  {previewDevice === "desktop" ? (
+                                    /* Desktop Google Maps Web Browser Window */
+                                    <div className="w-full bg-white rounded-xl border border-slate-300 shadow-md flex flex-col overflow-hidden">
+                                      {/* Mac / Browser Header Bar */}
+                                      <div className="bg-slate-100 px-2.5 py-1.5 flex items-center gap-1.5 border-b border-slate-200">
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-2 h-2 rounded-full bg-rose-400" />
+                                          <div className="w-2 h-2 rounded-full bg-amber-400" />
+                                          <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                                        </div>
+                                        <div className="flex-1 bg-white rounded px-2 py-0.5 text-[8px] text-slate-500 font-mono flex items-center gap-1 border border-slate-200/80 shadow-2xs">
+                                          <Globe className="h-2 w-2 text-slate-400" />
+                                          <span className="truncate">maps.google.com/search</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Desktop Maps Layout: Search / Pin Sidebar + Large Interactive Map Canvas */}
+                                      <div className="grid grid-cols-12 h-36 bg-slate-100">
+                                        {/* Left Sidebar Info Card */}
+                                        <div className="col-span-6 bg-white p-2 border-r border-slate-200 flex flex-col justify-between">
+                                          <div>
+                                            <div className="flex items-center gap-1 text-[8px] mb-1">
+                                              <span className="font-bold text-slate-800">Google Maps</span>
+                                            </div>
+                                            <div className="p-1 rounded bg-slate-50 border border-slate-100 space-y-0.5">
+                                              <div className="flex items-center gap-1">
+                                                <span className="bg-amber-100 text-amber-800 px-1 rounded text-[6px] font-bold">Sponsored</span>
+                                                <span className="text-[8px] font-bold text-slate-900 truncate">{previewBiz}</span>
+                                              </div>
+                                              <div className="text-[7px] text-amber-500 font-medium">
+                                                ★ 4.9 <span className="text-slate-400">(250+)</span>
+                                              </div>
+                                              <p className="text-[7px] text-slate-600 line-clamp-2 leading-tight">
+                                                {previewHeadline}
+                                              </p>
+                                            </div>
+                                          </div>
+
+                                          <div className="grid grid-cols-2 gap-1 pt-1">
+                                            <button
+                                              type="button"
+                                              className="py-0.5 rounded bg-blue-600 text-white font-bold text-[7px] flex items-center justify-center gap-0.5"
+                                            >
+                                              <Navigation className="h-2 w-2" />
+                                              <span>Directions</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[7px] border border-slate-200 flex items-center justify-center gap-0.5"
+                                            >
+                                              <ExternalLink className="h-2 w-2" />
+                                              <span>Website</span>
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        {/* Right Side Map Canvas with Pin */}
+                                        <div className="col-span-6 relative bg-emerald-100/70 flex items-center justify-center overflow-hidden">
+                                          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#059669_1px,transparent_1px)] [background-size:6px_6px]" />
+                                          <div className="relative z-10 flex flex-col items-center">
+                                            <div className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md animate-bounce">
+                                              <MapPin className="h-3 w-3" />
+                                            </div>
+                                            <span className="text-[6px] font-bold text-slate-800 bg-white/95 px-1 py-0.2 rounded shadow-2xs mt-0.5">
+                                              {previewBiz}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Mobile Phone Shell */
+                                    <div className="w-full bg-white rounded-3xl p-2 border-2 border-slate-300 shadow-sm flex flex-col">
+                                      <div className="w-8 h-1 bg-slate-200 rounded-full mx-auto mb-1.5" />
+
+                                      {/* Screen Frame */}
+                                      <div className="rounded-2xl border border-slate-200 bg-slate-100 overflow-hidden flex flex-col">
+                                        {/* Map Canvas Background with Pin */}
+                                        <div className="relative h-20 bg-emerald-100/60 flex items-center justify-center overflow-hidden">
+                                          {/* Stylized Map Grid Lines */}
+                                          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#059669_1px,transparent_1px)] [background-size:8px_8px]" />
+                                          <div className="relative z-10 flex flex-col items-center">
+                                            <div className="w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md animate-bounce">
+                                              <MapPin className="h-3.5 w-3.5" />
+                                            </div>
+                                            <span className="text-[7px] font-bold text-slate-800 bg-white/90 px-1 rounded shadow-xs mt-0.5">
+                                              {previewBiz}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        {/* Bottom Place Card Ad */}
+                                        <div className="p-2 bg-white border-t border-slate-200 space-y-1">
+                                          <div className="flex items-start justify-between">
+                                            <div>
+                                              <div className="flex items-center gap-1">
+                                                <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 font-bold text-[6px]">Ad</span>
+                                                <span className="text-[9px] font-bold text-slate-900 truncate max-w-[90px]">{previewBiz}</span>
+                                              </div>
+                                              <div className="flex items-center gap-0.5 text-amber-500 text-[8px] mt-0.5">
+                                                <span>★ 4.9</span>
+                                                <span className="text-slate-400 text-[7px]">(120+)</span>
+                                              </div>
+                                            </div>
+
+                                            {heroLogo ? (
+                                              <img src={heroLogo} alt="Logo" className="w-5 h-5 rounded-md object-cover border border-slate-100 shrink-0" />
+                                            ) : (
+                                              <div className="w-5 h-5 rounded-md bg-blue-100 text-blue-700 font-bold text-[8px] flex items-center justify-center shrink-0">
+                                                {previewBiz.charAt(0).toUpperCase()}
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          <p className="text-[8px] text-slate-600 line-clamp-1">
+                                            {previewHeadline}
+                                          </p>
+
+                                          <div className="grid grid-cols-2 gap-1 pt-1">
+                                            <button
+                                              type="button"
+                                              className="py-1 rounded bg-blue-600 text-white font-bold text-[8px] flex items-center justify-center gap-0.5"
+                                            >
+                                              <Navigation className="h-2 w-2" />
+                                              <span>Directions</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="py-1 rounded bg-slate-100 text-slate-700 font-semibold text-[8px] border border-slate-200 flex items-center justify-center gap-0.5"
+                                            >
+                                              <ExternalLink className="h-2 w-2" />
+                                              <span>Website</span>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mt-2" />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
                             </div>
-                          )}
-
-                          {/* Demand Gen Checklist */}
-                          {campaignState.campaignType === "DEMAND_GEN" && (() => {
-                            const dgFormat = campaignState.adFormat || "SINGLE_IMAGE";
-                            const hasValidBudget = campaignState.dailyBudget && campaignState.dailyBudget >= 416;
-                            const hasLogo = (campaignState.logos?.length || 0) >= 1;
-                            const hasImages = (campaignState.images?.length || 0) >= 1;
-                            const hasVideos = (campaignState.videos?.length || 0) >= 1;
-                            const cards = campaignState.carouselCards || [];
-                            const validCards = cards.filter(c => c && c.image?.trim() && c.headline?.trim());
-                            const hasHeadlines = (campaignState.headlines?.length || 0) >= 1;
-                            const hasLongHeadlines = (campaignState.longHeadlines?.length || 0) >= 1;
-                            const hasDescriptions = (campaignState.descriptions?.length || 0) >= 1;
-
-                            return (
-                              <div className="pt-2 border-t border-slate-100 space-y-2">
-                                <div className="flex items-center justify-between text-[10px]">
-                                  <span className="text-slate-600 font-bold uppercase tracking-wider">Demand Gen ({dgFormat.replace("_", " ")}) Readiness:</span>
-                                  <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
-                                    {campaignState.readyForPublish ? "Publish Ready ✓" : "Review Missing"}
-                                  </span>
-                                </div>
-                                <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
-                                  <div className={`p-1.5 rounded-lg border ${hasValidBudget ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Budget (≥₹416)</div>
-                                    <div className="text-[9px]">{hasValidBudget ? `₹${campaignState.dailyBudget}/day` : "Min ₹416 needed"}</div>
-                                  </div>
-                                  <div className={`p-1.5 rounded-lg border ${hasLogo ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Logo</div>
-                                    <div className="text-[9px]">{hasLogo ? "✓ Uploaded" : "Missing"}</div>
-                                  </div>
-                                  {dgFormat === "SINGLE_IMAGE" && (
-                                    <div className={`p-1.5 rounded-lg border ${hasImages ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                      <div className="font-bold">Marketing Image</div>
-                                      <div className="text-[9px]">{hasImages ? "✓ Attached" : "Missing"}</div>
-                                    </div>
-                                  )}
-                                  {dgFormat === "VIDEO" && (
-                                    <div className={`p-1.5 rounded-lg border ${hasVideos ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                      <div className="font-bold">YouTube Video</div>
-                                      <div className="text-[9px]">{hasVideos ? "✓ Attached" : "Missing"}</div>
-                                    </div>
-                                  )}
-                                  {dgFormat === "CAROUSEL" && (
-                                    <div className={`p-1.5 rounded-lg border ${validCards.length >= 2 ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                      <div className="font-bold">Carousel Cards</div>
-                                      <div className="text-[9px]">{validCards.length >= 2 ? `✓ ${validCards.length} Cards` : `${validCards.length}/2 (min 2)`}</div>
-                                    </div>
-                                  )}
-                                  <div className={`p-1.5 rounded-lg border ${hasHeadlines ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Headlines</div>
-                                    <div className="text-[9px]">{hasHeadlines ? `✓ ${campaignState.headlines?.length}` : "Missing"}</div>
-                                  </div>
-                                  {dgFormat === "VIDEO" && (
-                                    <div className={`p-1.5 rounded-lg border ${hasLongHeadlines ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                      <div className="font-bold">Long Headline</div>
-                                      <div className="text-[9px]">{hasLongHeadlines ? `✓ ${campaignState.longHeadlines?.length}` : "Missing"}</div>
-                                    </div>
-                                  )}
-                                  <div className={`p-1.5 rounded-lg border ${hasDescriptions ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Descriptions</div>
-                                    <div className="text-[9px]">{hasDescriptions ? `✓ ${campaignState.descriptions?.length}` : "Missing"}</div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })()}
-
-                          {/* Display Checklist */}
-                          {campaignState.campaignType === "DISPLAY" && (() => {
-                            const hasValidBudget = campaignState.dailyBudget && campaignState.dailyBudget > 0;
-                            const hasLogo = (campaignState.logos?.length || 0) >= 1;
-                            const hasImages = (campaignState.images?.length || 0) >= 1;
-                            const hasHeadlines = (campaignState.headlines?.length || 0) >= 1;
-                            const hasLongHeadlines = (campaignState.longHeadlines?.length || 0) >= 1 || hasHeadlines;
-                            const hasDescriptions = (campaignState.descriptions?.length || 0) >= 1;
-
-                            return (
-                              <div className="pt-2 border-t border-slate-100 space-y-2">
-                                <div className="flex items-center justify-between text-[10px]">
-                                  <span className="text-slate-600 font-bold uppercase tracking-wider">Display Responsive Ad Readiness:</span>
-                                  <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
-                                    {campaignState.readyForPublish ? "Publish Ready ✓" : "Review Missing"}
-                                  </span>
-                                </div>
-                                <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
-                                  <div className={`p-1.5 rounded-lg border ${hasValidBudget ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Budget</div>
-                                    <div className="text-[9px]">{hasValidBudget ? `₹${campaignState.dailyBudget}/day` : "Missing"}</div>
-                                  </div>
-                                  <div className={`p-1.5 rounded-lg border ${hasImages ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Marketing Images</div>
-                                    <div className="text-[9px]">{hasImages ? "✓ Attached" : "Missing"}</div>
-                                  </div>
-                                  <div className={`p-1.5 rounded-lg border ${hasLogo ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Logo (1:1)</div>
-                                    <div className="text-[9px]">{hasLogo ? "✓ Uploaded" : "Missing"}</div>
-                                  </div>
-                                  <div className={`p-1.5 rounded-lg border ${hasHeadlines ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Headlines</div>
-                                    <div className="text-[9px]">{hasHeadlines ? `✓ ${campaignState.headlines?.length}` : "Missing"}</div>
-                                  </div>
-                                  <div className={`p-1.5 rounded-lg border ${hasLongHeadlines ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Long Headline</div>
-                                    <div className="text-[9px]">{hasLongHeadlines ? `✓ ${campaignState.longHeadlines?.length || 1}` : "Missing"}</div>
-                                  </div>
-                                  <div className={`p-1.5 rounded-lg border ${hasDescriptions ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Descriptions</div>
-                                    <div className="text-[9px]">{hasDescriptions ? `✓ ${campaignState.descriptions?.length}` : "Missing"}</div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })()}
-
-                          {/* Video Checklist */}
-                          {campaignState.campaignType === "VIDEO" && (() => {
-                            const vFormat = campaignState.adFormat || "SINGLE_IMAGE";
-                            const hasValidBudget = campaignState.dailyBudget && campaignState.dailyBudget > 0;
-                            const hasLogo = (campaignState.logos?.length || 0) >= 1;
-                            const hasImages = (campaignState.images?.length || 0) >= 1;
-                            const hasVideos = (campaignState.videos?.length || 0) >= 1;
-                            const cards = campaignState.carouselCards || [];
-                            const validCards = cards.filter(c => c && c.image?.trim() && c.headline?.trim());
-                            const hasHeadlines = (campaignState.headlines?.length || 0) >= 1;
-                            const hasLongHeadlines = (campaignState.longHeadlines?.length || 0) >= 1;
-                            const hasDescriptions = (campaignState.descriptions?.length || 0) >= 1;
-
-                            return (
-                              <div className="pt-2 border-t border-slate-100 space-y-2">
-                                <div className="flex items-center justify-between text-[10px]">
-                                  <span className="text-slate-600 font-bold uppercase tracking-wider">Video ({vFormat.replace("_", " ")}) Readiness:</span>
-                                  <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
-                                    {campaignState.readyForPublish ? "Publish Ready ✓" : "Review Missing"}
-                                  </span>
-                                </div>
-                                <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
-                                  <div className={`p-1.5 rounded-lg border ${hasValidBudget ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Budget</div>
-                                    <div className="text-[9px]">{hasValidBudget ? `₹${campaignState.dailyBudget}/day` : "Missing"}</div>
-                                  </div>
-                                  <div className={`p-1.5 rounded-lg border ${hasLogo ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Logo (1:1)</div>
-                                    <div className="text-[9px]">{hasLogo ? "✓ Uploaded" : "Missing"}</div>
-                                  </div>
-                                  {vFormat === "SINGLE_IMAGE" && (
-                                    <div className={`p-1.5 rounded-lg border ${hasImages ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                      <div className="font-bold">Marketing Image</div>
-                                      <div className="text-[9px]">{hasImages ? "✓ Attached" : "Missing"}</div>
-                                    </div>
-                                  )}
-                                  {vFormat === "VIDEO" && (
-                                    <div className={`p-1.5 rounded-lg border ${hasVideos ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                      <div className="font-bold">YouTube Video</div>
-                                      <div className="text-[9px]">{hasVideos ? "✓ Attached" : "Missing"}</div>
-                                    </div>
-                                  )}
-                                  {vFormat === "CAROUSEL" && (
-                                    <div className={`p-1.5 rounded-lg border ${validCards.length >= 2 ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                      <div className="font-bold">Carousel Cards</div>
-                                      <div className="text-[9px]">{validCards.length >= 2 ? `✓ ${validCards.length} Cards` : `${validCards.length}/2 (min 2)`}</div>
-                                    </div>
-                                  )}
-                                  <div className={`p-1.5 rounded-lg border ${hasHeadlines ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Headlines</div>
-                                    <div className="text-[9px]">{hasHeadlines ? `✓ ${campaignState.headlines?.length}` : "Missing"}</div>
-                                  </div>
-                                  {vFormat === "VIDEO" && (
-                                    <div className={`p-1.5 rounded-lg border ${hasLongHeadlines ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                      <div className="font-bold">Long Headline</div>
-                                      <div className="text-[9px]">{hasLongHeadlines ? `✓ ${campaignState.longHeadlines?.length}` : "Missing"}</div>
-                                    </div>
-                                  )}
-                                  <div className={`p-1.5 rounded-lg border ${hasDescriptions ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                    <div className="font-bold">Descriptions</div>
-                                    <div className="text-[9px]">{hasDescriptions ? `✓ ${campaignState.descriptions?.length}` : "Missing"}</div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })()}
-
-                          {/* App / Shopping Checklist */}
-                          {["APP", "SHOPPING"].includes(campaignState.campaignType || "") && (
-                            <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                              <div className="flex items-center justify-between text-[10px]">
-                                <span className="text-slate-600 font-bold uppercase tracking-wider">{campaignState.campaignType} Readiness:</span>
-                                <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
-                                  {campaignState.readyForPublish ? "Publish Ready ✓" : "Review Missing"}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-1.5 text-center text-[10px]">
-                                <div className={`p-1.5 rounded-lg border ${(campaignState.headlines?.length || 0) >= 1 ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                  <div className="font-bold">Ad Headlines</div>
-                                  <div className="text-[9px]">{(campaignState.headlines?.length || 0) >= 1 ? `✓ ${campaignState.headlines?.length} Headlines` : "Missing"}</div>
-                                </div>
-                                <div className={`p-1.5 rounded-lg border ${(campaignState.descriptions?.length || 0) >= 1 ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-                                  <div className="font-bold">Descriptions</div>
-                                  <div className="text-[9px]">{(campaignState.descriptions?.length || 0) >= 1 ? `✓ ${campaignState.descriptions?.length} Descriptions` : "Missing"}</div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Action Buttons */}
-                          <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-slate-100">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMobileActiveTab("cockpit");
-                                setIsEditingCockpit(true);
-                                startFieldEdit("businessName");
-                              }}
-                              className="px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                            >
-                              <Edit3 className="h-3 w-3" />
-                              Edit in Cockpit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleCreateCampaign}
-                              disabled={!isReadyToPublish || isPublishing}
-                              className={`px-4 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                                isReadyToPublish
-                                  ? "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20"
-                                  : "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200"
-                              }`}
-                            >
-                              {isPublishing ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <Target className="h-3.5 w-3.5"/>}
-                              {isPublishing ? "Publishing to Google Ads..." : "Launch Campaign"}
-                            </button>
                           </div>
                         </div>
                       );
@@ -2490,13 +4055,81 @@ export default function AiGuidedCampaignPage() {
               </button>
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
+                onClick={() => handleTriggerAiAssetGeneration("IMAGE")}
+                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-bold"
+              >
+                <Wand2 className="h-3 w-3 text-blue-200" />
+                Generate Images
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTriggerAiAssetGeneration("LOGO")}
+                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-bold"
+              >
+                <Sparkles className="h-3 w-3 text-pink-200" />
+                Generate Logo
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveUploadTarget("IMAGE");
+                  imageInputRef.current?.click();
+                }}
+                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-semibold"
               >
                 <Upload className="h-3 w-3" />
-                Upload Media
+                Upload Image
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveUploadTarget("LOGO");
+                  logoInputRef.current?.click();
+                }}
+                className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-semibold"
+              >
+                <Upload className="h-3 w-3" />
+                Upload Logo
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveUploadTarget("VIDEO");
+                  videoInputRef.current?.click();
+                }}
+                className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-semibold"
+              >
+                <Video className="h-3 w-3" />
+                Upload Video
               </button>
             </div>
+
+            {/* Active Reference Campaign Chip Banner */}
+            {referencedCampaign && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 animate-in fade-in slide-in-from-bottom-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-5 h-5 rounded-md bg-purple-600 text-white flex items-center justify-center shrink-0">
+                    <AtSign className="h-3 w-3" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-bold text-[11px] truncate block text-purple-950">
+                      Context Referenced: @{referencedCampaign.name}
+                    </span>
+                    <span className="text-[9px] text-purple-600 block">
+                      Reusing: {referencedCampaign.businessName || "Business"}, {referencedCampaign.campaignType || "Search"}, Budget, Locations & Creative Assets
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReferencedCampaign(null)}
+                  className="text-purple-400 hover:text-purple-700 p-1 rounded transition-colors cursor-pointer shrink-0 ml-2"
+                  title="Remove reference"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
 
             {/* Chat Input Form */}
             <form
@@ -2504,42 +4137,204 @@ export default function AiGuidedCampaignPage() {
                 e.preventDefault();
                 handleSendMessage();
               }}
-              className="flex items-center gap-2"
+              className="flex items-end gap-2 relative"
             >
+              {/* @ Button on the LEFT side of the Chat Input Box */}
+              <div className="relative shrink-0 pb-0.5">
+                <button
+                  type="button"
+                  onClick={() => setIsCampaignDropdownOpen(!isCampaignDropdownOpen)}
+                  title="Reference Existing Campaign (@) to reuse business, budget & assets"
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+                    isCampaignDropdownOpen || referencedCampaign
+                      ? "bg-purple-600 text-white border-purple-600 shadow-sm shadow-purple-500/20"
+                      : "bg-white hover:bg-purple-50 text-slate-600 hover:text-purple-700 border-slate-300 shadow-2xs"
+                  }`}
+                >
+                  <AtSign className="h-4 w-4" />
+                </button>
+
+                {/* Dropdown Menu for Selecting Existing Campaign */}
+                {isCampaignDropdownOpen && (
+                  <div className="absolute bottom-full left-0 mb-2 w-72 sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div className="flex items-center gap-1.5">
+                        <AtSign className="h-4 w-4 text-purple-600" />
+                        <span className="font-bold text-xs text-slate-800">Reference Campaign</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsCampaignDropdownOpen(false)}
+                        className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      Pick an existing campaign to reuse its business name, locations, budget, headlines & creative assets without repeating information.
+                    </p>
+
+                    {/* Search Input for Campaigns */}
+                    <div className="relative">
+                      <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                      <input
+                        type="text"
+                        value={campaignSearchQuery}
+                        onChange={(e) => setCampaignSearchQuery(e.target.value)}
+                        placeholder="Search existing campaigns..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-600 focus:bg-white transition-all"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* Campaign List */}
+                    <div className="max-h-52 overflow-y-auto space-y-1.5 scrollbar-thin pr-0.5">
+                      {isLoadingCampaigns ? (
+                        <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                          <span>Loading campaigns...</span>
+                        </div>
+                      ) : existingCampaignsList.length === 0 ? (
+                        <div className="py-5 text-center text-xs text-slate-400">
+                          <Bookmark className="h-5 w-5 text-slate-300 mx-auto mb-1" />
+                          <p className="font-medium text-slate-600">No campaigns found</p>
+                          <p className="text-[10px] text-slate-400">Create your first AI campaign to build history!</p>
+                        </div>
+                      ) : (
+                        existingCampaignsList
+                          .filter((c) =>
+                            !campaignSearchQuery ||
+                            (c.name || "").toLowerCase().includes(campaignSearchQuery.toLowerCase()) ||
+                            (c.campaignType || "").toLowerCase().includes(campaignSearchQuery.toLowerCase())
+                          )
+                          .map((camp) => {
+                            const isSelected = referencedCampaign?.id === camp.id || referencedCampaign?.googleAdsCampaignId === camp.googleAdsCampaignId;
+                            const budget = camp.budget ? Number(camp.budget) : (camp.amountMicros ? Number(camp.amountMicros) / 1_000_000 : null);
+                            return (
+                              <button
+                                key={camp.id || camp.googleAdsCampaignId || Math.random()}
+                                type="button"
+                                onClick={() => handleSelectReferenceCampaign(camp)}
+                                className={`w-full text-left p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                                  isSelected
+                                    ? "bg-purple-50 border-purple-300 text-purple-900"
+                                    : "bg-white hover:bg-slate-50 border-slate-200 text-slate-800 hover:border-purple-200"
+                                }`}
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-xs truncate text-slate-900">
+                                      {camp.name}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
+                                    <span className="px-1.5 py-0.2 bg-slate-100 rounded text-slate-600 font-medium">
+                                      {camp.campaignType || "SEARCH"}
+                                    </span>
+                                    {budget && budget > 0 && (
+                                      <span className="font-mono text-emerald-600 font-semibold">
+                                        ₹{budget.toLocaleString()}/day
+                                      </span>
+                                    )}
+                                    {camp.status && (
+                                      <span className="text-[9px] uppercase tracking-wider text-slate-400">
+                                        {camp.status}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <ArrowRight className="h-3.5 w-3.5 text-purple-600 opacity-60 shrink-0" />
+                              </button>
+                            );
+                          })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Input Textarea */}
               <div className="relative flex-1">
-                <input
-                  ref={inputRef}
-                  type="text"
+                <textarea
+                  ref={inputRef as any}
+                  rows={1}
                   value={inputVal}
-                  onChange={(e) => setInputVal(e.target.value)}
+                  onChange={(e) => {
+                    setInputVal(e.target.value);
+                    // If user manually types "@", open the dropdown
+                    if (e.target.value.endsWith("@") && !isCampaignDropdownOpen) {
+                      setIsCampaignDropdownOpen(true);
+                    }
+                    // Auto-adjust height dynamically
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (inputVal.trim() && !isLoading && !isPublishing) {
+                        handleSendMessage();
+                        // Reset textarea height after sending
+                        if (inputRef.current) {
+                          inputRef.current.style.height = "auto";
+                        }
+                      }
+                    }
+                  }}
                   placeholder={
                     isLoading
                       ? "AI Copilot is formulating recommendations..."
-                      : "Describe your goal, business, paste website URL, or set daily budget..."
+                      : "Describe your goal, business, paste URL, budget, or type @ to reference a campaign..."
                   }
                   disabled={isLoading || isPublishing}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all disabled:opacity-60 shadow-xs"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all disabled:opacity-60 shadow-xs resize-none min-h-[42px] max-h-[140px] leading-relaxed scrollbar-thin overflow-y-auto block"
                 />
                 {inputVal.includes("http") && (
-                  <span className="absolute right-3 top-3 px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono">
+                  <span className="absolute right-3 top-2.5 px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono pointer-events-none">
                     URL Detected
                   </span>
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                title="Upload image or logo"
-                className="p-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer shrink-0"
-              >
-                <Upload className="h-4 w-4" />
-              </button>
+              {/* Media Picker & AI Generator Dropdown/Trigger */}
+              <div className="flex items-center gap-1 shrink-0 pb-0.5">
+                <button
+                  type="button"
+                  onClick={() => handleTriggerAiAssetGeneration("IMAGE")}
+                  title="Generate Marketing Creative Images with AI Prompt"
+                  className="p-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white transition-all cursor-pointer shrink-0 shadow-xs"
+                >
+                  <Wand2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveUploadTarget("IMAGE");
+                    imageInputRef.current?.click();
+                  }}
+                  title="Upload Marketing Image (1.91:1 / 1:1)"
+                  className="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-all cursor-pointer shrink-0"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveUploadTarget("LOGO");
+                    logoInputRef.current?.click();
+                  }}
+                  title="Upload Business Logo (1:1 / 4:1)"
+                  className="p-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-all cursor-pointer shrink-0"
+                >
+                  <Upload className="h-4 w-4" />
+                </button>
+              </div>
 
               <button
                 type="submit"
                 disabled={!inputVal.trim() || isLoading || isPublishing}
-                className="px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs disabled:opacity-40 transition-all shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-1.5 shrink-0"
+                className="px-5 py-2.5 h-[42px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs disabled:opacity-40 transition-all shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-1.5 shrink-0"
               >
                 <span>Send</span>
                 <Send className="h-3.5 w-3.5" />
@@ -3429,7 +5224,7 @@ export default function AiGuidedCampaignPage() {
                     </div>
                     {editingField !== "language" && (
                       <span className="text-slate-800 font-medium truncate max-w-[200px] text-right">
-                        {campaignState.language || "English"}
+                        {campaignState.language || "All languages"}
                       </span>
                     )}
                   </div>
@@ -3478,12 +5273,20 @@ export default function AiGuidedCampaignPage() {
                                 key={lang.id}
                                 type="button"
                                 onClick={() => {
-                                  if (isSelected) {
-                                    if (selectedLanguagesList.length > 1) {
-                                      setSelectedLanguagesList(selectedLanguagesList.filter(l => l !== lang.name));
-                                    }
+                                  if (lang.name === "All languages") {
+                                    setSelectedLanguagesList(["All languages"]);
                                   } else {
-                                    setSelectedLanguagesList([...selectedLanguagesList, lang.name]);
+                                    if (isSelected) {
+                                      if (selectedLanguagesList.length > 1) {
+                                        setSelectedLanguagesList(selectedLanguagesList.filter(l => l !== lang.name));
+                                      } else {
+                                        setSelectedLanguagesList(["All languages"]);
+                                      }
+                                    } else {
+                                      // If user picks a specific language, replace "All languages" or append
+                                      const withoutAll = selectedLanguagesList.filter(l => l !== "All languages");
+                                      setSelectedLanguagesList([...withoutAll, lang.name]);
+                                    }
                                   }
                                   setFieldError(null);
                                 }}
@@ -4133,14 +5936,78 @@ export default function AiGuidedCampaignPage() {
                     <ImageIcon className="h-4 w-4 text-blue-600" />
                     <span className="font-bold text-xs text-slate-900">Campaign Creatives & Assets</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-[10px] text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Upload className="h-3 w-3" />
-                    Upload
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setUploadGuidelineModal("IMAGE")}
+                      className="text-[10px] text-slate-500 hover:text-slate-800 font-medium flex items-center gap-0.5 cursor-pointer px-1.5 py-0.5 rounded hover:bg-slate-100"
+                      title="View Guidelines & Specifications"
+                    >
+                      <Info className="h-3 w-3 text-slate-400" />
+                      Rules
+                    </button>
+                  </div>
+                </div>
+
+                {/* Direct Upload & AI Generate Buttons Bar */}
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-3 gap-1.5 p-1 bg-white border border-slate-200 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveUploadTarget("IMAGE");
+                        imageInputRef.current?.click();
+                      }}
+                      className="py-1.5 px-2 rounded-lg bg-blue-50/80 hover:bg-blue-100 text-blue-700 font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                    >
+                      <Upload className="h-3 w-3 text-blue-600" />
+                      <span>+ Image</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveUploadTarget("LOGO");
+                        logoInputRef.current?.click();
+                      }}
+                      className="py-1.5 px-2 rounded-lg bg-purple-50/80 hover:bg-purple-100 text-purple-700 font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                    >
+                      <Upload className="h-3 w-3 text-purple-600" />
+                      <span>+ Logo</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveUploadTarget("VIDEO");
+                        videoInputRef.current?.click();
+                      }}
+                      className="py-1.5 px-2 rounded-lg bg-red-50/80 hover:bg-red-100 text-red-700 font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                    >
+                      <Video className="h-3 w-3 text-red-600" />
+                      <span>+ Video</span>
+                    </button>
+                  </div>
+
+                  {/* AI Generation Quick Actions */}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerAiAssetGeneration("IMAGE")}
+                      className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20"
+                      title="Generate Google Ads compliant marketing images with AI prompt"
+                    >
+                      <Wand2 className="h-3 w-3 text-blue-200" />
+                      <span>Generate Images</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerAiAssetGeneration("LOGO")}
+                      className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-purple-500/20"
+                      title="Generate high-resolution logo with AI prompt"
+                    >
+                      <Sparkles className="h-3 w-3 text-pink-200" />
+                      <span>Generate Logo</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Live Performance Max Asset Requirements Checklist when type is PERFORMANCE_MAX */}
@@ -4334,13 +6201,54 @@ export default function AiGuidedCampaignPage() {
                 )}
 
                 {allAssetsCount === 0 ? (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-3 text-center cursor-pointer transition-colors"
-                  >
-                    <Upload className="h-5 w-5 text-slate-400 mx-auto mb-1" />
-                    <p className="text-[11px] font-semibold text-slate-700">No media attached yet</p>
-                    <p className="text-[10px] text-slate-400">Click to upload landscape (1.91:1), square (1:1), or logo</p>
+                  <div className="border-2 border-dashed border-slate-200 rounded-xl p-3.5 text-center space-y-2.5 bg-white/50">
+                    <Upload className="h-5 w-5 text-slate-400 mx-auto" />
+                    <div>
+                      <p className="text-[11px] font-semibold text-slate-700">No media attached yet</p>
+                      <p className="text-[10px] text-slate-400">Upload or generate landscape (1.91:1), square (1:1), or logo</p>
+                    </div>
+                    <div className="flex flex-col gap-1.5 pt-1">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveUploadTarget("IMAGE");
+                            imageInputRef.current?.click();
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-[10px] border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+                        >
+                          + Image
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveUploadTarget("LOGO");
+                            logoInputRef.current?.click();
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200 hover:bg-purple-100 transition-colors cursor-pointer"
+                        >
+                          + Logo
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerAiAssetGeneration("IMAGE")}
+                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                        >
+                          <Wand2 className="h-2.5 w-2.5" />
+                          <span>AI Generate Images</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerAiAssetGeneration("LOGO")}
+                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                        >
+                          <Sparkles className="h-2.5 w-2.5" />
+                          <span>AI Generate Logo</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -4359,10 +6267,37 @@ export default function AiGuidedCampaignPage() {
                                 ) : (
                                   <ImageIcon className="h-4 w-4 text-slate-400" />
                                 )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1.5">
+                                <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditExistingAsset("IMAGE", idx);
+                                    }}
+                                    className="p-1 rounded-md bg-black/70 hover:bg-blue-600 text-white transition-all cursor-pointer"
+                                    title="Edit / Crop image"
+                                  >
+                                    <Crop className="h-2.5 w-2.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        images: (prev.images || []).filter((_, i) => i !== idx)
+                                      }));
+                                    }}
+                                    className="p-1 rounded-md bg-black/70 hover:bg-rose-600 text-white transition-all cursor-pointer"
+                                    title="Remove image"
+                                  >
+                                    <Trash2 className="h-2.5 w-2.5" />
+                                  </button>
+                                </div>
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1.5 pointer-events-none">
                                   <span className="text-[9px] text-white truncate font-medium">{name}</span>
                                 </div>
-                                <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono">
+                                <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono pointer-events-none">
                                   1.91:1 / 1:1
                                 </span>
                               </div>
@@ -4380,9 +6315,36 @@ export default function AiGuidedCampaignPage() {
                           {campaignState.logos.map((logo, idx) => {
                             const url = typeof logo === "string" ? logo : logo?.url || "";
                             return (
-                              <div key={idx} className="relative w-12 h-12 rounded-lg border border-slate-200 bg-white p-1 flex items-center justify-center overflow-hidden">
+                              <div key={idx} className="relative group w-14 h-14 rounded-lg border border-slate-200 bg-white p-1 flex items-center justify-center overflow-hidden">
                                 {url ? <img src={url} alt="Logo" className="max-w-full max-h-full object-contain" /> : <ImageIcon className="h-3 w-3 text-slate-400" />}
-                                <span className="absolute bottom-0.5 right-0.5 bg-blue-600 text-white text-[7px] font-bold px-1 rounded">1:1</span>
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditExistingAsset("LOGO", idx);
+                                    }}
+                                    className="p-1 bg-blue-600 hover:bg-blue-700 text-white rounded cursor-pointer"
+                                    title="Edit / Crop logo"
+                                  >
+                                    <Crop className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        logos: (prev.logos || []).filter((_, i) => i !== idx)
+                                      }));
+                                    }}
+                                    className="p-1 bg-rose-600 hover:bg-rose-700 text-white rounded cursor-pointer"
+                                    title="Remove logo"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                <span className="absolute bottom-0.5 right-0.5 bg-blue-600 text-white text-[7px] font-bold px-1 rounded pointer-events-none">1:1</span>
                               </div>
                             );
                           })}
@@ -4394,14 +6356,29 @@ export default function AiGuidedCampaignPage() {
                     {campaignState.videos && campaignState.videos.length > 0 && (
                       <div className="space-y-1 pt-1.5 border-t border-slate-200">
                         <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Videos:</span>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-200">
-                          <Video className="h-4 w-4 text-red-500 shrink-0" />
-                          <span className="truncate">
-                            {typeof campaignState.videos[0] === "string" 
-                              ? campaignState.videos[0] 
-                              : campaignState.videos[0]?.name || "Attached video asset"}
-                          </span>
-                        </div>
+                        {campaignState.videos.map((vid, vIdx) => (
+                          <div key={vIdx} className="flex items-center justify-between text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-200">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <Video className="h-4 w-4 text-red-500 shrink-0" />
+                              <span className="truncate">
+                                {typeof vid === "string" ? vid : vid?.name || "Attached video asset"}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCampaignState(prev => ({
+                                  ...prev,
+                                  videos: (prev.videos || []).filter((_, i) => i !== vIdx)
+                                }));
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                              title="Remove video"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -4520,63 +6497,375 @@ export default function AiGuidedCampaignPage() {
               </div>
             )}
 
-            {/* 5. GENERATED AD COPY CARD */}
-            {(campaignState.headlines && campaignState.headlines.length > 0) || (campaignState.descriptions && campaignState.descriptions.length > 0) ? (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-slate-900">Generated Ad Copy</span>
-                  <span className="text-[10px] text-slate-500">
-                    {campaignState.headlines?.length || 0} Headlines • {campaignState.descriptions?.length || 0} Descriptions
+            {/* 5. GENERATED AD COPY CARD (Headlines, Long Headlines & Descriptions with Vertical Scrollbar & Add Buttons) */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Ad Copy & Creatives</span>
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {campaignState.headlines?.length || 0} HL • {campaignState.longHeadlines?.length || 0} Long HL • {campaignState.descriptions?.length || 0} Desc
+                </span>
+              </div>
+
+              {/* 1. HEADLINES SECTION */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wider block">
+                    Headlines (Max 30 chars):
                   </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold ${
+                      (campaignState.headlines?.length || 0) >= 3 ? "text-emerald-600" : "text-rose-600"
+                    }`}>
+                      {campaignState.headlines?.length || 0} (min 3)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingHeadline(!isAddingHeadline)}
+                      className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200 transition-colors"
+                    >
+                      <Plus className="h-2.5 w-2.5" />
+                      <span>Add</span>
+                    </button>
+                  </div>
                 </div>
 
-                {campaignState.headlines && campaignState.headlines.length > 0 && (
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Headlines (Max 30 chars):</span>
-                      <span className={`text-[10px] font-bold ${
-                        (campaignState.headlines?.length || 0) >= 3 ? "text-emerald-600" : "text-rose-600"
-                      }`}>
-                        {campaignState.headlines?.length || 0} (min 3)
-                      </span>
+                {/* Inline Add Headline Input Bar */}
+                {isAddingHeadline && (
+                  <div className="p-2 bg-white rounded-xl border border-blue-300 shadow-2xs space-y-1.5 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        maxLength={30}
+                        value={newHeadlineInput}
+                        onChange={(e) => setNewHeadlineInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newHeadlineInput.trim()) {
+                            e.preventDefault();
+                            const val = newHeadlineInput.trim();
+                            setCampaignState(prev => ({
+                              ...prev,
+                              headlines: [...(prev.headlines || []), val]
+                            }));
+                            setNewHeadlineInput("");
+                            setIsAddingHeadline(false);
+                          }
+                        }}
+                        placeholder="Enter headline (e.g. Premium Deals)..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        disabled={!newHeadlineInput.trim()}
+                        onClick={() => {
+                          if (!newHeadlineInput.trim()) return;
+                          const val = newHeadlineInput.trim();
+                          setCampaignState(prev => ({
+                            ...prev,
+                            headlines: [...(prev.headlines || []), val]
+                          }));
+                          setNewHeadlineInput("");
+                          setIsAddingHeadline(false);
+                        }}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingHeadline(false);
+                          setNewHeadlineInput("");
+                        }}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
-                    <div className="space-y-1">
-                      {campaignState.headlines.slice(0, 5).map((hl, idx) => (
-                        <div key={idx} className="p-1.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-800 truncate shadow-2xs flex justify-between items-center">
-                          <span className="truncate">{hl}</span>
-                          <span className={`text-[9px] font-mono shrink-0 ml-1 ${hl.length > 30 ? "text-rose-600 font-bold" : "text-slate-400"}`}>
-                            {hl.length}/30
-                          </span>
-                        </div>
-                      ))}
+                    <div className="flex justify-between items-center px-1 text-[9px] text-slate-400 font-mono">
+                      <span>Press Enter to save</span>
+                      <span className={newHeadlineInput.length > 30 ? "text-rose-600 font-bold" : ""}>
+                        {newHeadlineInput.length}/30 chars
+                      </span>
                     </div>
                   </div>
                 )}
 
-                {campaignState.descriptions && campaignState.descriptions.length > 0 && (
-                  <div className="space-y-1.5 pt-2 border-t border-slate-200">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Descriptions (Max 90 chars):</span>
-                      <span className={`text-[10px] font-bold ${
-                        (campaignState.descriptions?.length || 0) >= 2 ? "text-emerald-600" : "text-rose-600"
-                      }`}>
-                        {campaignState.descriptions?.length || 0} (min 2)
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      {campaignState.descriptions.slice(0, 3).map((desc, idx) => (
-                        <div key={idx} className="p-1.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-800 shadow-2xs">
-                          <p className="line-clamp-2">{desc}</p>
-                          <span className={`text-[9px] font-mono block text-right mt-0.5 ${desc.length > 90 ? "text-rose-600 font-bold" : "text-slate-400"}`}>
-                            {desc.length}/90
+                {/* Vertical Scrollbar Container for ALL Headlines */}
+                {campaignState.headlines && campaignState.headlines.length > 0 ? (
+                  <div className="space-y-1 max-h-44 overflow-y-auto pr-1 scrollbar-thin">
+                    {campaignState.headlines.map((hl, idx) => (
+                      <div key={idx} className="p-1.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-800 shadow-2xs flex justify-between items-center group hover:border-blue-300 transition-colors">
+                        <span className="truncate flex-1 mr-2 text-slate-800">{hl}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`text-[9px] font-mono ${hl.length > 30 ? "text-rose-600 font-bold" : "text-slate-400"}`}>
+                            {hl.length}/30
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => ({
+                                ...prev,
+                                headlines: (prev.headlines || []).filter((_, i) => i !== idx)
+                              }));
+                            }}
+                            className="text-slate-300 hover:text-rose-600 p-0.5 rounded transition-colors cursor-pointer"
+                            title="Remove headline"
+                          >
+                            <Trash2 className="h-2.5 w-2.5" />
+                          </button>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-2 bg-white rounded-lg border border-dashed border-slate-200 text-center text-[10px] text-slate-400">
+                    No headlines yet. Click "+ Add" to create.
                   </div>
                 )}
               </div>
-            ) : null}
+
+              {/* 2. LONG HEADLINES SECTION */}
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wider block">
+                    Long Headlines (Max 90 chars):
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-600">
+                      {campaignState.longHeadlines?.length || 0}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingLongHeadline(!isAddingLongHeadline)}
+                      className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200 transition-colors"
+                    >
+                      <Plus className="h-2.5 w-2.5" />
+                      <span>Add</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inline Add Long Headline Input Bar */}
+                {isAddingLongHeadline && (
+                  <div className="p-2 bg-white rounded-xl border border-blue-300 shadow-2xs space-y-1.5 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        maxLength={90}
+                        value={newLongHeadlineInput}
+                        onChange={(e) => setNewLongHeadlineInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newLongHeadlineInput.trim()) {
+                            e.preventDefault();
+                            const val = newLongHeadlineInput.trim();
+                            setCampaignState(prev => ({
+                              ...prev,
+                              longHeadlines: [...(prev.longHeadlines || []), val]
+                            }));
+                            setNewLongHeadlineInput("");
+                            setIsAddingLongHeadline(false);
+                          }
+                        }}
+                        placeholder="Enter long headline..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        disabled={!newLongHeadlineInput.trim()}
+                        onClick={() => {
+                          if (!newLongHeadlineInput.trim()) return;
+                          const val = newLongHeadlineInput.trim();
+                          setCampaignState(prev => ({
+                            ...prev,
+                            longHeadlines: [...(prev.longHeadlines || []), val]
+                          }));
+                          setNewLongHeadlineInput("");
+                          setIsAddingLongHeadline(false);
+                        }}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingLongHeadline(false);
+                          setNewLongHeadlineInput("");
+                        }}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="flex justify-between items-center px-1 text-[9px] text-slate-400 font-mono">
+                      <span>Press Enter to save</span>
+                      <span className={newLongHeadlineInput.length > 90 ? "text-rose-600 font-bold" : ""}>
+                        {newLongHeadlineInput.length}/90 chars
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Vertical Scrollbar Container for ALL Long Headlines */}
+                {campaignState.longHeadlines && campaignState.longHeadlines.length > 0 ? (
+                  <div className="space-y-1 max-h-40 overflow-y-auto pr-1 scrollbar-thin">
+                    {campaignState.longHeadlines.map((lhl, idx) => (
+                      <div key={idx} className="p-1.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-800 shadow-2xs flex justify-between items-center group hover:border-blue-300 transition-colors">
+                        <span className="truncate flex-1 mr-2 text-slate-800">{lhl}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`text-[9px] font-mono ${lhl.length > 90 ? "text-rose-600 font-bold" : "text-slate-400"}`}>
+                            {lhl.length}/90
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => ({
+                                ...prev,
+                                longHeadlines: (prev.longHeadlines || []).filter((_, i) => i !== idx)
+                              }));
+                            }}
+                            className="text-slate-300 hover:text-rose-600 p-0.5 rounded transition-colors cursor-pointer"
+                            title="Remove long headline"
+                          >
+                            <Trash2 className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-2 bg-white rounded-lg border border-dashed border-slate-200 text-center text-[10px] text-slate-400">
+                    No long headlines. Click "+ Add" to create.
+                  </div>
+                )}
+              </div>
+
+              {/* 3. DESCRIPTIONS SECTION */}
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wider block">
+                    Descriptions (Max 90 chars):
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold ${
+                      (campaignState.descriptions?.length || 0) >= 2 ? "text-emerald-600" : "text-rose-600"
+                    }`}>
+                      {campaignState.descriptions?.length || 0} (min 2)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingDescription(!isAddingDescription)}
+                      className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200 transition-colors"
+                    >
+                      <Plus className="h-2.5 w-2.5" />
+                      <span>Add</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inline Add Description Input Bar */}
+                {isAddingDescription && (
+                  <div className="p-2 bg-white rounded-xl border border-blue-300 shadow-2xs space-y-1.5 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        maxLength={90}
+                        value={newDescriptionInput}
+                        onChange={(e) => setNewDescriptionInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newDescriptionInput.trim()) {
+                            e.preventDefault();
+                            const val = newDescriptionInput.trim();
+                            setCampaignState(prev => ({
+                              ...prev,
+                              descriptions: [...(prev.descriptions || []), val]
+                            }));
+                            setNewDescriptionInput("");
+                            setIsAddingDescription(false);
+                          }
+                        }}
+                        placeholder="Enter description (e.g. Discover our best deals today)..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        disabled={!newDescriptionInput.trim()}
+                        onClick={() => {
+                          if (!newDescriptionInput.trim()) return;
+                          const val = newDescriptionInput.trim();
+                          setCampaignState(prev => ({
+                            ...prev,
+                            descriptions: [...(prev.descriptions || []), val]
+                          }));
+                          setNewDescriptionInput("");
+                          setIsAddingDescription(false);
+                        }}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingDescription(false);
+                          setNewDescriptionInput("");
+                        }}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="flex justify-between items-center px-1 text-[9px] text-slate-400 font-mono">
+                      <span>Press Enter to save</span>
+                      <span className={newDescriptionInput.length > 90 ? "text-rose-600 font-bold" : ""}>
+                        {newDescriptionInput.length}/90 chars
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Vertical Scrollbar Container for ALL Descriptions */}
+                {campaignState.descriptions && campaignState.descriptions.length > 0 ? (
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1 scrollbar-thin">
+                    {campaignState.descriptions.map((desc, idx) => (
+                      <div key={idx} className="p-2 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-800 shadow-2xs group hover:border-blue-300 transition-colors">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="line-clamp-2 text-slate-800 flex-1">{desc}</p>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className={`text-[9px] font-mono ${desc.length > 90 ? "text-rose-600 font-bold" : "text-slate-400"}`}>
+                              {desc.length}/90
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCampaignState(prev => ({
+                                  ...prev,
+                                  descriptions: (prev.descriptions || []).filter((_, i) => i !== idx)
+                                }));
+                              }}
+                              className="text-slate-300 hover:text-rose-600 p-0.5 rounded transition-colors cursor-pointer"
+                              title="Remove description"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-2 bg-white rounded-lg border border-dashed border-slate-200 text-center text-[10px] text-slate-400">
+                    No descriptions yet. Click "+ Add" to create.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Launch Action Footer inside Cockpit (Fixed / Sticky at bottom) */}
@@ -4612,7 +6901,7 @@ export default function AiGuidedCampaignPage() {
                 type="button"
                 onClick={handleEditDetailsInForm}
                 className="px-2.5 py-2 text-[11px] font-semibold rounded-xl text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer flex items-center justify-center gap-1"
-                title="Open comprehensive Performance Max edit form"
+                title="Navigate to manual campaign creation page"
               >
                 <SlidersHorizontal className="h-3 w-3 text-purple-600" />
                 <span className="truncate">Edit Form</span>
@@ -4634,9 +6923,494 @@ export default function AiGuidedCampaignPage() {
               </button>
             </div>
           </div>
-
         </div>
       </div>
+
+      {/* Hidden File Inputs for Marketing Image, Logo, and Video Uploads */}
+      <input
+        type="file"
+        ref={imageInputRef}
+        onChange={(e) => handleMediaUpload(e, "IMAGE")}
+        accept="image/png,image/jpeg,image/webp,image/jpg"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={logoInputRef}
+        onChange={(e) => handleMediaUpload(e, "LOGO")}
+        accept="image/png,image/jpeg,image/webp,image/jpg"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={videoInputRef}
+        onChange={(e) => handleMediaUpload(e, "VIDEO")}
+        accept="video/mp4,video/quicktime,video/webm"
+        className="hidden"
+      />
+
+      {/* ── Interactive Image Editor & Cropper Modal ── */}
+      {isImageEditorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/90">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-md ${
+                  editorTargetType === "LOGO" ? "bg-purple-600 shadow-purple-500/20" : "bg-blue-600 shadow-blue-500/20"
+                }`}>
+                  <Crop className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate">
+                      {editorTargetType === "LOGO" ? "Logo Editor & Cropper" : "Marketing Image Editor & Cropper"}
+                    </h3>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-semibold shrink-0">
+                      {editorImageDimensions.width}x{editorImageDimensions.height}px
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate">
+                    Crop and align your asset to meet Google Ads specifications
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImageEditorOpen(false);
+                  setEditorRuleViolationReason(null);
+                }}
+                className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Rule Notice Pill (If triggered due to dimension or aspect ratio mismatch) */}
+            {editorRuleViolationReason && (
+              <div className="mx-4 mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 flex items-start gap-2 shadow-2xs">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block text-amber-950">Specification Adjustment Required:</span>
+                  <span className="leading-snug">{editorRuleViolationReason}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Body / Visual Cropper Area */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 min-h-0">
+              {/* Ratio Selector Buttons */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                  <Scissors className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Choose Google Ads Aspect Ratio:</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {editorTargetType === "LOGO" ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setEditorCropRatio("1:1")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          editorCropRatio === "1:1"
+                            ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                        }`}
+                      >
+                        <span className="w-3 h-3 rounded-xs border border-current" />
+                        <span>Square (1:1)</span>
+                        <span className="text-[9px] opacity-75 font-mono">1200x1200</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditorCropRatio("4:1")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          editorCropRatio === "4:1"
+                            ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                        }`}
+                      >
+                        <span className="w-4 h-1.5 rounded-xs border border-current" />
+                        <span>Landscape Logo (4:1)</span>
+                        <span className="text-[9px] opacity-75 font-mono">1200x300</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setEditorCropRatio("1.91:1")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          editorCropRatio === "1.91:1"
+                            ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                        }`}
+                      >
+                        <span className="w-3.5 h-2 rounded-xs border border-current" />
+                        <span>Landscape (1.91:1)</span>
+                        <span className="text-[9px] opacity-75 font-mono">1200x628</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditorCropRatio("1:1")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          editorCropRatio === "1:1"
+                            ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-xs border border-current" />
+                        <span>Square (1:1)</span>
+                        <span className="text-[9px] opacity-75 font-mono">1200x1200</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditorCropRatio("4:5")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          editorCropRatio === "4:5"
+                            ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                        }`}
+                      >
+                        <span className="w-2 h-2.5 rounded-xs border border-current" />
+                        <span>Portrait (4:5)</span>
+                        <span className="text-[9px] opacity-75 font-mono">960x1200</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditorCropRatio("9:16")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          editorCropRatio === "9:16"
+                            ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                        }`}
+                      >
+                        <span className="w-1.5 h-3 rounded-xs border border-current" />
+                        <span>Story / Tall (9:16)</span>
+                        <span className="text-[9px] opacity-75 font-mono">1080x1920</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Interactive Visual Crop Preview Container */}
+              <div className="relative rounded-2xl border border-slate-300 bg-slate-950/95 overflow-hidden flex items-center justify-center p-4 min-h-[260px] max-h-[340px]">
+                {/* Crop Boundary Mask */}
+                <div
+                  className={`relative overflow-hidden border-2 border-white/90 shadow-2xl transition-all duration-200 bg-slate-900 ${
+                    editorCropRatio === "1.91:1"
+                      ? "aspect-[1200/628] w-full max-w-[480px]"
+                      : editorCropRatio === "1:1"
+                      ? "aspect-square w-56 sm:w-64"
+                      : editorCropRatio === "4:5"
+                      ? "aspect-[4/5] w-48 sm:w-56"
+                      : editorCropRatio === "9:16"
+                      ? "aspect-[9/16] w-36 sm:w-44"
+                      : "aspect-[4/1] w-full max-w-[480px]"
+                  }`}
+                >
+                  {/* Grid Lines Overlay */}
+                  <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none z-10 opacity-35 border border-white/30">
+                    <div className="border-r border-b border-white/30" />
+                    <div className="border-r border-b border-white/30" />
+                    <div className="border-b border-white/30" />
+                    <div className="border-r border-b border-white/30" />
+                    <div className="border-r border-b border-white/30" />
+                    <div className="border-b border-white/30" />
+                    <div className="border-r border-white/30" />
+                    <div className="border-r border-white/30" />
+                    <div />
+                  </div>
+
+                  {/* Image with dynamic transform */}
+                  {editorImageSrc && (
+                    <img
+                      src={editorImageSrc}
+                      alt="Crop target"
+                      className="w-full h-full object-cover transition-transform select-none"
+                      style={{
+                        transform: `scale(${editorZoom}) translate(${editorPanX * 20}%, ${editorPanY * 20}%)`,
+                        transformOrigin: "center center"
+                      }}
+                    />
+                  )}
+
+                  <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[9px] font-mono z-20 pointer-events-none">
+                    {editorCropRatio}
+                  </span>
+                </div>
+              </div>
+
+              {/* Zoom & Alignment Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-2xl text-[11px]">
+                {/* Zoom Slider */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-slate-700 font-semibold">
+                    <span className="flex items-center gap-1">
+                      <ZoomIn className="h-3 w-3 text-blue-600" />
+                      <span>Zoom: {editorZoom.toFixed(1)}x</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditorZoom(1)}
+                      className="text-[10px] text-blue-600 hover:underline"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="0.05"
+                    value={editorZoom}
+                    onChange={(e) => setEditorZoom(parseFloat(e.target.value))}
+                    className="w-full accent-blue-600 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
+                  />
+                </div>
+
+                {/* Horizontal Alignment Pan */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-slate-700 font-semibold">
+                    <span className="flex items-center gap-1">
+                      <Move className="h-3 w-3 text-blue-600" />
+                      <span>Offset / Pan:</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditorPanX(0);
+                        setEditorPanY(0);
+                      }}
+                      className="text-[10px] text-blue-600 hover:underline"
+                    >
+                      Center
+                    </button>
+                  </div>
+                  <input
+                    type="range"
+                    min="-1"
+                    max="1"
+                    step="0.05"
+                    value={editorPanX}
+                    onChange={(e) => setEditorPanX(parseFloat(e.target.value))}
+                    className="w-full accent-blue-600 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+              <span className="text-[11px] text-slate-500 truncate hidden sm:inline">
+                Cropped image will be formatted to recommended Google Ads resolution.
+              </span>
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsImageEditorOpen(false);
+                    setEditorRuleViolationReason(null);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyCropAndSave}
+                  disabled={isApplyingCrop}
+                  className={`px-5 py-2 rounded-xl text-white font-bold text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer ${
+                    editorTargetType === "LOGO"
+                      ? "bg-purple-600 hover:bg-purple-700 shadow-purple-500/20"
+                      : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                  }`}
+                >
+                  {isApplyingCrop ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Processing & Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      <span>Apply Crop & Save Asset</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ── AI Generated & Published Campaign History Modal ── */}
+      {isHistoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+                  <History className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                    <span>Campaign History</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-semibold font-mono">
+                      {existingCampaignsList.length} Total
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    All AI-generated, configured, and published Google Ads campaigns
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Search and Quick Filters */}
+            <div className="p-4 border-b border-slate-100 bg-white">
+              <div className="relative">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
+                <input
+                  type="text"
+                  value={campaignSearchQuery}
+                  onChange={(e) => setCampaignSearchQuery(e.target.value)}
+                  placeholder="Search by campaign name, type (Search, PMax, Display), or status..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-600 focus:bg-white transition-all shadow-2xs"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Campaigns History Scrollable List */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 min-h-0">
+              {isLoadingCampaigns ? (
+                <div className="py-16 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                  <span>Loading campaign history from Google Ads...</span>
+                </div>
+              ) : existingCampaignsList.length === 0 ? (
+                <div className="py-16 text-center text-xs text-slate-400 space-y-2">
+                  <Bookmark className="h-10 w-10 text-slate-200 mx-auto" />
+                  <p className="font-bold text-sm text-slate-700">No campaigns found yet</p>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Once you generate and launch campaigns through AI Copilot, they will automatically appear here with full history and quick reuse options.
+                  </p>
+                </div>
+              ) : (
+                existingCampaignsList
+                  .filter((c) =>
+                    !campaignSearchQuery ||
+                    (c.name || "").toLowerCase().includes(campaignSearchQuery.toLowerCase()) ||
+                    (c.campaignType || "").toLowerCase().includes(campaignSearchQuery.toLowerCase()) ||
+                    (c.status || "").toLowerCase().includes(campaignSearchQuery.toLowerCase())
+                  )
+                  .map((camp) => {
+                    const budget = camp.budget ? Number(camp.budget) : (camp.amountMicros ? Number(camp.amountMicros) / 1_000_000 : null);
+                    const isPublished = Boolean(camp.googleAdsCampaignId || camp.status === "ENABLED" || camp.status === "PAUSED");
+
+                    return (
+                      <div
+                        key={camp.id || camp.googleAdsCampaignId || Math.random()}
+                        className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-purple-300 hover:shadow-md transition-all space-y-2.5 group"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                                {camp.name}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                {camp.campaignType || "SEARCH"}
+                              </span>
+                              {isPublished ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                  <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
+                                  <span>Published</span>
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                  Configured Draft
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Details Row */}
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
+                              {budget && budget > 0 && (
+                                <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">
+                                  ₹{budget.toLocaleString()}/day
+                                </span>
+                              )}
+                              {camp.biddingStrategy && (
+                                <span className="text-slate-600">
+                                  Strategy: <strong className="text-slate-800">{camp.biddingStrategy}</strong>
+                                </span>
+                              )}
+                              {camp.status && (
+                                <span className="text-slate-500 font-medium">
+                                  Status: <span className="uppercase text-slate-700 font-semibold">{camp.status}</span>
+                                </span>
+                              )}
+                              {camp.startDate && (
+                                <span className="text-slate-400 text-[10px] flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{new Date(camp.startDate).toLocaleDateString()}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick Reuse Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleSelectReferenceCampaign(camp);
+                              setIsHistoryModalOpen(false);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-600 text-purple-700 hover:text-white border border-purple-200 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs group-hover:bg-purple-600 group-hover:text-white"
+                            title="Reuse this campaign in AI Studio"
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            <span>Reuse Campaign</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Click <strong>"Reuse Campaign"</strong> to load settings and creative assets directly into your active session.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

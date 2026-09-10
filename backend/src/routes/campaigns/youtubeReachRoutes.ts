@@ -16,7 +16,10 @@ const validatePayload = (req: any, res: any, next: any) => {
 router.post("/video", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+    if (!orgId) {
+      return res.status(400).json({ error: "Organization ID is required" });
+    }
     const result = await YoutubeVideoService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -27,7 +30,10 @@ router.post("/video", validatePayload, async (req, res) => {
 router.post("/demand-gen", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+    if (!orgId) {
+      return res.status(400).json({ error: "Organization ID is required" });
+    }
     const result = await YoutubeDemandGenService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -38,7 +44,10 @@ router.post("/demand-gen", validatePayload, async (req, res) => {
 router.post("/display-local", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+    if (!orgId) {
+      return res.status(400).json({ error: "Organization ID is required" });
+    }
     const result = await YoutubeDisplayLocalService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {

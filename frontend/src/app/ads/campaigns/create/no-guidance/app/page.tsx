@@ -560,8 +560,8 @@ export default function  NoGuidanceAppPage()  {
 
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = "demo-org-123";
-    if (customerId) {
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
+    if (customerId && orgId) {
       fetch(`${BACKEND}/api/ads/customer-info?orgId=${orgId}&customerId=${customerId}`)
         .then(r => r.json())
         .then(d => {
@@ -2999,25 +2999,50 @@ export default function  NoGuidanceAppPage()  {
                     throw new Error("A valid positive daily budget is required.");
                   }
 
+                  // Convert uploaded images to base64 strings
+                  const imageBase64Array = await Promise.all(
+                    uploadedImages.map(
+                      (file) =>
+                        new Promise<string>((resolve, reject) => {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const result = reader.result as string;
+                            const base64 = result.split(',')[1] || result;
+                            resolve(base64);
+                          };
+                          reader.onerror = () => reject(reader.error);
+                          reader.readAsDataURL(file);
+                        })
+                    )
+                  );
+
+                  const youtubeIds = youtubeVideoIds || [];
+
                   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-                  
+
                   const res = await fetch(`${BACKEND}/api/ads/campaigns/no-guidance/app`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                      orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "",
-                      customerId: customerId || "6587355041",
+                      orgId: orgId.trim(),
+                      customerId: customerId.trim(),
                       campaignName: campaignName.trim(),
                       appId: selectedMobileApp.packageName,
                       appStore: mobileAppPlatform === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE",
                       businessName: businessName.trim(),
                       targetCpa: Number(targetCpaValue) || 1.5,
-                      locations: selectedLocation === "ALL" ? ["All countries and territories"] : selectedLocation === "INDIA" ? ["India"] : targetLocations.map(l => l.name),
+                      locations: selectedLocation === "ALL"
+                        ? ["All countries and territories"]
+                        : selectedLocation === "INDIA"
+                        ? ["India"]
+                        : targetLocations.map(l => l.name),
                       languages: selectedLanguages || ["English"],
                       headlines: validHeadlines,
                       descriptions: validDescriptions,
-                      dailyBudget: budgetNum
-                    })
+                      dailyBudget: budgetNum,
+                      images: imageBase64Array,
+                      youtubeVideoIds: youtubeIds,
+                    }),
                   });
                   const data = await res.json();
                   if (!res.ok) throw new Error(data.error || "Failed to publish campaign");

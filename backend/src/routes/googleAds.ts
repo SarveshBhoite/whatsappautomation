@@ -978,13 +978,140 @@ router.get("/audiences", async (req, res) => {
 router.get("/geo-targets/search", async (req, res) => {
   try {
     const orgId = getOrgId(req);
-    const customerId = getCustomerId(req);
-    const query = req.query.q as string;
-    if (!customerId || !query) return res.status(400).json({ error: "customerId and q required" });
-    const results = await GoogleAdsService.searchGeoTargets(orgId, customerId, query);
+    const customerId = getCustomerId(req) || "";
+    const query = (req.query.q || "") as string;
+    const locale = (req.query.locale || "en") as string;
+    if (!query) return res.status(200).json([]);
+    const results = await GoogleAdsService.searchGeoTargets(orgId, customerId, query, locale);
     res.status(200).json(results);
   } catch (error: any) {
-    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+    res.status(200).json([]);
+  }
+});
+
+// GET /api/ads/places/autocomplete - Google Places & Geocode proxy
+router.get("/places/autocomplete", async (req, res) => {
+  try {
+    const query = ((req.query.input || req.query.q || "") as string).trim();
+    const mode = (req.query.mode || "location") as string; // 'location' | 'radius'
+    const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+
+    if (!query) return res.status(200).json({ predictions: [] });
+    if (!apiKey) return res.status(200).json({ predictions: [] });
+
+    const isPinCode = /^\d{3,10}$/.test(query.replace(/\s+/g, ""));
+
+    // If query is a Postal/PIN code, query Geocoding API first to get city, district, state
+    if (isPinCode) {
+      try {
+        const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
+        const geoRes = await axios.get(geoUrl, { timeout: 8000 });
+        const results = geoRes.data?.results || [];
+
+        if (results.length > 0) {
+          const pinPredictions = results.map((item: any) => {
+            let locality = "";
+            let district = "";
+            let state = "";
+            let country = "";
+            let postalCode = query;
+
+            for (const comp of item.address_components || []) {
+              if (comp.types.includes("postal_code")) postalCode = comp.long_name;
+              if (comp.types.includes("locality")) locality = comp.long_name;
+              if (comp.types.includes("administrative_area_level_2")) district = comp.long_name;
+              if (comp.types.includes("administrative_area_level_1")) state = comp.long_name;
+              if (comp.types.includes("country")) country = comp.long_name;
+            }
+
+            const mainCity = locality || district || item.formatted_address.split(",")[0];
+            const secondary = [district && district !== mainCity ? district : null, state, country].filter(Boolean).join(", ");
+            const description = `${mainCity} (${postalCode}), ${secondary}`;
+
+            return {
+              placeId: item.place_id,
+              description: description || item.formatted_address,
+              mainText: `${mainCity} (${postalCode})`,
+              secondaryText: secondary || item.formatted_address,
+              types: ["postal_code"],
+              lat: item.geometry?.location?.lat,
+              lng: item.geometry?.location?.lng
+            };
+          });
+
+          return res.status(200).json({ predictions: pinPredictions });
+        }
+      } catch (geoErr: any) {
+        console.warn("Postal code geocode error:", geoErr.message);
+      }
+    }
+
+    // Autocomplete for all cities, areas, neighborhoods, districts, postal codes & landmarks
+    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${apiKey}`;
+    let response = await axios.get(url, { timeout: 8000 });
+
+    if (response.data?.status && response.data.status !== "OK" && response.data.status !== "ZERO_RESULTS") {
+      console.warn(`[GooglePlaces] Autocomplete status: ${response.data.status}, error_message: ${response.data.error_message || "none"}`);
+    }
+
+    let predictions = (response.data?.predictions || []).map((pred: any) => ({
+      placeId: pred.place_id,
+      description: pred.description,
+      mainText: pred.structured_formatting?.main_text || pred.description,
+      secondaryText: pred.structured_formatting?.secondary_text || "",
+      types: pred.types || []
+    }));
+
+    res.status(200).json({ predictions });
+  } catch (err: any) {
+    console.error("Places autocomplete error:", err?.response?.data || err.message);
+    res.status(200).json({ predictions: [], error: err.message });
+  }
+});
+
+// GET /api/ads/places/details - Geocode placeId / coordinates
+router.get("/places/details", async (req, res) => {
+  try {
+    const placeId = (req.query.placeId || "") as string;
+    const address = (req.query.address || "") as string;
+    const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: "GOOGLE_PLACES_API_KEY is not configured on the server." });
+    }
+
+    if (placeId) {
+      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=name,formatted_address,geometry,address_components&key=${apiKey}`;
+      const response = await axios.get(url, { timeout: 8000 });
+      const result = response.data?.result;
+      if (result) {
+        return res.status(200).json({
+          name: result.name,
+          formattedAddress: result.formatted_address,
+          lat: result.geometry?.location?.lat,
+          lng: result.geometry?.location?.lng,
+          viewport: result.geometry?.viewport
+        });
+      }
+    } else if (address) {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+      const response = await axios.get(url, { timeout: 8000 });
+      const result = response.data?.results?.[0];
+      if (result) {
+        return res.status(200).json({
+          name: address,
+          formattedAddress: result.formatted_address,
+          lat: result.geometry?.location?.lat,
+          lng: result.geometry?.location?.lng,
+          viewport: result.geometry?.viewport
+        });
+      }
+    }
+
+    res.status(404).json({ error: "Place details not found." });
+  } catch (err: any) {
+    console.error("Place details error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1323,23 +1450,6 @@ Return ONLY a JSON object:
     res.status(200).json(analysis);
   } catch (error: any) {
     res.status(500).json({ error: "Campaign analysis failed." });
-  }
-});
-
-// GET /api/ads/geo-targets/search — Search Google Ads Geo Target Constants
-router.get("/geo-targets/search", async (req, res) => {
-  try {
-    const orgId = getOrgId(req);
-    const customerId = getCustomerId(req);
-    const query = (req.query.q || "") as string;
-    const locale = (req.query.locale || "en") as string;
-    if (!query) return res.status(200).json({ results: [] });
-
-    const results = await GoogleAdsService.searchGeoTargets(orgId, customerId, query, locale);
-    res.status(200).json({ results });
-  } catch (error: any) {
-    console.warn("Geo target search fallback/error:", error?.response?.data || error.message);
-    res.status(200).json({ results: [] });
   }
 });
 

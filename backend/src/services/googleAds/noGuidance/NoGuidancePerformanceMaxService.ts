@@ -534,51 +534,14 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       const results = mutateRes.data.mutateOperationResponses;
       apiResult.assetGroupResourceName = results[0]?.assetGroupResult?.resourceName;
 
-      // 7. Add Campaign Criteria: Locations (geoTargetConstant) & Languages (languageConstant)
-      const criteriaOperations: any[] = [];
-
-      // Location targeting operations
-      const locList = Array.isArray(locations) ? locations : [locations].filter(Boolean);
-      for (const loc of locList) {
-        if (!loc || loc === "ALL" || loc === "All countries" || loc === "All countries and territories") continue;
-        const normLoc = String(loc).trim().toLowerCase();
-        const constantId = NoGuidancePerformanceMaxService.GEO_TARGET_CONSTANT_MAP[normLoc] || (/^\d+$/.test(String(loc)) ? String(loc) : null);
-        if (constantId) {
-          criteriaOperations.push({
-            create: {
-              campaign: campaignRef,
-              location: { geoTargetConstant: `geoTargetConstants/${constantId}` }
-            }
-          });
-        }
-      }
-
-      // Language targeting operations
-      const langList = Array.isArray(languages) ? languages : [languages].filter(Boolean);
-      for (const lang of langList) {
-        if (!lang) continue;
-        const normLang = String(lang).trim().toLowerCase();
-        const constantId = NoGuidancePerformanceMaxService.LANGUAGE_CONSTANT_MAP[normLang] || (/^\d+$/.test(String(lang)) ? String(lang) : null);
-        if (constantId) {
-          criteriaOperations.push({
-            create: {
-              campaign: campaignRef,
-              language: { languageConstant: `languageConstants/${constantId}` }
-            }
-          });
-        }
-      }
-
-      if (criteriaOperations.length > 0) {
-        try {
-          const critRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, {
-            operations: criteriaOperations
-          }, { headers });
-          apiResult.criteriaResults = critRes.data?.results || [];
-        } catch (critErr: any) {
-          console.warn("[No Guidance PMax] Warning: Failed to mutate campaign criteria:", critErr?.response?.data || critErr.message);
-        }
-      }
+      // 7. Mutate Campaign Criteria (Locations + Proximity Radius + Languages)
+      const criteriaResults = await GoogleAdsBaseService.mutateCampaignGeoAndLanguageCriteria(
+        organizationId,
+        customerId,
+        campaignRef,
+        { locations, languages, headers }
+      );
+      apiResult.criteriaResults = criteriaResults;
 
     } catch (err: any) {
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);

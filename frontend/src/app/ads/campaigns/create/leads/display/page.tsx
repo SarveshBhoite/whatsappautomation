@@ -362,6 +362,29 @@ export default function LeadsDisplayPage() {
           if (typeof prefill.useOptimizedTargeting === "boolean") {
             setUseOptimizedTargeting(prefill.useOptimizedTargeting);
           }
+          if (prefill.deviceOption) setDeviceOption(prefill.deviceOption);
+          if (Array.isArray(prefill.adScheduleList) && prefill.adScheduleList.length > 0) {
+            setAdScheduleList(prefill.adScheduleList);
+          }
+          if (prefill.trackingTemplate) setTrackingTemplate(prefill.trackingTemplate);
+          if (prefill.finalUrlSuffix) setFinalUrlSuffix(prefill.finalUrlSuffix);
+          if (Array.isArray(prefill.customParamsList) && prefill.customParamsList.length > 0) {
+            setCustomParamsList(prefill.customParamsList);
+          }
+          if (Array.isArray(prefill.keywords) && prefill.keywords.length > 0) {
+            setEnteredKeywordsText(prefill.keywords.join("\n"));
+          } else if (prefill.enteredKeywordsText) {
+            setEnteredKeywordsText(prefill.enteredKeywordsText);
+          }
+          if (Array.isArray(prefill.topics) && prefill.topics.length > 0) {
+            setSelectedTopics(prefill.topics);
+          }
+          if (Array.isArray(prefill.placements) && prefill.placements.length > 0) {
+            setSelectedPlacements(prefill.placements);
+          }
+          if (prefill.callToActionText) setCallToActionText(prefill.callToActionText);
+          if (prefill.adRotationOption) setAdRotationOption(prefill.adRotationOption);
+          if (prefill.viewableCpmBid) setViewableCpmBid(String(prefill.viewableCpmBid));
         }
       }
     } catch (err) {
@@ -3287,12 +3310,25 @@ export default function LeadsDisplayPage() {
               onClick={async () => {
                 // 1. Validation
                 const cleanHeadlines = headlines.filter(h => h && h.trim().length > 0);
+                const cleanLongHeadlines = longHeadlines.filter(lh => lh && lh.trim().length > 0);
                 const cleanDescriptions = descriptions.filter(d => d && d.trim().length > 0);
                 const numBudget = Number(dailyBudget);
 
                 if (!dailyBudget || isNaN(numBudget) || numBudget <= 0) {
                   alert("Daily Budget must be a positive number greater than 0.");
                   setDisplayStep("BUDGET_BIDDING");
+                  return;
+                }
+
+                if (!businessName || !businessName.trim()) {
+                  alert("Business Name is required for Display ads.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                if (!finalUrl || !finalUrl.trim() || finalUrl.includes("example.com") || finalUrl.includes("localhost")) {
+                  alert("A valid Final URL (landing page) is required. Dummy domains are disallowed.");
+                  setDisplayStep("ADS");
                   return;
                 }
 
@@ -3308,37 +3344,87 @@ export default function LeadsDisplayPage() {
                   return;
                 }
 
+                if (imagesList.length === 0) {
+                  alert("At least 1 Marketing Image is required for Display ads.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                if (logosList.length === 0) {
+                  alert("At least 1 Logo is required for Display ads.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
                 try {
                   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
                   const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
                   const targetCid = customerId || "6587355041";
+
+                  const resolvedBiddingStrategy = conversionBiddingType === "TARGET_CPA"
+                    ? "TARGET_CPA"
+                    : setTargetRoas || biddingFocus === "Target ROAS" || biddingFocus === "Conversion value"
+                    ? "TARGET_ROAS"
+                    : biddingFocus === "Impressions" || directBidStrategy === "Viewable CPM"
+                    ? "VIEWABLE_CPM"
+                    : biddingFocus === "Clicks" || directBidStrategy === "Maximize Clicks"
+                    ? "MAXIMIZE_CLICKS"
+                    : "MAXIMIZE_CONVERSIONS";
 
                   const payloadToLaunch = {
                     orgId,
                     customerId: targetCid,
                     campaignName: displayCampaignName.trim() || `Leads-Display-${Date.now()}`,
                     channelType: "DISPLAY",
-                    biddingStrategy: conversionBiddingType === "TARGET_CPA" ? "TARGET_CPA" : "MAXIMIZE_CONVERSIONS",
+                    biddingStrategy: resolvedBiddingStrategy,
+                    biddingFocus,
                     budget: numBudget,
-                    targetCpa: conversionBiddingType === "TARGET_CPA" && targetCpaValue ? Number(targetCpaValue) : undefined,
+                    dailyBudget: numBudget,
+                    targetCpa: (conversionBiddingType === "TARGET_CPA" || biddingFocus === "Target CPA") && targetCpaValue ? Number(targetCpaValue) : undefined,
+                    targetRoas: (setTargetRoas || biddingFocus === "Target ROAS") && targetRoasValue ? Number(targetRoasValue) : undefined,
+                    viewableCpmBid: viewableCpmBid ? Number(viewableCpmBid) : undefined,
                     startDate: startDate || new Date().toISOString().split("T")[0],
                     endDate: endDate || undefined,
-                    finalUrl: finalUrl.trim() || "https://www.JDS-automation.com",
-                    businessName: businessName.trim() || "JDS",
-                    headlines: cleanHeadlines.length > 0 ? cleanHeadlines : ["Grow Your Business Online", "Digital Marketing Solutions", "Smart Business Automation"],
-                    descriptions: cleanDescriptions.length > 0 ? cleanDescriptions : [
-                      "Get powerful digital marketing and automation solutions for your business.",
-                      "Generate more leads and grow your business with smart automation."
-                    ],
-                    images: imagesList.length > 0 ? imagesList : [
-                      "https://ik.imagekit.io/automationjds/gads_dg_image_1787574968684_aimaths_YX-Kb7zvI.jpg"
-                    ],
-                    logos: logosList.length > 0 ? logosList : [
-                      "https://ik.imagekit.io/automationjds/gads_dg_logo_1787574973938_google_ads_logo_FJndWjppS.jpg"
-                    ],
-                    locations: selectedLocation === "INDIA" ? ["India"] : ["All countries and territories"],
+                    finalUrl: finalUrl.trim(),
+                    businessName: businessName.trim(),
+                    callToAction: callToActionText || "Automated",
+                    headlines: cleanHeadlines,
+                    longHeadlines: cleanLongHeadlines.length > 0 ? cleanLongHeadlines : [cleanHeadlines[0]],
+                    descriptions: cleanDescriptions,
+                    images: imagesList,
+                    logos: logosList,
+                    videos: videosList,
+                    locations: selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["India"] : (selectedCustomLocations.length > 0 ? selectedCustomLocations.map(l => l.canonicalName || l.name) : [customLocationInput]),
+                    locationTargetType: locationTargetingType,
                     languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
-                    euPolitical: euPoliticalAds
+                    deviceTargeting: deviceOption,
+                    devices: deviceOption === "SPECIFIC" ? ["COMPUTERS", "MOBILE_PHONES", "TABLETS", "CONNECTED_TV"] : [],
+                    adSchedule: adScheduleList.filter(s => s.day && s.start && s.end && !(s.start === "00:00" && s.end === "00:00")),
+                    adRotation: adRotationOption,
+                    trackingTemplate: trackingTemplate || undefined,
+                    finalUrlSuffix: finalUrlSuffix || undefined,
+                    customParameters: customParamsList.filter(p => p.name && p.value),
+                    audiences: selectedAudiences,
+                    selectedAudiences,
+                    demographicsGender,
+                    demographicsAge,
+                    demographicsParental,
+                    demographicsIncome,
+                    topics: selectedTopics,
+                    placements: selectedPlacements,
+                    enteredKeywordsText: enteredKeywordsText || undefined,
+                    contentLabels,
+                    sensitiveContent,
+                    contentTypeExclusions,
+                    useOptimizedTargeting,
+                    optimizedTargeting: useOptimizedTargeting,
+                    useAssetEnhancements,
+                    useAutoGeneratedVideo,
+                    useNativeFormats,
+                    useDynamicFeed,
+                    euPolitical: euPoliticalAds,
+                    sitelinks: [],
+                    conversionGoals: []
                   };
 
                   console.log("[Leads -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));

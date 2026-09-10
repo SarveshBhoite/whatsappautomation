@@ -378,6 +378,15 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       const results = mutateRes.data.mutateOperationResponses;
       apiResult.assetGroupResourceName = results[0]?.assetGroupResult?.resourceName;
 
+      // 7. Mutate Campaign Criteria (Locations + Proximity Radius + Languages)
+      const criteriaResults = await GoogleAdsBaseService.mutateCampaignGeoAndLanguageCriteria(
+        organizationId,
+        customerId,
+        campaignRef,
+        { locations, languages, headers }
+      );
+      apiResult.criteriaResults = criteriaResults;
+
     } catch (err: any) {
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);
       console.error("[Google Ads API error for Sales Performance Max]:", formatted);

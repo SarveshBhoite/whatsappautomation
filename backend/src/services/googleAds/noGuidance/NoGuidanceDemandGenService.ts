@@ -782,43 +782,12 @@ export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
       apiResult.adGroupResourceName = createdAdGroupRefs[0];
 
       // ── 8. ATTACH LOCATION & LANGUAGE CRITERIA TO AD GROUPS ──
-      const adGroupCriterionOps: any[] = [];
-
-      // Resolve locations
-      const rawLocs = Array.isArray(locations) ? locations : [locations];
-      for (const loc of rawLocs) {
-        if (!loc || loc === "ALL" || loc === "All countries and territories") continue;
-        const geoId = await this.resolveGeoTargetConstant(loc, headers, isAiGuided);
-        if (geoId) {
-          for (const agRef of createdAdGroupRefs) {
-            adGroupCriterionOps.push({
-              create: {
-                adGroup: agRef,
-                location: {
-                  geoTargetConstant: `geoTargetConstants/${geoId}`
-                }
-              }
-            });
-          }
-        }
-      }
-
-      // Resolve languages
-      const rawLangs = Array.isArray(languages) ? languages : [languages];
-      for (const lang of rawLangs) {
-        const langId = this.resolveLanguageConstant(lang, isAiGuided);
-        if (langId) {
-          for (const agRef of createdAdGroupRefs) {
-            adGroupCriterionOps.push({
-              create: {
-                adGroup: agRef,
-                language: {
-                  languageConstant: `languageConstants/${langId}`
-                }
-              }
-            });
-          }
-        }
+      if (createdAdGroupRefs.length > 0) {
+        await GoogleAdsBaseService.mutateAdGroupGeoAndLanguageCriteria(organizationId, customerId, createdAdGroupRefs, {
+          locations,
+          languages,
+          headers
+        });
       }
 
       // Resolve Audience and attach as AdGroupCriterion

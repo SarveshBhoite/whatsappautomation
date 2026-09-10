@@ -1,0 +1,27 @@
+{
+  "customerId": "6587355041",
+  "campaignName": "Test PMax Loc Draft Live",
+  "campaignType": "PERFORMANCE_MAX",
+  "biddingStrategy": "Maximize conversions",
+  "budget": 1000,
+  "startDate": "2026-09-09",
+  "finalUrl": "https://jisnudigital.com",
+  "headlines": ["Headline 1", "Headline 2", "Headline 3"],
+  "descriptions": ["Desc 1", "Desc 2"],
+  "languages": ["English"],
+  "geoTargets": [
+    { "name": "Nagpur", "canonicalName": "Nagpur, Maharashtra, India", "mode": "LOCATION", "isExcluded": false },
+    { "name": "25 km around Bhor", "canonicalName": "25 km around Bhor", "mode": "RADIUS", "radius": 25, "radiusUnit": "km", "lat": 18.1469, "lng": 73.8443, "isExcluded": false },
+    { "name": "15 mi around Pune", "canonicalName": "15 mi around Pune", "mode": "RADIUS", "radius": 15, "radiusUnit": "mi", "lat": 18.5204, "lng": 73.8567, "isExcluded": true }
+  ],
+  "draftData": {
+    "selectedLocation": "CUSTOM",
+    "selectedCustomLocations": [
+      { "name": "Nagpur", "canonicalName": "Nagpur, Maharashtra, India", "mode": "LOCATION", "isExcluded": false },
+      { "name": "25 km around Bhor", "canonicalName": "25 km around Bhor", "mode": "RADIUS", "radius": 25, "radiusUnit": "km", "lat": 18.1469, "lng": 73.8443, "isExcluded": false },
+      { "name": "15 mi around Pune", "canonicalName": "15 mi around Pune", "mode": "RADIUS", "radius": 15, "radiusUnit": "mi", "lat": 18.5204, "lng": 73.8567, "isExcluded": true }
+    ],
+    "locationOptionsPresence": "PRESENCE_INTEREST",
+    "locationOptionsExclude": "PRESENCE"
+  }
+}

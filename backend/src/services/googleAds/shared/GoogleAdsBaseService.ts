@@ -201,8 +201,467 @@ export class GoogleAdsBaseService {
 
       return res.data?.results?.[0]?.resourceName || null;
     } catch (err: any) {
-      console.error(`[GoogleAdsBaseService] uploadImageAsset error for "${name}":`, err?.response?.data || err?.message);
+      console.error(`[GoogleAdsBaseService] uploadImageAsset error for "${name}":`, JSON.stringify(err?.response?.data || err?.message, null, 2));
       return null;
+    }
+  }
+
+  public static readonly GEO_TARGET_CONSTANT_MAP: Record<string, string> = {
+    "india": "2356",
+    "mumbai": "1007788",
+    "mumbai, maharashtra, india": "1007788",
+    "delhi": "1007785",
+    "delhi, india": "1007785",
+    "bengaluru": "1007768",
+    "bengaluru, karnataka, india": "1007768",
+    "bangalore": "1007768",
+    "hyderabad": "1007773",
+    "hyderabad, telangana, india": "1007773",
+    "pune": "1007801",
+    "pune, maharashtra, india": "1007801",
+    "kolkata": "1007743",
+    "kolkata, west bengal, india": "1007743",
+    "chennai": "1007809",
+    "chennai, tamil nadu, india": "1007809",
+    "ahmedabad": "1007753",
+    "ahmedabad, gujarat, india": "1007753",
+    "jaipur": "1007828",
+    "jaipur, rajasthan, india": "1007828",
+    "surat": "1007754",
+    "surat, gujarat, india": "1007754",
+    "lucknow": "1007782",
+    "lucknow, uttar pradesh, india": "1007782",
+    "united states": "2840",
+    "united kingdom": "2826",
+    "canada": "2124",
+    "australia": "2036",
+    "united arab emirates": "2784",
+    "germany": "2276",
+    "france": "2250",
+    "singapore": "2702"
+  };
+
+  public static readonly LANGUAGE_CONSTANT_MAP: Record<string, string> = {
+    "english": "1000",
+    "spanish": "1003",
+    "french": "1002",
+    "german": "1001",
+    "italian": "1004",
+    "portuguese": "1014",
+    "dutch": "1010",
+    "russian": "1031",
+    "japanese": "1005",
+    "chinese": "1017",
+    "chinese (simplified)": "1017",
+    "chinese (traditional)": "1018",
+    "korean": "1012",
+    "arabic": "1019",
+    "hindi": "1023",
+    "bengali": "1056",
+    "gujarati": "1072",
+    "kannada": "1086",
+    "malayalam": "1098",
+    "marathi": "1101",
+    "punjabi": "1110",
+    "tamil": "1130",
+    "telugu": "1131",
+    "urdu": "1041"
+  };
+
+  /**
+   * Resolve a location string or object into an official Google Ads GeoTargetConstant ID
+   * via SuggestGeoTargetConstants or fallback dictionary / Places lookup.
+   */
+  /**
+   * Resolve a location string or object into an official Google Ads GeoTargetConstant ID
+   * via SuggestGeoTargetConstants or fallback dictionary / Places lookup.
+   */
+  public static async resolveGeoTargetConstant(
+    locationInput: any,
+    headers: any,
+    locale = "en"
+  ): Promise<string | null> {
+    if (!locationInput) return null;
+
+    let targetStr = "";
+    if (typeof locationInput === "string") {
+      targetStr = locationInput.trim();
+    } else if (typeof locationInput === "object") {
+      if (locationInput.id && /^\d+$/.test(String(locationInput.id))) {
+        return String(locationInput.id);
+      }
+      targetStr = (locationInput.canonicalName || locationInput.name || "").trim();
+    }
+
+    if (!targetStr || targetStr.toUpperCase() === "ALL" || targetStr.toLowerCase() === "all countries and territories" || targetStr.toLowerCase() === "all countries") {
+      return null;
+    }
+
+    if (/^\d+$/.test(targetStr)) return targetStr;
+    if (targetStr.startsWith("geoTargetConstants/")) return targetStr.replace("geoTargetConstants/", "");
+
+    const lower = targetStr.toLowerCase();
+    if (this.GEO_TARGET_CONSTANT_MAP[lower]) {
+      return this.GEO_TARGET_CONSTANT_MAP[lower];
+    }
+
+    // 1. Try Google Ads GeoTargetConstants:suggest API with full string
+    try {
+      const suggestRes = await axios.get(`${ADS_BASE}/geoTargetConstants:suggest`, {
+        params: { "location_names.names": targetStr, locale },
+        headers,
+        timeout: 8000
+      });
+      const suggestions = suggestRes.data?.geoTargetConstantSuggestions || [];
+      if (suggestions.length > 0 && suggestions[0]?.geoTargetConstant?.id) {
+        return String(suggestions[0].geoTargetConstant.id);
+      }
+    } catch (suggestErr: any) {
+      console.warn(`[GoogleAdsBaseService] GeoTargetConstants:suggest notice for "${targetStr}":`, suggestErr?.response?.data || suggestErr.message);
+    }
+
+    // 2. Try individual parts / segments (e.g. for "Wai, Maharashtra, India" -> "Wai", "Maharashtra", "India")
+    const parts = targetStr.split(",").map(p => p.trim()).filter(Boolean);
+    for (const part of parts) {
+      const partLower = part.toLowerCase();
+      if (this.GEO_TARGET_CONSTANT_MAP[partLower]) {
+        return this.GEO_TARGET_CONSTANT_MAP[partLower];
+      }
+    }
+
+    // 3. Try suggest with leading segment (city / district name)
+    if (parts.length > 1) {
+      try {
+        const leadRes = await axios.get(`${ADS_BASE}/geoTargetConstants:suggest`, {
+          params: { "location_names.names": parts[0], locale },
+          headers,
+          timeout: 5000
+        });
+        const leadSugg = leadRes.data?.geoTargetConstantSuggestions || [];
+        if (leadSugg.length > 0 && leadSugg[0]?.geoTargetConstant?.id) {
+          return String(leadSugg[0].geoTargetConstant.id);
+        }
+      } catch (e: any) {
+        // Continue fallback
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Mutate campaign criteria for Location (Location or Proximity) and Languages.
+   * Supports Location include/exclude, Radius targeting (ProximityInfo), and Language constants.
+   */
+  public static async mutateCampaignGeoAndLanguageCriteria(
+    organizationId: string,
+    customerId: string,
+    campaignResourceName: string,
+    params: {
+      locations?: any[];
+      languages?: any[];
+      headers?: any;
+    }
+  ) {
+    const cid = customerId.replace(/-/g, "").trim();
+    const headers = params.headers || (await this.getAdsHeaders(organizationId, customerId)).headers;
+    const operations: any[] = [];
+
+    // 1. Process Locations
+    const locList = Array.isArray(params.locations) ? params.locations : [params.locations].filter(Boolean);
+    for (const loc of locList) {
+      if (!loc) continue;
+
+      const isNegative = typeof loc === "object" && Boolean(loc.isExcluded);
+      const isRadiusMode = typeof loc === "object" && (loc.mode === "RADIUS" || (loc.radius && (loc.lat !== undefined && loc.lng !== undefined)));
+
+      if (isRadiusMode) {
+        // Radius Targeting -> CampaignCriterion.proximity (ProximityInfo)
+        const radiusVal = Number(loc.radius) || 20;
+        const radiusUnits = (loc.radiusUnit || "km").toLowerCase() === "mi" ? "MILES" : "KILOMETERS";
+        let lat = Number(loc.lat);
+        let lng = Number(loc.lng);
+
+        // If lat/lng missing, try resolving via Google Places details/geocoding
+        if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
+          const placesApiKey = process.env.GOOGLE_PLACES_API_KEY;
+          const queryStr = loc.placeId || loc.canonicalName || loc.name;
+          if (placesApiKey && queryStr) {
+            try {
+              const geoUrl = loc.placeId
+                ? `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(loc.placeId)}&fields=geometry&key=${placesApiKey}`
+                : `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(queryStr)}&key=${placesApiKey}`;
+              const gRes = await axios.get(geoUrl, { timeout: 6000 });
+              const geom = gRes.data?.result?.geometry?.location || gRes.data?.results?.[0]?.geometry?.location;
+              if (geom?.lat && geom?.lng) {
+                lat = Number(geom.lat);
+                lng = Number(geom.lng);
+              }
+            } catch (e: any) {
+              console.warn("[GoogleAdsBaseService] Proximity geocode fallback notice:", e.message);
+            }
+          }
+        }
+
+        if (!isNaN(lat) && !isNaN(lng)) {
+          const proximityOp: any = {
+            campaign: campaignResourceName,
+            negative: isNegative,
+            proximity: {
+              geoPoint: {
+                latitudeInMicroDegrees: Math.round(lat * 1_000_000),
+                longitudeInMicroDegrees: Math.round(lng * 1_000_000)
+              },
+              radius: radiusVal,
+              radiusUnits
+            }
+          };
+
+          if (loc.name || loc.canonicalName) {
+            proximityOp.proximity.address = {
+              streetAddress: (loc.name || loc.canonicalName || "").slice(0, 100)
+            };
+          }
+
+          operations.push({ create: proximityOp });
+          continue;
+        }
+      }
+
+      // Standard Location Targeting -> CampaignCriterion.location (LocationInfo)
+      const constantId = await this.resolveGeoTargetConstant(loc, headers);
+      if (constantId) {
+        operations.push({
+          create: {
+            campaign: campaignResourceName,
+            negative: isNegative,
+            location: {
+              geoTargetConstant: `geoTargetConstants/${constantId}`
+            }
+          }
+        });
+      } else if (typeof loc === "object" && (loc.lat || loc.lng || loc.placeId)) {
+        // Fallback for very granular village / locality lacking GeoTargetConstant: use ProximityInfo with small 10km circle
+        let lat = Number(loc.lat);
+        let lng = Number(loc.lng);
+        if (isNaN(lat) || isNaN(lng)) {
+          const placesApiKey = process.env.GOOGLE_PLACES_API_KEY;
+          if (placesApiKey && loc.placeId) {
+            try {
+              const pRes = await axios.get(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(loc.placeId)}&fields=geometry&key=${placesApiKey}`);
+              const gLoc = pRes.data?.result?.geometry?.location;
+              if (gLoc) { lat = Number(gLoc.lat); lng = Number(gLoc.lng); }
+            } catch (e) {}
+          }
+        }
+
+        if (!isNaN(lat) && !isNaN(lng)) {
+          operations.push({
+            create: {
+              campaign: campaignResourceName,
+              negative: isNegative,
+              proximity: {
+                geoPoint: {
+                  latitudeInMicroDegrees: Math.round(lat * 1_000_000),
+                  longitudeInMicroDegrees: Math.round(lng * 1_000_000)
+                },
+                radius: 10,
+                radiusUnits: "KILOMETERS"
+              }
+            }
+          });
+        }
+      }
+    }
+
+    // 2. Process Languages
+    const langList = Array.isArray(params.languages) ? params.languages : [params.languages].filter(Boolean);
+    for (const lang of langList) {
+      if (!lang) continue;
+      const normLang = String(lang).trim().toLowerCase();
+      const constantId = this.LANGUAGE_CONSTANT_MAP[normLang] || (/^\d+$/.test(String(lang)) ? String(lang) : null);
+      if (constantId) {
+        operations.push({
+          create: {
+            campaign: campaignResourceName,
+            language: {
+              languageConstant: `languageConstants/${constantId}`
+            }
+          }
+        });
+      }
+    }
+
+    if (operations.length === 0) return [];
+
+    try {
+      const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, {
+        operations
+      }, { headers });
+      return res.data?.results || [];
+    } catch (critErr: any) {
+      console.warn(`[GoogleAdsBaseService] campaignCriteria:mutate warning:`, critErr?.response?.data || critErr.message);
+      return [];
+    }
+  }
+
+  /**
+   * Mutate Ad Group criteria for Location (Location or Proximity) and Languages.
+   * Specifically used by Demand Gen campaigns where location and language targeting
+   * can be attached to Ad Groups (or across multiple Ad Groups).
+   */
+  public static async mutateAdGroupGeoAndLanguageCriteria(
+    organizationId: string,
+    customerId: string,
+    adGroupResourceNames: string | string[],
+    params: {
+      locations?: any[];
+      languages?: any[];
+      headers?: any;
+    }
+  ) {
+    const cid = customerId.replace(/-/g, "").trim();
+    const headers = params.headers || (await this.getAdsHeaders(organizationId, customerId)).headers;
+    const operations: any[] = [];
+    const adGroupRefs = Array.isArray(adGroupResourceNames) ? adGroupResourceNames : [adGroupResourceNames].filter(Boolean);
+
+    if (adGroupRefs.length === 0) return [];
+
+    // 1. Process Locations
+    const locList = Array.isArray(params.locations) ? params.locations : [params.locations].filter(Boolean);
+    for (const loc of locList) {
+      if (!loc) continue;
+
+      const isNegative = typeof loc === "object" && Boolean(loc.isExcluded);
+      const isRadiusMode = typeof loc === "object" && (loc.mode === "RADIUS" || (loc.radius && (loc.lat !== undefined && loc.lng !== undefined)));
+
+      if (isRadiusMode) {
+        // Radius Targeting -> AdGroupCriterion.proximity
+        const radiusVal = Number(loc.radius) || 20;
+        const radiusUnits = (loc.radiusUnit || "km").toLowerCase() === "mi" ? "MILES" : "KILOMETERS";
+        let lat = Number(loc.lat);
+        let lng = Number(loc.lng);
+
+        if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
+          const placesApiKey = process.env.GOOGLE_PLACES_API_KEY;
+          const queryStr = loc.placeId || loc.canonicalName || loc.name;
+          if (placesApiKey && queryStr) {
+            try {
+              const geoUrl = loc.placeId
+                ? `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(loc.placeId)}&fields=geometry&key=${placesApiKey}`
+                : `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(queryStr)}&key=${placesApiKey}`;
+              const gRes = await axios.get(geoUrl, { timeout: 6000 });
+              const geom = gRes.data?.result?.geometry?.location || gRes.data?.results?.[0]?.geometry?.location;
+              if (geom?.lat && geom?.lng) {
+                lat = Number(geom.lat);
+                lng = Number(geom.lng);
+              }
+            } catch (e: any) {
+              console.warn("[GoogleAdsBaseService] AdGroup proximity geocode fallback notice:", e.message);
+            }
+          }
+        }
+
+        if (!isNaN(lat) && !isNaN(lng)) {
+          for (const agRef of adGroupRefs) {
+            operations.push({
+              create: {
+                adGroup: agRef,
+                negative: isNegative,
+                proximity: {
+                  geoPoint: {
+                    latitudeInMicroDegrees: Math.round(lat * 1_000_000),
+                    longitudeInMicroDegrees: Math.round(lng * 1_000_000)
+                  },
+                  radius: radiusVal,
+                  radiusUnits
+                }
+              }
+            });
+          }
+          continue;
+        }
+      }
+
+      // Standard Location Targeting -> AdGroupCriterion.location
+      const constantId = await this.resolveGeoTargetConstant(loc, headers);
+      if (constantId) {
+        for (const agRef of adGroupRefs) {
+          operations.push({
+            create: {
+              adGroup: agRef,
+              negative: isNegative,
+              location: {
+                geoTargetConstant: `geoTargetConstants/${constantId}`
+              }
+            }
+          });
+        }
+      } else if (typeof loc === "object" && (loc.lat || loc.lng || loc.placeId)) {
+        let lat = Number(loc.lat);
+        let lng = Number(loc.lng);
+        if (isNaN(lat) || isNaN(lng)) {
+          const placesApiKey = process.env.GOOGLE_PLACES_API_KEY;
+          if (placesApiKey && loc.placeId) {
+            try {
+              const pRes = await axios.get(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(loc.placeId)}&fields=geometry&key=${placesApiKey}`);
+              const gLoc = pRes.data?.result?.geometry?.location;
+              if (gLoc) { lat = Number(gLoc.lat); lng = Number(gLoc.lng); }
+            } catch (e) {}
+          }
+        }
+
+        if (!isNaN(lat) && !isNaN(lng)) {
+          for (const agRef of adGroupRefs) {
+            operations.push({
+              create: {
+                adGroup: agRef,
+                negative: isNegative,
+                proximity: {
+                  geoPoint: {
+                    latitudeInMicroDegrees: Math.round(lat * 1_000_000),
+                    longitudeInMicroDegrees: Math.round(lng * 1_000_000)
+                  },
+                  radius: 10,
+                  radiusUnits: "KILOMETERS"
+                }
+              }
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Process Languages
+    const langList = Array.isArray(params.languages) ? params.languages : [params.languages].filter(Boolean);
+    for (const lang of langList) {
+      if (!lang) continue;
+      const normLang = String(lang).trim().toLowerCase();
+      const constantId = this.LANGUAGE_CONSTANT_MAP[normLang] || (/^\d+$/.test(String(lang)) ? String(lang) : null);
+      if (constantId) {
+        for (const agRef of adGroupRefs) {
+          operations.push({
+            create: {
+              adGroup: agRef,
+              language: {
+                languageConstant: `languageConstants/${constantId}`
+              }
+            }
+          });
+        }
+      }
+    }
+
+    if (operations.length === 0) return [];
+
+    try {
+      const res = await axios.post(`${ADS_BASE}/customers/${cid}/adGroupCriteria:mutate`, {
+        operations
+      }, { headers });
+      return res.data?.results || [];
+    } catch (critErr: any) {
+      console.warn(`[GoogleAdsBaseService] adGroupCriteria:mutate warning:`, critErr?.response?.data || critErr.message);
+      return [];
     }
   }
 

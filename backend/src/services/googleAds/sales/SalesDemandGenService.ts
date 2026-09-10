@@ -174,8 +174,14 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
       const adGroupRef = adGroupRes.data.results?.[0]?.resourceName;
       apiResult.adGroupResourceName = adGroupRef;
 
-      // 3. (Optional) AdGroup criteria can be added here if needed in the future
-
+      // 3. Attach Location & Language Criteria to AdGroup (Location / Radius & Languages)
+      if (adGroupRef) {
+        await GoogleAdsBaseService.mutateAdGroupGeoAndLanguageCriteria(organizationId, customerId, [adGroupRef], {
+          locations,
+          languages,
+          headers
+        });
+      }
 
       // 4. Create Image and Logo Assets
       const createdAssets: {

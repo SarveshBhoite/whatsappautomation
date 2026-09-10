@@ -467,57 +467,13 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
       apiResult.adGroupResourceName = createdAdGroupRefs[0];
 
       // ── 7. ATTACH LOCATION & LANGUAGE CRITERIA TO AD GROUPS ──
-      // In Google Ads API v24 for Demand Gen, locations and languages MUST be attached via adGroupCriteria!
-      const adGroupCriterionOps: any[] = [];
-
-      // Resolve locations
-      const rawLocs = Array.isArray(locations) ? locations : [locations];
-      for (const loc of rawLocs) {
-        if (!loc || loc === "ALL" || loc === "All countries and territories") continue;
-        const geoId = await this.resolveGeoTargetConstant(loc, headers, isAiGuided);
-        if (geoId) {
-          for (const agRef of createdAdGroupRefs) {
-            adGroupCriterionOps.push({
-              create: {
-                adGroup: agRef,
-                location: {
-                  geoTargetConstant: `geoTargetConstants/${geoId}`
-                }
-              }
-            });
-          }
-        }
-      }
-
-      // Resolve languages
-      const rawLangs = Array.isArray(languages) ? languages : [languages];
-      for (const lang of rawLangs) {
-        const langId = this.resolveLanguageConstant(lang, isAiGuided);
-        if (langId) {
-          for (const agRef of createdAdGroupRefs) {
-            adGroupCriterionOps.push({
-              create: {
-                adGroup: agRef,
-                language: {
-                  languageConstant: `languageConstants/${langId}`
-                }
-              }
-            });
-          }
-        }
-      }
-
-      if (adGroupCriterionOps.length > 0) {
-        try {
-          await axios.post(`${ADS_BASE}/customers/${cid}/adGroupCriteria:mutate`, {
-            operations: adGroupCriterionOps
-          }, { headers });
-        } catch (critErr: any) {
-          console.warn("[LeadsDemandGenService] adGroupCriteria mutate warning:", critErr?.response?.data || critErr.message);
-          if (isAiGuided) {
-            throw critErr;
-          }
-        }
+      // In Google Ads API v24 for Demand Gen, locations (including radius) and languages MUST be attached via adGroupCriteria!
+      if (createdAdGroupRefs.length > 0) {
+        await GoogleAdsBaseService.mutateAdGroupGeoAndLanguageCriteria(organizationId, customerId, createdAdGroupRefs, {
+          locations,
+          languages,
+          headers
+        });
       }
 
       // ── 8. UPLOAD ASSETS & PREPARE FORMAT-SPECIFIC AD ──

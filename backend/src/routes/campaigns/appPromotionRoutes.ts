@@ -14,7 +14,10 @@ const validatePayload = (req: any, res: any, next: any) => {
 router.post("/app", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+    if (!orgId || orgId.trim().length === 0 || orgId === "demo-org-123") {
+      return res.status(400).json({ error: "A valid Organization ID is required (header 'x-organization-id' or body 'orgId'). Demo organization IDs are not allowed." });
+    }
     const result = await AppPromotionAppService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -23,3 +26,4 @@ router.post("/app", validatePayload, async (req, res) => {
 });
 
 export default router;
+

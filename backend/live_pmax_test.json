@@ -1,0 +1,43 @@
+{
+  "customerId": "6587355041",
+  "orgId": "demo-org-123",
+  "campaignName": "Test Live PMax Location and Radius",
+  "finalUrl": "https://jisnudigital.com",
+  "businessName": "Jisnu Digital",
+  "biddingFocus": "Maximize conversions",
+  "dailyBudget": 500,
+  "locations": [
+    {
+      "name": "Nagpur",
+      "canonicalName": "Nagpur, Maharashtra, India",
+      "mode": "LOCATION",
+      "isExcluded": false
+    },
+    {
+      "name": "25 km around Bhor",
+      "canonicalName": "25 km around Bhor (Maharashtra, India)",
+      "mode": "RADIUS",
+      "radius": 25,
+      "radiusUnit": "km",
+      "lat": 18.1469,
+      "lng": 73.8443,
+      "isExcluded": false
+    },
+    {
+      "name": "15 mi around Pune",
+      "canonicalName": "15 mi around Pune",
+      "mode": "RADIUS",
+      "radius": 15,
+      "radiusUnit": "mi",
+      "lat": 18.5204,
+      "lng": 73.8567,
+      "isExcluded": true
+    }
+  ],
+  "languages": ["English"],
+  "headlines": ["Top Marketing Agency", "Grow Business Faster", "Jisnu Digital Solutions"],
+  "longHeadlines": ["Discover complete digital marketing and lead generation solutions today."],
+  "descriptions": ["Scale your campaigns effectively with expert performance optimization.", "Visit our digital center today for exclusive automation tools."],
+  "images": ["https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png"],
+  "logos": ["https://ik.imagekit.io/automationjds/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg"]
+}

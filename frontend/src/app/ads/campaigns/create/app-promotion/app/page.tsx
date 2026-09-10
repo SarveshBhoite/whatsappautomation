@@ -115,9 +115,9 @@ export default function AppPromotionWizard() {
   const [isEditingCampaignName, setIsEditingCampaignName] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Step 1: Bidding State
-  const [biddingFocus, setBiddingFocus] = useState<"Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Conversions");
-  const [setTargetCpa, setSetTargetCpa] = useState<boolean>(false);
+  // Step 1: Bidding State (Google Ads App Campaigns optimize for app installs via Target CPA)
+  const [biddingFocus, setBiddingFocus] = useState<"Target CPA" | "Conversions" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Target CPA");
+  const [setTargetCpa, setSetTargetCpa] = useState<boolean>(true);
   const [targetCpaValue, setTargetCpaValue] = useState<string>("");
   const [setTargetRoas, setSetTargetRoas] = useState<boolean>(false);
   const [targetRoasValue, setTargetRoasValue] = useState<string>("200");
@@ -597,7 +597,7 @@ export default function AppPromotionWizard() {
 
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     if (customerId) {
       fetch(`${BACKEND}/api/ads/customer-info?orgId=${orgId}&customerId=${customerId}`)
         .then(r => r.json())
@@ -2577,15 +2577,8 @@ export default function AppPromotionWizard() {
                         onChange={(e) => setBiddingFocus(e.target.value as any)}
                         className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-primary"
                       >
-                        <optgroup label="Recommended">
-                          <option value="Conversions">Maximize conversions</option>
-                          <option value="Target CPA">Target CPA</option>
-                          <option value="Conversion value">Maximize conversion value</option>
-                          <option value="Target ROAS">Target ROAS</option>
-                        </optgroup>
-                        <optgroup label="Other optimization options">
-                          <option value="Clicks">Clicks</option>
-                          <option value="Impression share">Impression share</option>
+                        <optgroup label="App Install Bidding (Supported)">
+                          <option value="Target CPA">Target CPA (Install Volume - OPTIMIZE_INSTALLS_TARGET_INSTALL_COST)</option>
                         </optgroup>
                       </select>
                     </div>
@@ -3260,12 +3253,9 @@ export default function AppPromotionWizard() {
                     setPublishError("Please enter a valid positive budget amount.");
                     return;
                   }
-                  if (biddingFocus === "Target CPA" && (!targetCpaValue.trim() || Number(targetCpaValue) <= 0)) {
-                    setPublishError("Please enter a valid Target CPA amount.");
-                    return;
-                  }
-                  if (biddingFocus === "Target ROAS" && (!targetRoasValue.trim() || Number(targetRoasValue) <= 0)) {
-                    setPublishError("Please enter a valid Target ROAS percentage.");
+                  const rawCpa = Number(targetCpaValue);
+                  if (!targetCpaValue.trim() || isNaN(rawCpa) || rawCpa <= 0) {
+                    setPublishError("Please enter a valid Target CPA amount (e.g. ₹50 or ₹100). Target CPA is required for App install campaigns.");
                     return;
                   }
                   setWizardStep("SUMMARY");
@@ -3308,23 +3298,59 @@ export default function AppPromotionWizard() {
                     throw new Error("A valid daily budget amount greater than ₹0 is required.");
                   }
 
+                  const storedOrgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
+                  if (!storedOrgId || storedOrgId === "demo-org-123") {
+                    throw new Error("A valid Organization ID is required. Demo organization IDs are not allowed.");
+                  }
+                  if (!customerId) {
+                    throw new Error("A valid Google Ads Customer ID is required. Please select or connect an account.");
+                  }
+                  const rawCpa = Number(targetCpaValue);
+                  if (!targetCpaValue.trim() || isNaN(rawCpa) || rawCpa <= 0) {
+                    throw new Error("A valid positive Target CPA is required for App campaigns (e.g. ₹50 or ₹100). Fallback values are not allowed.");
+                  }
+
+                  // Process uploaded image files to base64 if user uploaded files
+                  const base64Images: string[] = [];
+                  for (const entry of uploadedImageEntries) {
+                    try {
+                      const dataUrl = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result as string);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(entry.file);
+                      });
+                      if (dataUrl) base64Images.push(dataUrl);
+                    } catch (e) {
+                      console.warn("Failed to read image file", entry.label);
+                    }
+                  }
+
                   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
                   const res = await fetch(`${BACKEND}/api/ads/campaigns/app-promotion/app`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                      "Content-Type": "application/json",
+                      "x-organization-id": storedOrgId
+                    },
                     body: JSON.stringify({
-                      orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "",
-                      customerId: customerId || "6587355041",
+                      orgId: storedOrgId,
+                      customerId: customerId,
                       campaignName: campaignName.trim(),
                       platform: mobileAppPlatform,
                       appId: selectedMobileApp.packageName,
+                      appName: selectedMobileApp.name,
                       businessName: businessName.trim(),
                       locations: selectedLocation === "ALL" ? ["All countries and territories"] : selectedLocation === "INDIA" ? ["India"] : targetLocations.map(l => l.name),
                       languages: selectedLanguages || ["English"],
                       headlines: validHeadlines,
                       descriptions: validDescriptions,
-                      targetCpa: Number(targetCpaValue) || 25,
-                      dailyBudget: budgetNum
+                      targetCpa: rawCpa,
+                      dailyBudget: budgetNum,
+                      euPolitical: euPoliticalAds,
+                      startDate: startDate || undefined,
+                      endDate: endDateOption === "SELECT" && endDate ? endDate : undefined,
+                      images: base64Images
                     })
                   });
                   const data = await res.json();

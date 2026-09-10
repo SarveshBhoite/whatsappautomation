@@ -33,8 +33,8 @@ export default function AwarenessDisplayPage() {
     if (customLocationInput.trim().length >= 1) {
       setIsSearchingLocations(true);
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
-      const cid = customerId || "6587355041";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
+      const cid = customerId || "";
 
       const timer = setTimeout(async () => {
         try {
@@ -216,7 +216,7 @@ export default function AwarenessDisplayPage() {
   const [useOptimizedTargeting, setUseOptimizedTargeting] = useState<boolean>(true);
 
   // 4. Ads Creation State
-  const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
+  const [finalUrl, setFinalUrl] = useState<string>("");
   const [businessName, setBusinessName] = useState<string>("");
   const [headlines, setHeadlines] = useState<string[]>([""]);
   const [longHeadlines, setLongHeadlines] = useState<string[]>([""]);
@@ -3372,76 +3372,197 @@ export default function AwarenessDisplayPage() {
           {displayStep === "REVIEW" && (
             <button
               onClick={async () => {
-                // 1. Validation
-                const cleanHeadlines = headlines.filter(h => h && h.trim().length > 0);
-                const cleanDescriptions = descriptions.filter(d => d && d.trim().length > 0);
-                const numBudget = Number(dailyBudget);
+                // 1. Strict Preflight Validation (No Fake Fallbacks)
+                const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
+                if (!orgId) {
+                  alert("Organization ID not found. Please log in or select your organization.");
+                  return;
+                }
 
+                if (!customerId || !/^\d{10}$/.test(customerId.replace(/-/g, "").trim())) {
+                  alert("A valid 10-digit Google Ads Customer ID is required.");
+                  return;
+                }
+
+                if (!displayCampaignName || displayCampaignName.trim().length === 0) {
+                  alert("Campaign Name is required.");
+                  setDisplayStep("CAMPAIGN_SETTINGS");
+                  return;
+                }
+
+                const numBudget = Number(dailyBudget);
                 if (!dailyBudget || isNaN(numBudget) || numBudget <= 0) {
                   alert("Daily Budget must be a positive number greater than 0.");
                   setDisplayStep("BUDGET_BIDDING");
                   return;
                 }
 
-                if (cleanHeadlines.length === 0) {
+                if (!finalUrl || finalUrl.trim().length === 0) {
+                  alert("Final URL is required.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                try {
+                  const parsed = new URL(finalUrl.trim());
+                  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+                    alert("Final URL must start with http:// or https://");
+                    setDisplayStep("ADS");
+                    return;
+                  }
+                  const host = parsed.hostname.toLowerCase();
+                  if (host === "example.com" || host.endsWith(".example.com")) {
+                    alert("Placeholder URLs (example.com) are not allowed. Please enter your real business website URL.");
+                    setDisplayStep("ADS");
+                    return;
+                  }
+                } catch {
+                  alert("Please enter a valid Final URL (e.g. https://yourbusiness.com).");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                if (!businessName || businessName.trim().length === 0) {
+                  alert("Business Name is required for Responsive Display ads.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                const cleanHeadlines = headlines.filter(h => h && h.trim().length > 0);
+                if (cleanHeadlines.length < 1) {
                   alert("At least 1 Headline is required for Display campaigns.");
                   setDisplayStep("ADS");
                   return;
                 }
 
-                if (cleanDescriptions.length === 0) {
+                const cleanLongHeadlines = longHeadlines.filter(lh => lh && lh.trim().length > 0);
+                if (cleanLongHeadlines.length < 1) {
+                  alert("At least 1 Long Headline is required for Display campaigns.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                const cleanDescriptions = descriptions.filter(d => d && d.trim().length > 0);
+                if (cleanDescriptions.length < 1) {
                   alert("At least 1 Description is required for Display campaigns.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                if (landscapeImagesList.length < 1) {
+                  alert("At least 1 Landscape Marketing Image (1.91:1) is required for Display campaigns.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                if (squareImagesList.length < 1) {
+                  alert("At least 1 Square Marketing Image (1:1) is required for Display campaigns.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                if (logosList.length < 1) {
+                  alert("At least 1 Logo (1:1) is required for Display campaigns.");
                   setDisplayStep("ADS");
                   return;
                 }
 
                 try {
                   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-                  const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
-                  const targetCid = customerId || "6587355041";
+                  const targetCid = customerId.replace(/-/g, "").trim();
 
-                  const formattedImages: Array<{ data: string; fieldType: "MARKETING_IMAGE" | "SQUARE_MARKETING_IMAGE" }> = [
-                    ...landscapeImagesList.map(data => ({ data, fieldType: "MARKETING_IMAGE" as const })),
-                    ...squareImagesList.map(data => ({ data, fieldType: "SQUARE_MARKETING_IMAGE" as const }))
-                  ];
+                  // Resolve Bidding Strategy from User UI Selection
+                  let resolvedBiddingStrategy = "MAXIMIZE_CONVERSIONS";
+                  if (showDirectBidStrategy) {
+                    if (directBidStrategy === "Viewable CPM") resolvedBiddingStrategy = "VIEWABLE_CPM";
+                    else if (directBidStrategy === "Target CPA") resolvedBiddingStrategy = "TARGET_CPA";
+                    else resolvedBiddingStrategy = "MAXIMIZE_CONVERSIONS";
+                  } else {
+                    if (biddingFocus === "Conversion value") {
+                      resolvedBiddingStrategy = "TARGET_ROAS";
+                    } else if (biddingFocus === "Impressions") {
+                      resolvedBiddingStrategy = "VIEWABLE_CPM";
+                    } else {
+                      resolvedBiddingStrategy = conversionBiddingType === "TARGET_CPA" ? "TARGET_CPA" : "MAXIMIZE_CONVERSIONS";
+                    }
+                  }
+
+                  // Resolve Locations Array
+                  let resolvedLocations: string[] = [];
+                  if (selectedLocation === "ALL") {
+                    resolvedLocations = ["All countries and territories"];
+                  } else if (selectedLocation === "INDIA") {
+                    resolvedLocations = ["India"];
+                  } else {
+                    resolvedLocations = selectedCustomLocations.map(l => l.canonicalName || l.name);
+                    if (resolvedLocations.length === 0) {
+                      resolvedLocations = ["India"];
+                    }
+                  }
 
                   const payloadToLaunch = {
                     orgId,
                     customerId: targetCid,
-                    campaignName: displayCampaignName.trim() || `YouTube-Display-${Date.now()}`,
+                    campaignName: displayCampaignName.trim(),
                     channelType: "DISPLAY",
-                    biddingStrategy: conversionBiddingType === "TARGET_CPA" ? "TARGET_CPA" : "MAXIMIZE_CONVERSIONS",
                     budget: numBudget,
-                    targetCpa: conversionBiddingType === "TARGET_CPA" && targetCpaValue ? Number(targetCpaValue) : undefined,
+                    dailyBudget: numBudget,
+                    biddingStrategy: resolvedBiddingStrategy,
+                    biddingFocus,
+                    conversionBiddingType,
+                    targetCpa: resolvedBiddingStrategy === "TARGET_CPA" && targetCpaValue ? Number(targetCpaValue) : undefined,
+                    targetRoas: resolvedBiddingStrategy === "TARGET_ROAS" && targetRoasValue ? Number(targetRoasValue.replace("%", "").trim()) : undefined,
+                    viewableCpmBid: resolvedBiddingStrategy === "VIEWABLE_CPM" && viewableCpmBid ? Number(viewableCpmBid) : undefined,
                     startDate: startDate || new Date().toISOString().split("T")[0],
                     endDate: endDate || undefined,
-                    finalUrl: finalUrl.trim() || "https://www.JDS-automation.com",
-                    businessName: businessName.trim() || "JDS",
-                    headlines: cleanHeadlines.length > 0 ? cleanHeadlines : ["Grow Your Business Online", "Digital Marketing Solutions", "Smart Business Automation"],
-                    longHeadlines: (longHeadlines && longHeadlines.filter(h => h && h.trim().length > 0).length > 0)
-                      ? longHeadlines.filter(h => h && h.trim().length > 0)
-                      : ["Explore Smart Business Automation and Digital Marketing Solutions"],
-                    descriptions: cleanDescriptions.length > 0 ? cleanDescriptions : [
-                      "Get powerful digital marketing and automation solutions for your business.",
-                      "Generate more leads and grow your business with smart automation."
-                    ],
-                    images: formattedImages.length > 0 ? formattedImages : [
-                      { data: "https://ik.imagekit.io/automationjds/tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF/gads_dg_image_1788441362828_images_RKjVY-rHB.png", fieldType: "MARKETING_IMAGE" as const },
-                      { data: "https://ik.imagekit.io/automationjds/tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF/gads_dg_image_1788441362828_images_RKjVY-rHB.png", fieldType: "SQUARE_MARKETING_IMAGE" as const }
-                    ],
-                    logos: logosList.length > 0 ? logosList : [
-                      "https://ik.imagekit.io/automationjds/tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg"
-                    ],
-                    locations: selectedLocation === "INDIA" ? ["India"] : ["All countries and territories"],
+                    finalUrl: finalUrl.trim(),
+                    businessName: businessName.trim(),
+                    headlines: cleanHeadlines,
+                    longHeadlines: cleanLongHeadlines,
+                    descriptions: cleanDescriptions,
+                    landscapeImages: landscapeImagesList,
+                    squareImages: squareImagesList,
+                    logos: logosList,
+                    videos: videosList,
+                    callToActionText: enableCallToAction ? callToActionText : "Automated",
+                    mainCustomColor: enableCustomColors ? mainCustomColor : undefined,
+                    accentCustomColor: enableCustomColors ? accentCustomColor : undefined,
+                    useAssetEnhancements,
+                    useAutoGeneratedVideo,
+                    useNativeFormats,
+                    locations: resolvedLocations,
+                    locationTargetingType,
                     languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
-                    euPolitical: euPoliticalAds
+                    euPolitical: euPoliticalAds,
+                    deviceTargeting: deviceOption,
+                    devices: deviceOption === "SPECIFIC" ? ["DESKTOP", "MOBILE", "TABLET"] : [],
+                    adSchedule: adScheduleList,
+                    trackingTemplate: trackingTemplate || undefined,
+                    finalUrlSuffix: finalUrlSuffix || undefined,
+                    customParameters: customParamsList.filter(p => p.name && p.value),
+                    contentLabels,
+                    sensitiveContent,
+                    contentTypeExclusions,
+                    selectedAudiences,
+                    demographicsGender,
+                    demographicsAge,
+                    demographicsParental,
+                    demographicsIncome,
+                    enteredKeywordsText: enteredKeywordsText || undefined,
+                    keywordSetting,
+                    selectedTopics,
+                    selectedPlacements,
+                    useOptimizedTargeting
                   };
 
-                  console.log("[YouTube -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));
+                  console.log("[Awareness -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));
 
                   const res = await fetch(`${BACKEND}/api/ads/campaigns/youtube-reach/display-local`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                      "Content-Type": "application/json",
+                      "x-organization-id": orgId
+                    },
                     body: JSON.stringify(payloadToLaunch)
                   });
 

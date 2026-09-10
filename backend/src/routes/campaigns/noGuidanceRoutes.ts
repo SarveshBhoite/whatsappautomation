@@ -68,7 +68,10 @@ router.post("/video", validatePayload, async (req, res) => {
 router.post("/display", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+    if (!orgId) {
+      return res.status(400).json({ error: "Organization ID is required" });
+    }
     const result = await NoGuidanceDisplayService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {

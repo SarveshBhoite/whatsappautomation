@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall,
   Sparkles, Layers, Target, Search, Video, LayoutGrid, ShoppingBag,
-  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, ArrowLeft, Copy, Eye, MoreVertical, Upload, Menu
+  Menu, ArrowLeft, Zap, AlertCircle, Info, MoreVertical,
+  ChevronUp, ChevronDown, Edit3, Users, Upload,
 } from "lucide-react";
+import GoogleAdsLocationRadiusSelector, { GeoTargetItem } from "@/components/ads/GoogleAdsLocationRadiusSelector";
 
 export default function WebsiteTrafficDemandGenPage() {
   const router = useRouter();
@@ -126,13 +128,23 @@ export default function WebsiteTrafficDemandGenPage() {
 
           // Location
           if (Array.isArray(prefill.locations) && prefill.locations.length > 0) {
-            if (prefill.locations.length === 1 && prefill.locations[0] === "All countries and territories") {
+            if (prefill.locations.length === 1 && (prefill.locations[0] === "ALL" || prefill.locations[0] === "All countries and territories")) {
               setSelectedLocation("ALL");
             } else if (prefill.locations.length === 1 && prefill.locations[0] === "India") {
               setSelectedLocation("INDIA");
             } else {
               setSelectedLocation("CUSTOM");
-              setCustomLocationInput(prefill.locations.join(", "));
+              const customItems: GeoTargetItem[] = prefill.locations.map((loc: any) => {
+                if (typeof loc === "object" && loc.name) return loc;
+                return {
+                  name: String(loc),
+                  canonicalName: String(loc),
+                  targetType: "Location",
+                  isExcluded: false,
+                  mode: "LOCATION"
+                };
+              });
+              setSelectedCustomLocations(customItems);
             }
           }
 
@@ -355,6 +367,11 @@ export default function WebsiteTrafficDemandGenPage() {
 
   // Location & Language Level States
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("INDIA");
+  const [selectedCustomLocations, setSelectedCustomLocations] = useState<GeoTargetItem[]>([
+    { name: "India", targetType: "Country", canonicalName: "India", id: "2356", isExcluded: false, mode: "LOCATION" }
+  ]);
+  const [locationOptionsPresence, setLocationOptionsPresence] = useState<string>("PRESENCE_INTEREST");
+  const [locationOptionsExclude, setLocationOptionsExclude] = useState<string>("PRESENCE");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
@@ -580,12 +597,12 @@ export default function WebsiteTrafficDemandGenPage() {
     }
 
     // 6. Custom Location
-    if (selectedLocation === "CUSTOM" && !customLocationInput.trim()) {
+    if (selectedLocation === "CUSTOM" && selectedCustomLocations.length === 0) {
       issues.push({
         id: "ag-custom-loc",
         level: "Ad group",
         parameter: "Locations",
-        message: "A location name or territory is required when 'Enter another location' is selected.",
+        message: "Please select at least one targeted location or radius area.",
         step: "AD_GROUP",
         settingKey: "locations"
       });
@@ -1306,7 +1323,7 @@ export default function WebsiteTrafficDemandGenPage() {
                 )}
               </div>
 
-              {/* 2. Locations Card (Matching Screenshot Radio Options) */}
+              {/* 2. Locations Card (Google Ads Style Location / Radius Selector) */}
               <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
                 {openAdGroupSetting === "locations" ? (
                   <>
@@ -1321,60 +1338,17 @@ export default function WebsiteTrafficDemandGenPage() {
                       <ChevronUp className="h-4 w-4 text-slate-500" />
                     </div>
 
-                    <p className="text-xs text-slate-500">Select locations for this campaign</p>
-
-                    <div className="space-y-3 text-xs">
-                      {/* Option 1: All countries and territories */}
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="locationSelection"
-                          checked={selectedLocation === "ALL"}
-                          onChange={() => setSelectedLocation("ALL")}
-                          className="text-primary focus:ring-primary h-4 w-4"
-                        />
-                        <span className="text-slate-800">All countries and territories</span>
-                      </label>
-
-                      {/* Option 2: India */}
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="locationSelection"
-                          checked={selectedLocation === "INDIA"}
-                          onChange={() => setSelectedLocation("INDIA")}
-                          className="text-primary focus:ring-primary h-4 w-4"
-                        />
-                        <span className="text-slate-800">India</span>
-                      </label>
-
-                      {/* Option 3: Enter another location */}
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="locationSelection"
-                          checked={selectedLocation === "CUSTOM"}
-                          onChange={() => setSelectedLocation("CUSTOM")}
-                          className="text-primary focus:ring-primary h-4 w-4"
-                        />
-                        <span className="text-slate-800">Enter another location</span>
-                      </label>
-
-                      {selectedLocation === "CUSTOM" && (
-                        <div className="ml-7 pt-2 space-y-2 animate-in fade-in duration-200">
-                          <div className="relative max-w-md">
-                            <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
-                            <input
-                              type="text"
-                              value={customLocationInput}
-                              onChange={(e) => setCustomLocationInput(e.target.value)}
-                              placeholder="Enter a location to target or exclude"
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <GoogleAdsLocationRadiusSelector
+                      selectedLocation={selectedLocation}
+                      onLocationTypeChange={setSelectedLocation}
+                      customLocations={selectedCustomLocations}
+                      onCustomLocationsChange={setSelectedCustomLocations}
+                      customerId={customerId || accountInfo?.customerId}
+                      locationOptionsPresence={locationOptionsPresence}
+                      onLocationOptionsPresenceChange={setLocationOptionsPresence}
+                      locationOptionsExclude={locationOptionsExclude}
+                      onLocationOptionsExcludeChange={setLocationOptionsExclude}
+                    />
                   </>
                 ) : (
                   <div 
@@ -1385,8 +1359,14 @@ export default function WebsiteTrafficDemandGenPage() {
                       <div className="w-56">
                         <span className="font-bold text-slate-800">Locations</span>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : `Custom: ${customLocationInput || "None"}`}
+                      <div className="text-[11px] text-slate-500 truncate max-w-md">
+                        {selectedLocation === "ALL" 
+                          ? "All countries and territories" 
+                          : selectedLocation === "INDIA" 
+                            ? "India" 
+                            : selectedCustomLocations.length > 0 
+                              ? `${selectedCustomLocations.filter(l => !l.isExcluded).length} targeted, ${selectedCustomLocations.filter(l => l.isExcluded).length} excluded (${selectedCustomLocations.map(l => l.name).slice(0, 2).join(", ")}${selectedCustomLocations.length > 2 ? ` +${selectedCustomLocations.length - 2} more` : ""})`
+                              : "Enter another location"}
                       </div>
                     </div>
                     <button
@@ -5221,7 +5201,15 @@ export default function WebsiteTrafficDemandGenPage() {
                         </div>
                         <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
                           <span className="text-slate-500 font-medium">Locations</span>
-                          <span className="font-semibold text-slate-800 text-right">{selectedLocation === "ALL" ? "All locations" : selectedLocation === "INDIA" ? "India (country)" : customLocationInput || "Custom location"}</span>
+                          <span className="font-semibold text-slate-800 text-right">
+                            {selectedLocation === "ALL" 
+                              ? "All locations" 
+                              : selectedLocation === "INDIA" 
+                                ? "India (country)" 
+                                : selectedCustomLocations.length > 0 
+                                  ? `${selectedCustomLocations.filter(l => !l.isExcluded).length} targeted, ${selectedCustomLocations.filter(l => l.isExcluded).length} excluded` 
+                                  : "Custom locations"}
+                          </span>
                         </div>
                         <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
                           <span className="text-slate-500 font-medium">Channels</span>
@@ -6320,8 +6308,14 @@ export default function WebsiteTrafficDemandGenPage() {
                         brandFont: brandFont || undefined
                       },
                       adGroups: adGroups.map(ag => ({ id: ag.id, name: ag.name, status: ag.status })),
-                      locations: selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["India"] : [customLocationInput],
-                      locationTargetType: locationTargetingType,
+                      locations: selectedLocation === "ALL" 
+                        ? ["ALL"] 
+                        : selectedLocation === "INDIA" 
+                          ? ["India"] 
+                          : selectedCustomLocations,
+                      locationTargetingType: selectedLocation,
+                      locationOptionsPresence,
+                      locationOptionsExclude,
                       languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
                       channelTargeting,
                       channels: channelTargeting === "ALL" 
