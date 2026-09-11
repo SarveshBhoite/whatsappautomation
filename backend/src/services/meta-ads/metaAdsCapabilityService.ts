@@ -188,36 +188,113 @@ export class MetaAdsCapabilityService {
     "धुळे": "Dhule",
   };
 
+  static readonly COUNTRY_CODE_MAP: Record<string, string> = {
+    india: "IN",
+    bharat: "IN",
+    in: "IN",
+    "united states": "US",
+    usa: "US",
+    us: "US",
+    "united arab emirates": "AE",
+    uae: "AE",
+    dubai: "AE",
+    ae: "AE",
+    "united kingdom": "GB",
+    uk: "GB",
+    gb: "GB",
+    canada: "CA",
+    ca: "CA",
+    australia: "AU",
+    au: "AU",
+    singapore: "SG",
+    sg: "SG",
+    germany: "DE",
+    de: "DE",
+    france: "FR",
+    fr: "FR",
+    "saudi arabia": "SA",
+    ksa: "SA",
+    sa: "SA",
+    qatar: "QA",
+    qa: "QA",
+    kuwait: "KW",
+    kw: "KW",
+    oman: "OM",
+    om: "OM",
+    bahrain: "BH",
+    bh: "BH",
+    malaysia: "MY",
+    my: "MY",
+    "new zealand": "NZ",
+    nz: "NZ",
+    ireland: "IE",
+    ie: "IE",
+    "south africa": "ZA",
+    za: "ZA",
+  };
+
   /**
-   * Resolves target cities into valid Meta Marketing API geo_locations structure
+   * Resolves target cities, countries, and postal codes into valid Meta Marketing API geo_locations structure
+   * with dynamic per-city radius management.
    */
   static async resolveGeoLocations(
     targeting?: {
       cities?: string[];
-      locationDescription?: string;
+      cityConfigs?: Array<{ name: string; radiusKm: number; key?: string }>;
       countries?: string[];
+      postalCodes?: string[];
+      locationDescription?: string;
       radiusKm?: number;
     },
     isSpecialAdCategory: boolean = false,
     accessToken?: string
-  ): Promise<{ cities?: Array<{ key: string; name: string; radius: number; distance_unit: string }>; countries?: string[] }> {
+  ): Promise<{
+    cities?: Array<{ key: string; name: string; radius: number; distance_unit: string }>;
+    countries?: string[];
+    zips?: Array<{ key: string; name?: string }>;
+  }> {
     const rawTokens: string[] = [];
 
-    if (Array.isArray(targeting?.cities) && targeting.cities.length > 0) {
-      rawTokens.push(...targeting.cities);
+    // Map city names to their dynamic individual radius
+    const cityRadiusMap = new Map<string, number>();
+    if (Array.isArray(targeting?.cityConfigs)) {
+      for (const cfg of targeting.cityConfigs) {
+        if (cfg && cfg.name) {
+          const normName = cfg.name.trim().toLowerCase();
+          cityRadiusMap.set(normName, cfg.radiusKm);
+          rawTokens.push(cfg.name.trim());
+        }
+      }
     }
+
+    if (Array.isArray(targeting?.cities) && targeting.cities.length > 0) {
+      for (const c of targeting.cities) {
+        if (typeof c === "string" && c.trim()) {
+          rawTokens.push(c.trim());
+        }
+      }
+    }
+
     if (targeting?.locationDescription) {
       rawTokens.push(...targeting.locationDescription.split(/[,&;\/|]\s*|\s+and\s+/i));
     }
 
     const minRadius = isSpecialAdCategory ? 25 : 15;
-    const radiusVal = Math.max(targeting?.radiusKm || 30, minRadius);
+    const defaultRadiusVal = Math.min(80, Math.max(targeting?.radiusKm || 30, minRadius));
     const resolvedCities: Array<{ key: string; name: string; radius: number; distance_unit: string }> = [];
     const seenKeys = new Set<string>();
 
     for (const rawToken of rawTokens) {
       let clean = rawToken.trim();
       if (!clean || /all india|entire india|whole india|भारत|संपूर्ण भारत|india/i.test(clean)) continue;
+
+      // Extract inline radius if present e.g. "Mumbai (40km)" or "Pune 25 km"
+      const inlineRadiusMatch = clean.match(/(.+?)\s*\(?(\d+)\s*(?:km|kms|kilometer|kilometers)?\)?$/i);
+      let inlineRadius: number | null = null;
+      if (inlineRadiusMatch && inlineRadiusMatch[1] && inlineRadiusMatch[2]) {
+        clean = inlineRadiusMatch[1].trim();
+        inlineRadius = parseInt(inlineRadiusMatch[2], 10);
+      }
 
       // Strip state/country suffixes e.g. "Mumbai, Maharashtra" -> "Mumbai"
       clean = clean.replace(/,\s*(?:maharashtra|delhi|ncr|karnataka|gujarat|india|up|mp|haryana|punjab|rajasthan|tamil nadu|telangana|kerala|andhra pradesh|west bengal|bihar|odisha|assam)\b/gi, "").trim();
@@ -226,6 +303,14 @@ export class MetaAdsCapabilityService {
       // Check regional transliterations (Marathi / Hindi)
       const mappedEnglish = this.REGIONAL_CITY_TRANSLATIONS[clean] || clean;
       const lower = mappedEnglish.toLowerCase();
+
+      // Determine dynamic radius for this city
+      const customRadius =
+        inlineRadius ||
+        cityRadiusMap.get(clean.toLowerCase()) ||
+        cityRadiusMap.get(lower) ||
+        defaultRadiusVal;
+      const cityRadius = Math.min(80, Math.max(minRadius, customRadius));
 
       // 1. Try Live Meta Ad Geolocation Search API if token is present
       let matchedKey: string | null = null;
@@ -262,21 +347,105 @@ export class MetaAdsCapabilityService {
         resolvedCities.push({
           key: matchedKey,
           name: matchedName || mappedEnglish,
-          radius: radiusVal,
+          radius: cityRadius,
           distance_unit: "kilometer",
         });
       }
     }
 
-    if (resolvedCities.length > 0) {
-      return {
-        cities: resolvedCities,
-      };
+    // Resolve postal / PIN codes
+    const resolvedZips: Array<{ key: string; name?: string }> = [];
+    if (Array.isArray(targeting?.postalCodes) && targeting.postalCodes.length > 0) {
+      const rawCountry = (targeting.countries && targeting.countries[0]) || "IN";
+      const defaultCountry = this.COUNTRY_CODE_MAP[rawCountry.toLowerCase()] || (rawCountry.length === 2 ? rawCountry.toUpperCase() : "IN");
+      const seenZips = new Set<string>();
+      for (const rawZip of targeting.postalCodes) {
+        const cleanZip = String(rawZip).trim().replace(/[^\w-]/g, "");
+        if (!cleanZip) continue;
+
+        let zipKey = cleanZip.includes(":") ? cleanZip : `${defaultCountry}:${cleanZip}`;
+        if (accessToken) {
+          try {
+            const zipRes = await axios.get(`${this.META_GRAPH_BASE}/search`, {
+              params: {
+                type: "adgeolocation",
+                location_types: JSON.stringify(["zip"]),
+                q: cleanZip,
+                access_token: accessToken,
+              },
+              timeout: 3000,
+            });
+            if (zipRes.data?.data?.[0]?.key) {
+              zipKey = zipRes.data.data[0].key;
+            }
+          } catch (e) {
+            // fallback
+          }
+        }
+        if (!seenZips.has(zipKey)) {
+          seenZips.add(zipKey);
+          resolvedZips.push({ key: zipKey, name: cleanZip });
+        }
+      }
     }
 
-    return {
-      countries: targeting?.countries || ["IN"],
-    };
+    // Resolve countries and deduplicate hierarchy conflicts.
+    // Meta Marketing API (Subcode 1487756) strictly forbids specifying a parent country
+    // AND granular locations (cities / zips) within that same country in the same geo_locations payload.
+    const resolvedCountries: string[] = [];
+    if (Array.isArray(targeting?.countries) && targeting.countries.length > 0) {
+      for (const c of targeting.countries) {
+        if (typeof c !== "string") continue;
+        const trimmed = c.trim().toLowerCase();
+        const mapped = this.COUNTRY_CODE_MAP[trimmed] || (c.trim().length === 2 ? c.trim().toUpperCase() : null);
+        if (mapped && !resolvedCountries.includes(mapped)) {
+          resolvedCountries.push(mapped);
+        }
+      }
+    }
+
+    // Determine country codes that have granular child locations (cities/zips)
+    const countriesWithGranularLocations = new Set<string>();
+    if (resolvedCities.length > 0) {
+      // Known Indian cities registry and Indian city configs belong to "IN"
+      countriesWithGranularLocations.add("IN");
+    }
+    for (const zip of resolvedZips) {
+      if (zip.key && zip.key.includes(":")) {
+        const countryPrefix = zip.key.split(":")[0].toUpperCase();
+        countriesWithGranularLocations.add(countryPrefix);
+      } else {
+        countriesWithGranularLocations.add("IN");
+      }
+    }
+
+    // Filter out parent countries if child cities/zips are already explicitly targeted
+    const nonConflictingCountries = resolvedCountries.filter(
+      (c) => !countriesWithGranularLocations.has(c)
+    );
+
+    const result: {
+      cities?: Array<{ key: string; name: string; radius: number; distance_unit: string }>;
+      countries?: string[];
+      zips?: Array<{ key: string; name?: string }>;
+    } = {};
+
+    if (resolvedCities.length > 0) {
+      result.cities = resolvedCities;
+    }
+    if (resolvedZips.length > 0) {
+      result.zips = resolvedZips;
+    }
+    if (nonConflictingCountries.length > 0) {
+      result.countries = nonConflictingCountries;
+    }
+
+    // If nothing specific was resolved, default to countries: ["IN"]
+    if (!result.cities && !result.zips && !result.countries) {
+      result.countries = ["IN"];
+    }
+
+    return result;
   }
   private static capabilities: Record<MetaObjective, ObjectiveCapability> = {
     OUTCOME_LEADS: {

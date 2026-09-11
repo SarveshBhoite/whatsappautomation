@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { MetaCampaignExecutionService, ExecutionResult } from "../../src/services/meta-ads/metaCampaignExecutionService";
 import { MetaAdsCapabilityService } from "../../src/services/meta-ads/metaAdsCapabilityService";
 import axios from "axios";
@@ -11,12 +12,15 @@ jest.mock("../../src/utils/prisma", () => ({
   },
   metaAdCampaign: {
     create: jest.fn(),
+    findFirst: jest.fn(),
   },
   metaAdSet: {
     create: jest.fn(),
+    findFirst: jest.fn(),
   },
   metaAd: {
     create: jest.fn(),
+    findFirst: jest.fn(),
   },
 }));
 
@@ -62,13 +66,13 @@ describe("Meta Campaign Execution Service - Production Quality Suite", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.metaAdConfig.findUnique as jest.Mock).mockResolvedValue(mockConfig);
-    (prisma.metaAdCampaign.create as jest.Mock).mockImplementation((args) =>
+    (prisma.metaAdCampaign.create as jest.Mock).mockImplementation((args: any) =>
       Promise.resolve({ id: "db_camp_1", ...args.data })
     );
-    (prisma.metaAdSet.create as jest.Mock).mockImplementation((args) =>
+    (prisma.metaAdSet.create as jest.Mock).mockImplementation((args: any) =>
       Promise.resolve({ id: "db_adset_1", ...args.data })
     );
-    (prisma.metaAd.create as jest.Mock).mockImplementation((args) =>
+    (prisma.metaAd.create as jest.Mock).mockImplementation((args: any) =>
       Promise.resolve({ id: "db_ad_1", ...args.data })
     );
   });
@@ -239,7 +243,7 @@ describe("Meta Campaign Execution Service - Production Quality Suite", () => {
     const leadCall = MetaAdsCapabilityService.resolveAndValidateSpec("OUTCOME_LEADS", "PHONE_CALL");
     expect(leadCall.objective).toBe("OUTCOME_LEADS");
     expect(leadCall.metaDestinationType).toBe("PHONE_CALL");
-    expect(leadCall.optimizationGoal).toBe("LINK_CLICKS");
+    expect(leadCall.optimizationGoal).toBe("QUALITY_CALL");
     expect(leadCall.cta).toBe("CALL_NOW");
 
     // 5.3 Traffic + Website
@@ -265,4 +269,39 @@ describe("Meta Campaign Execution Service - Production Quality Suite", () => {
     expect(adStatus.id).toBe("meta_ad_retry_101");
     expect(adStatus.verified).toBe(true);
   });
+
+  // Test 7: Bulk Location Targeting & Dynamic Per-City Radius Management
+  it("Test 7: MetaAdsCapabilityService.resolveGeoLocations correctly applies per-city radii and bulk locations", async () => {
+    const geoLocations = await MetaAdsCapabilityService.resolveGeoLocations({
+      cityConfigs: [
+        { name: "Mumbai", radiusKm: 40 },
+        { name: "Pune", radiusKm: 25 },
+      ],
+      countries: ["India", "United States"],
+      postalCodes: ["411001", "411038"],
+    });
+
+    expect(geoLocations.cities).toBeDefined();
+    expect(geoLocations.cities?.length).toBe(2);
+
+    const mumbai = geoLocations.cities?.find((c) => c.name.includes("Mumbai"));
+    expect(mumbai).toBeDefined();
+    expect(mumbai?.radius).toBe(40);
+    expect(mumbai?.distance_unit).toBe("kilometer");
+
+    const pune = geoLocations.cities?.find((c) => c.name.includes("Pune"));
+    expect(pune).toBeDefined();
+    expect(pune?.radius).toBe(25);
+    expect(pune?.distance_unit).toBe("kilometer");
+
+    // Since Indian cities (Mumbai, Pune) and Indian zips (411001) are present,
+    // "IN" must be omitted from countries to prevent Meta API error 1487756 (Conflicting Location).
+    // Only non-conflicting countries (like "US") should remain.
+    expect(geoLocations.countries).toEqual(["US"]);
+    expect(geoLocations.zips).toEqual([
+      { key: "IN:411001", name: "411001" },
+      { key: "IN:411038", name: "411038" },
+    ]);
+  });
 });
+

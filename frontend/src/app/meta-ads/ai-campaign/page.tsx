@@ -40,6 +40,10 @@ import {
   TrendingUp,
   RotateCcw,
   X,
+  Sliders,
+  Map,
+  Compass,
+  Hash,
 } from "lucide-react";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -402,6 +406,9 @@ export default function MetaAIChatbotStudioPage() {
         if (typeof window !== "undefined") {
           localStorage.setItem(`meta_ai_session_${orgId}`, JSON.stringify(data.state));
         }
+        if (data.state.conversation?.slice(-1)[0]?.metadata?.openBulkLocationModal) {
+          openBulkLocationManager();
+        }
       } else {
         setError(data.error || "Failed to process message.");
       }
@@ -484,6 +491,142 @@ export default function MetaAIChatbotStudioPage() {
   const [attachedFile, setAttachedFile] = useState<{ name: string; url: string; type: "IMAGE" | "VIDEO" } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Bulk Location Management State & Handlers ──
+  const [showBulkLocationModal, setShowBulkLocationModal] = useState(false);
+  const [bulkCountries, setBulkCountries] = useState<string[]>([]);
+  const [bulkCities, setBulkCities] = useState<Array<{ name: string; radiusKm: number }>>([]);
+  const [bulkPincodes, setBulkPincodes] = useState<string[]>([]);
+  const [bulkCityText, setBulkCityText] = useState("");
+  const [bulkCountryText, setBulkCountryText] = useState("");
+  const [bulkPincodeText, setBulkPincodeText] = useState("");
+  const [bulkActiveTab, setBulkActiveTab] = useState<"cities" | "countries" | "pincodes">("cities");
+
+  const openBulkLocationManager = () => {
+    if (session?.draft?.targeting) {
+      const tgt = session.draft.targeting;
+      setBulkCountries(
+        Array.isArray(tgt.countries) && tgt.countries.length > 0
+          ? [...tgt.countries]
+          : ["India"]
+      );
+      if (Array.isArray(tgt.cityConfigs) && tgt.cityConfigs.length > 0) {
+        setBulkCities(tgt.cityConfigs.map((c: any) => ({ name: c.name, radiusKm: c.radiusKm || 30 })));
+      } else if (Array.isArray(tgt.cities) && tgt.cities.length > 0) {
+        setBulkCities(tgt.cities.map((c: string) => ({ name: c, radiusKm: tgt.radiusKm || 30 })));
+      } else if (tgt.locationDescription && !/all india/i.test(tgt.locationDescription)) {
+        const parsed = tgt.locationDescription.split(/[,&;\/|]\s*|\s+and\s+/i).map((s: string) => s.trim()).filter(Boolean);
+        setBulkCities(parsed.map((c: string) => ({ name: c, radiusKm: 30 })));
+      } else {
+        setBulkCities([
+          { name: "Mumbai", radiusKm: 40 },
+          { name: "Pune", radiusKm: 25 },
+        ]);
+      }
+      setBulkPincodes(
+        Array.isArray(tgt.postalCodes) && tgt.postalCodes.length > 0
+          ? [...tgt.postalCodes]
+          : []
+      );
+    } else {
+      setBulkCountries(["India"]);
+      setBulkCities([
+        { name: "Mumbai", radiusKm: 40 },
+        { name: "Pune", radiusKm: 25 },
+      ]);
+      setBulkPincodes([]);
+    }
+    setShowBulkLocationModal(true);
+  };
+
+  const handleAddBulkCitiesFromText = () => {
+    if (!bulkCityText.trim()) return;
+    const lines = bulkCityText.split(/[\n\r,;&|]+/);
+    const updated = [...bulkCities];
+    const seen = new Set(updated.map((c) => c.name.toLowerCase()));
+
+    for (const raw of lines) {
+      let clean = raw.trim();
+      if (!clean) continue;
+      const rMatch = clean.match(/(.+?)\s*\(?(\d{1,3})\s*(?:km|kms)?\)?$/i);
+      let radius = 30;
+      if (rMatch && rMatch[1] && rMatch[2]) {
+        clean = rMatch[1].trim();
+        radius = Math.min(80, Math.max(15, parseInt(rMatch[2], 10)));
+      }
+      if (clean.length >= 2 && !seen.has(clean.toLowerCase())) {
+        seen.add(clean.toLowerCase());
+        updated.push({
+          name: clean.charAt(0).toUpperCase() + clean.slice(1),
+          radiusKm: radius,
+        });
+      }
+    }
+    setBulkCities(updated);
+    setBulkCityText("");
+  };
+
+  const handleAddBulkPincodesFromText = () => {
+    if (!bulkPincodeText.trim()) return;
+    const matches = bulkPincodeText.match(/\b\d{5,6}\b/g) || [];
+    const updated = [...bulkPincodes];
+    for (const m of matches) {
+      if (!updated.includes(m)) {
+        updated.push(m);
+      }
+    }
+    setBulkPincodes(updated);
+    setBulkPincodeText("");
+  };
+
+  const handleAddBulkCountry = (cName: string) => {
+    const clean = cName.trim();
+    if (clean && !bulkCountries.some((c) => c.toLowerCase() === clean.toLowerCase())) {
+      setBulkCountries([...bulkCountries, clean]);
+    }
+  };
+
+  const handleApplyBulkLocations = () => {
+    if (!session) return;
+    const cleanCountries = bulkCountries.filter(Boolean);
+    const cleanCities = bulkCities.filter((c) => c.name && c.name.trim());
+    const cleanPincodes = bulkPincodes.filter(Boolean);
+
+    const summaryParts: string[] = [];
+    if (cleanCountries.length > 0) summaryParts.push(`Countries: ${cleanCountries.join(", ")}`);
+    if (cleanCities.length > 0)
+      summaryParts.push(
+        `Cities: ${cleanCities.map((c) => `${c.name} (${c.radiusKm}km)`).join(", ")}`
+      );
+    if (cleanPincodes.length > 0) summaryParts.push(`PIN: ${cleanPincodes.join(", ")}`);
+    const locDesc = summaryParts.join(" | ") || "Custom Bulk Locations";
+
+    const updatedDraft = {
+      ...session.draft,
+      targeting: {
+        ...session.draft.targeting,
+        locationType: "BULK",
+        countries: cleanCountries,
+        cities: cleanCities.map((c) => c.name),
+        cityConfigs: cleanCities,
+        postalCodes: cleanPincodes,
+        locationDescription: locDesc,
+      },
+    };
+
+    const updatedSession = {
+      ...session,
+      draft: updatedDraft,
+    };
+    setSession(updatedSession);
+    setShowBulkLocationModal(false);
+
+    handleSendMessage(
+      `Updated campaign targeting with bulk locations: ${locDesc}`,
+      undefined,
+      updatedSession
+    );
+  };
+
   const fetchMediaLibrary = async () => {
     setLoadingMedia(true);
     try {
@@ -516,7 +659,55 @@ export default function MetaAIChatbotStudioPage() {
 
     setIsSending(true);
     try {
-      // Upload custom user creative to backend server
+      // 1. Detect natural aspect ratio from Image / Video dimensions
+      let detectedAspect: "1:1" | "9:16" | "16:9" | "4:5" = "1:1";
+      let dimensionText = "";
+
+      if (!isVideo) {
+        await new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const w = img.naturalWidth || img.width;
+            const h = img.naturalHeight || img.height;
+            const ratio = w / (h || 1);
+            if (ratio < 0.65) {
+              detectedAspect = "9:16";
+            } else if (ratio < 0.9) {
+              detectedAspect = "4:5";
+            } else if (ratio > 1.35) {
+              detectedAspect = "16:9";
+            } else {
+              detectedAspect = "1:1";
+            }
+            dimensionText = `${w}×${h}`;
+            resolve();
+          };
+          img.onerror = () => resolve();
+          img.src = localUrl;
+        });
+      } else {
+        await new Promise<void>((resolve) => {
+          const vid = document.createElement("video");
+          vid.onloadedmetadata = () => {
+            const w = vid.videoWidth;
+            const h = vid.videoHeight;
+            const ratio = w / (h || 1);
+            if (ratio < 0.7) {
+              detectedAspect = "9:16";
+            } else if (ratio > 1.35) {
+              detectedAspect = "16:9";
+            } else {
+              detectedAspect = "1:1";
+            }
+            dimensionText = `${w}×${h}`;
+            resolve();
+          };
+          vid.onerror = () => resolve();
+          vid.src = localUrl;
+        });
+      }
+
+      // 2. Upload custom user creative to backend server
       const formData = new FormData();
       formData.append("file", file);
 
@@ -536,6 +727,7 @@ export default function MetaAIChatbotStudioPage() {
             ...session.draft?.creative,
             mediaUrl: finalUrl,
             mediaType,
+            aspectRatio: detectedAspect,
             mediaApproved: true,
           },
         };
@@ -546,10 +738,12 @@ export default function MetaAIChatbotStudioPage() {
         setSession(updatedSession);
       }
 
+      const aspectLabel = detectedAspect === "9:16" ? "9:16 vertical story / reel" : detectedAspect === "16:9" ? "16:9 landscape banner" : detectedAspect === "4:5" ? "4:5 portrait post" : "1:1 square feed post";
+      const dimInfo = dimensionText ? ` (${dimensionText}, ${aspectLabel})` : ` (${aspectLabel})`;
       const additionalPrompt = inputText.trim() ? ` ${inputText.trim()}` : "";
       setInputText("");
       handleSendMessage(
-        `I've uploaded my custom ${mediaType.toLowerCase()} creative: "${file.name}". Please use this graphic for the ad.${additionalPrompt}`,
+        `I've uploaded my custom ${mediaType.toLowerCase()} creative: "${file.name}"${dimInfo} with aspectRatio: ${detectedAspect}. Please use this graphic for the ad.${additionalPrompt}`,
         undefined,
         updatedSession || undefined
       );
@@ -563,7 +757,7 @@ export default function MetaAIChatbotStudioPage() {
     }
   };
 
-  const handleSelectMediaFromLibrary = (mediaItem: any, type: "IMAGE" | "VIDEO") => {
+  const handleSelectMediaFromLibrary = async (mediaItem: any, type: "IMAGE" | "VIDEO") => {
     const mediaUrl = type === "IMAGE" ? (mediaItem.url || mediaItem.permalink_url) : (mediaItem.source || mediaItem.picture);
     const name = mediaItem.name || `Meta ${type}`;
 
@@ -573,6 +767,25 @@ export default function MetaAIChatbotStudioPage() {
       type,
     });
 
+    let detectedAspect: "1:1" | "9:16" | "16:9" | "4:5" = "1:1";
+    if (type === "IMAGE" && mediaUrl) {
+      await new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const w = img.naturalWidth || img.width;
+          const h = img.naturalHeight || img.height;
+          const ratio = w / (h || 1);
+          if (ratio < 0.65) detectedAspect = "9:16";
+          else if (ratio < 0.9) detectedAspect = "4:5";
+          else if (ratio > 1.35) detectedAspect = "16:9";
+          else detectedAspect = "1:1";
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = mediaUrl;
+      });
+    }
+
     let updatedSession = session;
     if (session) {
       const updatedDraft = {
@@ -581,6 +794,7 @@ export default function MetaAIChatbotStudioPage() {
           ...session.draft?.creative,
           mediaUrl,
           mediaType: type,
+          aspectRatio: detectedAspect,
           mediaApproved: true,
         },
       };
@@ -592,10 +806,11 @@ export default function MetaAIChatbotStudioPage() {
     }
 
     setShowAdLibraryModal(false);
+    const aspectLabel = detectedAspect === "9:16" ? "9:16 vertical story / reel" : detectedAspect === "16:9" ? "16:9 landscape banner" : detectedAspect === "4:5" ? "4:5 portrait post" : "1:1 square feed post";
     const additionalPrompt = inputText.trim() ? ` ${inputText.trim()}` : "";
     setInputText("");
     handleSendMessage(
-      `Selected ${type === "IMAGE" ? "Image" : "Video"} "${name}" from Meta Ad Library. Please use this graphic for the ad.${additionalPrompt}`,
+      `Selected ${type === "IMAGE" ? "Image" : "Video"} "${name}" (${aspectLabel}) with aspectRatio: ${detectedAspect} from Meta Ad Library. Please use this graphic for the ad.${additionalPrompt}`,
       undefined,
       updatedSession || undefined
     );
@@ -920,7 +1135,9 @@ export default function MetaAIChatbotStudioPage() {
                             key={optIdx}
                             disabled={isSending || isPublishing}
                             onClick={() => {
-                              if (opt.value === "upload_own_image" || /upload my own|upload image|upload graphic|अपलोड|upload/i.test(opt.label)) {
+                              if (opt.value === "OPEN_BULK_LOCATIONS" || /open.*bulk.*location|bulk.*location.*radii/i.test(opt.value || opt.label)) {
+                                openBulkLocationManager();
+                              } else if (opt.value === "upload_own_image" || /upload my own|upload image|upload graphic|अपलोड|upload/i.test(opt.label)) {
                                 fileInputRef.current?.click();
                               } else {
                                 handleSendMessage(opt.label, opt.value);
@@ -1056,7 +1273,7 @@ export default function MetaAIChatbotStudioPage() {
                       {/* Aspect Ratio Selector Controls */}
                       <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200/60 flex items-center justify-between text-[11px]">
                         <span className="font-bold text-slate-600">Placement Format:</span>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <button
                             type="button"
                             onClick={() => {
@@ -1074,12 +1291,12 @@ export default function MetaAIChatbotStudioPage() {
                               }
                             }}
                             className={`px-2.5 py-1 rounded-md font-bold transition-all text-[11px] flex items-center gap-1 ${
-                              creative.aspectRatio !== "9:16"
+                              creative.aspectRatio === "1:1" || !creative.aspectRatio
                                 ? "bg-white text-blue-600 shadow-2xs border border-slate-200"
                                 : "text-slate-500 hover:text-slate-700"
                             }`}
                           >
-                            <span>🖼️ 1:1 Feed Post (Square)</span>
+                            <span>🖼️ 1:1 Feed Post</span>
                           </button>
                           <button
                             type="button"
@@ -1103,13 +1320,45 @@ export default function MetaAIChatbotStudioPage() {
                                 : "text-slate-500 hover:text-slate-700"
                             }`}
                           >
-                            <span>📱 9:16 Story / Reel (Vertical)</span>
+                            <span>📱 9:16 Story/Reel</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    creative: {
+                                      ...session.draft.creative,
+                                      aspectRatio: "16:9",
+                                    },
+                                  },
+                                });
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-md font-bold transition-all text-[11px] flex items-center gap-1 ${
+                              creative.aspectRatio === "16:9"
+                                ? "bg-white text-blue-600 shadow-2xs border border-slate-200"
+                                : "text-slate-500 hover:text-slate-700"
+                            }`}
+                          >
+                            <span>🖥️ 16:9 Banner</span>
                           </button>
                         </div>
                       </div>
 
                       {/* Visual Banner Area */}
-                      <div className={`relative w-full ${creative.aspectRatio === "9:16" ? "aspect-[9/14] max-h-[440px]" : "aspect-video max-h-[380px]"} bg-gradient-to-tr from-slate-900 via-blue-950 to-slate-900 flex flex-col items-center justify-center p-6 text-center text-white overflow-hidden transition-all duration-300`}>
+                      <div className={`relative w-full ${
+                        creative.aspectRatio === "9:16"
+                          ? "aspect-[9/16] max-h-[440px]"
+                          : creative.aspectRatio === "16:9"
+                          ? "aspect-[16/9] max-h-[300px]"
+                          : creative.aspectRatio === "4:5"
+                          ? "aspect-[4/5] max-h-[400px]"
+                          : "aspect-square max-h-[380px]"
+                      } bg-gradient-to-tr from-slate-900 via-blue-950 to-slate-900 flex flex-col items-center justify-center p-6 text-center text-white overflow-hidden transition-all duration-300`}>
                         {attachedFile ? (
                           attachedFile.type === "IMAGE" ? (
                             <img src={attachedFile.url} alt="Attached Creative" className="w-full h-full object-cover absolute inset-0" />
@@ -2039,18 +2288,78 @@ export default function MetaAIChatbotStudioPage() {
 
                       <div className="grid grid-cols-4 px-4 py-2.5 items-start">
                         <span className="text-slate-500 font-medium pt-0.5">Geo Location</span>
-                        <div className="col-span-3 space-y-2">
+                        <div className="col-span-3 space-y-2.5">
+                          {/* Countries display */}
+                          {targeting.countries && targeting.countries.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Countries:</span>
+                              {targeting.countries.map((c: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-xs font-semibold border border-emerald-200 shadow-2xs"
+                                >
+                                  <Globe className="h-3 w-3 text-emerald-600" />
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Cities with individual radius display */}
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {targeting.cities && targeting.cities.length > 0 ? (
+                            {Array.isArray(targeting.cityConfigs) && targeting.cityConfigs.length > 0 ? (
+                              targeting.cityConfigs.map((cityObj: any, cIdx: number) => (
+                                <span
+                                  key={cIdx}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-900 text-xs font-semibold border border-blue-200 shadow-2xs"
+                                >
+                                  <MapPin className="h-3 w-3 text-blue-600 shrink-0" />
+                                  <span>{cityObj.name}</span>
+                                  <span className="px-1.5 py-0.5 bg-blue-200/80 text-blue-900 text-[10px] font-bold rounded-full">
+                                    {cityObj.radiusKm || 30} km
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextConfigs = targeting.cityConfigs.filter((_: any, i: number) => i !== cIdx);
+                                      const nextCities = nextConfigs.map((c: any) => c.name);
+                                      if (session) {
+                                        setSession({
+                                          ...session,
+                                          draft: {
+                                            ...session.draft,
+                                            targeting: {
+                                              ...session.draft.targeting,
+                                              cityConfigs: nextConfigs,
+                                              cities: nextCities,
+                                              locationDescription:
+                                                nextCities.join(", ") ||
+                                                (targeting.countries?.join(", ") || "All India"),
+                                            },
+                                          },
+                                        });
+                                      }
+                                    }}
+                                    className="text-blue-400 hover:text-red-600 ml-0.5 cursor-pointer font-bold text-sm leading-none"
+                                    title="Remove city"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))
+                            ) : targeting.cities && targeting.cities.length > 0 ? (
                               targeting.cities.map((city: string, cIdx: number) => {
                                 const cleanCity = city.replace(/^Set\s+/i, "").trim();
                                 return (
                                   <span
                                     key={cIdx}
-                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200 shadow-2xs"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200 shadow-2xs"
                                   >
                                     <MapPin className="h-3 w-3 text-blue-600" />
-                                    {cleanCity}
+                                    <span>{cleanCity}</span>
+                                    <span className="px-1.5 py-0.5 bg-blue-200/70 text-blue-800 text-[10px] font-bold rounded-full">
+                                      {targeting.radiusKm || 30} km
+                                    </span>
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -2063,13 +2372,14 @@ export default function MetaAIChatbotStudioPage() {
                                               targeting: {
                                                 ...session.draft.targeting,
                                                 cities: nextCities,
-                                                locationDescription: nextCities.join(", "),
+                                                locationDescription: nextCities.join(", ") || "All India",
                                               },
                                             },
                                           });
                                         }
                                       }}
-                                      className="text-blue-400 hover:text-red-600 ml-1 cursor-pointer font-bold"
+                                      className="text-blue-400 hover:text-red-600 ml-0.5 cursor-pointer font-bold text-sm leading-none"
+                                      title="Remove city"
                                     >
                                       ×
                                     </button>
@@ -2098,66 +2408,102 @@ export default function MetaAIChatbotStudioPage() {
                             )}
                           </div>
 
-                          {/* Quick City Add Input & Presets */}
-                          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
-                            <input
-                              type="text"
-                              value={cityInput}
-                              placeholder="Add city (e.g. Pune, Mumbai)..."
-                              onChange={(e) => setCityInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && cityInput.trim()) {
-                                  e.preventDefault();
-                                  const cur = targeting.cities || [];
-                                  if (!cur.includes(cityInput.trim())) {
-                                    const next = [...cur, cityInput.trim()];
-                                    if (session) {
-                                      setSession({
-                                        ...session,
-                                        draft: {
-                                          ...session.draft,
-                                          targeting: {
-                                            ...session.draft.targeting,
-                                            cities: next,
-                                            locationDescription: next.join(", "),
-                                          },
-                                        },
-                                      });
-                                    }
-                                  }
-                                  setCityInput("");
-                                }
-                              }}
-                              className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[11px] text-slate-800 w-44 focus:outline-none focus:border-blue-500"
-                            />
+                          {/* Postal Codes display */}
+                          {targeting.postalCodes && targeting.postalCodes.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">PIN Codes:</span>
+                              {targeting.postalCodes.map((pin: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 text-xs font-semibold border border-purple-200 shadow-2xs"
+                                >
+                                  <Hash className="h-3 w-3 text-purple-600" />
+                                  {pin}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Bulk Location Action Bar & Quick Presets */}
+                          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
                             <button
                               type="button"
-                              onClick={() => {
-                                if (cityInput.trim()) {
-                                  const cur = targeting.cities || [];
-                                  if (!cur.includes(cityInput.trim())) {
-                                    const next = [...cur, cityInput.trim()];
-                                    if (session) {
-                                      setSession({
-                                        ...session,
-                                        draft: {
-                                          ...session.draft,
-                                          targeting: {
-                                            ...session.draft.targeting,
-                                            cities: next,
-                                            locationDescription: next.join(", "),
-                                          },
-                                        },
-                                      });
-                                    }
-                                  }
-                                  setCityInput("");
-                                }
-                              }}
-                              className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded border border-blue-200 cursor-pointer"
+                              onClick={openBulkLocationManager}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[11px] font-semibold rounded-md shadow-2xs cursor-pointer transition-all hover:shadow"
                             >
-                              + Add
+                              <Sliders className="h-3.5 w-3.5" />
+                              <span>Manage Bulk Locations & Radius</span>
                             </button>
+
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={cityInput}
+                                placeholder="Add single city..."
+                                onChange={(e) => setCityInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && cityInput.trim()) {
+                                    e.preventDefault();
+                                    const cur = targeting.cities || [];
+                                    const curConfigs = targeting.cityConfigs || [];
+                                    const cName = cityInput.trim();
+                                    if (!cur.includes(cName)) {
+                                      const nextCities = [...cur, cName];
+                                      const nextConfigs = [...curConfigs, { name: cName, radiusKm: 30 }];
+                                      if (session) {
+                                        setSession({
+                                          ...session,
+                                          draft: {
+                                            ...session.draft,
+                                            targeting: {
+                                              ...session.draft.targeting,
+                                              cities: nextCities,
+                                              cityConfigs: nextConfigs,
+                                              locationDescription: nextCities.join(", "),
+                                            },
+                                          },
+                                        });
+                                      }
+                                    }
+                                    setCityInput("");
+                                  }
+                                }}
+                                className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[11px] text-slate-800 w-36 focus:outline-none focus:border-blue-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (cityInput.trim()) {
+                                    const cur = targeting.cities || [];
+                                    const curConfigs = targeting.cityConfigs || [];
+                                    const cName = cityInput.trim();
+                                    if (!cur.includes(cName)) {
+                                      const nextCities = [...cur, cName];
+                                      const nextConfigs = [...curConfigs, { name: cName, radiusKm: 30 }];
+                                      if (session) {
+                                        setSession({
+                                          ...session,
+                                          draft: {
+                                            ...session.draft,
+                                            targeting: {
+                                              ...session.draft.targeting,
+                                              cities: nextCities,
+                                              cityConfigs: nextConfigs,
+                                              locationDescription: nextCities.join(", "),
+                                            },
+                                          },
+                                        });
+                                      }
+                                    }
+                                    setCityInput("");
+                                  }
+                                }}
+                                className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded border border-blue-200 cursor-pointer"
+                              >
+                                + Add
+                              </button>
+                            </div>
+
                             <button
                               type="button"
                               onClick={() => {
@@ -2168,14 +2514,18 @@ export default function MetaAIChatbotStudioPage() {
                                       ...session.draft,
                                       targeting: {
                                         ...session.draft.targeting,
+                                        locationType: "COUNTRY",
+                                        countries: ["India"],
                                         cities: [],
+                                        cityConfigs: [],
+                                        postalCodes: [],
                                         locationDescription: "All India",
                                       },
                                     },
                                   });
                                 }
                               }}
-                              className="text-[10px] text-slate-500 hover:text-slate-800 underline ml-1 cursor-pointer"
+                              className="text-[10px] text-slate-500 hover:text-slate-800 underline ml-auto cursor-pointer"
                             >
                               Reset to All India
                             </button>
@@ -2666,6 +3016,512 @@ export default function MetaAIChatbotStudioPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BULK LOCATION & RADIUS MANAGER MODAL ── */}
+      {showBulkLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/40">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                  <Map className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span>Bulk Location & Radius Manager</span>
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                      Meta Ads ODAX
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Add countries, cities with individual dynamic radius (15–80 km), and postal PIN codes.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkLocationModal(false)}
+                className="w-8 h-8 rounded-lg hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div className="flex border-b border-slate-200 bg-slate-50/70 px-6 pt-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkActiveTab("cities")}
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+                  bulkActiveTab === "cities"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                <span>Cities & Individual Radius</span>
+                <span className="ml-1 px-1.5 py-0.2 bg-blue-100 text-blue-700 text-[10px] rounded-full font-bold">
+                  {bulkCities.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBulkActiveTab("countries")}
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+                  bulkActiveTab === "countries"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Globe className="h-3.5 w-3.5" />
+                <span>Countries</span>
+                <span className="ml-1 px-1.5 py-0.2 bg-emerald-100 text-emerald-700 text-[10px] rounded-full font-bold">
+                  {bulkCountries.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBulkActiveTab("pincodes")}
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+                  bulkActiveTab === "pincodes"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Hash className="h-3.5 w-3.5" />
+                <span>Postal / PIN Codes</span>
+                <span className="ml-1 px-1.5 py-0.2 bg-purple-100 text-purple-700 text-[10px] rounded-full font-bold">
+                  {bulkPincodes.length}
+                </span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* TAB 1: CITIES & RADIUS */}
+              {bulkActiveTab === "cities" && (
+                <div className="space-y-4">
+                  {/* Bulk Input Box */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <label className="text-xs font-bold text-slate-700 block">
+                      Quick Add Cities (supports commas, newlines, and custom radius):
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={bulkCityText}
+                      onChange={(e) => setBulkCityText(e.target.value)}
+                      placeholder="e.g. Mumbai (40km), Pune (25km), Bangalore (30km), Delhi (50km)"
+                      className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 font-mono text-slate-800"
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] text-slate-400 font-medium">Presets:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const metros = [
+                              { name: "Mumbai", radiusKm: 40 },
+                              { name: "Delhi", radiusKm: 40 },
+                              { name: "Bangalore", radiusKm: 35 },
+                              { name: "Hyderabad", radiusKm: 30 },
+                              { name: "Pune", radiusKm: 25 },
+                              { name: "Chennai", radiusKm: 30 },
+                            ];
+                            const existing = new Set(bulkCities.map((c) => c.name.toLowerCase()));
+                            const merged = [...bulkCities];
+                            for (const m of metros) {
+                              if (!existing.has(m.name.toLowerCase())) {
+                                merged.push(m);
+                              }
+                            }
+                            setBulkCities(merged);
+                          }}
+                          className="px-2 py-0.5 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-600 rounded text-[11px] font-medium text-slate-600 cursor-pointer shadow-2xs"
+                        >
+                          + Top Metros
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tier2 = [
+                              { name: "Ahmedabad", radiusKm: 30 },
+                              { name: "Jaipur", radiusKm: 25 },
+                              { name: "Surat", radiusKm: 25 },
+                              { name: "Indore", radiusKm: 25 },
+                              { name: "Lucknow", radiusKm: 30 },
+                            ];
+                            const existing = new Set(bulkCities.map((c) => c.name.toLowerCase()));
+                            const merged = [...bulkCities];
+                            for (const t of tier2) {
+                              if (!existing.has(t.name.toLowerCase())) {
+                                merged.push(t);
+                              }
+                            }
+                            setBulkCities(merged);
+                          }}
+                          className="px-2 py-0.5 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-600 rounded text-[11px] font-medium text-slate-600 cursor-pointer shadow-2xs"
+                        >
+                          + Tier-2 Hubs
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddBulkCitiesFromText}
+                        disabled={!bulkCityText.trim()}
+                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer transition-all"
+                      >
+                        + Add to List
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bulk Radius Uniform Adjuster */}
+                  {bulkCities.length > 1 && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-blue-50/50 border border-blue-100 rounded-lg text-xs">
+                      <span className="font-semibold text-blue-900 flex items-center gap-1.5">
+                        <Sliders className="h-3.5 w-3.5 text-blue-600" />
+                        Apply same radius to all {bulkCities.length} cities:
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {[20, 30, 40, 50, 80].map((rVal) => (
+                          <button
+                            key={rVal}
+                            type="button"
+                            onClick={() => {
+                              setBulkCities(bulkCities.map((c) => ({ ...c, radiusKm: rVal })));
+                            }}
+                            className="px-2 py-0.5 bg-white hover:bg-blue-600 hover:text-white border border-blue-200 rounded text-[11px] font-bold text-blue-700 transition-colors cursor-pointer"
+                          >
+                            {rVal} km
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List of Configured Cities with Individual Slider */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
+                      <span>Configured Cities ({bulkCities.length})</span>
+                      {bulkCities.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setBulkCities([])}
+                          className="text-red-500 hover:underline text-[11px] cursor-pointer"
+                        >
+                          Clear All Cities
+                        </button>
+                      )}
+                    </div>
+
+                    {bulkCities.length === 0 ? (
+                      <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl">
+                        <Compass className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                        <p className="text-xs font-medium text-slate-500">No specific cities added yet.</p>
+                        <p className="text-[11px] text-slate-400">Add cities above or leave blank to target whole countries.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {bulkCities.map((city, idx) => (
+                          <div
+                            key={idx}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs hover:border-blue-300 transition-all"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-xs">
+                                {idx + 1}
+                              </div>
+                              <span className="text-xs font-bold text-slate-900">{city.name}</span>
+                            </div>
+
+                            <div className="flex items-center gap-3 flex-1 sm:max-w-xs">
+                              <div className="flex-1 flex items-center gap-2">
+                                <input
+                                  type="range"
+                                  min={15}
+                                  max={80}
+                                  step={1}
+                                  value={city.radiusKm}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    setBulkCities(
+                                      bulkCities.map((c, i) => (i === idx ? { ...c, radiusKm: val } : c))
+                                    );
+                                  }}
+                                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                />
+                                <span className="inline-block w-14 text-center px-1.5 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-bold rounded font-mono">
+                                  {city.radiusKm} km
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                {[20, 40].map((preset) => (
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => {
+                                      setBulkCities(
+                                        bulkCities.map((c, i) =>
+                                          i === idx ? { ...c, radiusKm: preset } : c
+                                        )
+                                      );
+                                    }}
+                                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded border cursor-pointer ${
+                                      city.radiusKm === preset
+                                        ? "bg-blue-600 text-white border-blue-600"
+                                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    {preset}k
+                                  </button>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBulkCities(bulkCities.filter((_, i) => i !== idx));
+                                  }}
+                                  className="w-6 h-6 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center cursor-pointer transition-colors ml-1"
+                                  title="Remove city"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: COUNTRIES */}
+              {bulkActiveTab === "countries" && (
+                <div className="space-y-4">
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <label className="text-xs font-bold text-slate-700 block">
+                      Targeted Countries:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={bulkCountryText}
+                        onChange={(e) => setBulkCountryText(e.target.value)}
+                        placeholder="Enter country name (e.g. India, UAE, United States)..."
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && bulkCountryText.trim()) {
+                            e.preventDefault();
+                            handleAddBulkCountry(bulkCountryText);
+                            setBulkCountryText("");
+                          }
+                        }}
+                        className="flex-1 text-xs p-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (bulkCountryText.trim()) {
+                            handleAddBulkCountry(bulkCountryText);
+                            setBulkCountryText("");
+                          }
+                        }}
+                        disabled={!bulkCountryText.trim()}
+                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold cursor-pointer"
+                      >
+                        + Add Country
+                      </button>
+                    </div>
+
+                    <div className="pt-2">
+                      <span className="text-[11px] text-slate-400 font-medium block mb-1.5">
+                        Quick Add Popular Markets:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          "India",
+                          "United States",
+                          "United Arab Emirates",
+                          "United Kingdom",
+                          "Canada",
+                          "Australia",
+                          "Singapore",
+                          "Saudi Arabia",
+                          "Germany",
+                        ].map((cName) => {
+                          const isAdded = bulkCountries.some(
+                            (c) => c.toLowerCase() === cName.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={cName}
+                              type="button"
+                              onClick={() => {
+                                if (isAdded) {
+                                  setBulkCountries(
+                                    bulkCountries.filter(
+                                      (c) => c.toLowerCase() !== cName.toLowerCase()
+                                    )
+                                  );
+                                } else {
+                                  handleAddBulkCountry(cName);
+                                }
+                              }}
+                              className={`px-2 py-1 rounded-md text-xs font-medium border cursor-pointer transition-all ${
+                                isAdded
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold"
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300"
+                              }`}
+                            >
+                              {isAdded ? "✓ " : "+ "}
+                              {cName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
+                      <span>Selected Countries ({bulkCountries.length})</span>
+                      {bulkCountries.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setBulkCountries([])}
+                          className="text-red-500 hover:underline text-[11px] cursor-pointer"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 p-3 bg-white border border-slate-200 rounded-xl min-h-[60px] items-center">
+                      {bulkCountries.length === 0 ? (
+                        <p className="text-xs text-slate-400">No countries selected yet.</p>
+                      ) : (
+                        bulkCountries.map((c, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-800"
+                          >
+                            <Globe className="h-3.5 w-3.5 text-emerald-600" />
+                            <span>{c}</span>
+                            <button
+                              type="button"
+                              onClick={() => setBulkCountries(bulkCountries.filter((_, i) => i !== idx))}
+                              className="text-emerald-400 hover:text-red-600 cursor-pointer ml-1"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: POSTAL / PIN CODES */}
+              {bulkActiveTab === "pincodes" && (
+                <div className="space-y-4">
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <label className="text-xs font-bold text-slate-700 block">
+                      Bulk Paste PIN / Postal Codes:
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={bulkPincodeText}
+                      onChange={(e) => setBulkPincodeText(e.target.value)}
+                      placeholder="Paste postal codes separated by comma, space, or newline (e.g. 400001, 400050, 411001, 110001, 560001)..."
+                      className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 font-mono text-slate-800"
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[11px] text-slate-500">
+                        Extracts 5-6 digit PIN / postal codes automatically.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleAddBulkPincodesFromText}
+                        disabled={!bulkPincodeText.trim()}
+                        className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold cursor-pointer transition-all shadow-sm"
+                      >
+                        + Add PIN Codes
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
+                      <span>Added Postal Codes ({bulkPincodes.length})</span>
+                      {bulkPincodes.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setBulkPincodes([])}
+                          className="text-red-500 hover:underline text-[11px] cursor-pointer"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 p-3 bg-white border border-slate-200 rounded-xl min-h-[60px] max-h-48 overflow-y-auto items-center">
+                      {bulkPincodes.length === 0 ? (
+                        <p className="text-xs text-slate-400">No postal codes added yet.</p>
+                      ) : (
+                        bulkPincodes.map((pin, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-purple-50 border border-purple-200 rounded-md text-xs font-semibold text-purple-800 font-mono"
+                          >
+                            <Hash className="h-3 w-3 text-purple-600" />
+                            <span>{pin}</span>
+                            <button
+                              type="button"
+                              onClick={() => setBulkPincodes(bulkPincodes.filter((_, i) => i !== idx))}
+                              className="text-purple-400 hover:text-red-600 cursor-pointer ml-1"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <div className="text-xs text-slate-500">
+                <span className="font-semibold text-slate-800">{bulkCities.length}</span> cities ·{" "}
+                <span className="font-semibold text-slate-800">{bulkCountries.length}</span> countries ·{" "}
+                <span className="font-semibold text-slate-800">{bulkPincodes.length}</span> PIN codes
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkLocationModal(false)}
+                  className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyBulkLocations}
+                  className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 cursor-pointer transition-all"
+                >
+                  Save & Apply Targeting
+                </button>
+              </div>
             </div>
           </div>
         </div>

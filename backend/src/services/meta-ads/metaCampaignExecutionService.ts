@@ -645,6 +645,21 @@ export class MetaCampaignExecutionService {
             }
           }
 
+          const isConflictingLocationError =
+            errObj.error_subcode === 1487756 ||
+            (errObj.message && /conflicting location/i.test(errObj.message));
+
+          if (isConflictingLocationError && adSetPayload.targeting?.geo_locations) {
+            console.warn("[META ADS] Ad Set failed due to conflicting geo locations (1487756). Auto-healing geo_locations...");
+            if (adSetPayload.targeting.geo_locations.cities?.length > 0 || adSetPayload.targeting.geo_locations.zips?.length > 0) {
+              // Priority given to granular cities/zips — remove parent countries
+              delete adSetPayload.targeting.geo_locations.countries;
+            } else if (adSetPayload.targeting.geo_locations.countries?.length > 0) {
+              delete adSetPayload.targeting.geo_locations.cities;
+              delete adSetPayload.targeting.geo_locations.zips;
+            }
+          }
+
           // Retry with advantage_audience set to 0 if 1 fails
           if (adSetPayload.targeting?.targeting_automation?.advantage_audience === 1) {
             adSetPayload.targeting.targeting_automation = { advantage_audience: 0 };
@@ -675,6 +690,20 @@ export class MetaCampaignExecutionService {
               } else {
                 adSetPayload.optimization_goal = "LINK_CLICKS";
                 delete adSetPayload.promoted_object;
+              }
+            }
+
+            const isConflictingLocationError2 =
+              errObj2.error_subcode === 1487756 ||
+              (errObj2.message && /conflicting location/i.test(errObj2.message));
+
+            if (isConflictingLocationError2 && adSetPayload.targeting?.geo_locations) {
+              console.warn("[META ADS] Ad Set attempt 2 conflicting geo locations. Cleaning geo_locations...");
+              if (adSetPayload.targeting.geo_locations.cities?.length > 0) {
+                delete adSetPayload.targeting.geo_locations.countries;
+                delete adSetPayload.targeting.geo_locations.zips;
+              } else {
+                adSetPayload.targeting.geo_locations = { countries: ["IN"] };
               }
             }
 

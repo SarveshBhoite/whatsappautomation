@@ -73,6 +73,9 @@ export class MetaCampaignValidationService {
     const loc = draft.targeting;
     const hasLocation = Boolean(
       (loc?.cities && loc.cities.length > 0) ||
+      (loc?.cityConfigs && loc.cityConfigs.length > 0) ||
+      (loc?.countries && loc.countries.length > 0) ||
+      (loc?.postalCodes && loc.postalCodes.length > 0) ||
       loc?.locationDescription ||
       loc?.locationType === "ALL_INDIA" ||
       loc?.radiusKm

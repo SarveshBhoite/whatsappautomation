@@ -41,8 +41,15 @@ export interface MetaCampaignDraft {
   };
 
   targeting: {
-    locationType?: "CITY" | "NEAR_ME" | "REGION" | "ALL_INDIA" | "CUSTOM";
+    locationType?: "CITY" | "NEAR_ME" | "REGION" | "ALL_INDIA" | "CUSTOM" | "BULK";
     cities?: string[];
+    cityConfigs?: Array<{
+      name: string;
+      radiusKm: number;
+      key?: string;
+    }>;
+    countries?: string[];
+    postalCodes?: string[];
     radiusKm?: number;
     locationDescription?: string;
     ageMin?: number;
@@ -91,7 +98,7 @@ export interface MetaCampaignDraft {
     description?: string;
     callToAction?: string;
     visualDirection?: string;
-    aspectRatio?: "1:1" | "9:16";
+    aspectRatio?: "1:1" | "9:16" | "16:9" | "4:5";
     mediaUrl?: string;
     mediaType?: "IMAGE" | "VIDEO";
     mediaApproved?: boolean;

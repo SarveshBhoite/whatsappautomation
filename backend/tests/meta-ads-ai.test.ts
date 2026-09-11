@@ -24,6 +24,7 @@ function runTests() {
   // TEST 2: Multi-Field Set & Validation
   MetaCampaignDraftService.setField(draft, "campaign.objective", "OUTCOME_LEADS", "USER");
   MetaCampaignDraftService.setField(draft, "destination.type", "WHATSAPP", "USER");
+  MetaCampaignDraftService.setField(draft, "destination.whatsappPhoneNumber", "+919876543210", "USER");
   MetaCampaignDraftService.setField(draft, "targeting.cities", ["Pune"], "USER");
 
   const mockContext: MetaAdsContext = {
@@ -36,6 +37,11 @@ function runTests() {
     pixels: [],
     whatsAppNumbers: [{ phoneNumber: "+919876543210" }],
     customAudiences: [],
+    recentCampaigns: [],
+    accountMetrics: {
+      totalSpend: 0,
+      avgCpa: 0,
+    },
     currencies: ["INR"],
     timezones: ["Asia/Kolkata"],
   };

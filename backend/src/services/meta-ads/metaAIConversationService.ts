@@ -237,6 +237,102 @@ export class MetaLanguageAnalyzerService {
 
 export class MetaAIConversationService {
   /**
+   * Parses structured or natural language bulk location input containing countries,
+   * cities with dynamic individual radii (e.g. Mumbai (40km), Pune 25km), and postal/PIN codes.
+   */
+  static parseBulkLocationInput(rawText: string): {
+    countries: string[];
+    cityConfigs: Array<{ name: string; radiusKm: number }>;
+    postalCodes: string[];
+    hasBulkData: boolean;
+  } {
+    const text = rawText || "";
+    const countries: string[] = [];
+    const cityConfigs: Array<{ name: string; radiusKm: number }> = [];
+    const postalCodes: string[] = [];
+
+    // 1. Extract postal / PIN codes (5-6 digits e.g. 411001, 411038)
+    const pinRegex = /\b\d{5,6}\b/g;
+    let pinMatch;
+    while ((pinMatch = pinRegex.exec(text)) !== null) {
+      if (!postalCodes.includes(pinMatch[0])) {
+        postalCodes.push(pinMatch[0]);
+      }
+    }
+
+    // 2. Extract countries
+    const countryKeywords: Record<string, string> = {
+      india: "India",
+      bharat: "India",
+      uae: "United Arab Emirates",
+      "united arab emirates": "United Arab Emirates",
+      dubai: "United Arab Emirates",
+      usa: "United States",
+      "united states": "United States",
+      us: "United States",
+      uk: "United Kingdom",
+      "united kingdom": "United Kingdom",
+      canada: "Canada",
+      australia: "Australia",
+      singapore: "Singapore",
+      germany: "Germany",
+      france: "France",
+      saudi: "Saudi Arabia",
+      qatar: "Qatar",
+      kuwait: "Kuwait",
+      oman: "Oman",
+    };
+    for (const [kw, formal] of Object.entries(countryKeywords)) {
+      const reg = new RegExp(`\\b${kw}\\b`, "i");
+      if (reg.test(text) && !countries.includes(formal)) {
+        countries.push(formal);
+      }
+    }
+
+    // 3. Extract cities with optional radius (e.g. "Mumbai (40km)", "Pune 25 km", "Delhi 30km")
+    const cityWithRadiusRegex = /([a-zA-Z\u0900-\u097F\s]{2,25}?)\s*\(?(\d{1,3})\s*(?:km|kms|kilometer|kilometers)?\)?/gi;
+    let match;
+    const seenCityNames = new Set<string>();
+
+    while ((match = cityWithRadiusRegex.exec(text)) !== null) {
+      const candCity = match[1].trim().replace(/^(?:cities|city|in|at|and|or|targeting|locations?)\s+/i, "").trim();
+      const radius = parseInt(match[2], 10);
+      if (
+        candCity.length >= 3 &&
+        radius >= 15 &&
+        radius <= 80 &&
+        !seenCityNames.has(candCity.toLowerCase()) &&
+        !/^(countries?|pincodes?|postal|zip|budget|daily|total|days?|age|gender)$/i.test(candCity)
+      ) {
+        seenCityNames.add(candCity.toLowerCase());
+        cityConfigs.push({
+          name: candCity.charAt(0).toUpperCase() + candCity.slice(1),
+          radiusKm: radius,
+        });
+      }
+    }
+
+    // Also check for known cities mentioned without explicit radius from KNOWN_INDIAN_CITIES_GEO_KEYS
+    const words = text.split(/[,;\n\r|/]+/);
+    for (const w of words) {
+      const clean = w.trim().replace(/[^\w\s\u0900-\u097F]/g, "").trim().toLowerCase();
+      if (!clean) continue;
+      for (const [key, info] of Object.entries(MetaAdsCapabilityService.KNOWN_INDIAN_CITIES_GEO_KEYS)) {
+        if (clean.includes(key) && !seenCityNames.has(key)) {
+          seenCityNames.add(key);
+          cityConfigs.push({
+            name: info.name.split(",")[0].trim(),
+            radiusKm: 30,
+          });
+        }
+      }
+    }
+
+    const hasBulkData = countries.length > 0 || (cityConfigs.length > 0 && (postalCodes.length > 0 || cityConfigs.length > 1 || /bulk|radius|km|pincode|postal/i.test(text))) || postalCodes.length > 0;
+    return { countries, cityConfigs, postalCodes, hasBulkData };
+  }
+
+  /**
    * Initialize a new conversation session with dynamic Meta context and version 1 state
    */
   static async getInitialSession(organizationId: string): Promise<CampaignConversationState> {
@@ -432,13 +528,43 @@ export class MetaAIConversationService {
         const mediaNameMatch = userText.match(/"([^"]+)"/);
         const mediaName = mediaNameMatch ? mediaNameMatch[1] : "Creative Graphic";
         
-        let creativePrefix = `✅ **Creative "${mediaName}" locked in!** 🎨`;
+        // Extract aspect ratio from message if passed from frontend (e.g. "aspectRatio: 9:16", "aspectRatio: 16:9", "aspectRatio: 1:1")
+        const aspectMatch = userText.match(/aspectRatio:\s*(1:1|9:16|16:9|4:5)/i);
+        if (aspectMatch && aspectMatch[1]) {
+          state.draft.creative.aspectRatio = aspectMatch[1] as "1:1" | "9:16" | "16:9" | "4:5";
+          MetaCampaignDraftService.setField(state.draft, "creative.aspectRatio", state.draft.creative.aspectRatio, "USER", 1.0, `Detected creative aspect ratio ${state.draft.creative.aspectRatio}`);
+        }
+
+        const aspect = state.draft.creative.aspectRatio || "1:1";
+        let aspectDesc = "1:1 Square (Optimized for Facebook & Instagram Feeds)";
+        let aspectDescMr = "१:१ स्क्वेअर (Facebook व Instagram फीडसाठी योग्य)";
+        let aspectDescHi = "1:1 स्क्वायर (Facebook और Instagram फ़ीड के लिए उपयुक्त)";
+        let aspectDescGu = "૧:૧ સ્ક્વેર (Facebook અને Instagram ફીડ માટે યોગ્ય)";
+
+        if (aspect === "9:16") {
+          aspectDesc = "9:16 Vertical (Optimized for Instagram Stories & Reels)";
+          aspectDescMr = "९:१६ व्हर्टिकल (Instagram स्टोरीज व रील्ससाठी योग्य)";
+          aspectDescHi = "9:16 वर्टिकल (Instagram स्टोरी और रील्स के लिए उपयुक्त)";
+          aspectDescGu = "૯:૧૬ વર્ટિકલ (Instagram સ્ટોરીઝ અને રીલ્સ માટે યોગ્ય)";
+        } else if (aspect === "16:9") {
+          aspectDesc = "16:9 Landscape Banner (Optimized for Desktop & Video Feeds)";
+          aspectDescMr = "१६:९ लँडस्केप बॅनर (डेस्कटॉप व व्हिडिओ फीडसाठी योग्य)";
+          aspectDescHi = "16:9 लैंडस्केप बैनर (डेस्कटॉप और वीडियो फ़ीड के लिए उपयुक्त)";
+          aspectDescGu = "૧૬:૯ લેન્ડસ્કેપ બેનર (ડેસ્કટોપ અને વિડીયો ફીડ માટે યોગ્ય)";
+        } else if (aspect === "4:5") {
+          aspectDesc = "4:5 Portrait (Optimized for Mobile Feed Dominance)";
+          aspectDescMr = "४:५ पोर्ट्रेट (मोबाईल फीडसाठी योग्य)";
+          aspectDescHi = "4:5 पोर्ट्रेट (मोबाइल फ़ीड के लिए उपयुक्त)";
+          aspectDescGu = "૪:૫ પોટ્રેટ (મોબાઇલ ફીડ માટે યોગ્ય)";
+        }
+        
+        let creativePrefix = `✅ **Creative "${mediaName}" locked in!** 🎨\n*(Detected ${aspectDesc})*`;
         if (detectedLang.code === "mr") {
-          creativePrefix = `✅ **क्रिएटिव "${mediaName}" सेव्ह केले आहे!** 🎨`;
+          creativePrefix = `✅ **क्रिएटिव "${mediaName}" सेव्ह केले आहे!** 🎨\n*(${aspectDescMr})*`;
         } else if (detectedLang.code === "hi") {
-          creativePrefix = `✅ **क्रिएटिव "${mediaName}" सुरक्षित कर लिया गया है!** 🎨`;
+          creativePrefix = `✅ **क्रिएटिव "${mediaName}" सुरक्षित कर लिया गया है!** 🎨\n*(${aspectDescHi})*`;
         } else if (detectedLang.code === "gu") {
-          creativePrefix = `✅ **ક્રિએટિવ "${mediaName}" લૉક કરી લેવાઈ છે!** 🎨`;
+          creativePrefix = `✅ **ક્રિએટિવ "${mediaName}" લૉક કરી લેવાઈ છે!** 🎨\n*(${aspectDescGu})*`;
         }
         state.validation = MetaCampaignValidationService.validateDraft(state.draft, state.context);
         return MetaAIConversationService.generateDeterministicNextStep(state, detectedLang, userText, creativePrefix);
@@ -782,7 +908,7 @@ export class MetaAIConversationService {
             { label: "📍 All India", value: "ALL_INDIA" },
             { label: "📍 Mumbai & Pune", value: "Mumbai, Pune" },
             { label: "📍 Delhi NCR", value: "Delhi" },
-            { label: "📍 Bangalore", value: "Bangalore" },
+            { label: "🌐 Add Locations in Bulk (Countries, Cities, Pincodes & Radius)", value: "OPEN_BULK_LOCATIONS" },
           ];
 
           if (detectedLang.code === "mr") {
@@ -791,7 +917,7 @@ export class MetaAIConversationService {
               { label: "📍 संपूर्ण भारत (All India)", value: "ALL_INDIA" },
               { label: "📍 मुंबई आणि पुणे", value: "Mumbai, Pune" },
               { label: "📍 नागपूर", value: "Nagpur" },
-              { label: "📍 संपूर्ण महाराष्ट्र", value: "Maharashtra" },
+              { label: "🌐 मोठ्या प्रमाणात स्थाने (देश, शहरे, पिनकोड आणि त्रिज्या)", value: "OPEN_BULK_LOCATIONS" },
             ];
           } else if (detectedLang.code === "hi") {
             locPrompt = `व्हाट्सएप नंबर (${formattedNum}) सेव कर लिया गया है। 📱\n\nइस विज्ञापन के लिए किस शहर या क्षेत्र को लक्षित करना चाहते हैं?`;
@@ -799,7 +925,7 @@ export class MetaAIConversationService {
               { label: "📍 संपूर्ण भारत (All India)", value: "ALL_INDIA" },
               { label: "📍 मुंबई और पुणे", value: "Mumbai, Pune" },
               { label: "📍 दिल्ली एनसीआर", value: "Delhi" },
-              { label: "📍 बैंगलोर", value: "Bangalore" },
+              { label: "🌐 बल्क लोकेशन जोड़ें (देश, शहर, पिनकोड व दायरा)", value: "OPEN_BULK_LOCATIONS" },
             ];
           }
 
@@ -2208,6 +2334,108 @@ export class MetaAIConversationService {
       }
     }
 
+    // 1. Check for bulk location input in user message first (e.g. from modal apply or typed cities/countries/radii/pincodes)
+    const bulkLocCheck = MetaAIConversationService.parseBulkLocationInput(userText);
+    if (bulkLocCheck.hasBulkData || /updated campaign targeting with bulk locations/i.test(normalizedUserText)) {
+      const summaryParts: string[] = [];
+      if (bulkLocCheck.countries.length > 0) {
+        state.draft.targeting.countries = bulkLocCheck.countries;
+        MetaCampaignDraftService.setField(
+          state.draft,
+          "targeting.countries",
+          bulkLocCheck.countries,
+          "USER",
+          1.0,
+          `User specified bulk countries: ${bulkLocCheck.countries.join(", ")}`
+        );
+        summaryParts.push(`Countries: ${bulkLocCheck.countries.join(", ")}`);
+      }
+      if (bulkLocCheck.cityConfigs.length > 0) {
+        state.draft.targeting.cityConfigs = bulkLocCheck.cityConfigs;
+        state.draft.targeting.cities = bulkLocCheck.cityConfigs.map((c) => c.name);
+        MetaCampaignDraftService.setField(
+          state.draft,
+          "targeting.cityConfigs",
+          bulkLocCheck.cityConfigs,
+          "USER",
+          1.0,
+          `User specified bulk cities with custom radii`
+        );
+        MetaCampaignDraftService.setField(
+          state.draft,
+          "targeting.cities",
+          state.draft.targeting.cities,
+          "USER",
+          1.0,
+          `User specified cities: ${state.draft.targeting.cities.join(", ")}`
+        );
+        summaryParts.push(
+          `Cities: ${bulkLocCheck.cityConfigs.map((c) => `${c.name} (${c.radiusKm}km)`).join(", ")}`
+        );
+      }
+      if (bulkLocCheck.postalCodes.length > 0) {
+        state.draft.targeting.postalCodes = bulkLocCheck.postalCodes;
+        MetaCampaignDraftService.setField(
+          state.draft,
+          "targeting.postalCodes",
+          bulkLocCheck.postalCodes,
+          "USER",
+          1.0,
+          `User specified postal codes: ${bulkLocCheck.postalCodes.join(", ")}`
+        );
+        summaryParts.push(`PIN: ${bulkLocCheck.postalCodes.join(", ")}`);
+      }
+
+      state.draft.targeting.locationType = "BULK";
+      const fullDesc = summaryParts.join(" | ") || state.draft.targeting.locationDescription || "Bulk Locations";
+      state.draft.targeting.locationDescription = fullDesc;
+      MetaCampaignDraftService.setField(
+        state.draft,
+        "targeting.locationDescription",
+        fullDesc,
+        "USER",
+        1.0,
+        fullDesc
+      );
+
+      state.validation = MetaCampaignValidationService.validateDraft(state.draft, state.context);
+      return MetaAIConversationService.generateDeterministicNextStep(
+        state,
+        detectedLang,
+        userText,
+        `✅ **Bulk Locations & Dynamic Radius Saved!**\n${summaryParts.map((p) => `• ${p}`).join("\n")}\n\n`
+      );
+    }
+
+    // 2. Intercept explicit OPEN_BULK_LOCATIONS request when user wants to open the modal
+    if (
+      selectedOptionValue === "OPEN_BULK_LOCATIONS" ||
+      /^(?:open\s+bulk\s+locations?|show\s+bulk\s+locations?|बल्क लोकेशन उघडा|बल्क लोकेशन खोलें)$/i.test(normalizedUserText.trim())
+    ) {
+      let bulkPrompt = "";
+      if (detectedLang.code === "mr") {
+        bulkPrompt = `🌐 **मोठ्या प्रमाणात स्थाने (Bulk Location) आणि त्रिज्या (Radius) व्यवस्थापन!**\n\nतुम्ही थेट एकाच वेळी अनेक स्थाने जोडू शकता:\n• **देश (Countries)**: उदा. भारत, युएई, अमेरिका\n• **शहरे आणि त्रिज्या (Cities & Radius)**: उदा. मुंबई (४० किमी), पुणे (२५ किमी), नागपूर (२० किमी)\n• **पिनकोड / पोस्टल कोड (Pincodes)**: उदा. 411001, 411038, 400001\n\n👉 तुम्ही ही माहिती खाली लिहू शकता, किंवा उजवीकडील **'🌐 Manage Bulk Locations & Radius'** बटनावर क्लिक करून प्रत्येक शहराची त्रिज्या इंटरॅक्टिव्ह स्लाइडरने नियंत्रित करू शकता!`;
+      } else if (detectedLang.code === "hi") {
+        bulkPrompt = `🌐 **बल्क लोकेशन (Bulk Location) और दायरा (Radius) प्रबंधन!**\n\nआप एक साथ कई स्थान दर्ज कर सकते हैं:\n• **देश (Countries)**: उदा. भारत, यूएई, यूएसए\n• **शहर व दायरा (Cities & Radius)**: उदा. मुंबई (40 किमी), पुणे (25 किमी), दिल्ली (30 किमी)\n• **पिनकोड (Postal Codes)**: उदा. 411001, 411038, 400001\n\n👉 आप यह जानकारी नीचे टाइप कर सकते हैं, या दाईं ओर **'🌐 Manage Bulk Locations & Radius'** बटन पर क्लिक करके हर शहर का दायरा स्लाइडर से सेट कर सकते हैं!`;
+      } else {
+        bulkPrompt = `🌐 **Bulk Location Targeting & Dynamic Per-City Radius Manager!**\n\nYou can configure all your locations in bulk:\n• **Countries**: e.g., India, UAE, United States\n• **Cities & Custom Radius**: e.g., Mumbai (40km), Pune (25km), Delhi (30km)\n• **Postal / PIN Codes**: e.g., 411001, 411038, 400001\n\n👉 Type your locations below, or click the **'🌐 Manage Bulk Locations & Radius'** button in the configuration panel on the right to manage each city's radius with dynamic sliders!`;
+      }
+
+      state.conversation.push({
+        id: `msg_${Date.now()}_bulk_info`,
+        sender: "ai",
+        text: bulkPrompt,
+        timestamp: new Date().toISOString(),
+        metadata: { openBulkLocationModal: true },
+        quickOptions: [
+          { label: "📍 Mumbai & Pune (Default)", value: "TARGET_MUMBAI_PUNE" },
+          { label: "📍 All India", value: "ALL_INDIA" },
+          { label: "⚙️ Open Bulk Location Studio", value: "OPEN_BULK_LOCATIONS" },
+        ],
+      });
+      return state;
+    }
+
     // Location Extraction Interceptor (Handles clicks on location chips OR typed cities/states/regions)
     const lastAiMsgForLoc = [...state.conversation].reverse().find((m) => m.sender === "ai")?.text || "";
     const isAiAskingLocationInInterceptor =
@@ -2611,6 +2839,36 @@ export class MetaAIConversationService {
         "User uploaded their own custom creative asset"
       );
 
+      // Extract aspect ratio from message if passed from frontend (e.g. "aspectRatio: 9:16")
+      const aspectMatch = userText.match(/aspectRatio:\s*(1:1|9:16|16:9|4:5)/i);
+      if (aspectMatch && aspectMatch[1]) {
+        state.draft.creative.aspectRatio = aspectMatch[1] as "1:1" | "9:16" | "16:9" | "4:5";
+        MetaCampaignDraftService.setField(state.draft, "creative.aspectRatio", state.draft.creative.aspectRatio, "USER", 1.0, `Detected creative aspect ratio ${state.draft.creative.aspectRatio}`);
+      }
+
+      const aspect = state.draft.creative.aspectRatio || "1:1";
+      let aspectDesc = "1:1 Square (Optimized for Facebook & Instagram Feeds)";
+      let aspectDescMr = "१:१ स्क्वेअर (Facebook व Instagram फीडसाठी योग्य)";
+      let aspectDescHi = "1:1 स्क्वायर (Facebook और Instagram फ़ीड के लिए उपयुक्त)";
+      let aspectDescGu = "૧:૧ સ્ક્વેર (Facebook અને Instagram ફીડ માટે યોગ્ય)";
+
+      if (aspect === "9:16") {
+        aspectDesc = "9:16 Vertical (Optimized for Instagram Stories & Reels)";
+        aspectDescMr = "९:१६ व्हर्टिकल (Instagram स्टोरीज व रील्ससाठी योग्य)";
+        aspectDescHi = "9:16 वर्टिकल (Instagram स्टोरी और रील्स के लिए उपयुक्त)";
+        aspectDescGu = "૯:૧૬ વર્ટિકલ (Instagram સ્ટોરીઝ અને રીલ્સ માટે યોગ્ય)";
+      } else if (aspect === "16:9") {
+        aspectDesc = "16:9 Landscape Banner (Optimized for Desktop & Video Feeds)";
+        aspectDescMr = "१६:९ लँडस्केप बॅनर (डेस्कटॉप व व्हिडिओ फीडसाठी योग्य)";
+        aspectDescHi = "16:9 लैंडस्केप बैनर (डेस्कटॉप और वीडियो फ़ीड के लिए उपयुक्त)";
+        aspectDescGu = "૧૬:૯ લેન્ડસ્કેપ બેનર (ડેસ્કટોપ અને વિડીયો ફીડ માટે યોગ્ય)";
+      } else if (aspect === "4:5") {
+        aspectDesc = "4:5 Portrait (Optimized for Mobile Feed Dominance)";
+        aspectDescMr = "४:५ पोर्ट्रेट (मोबाईल फीडसाठी योग्य)";
+        aspectDescHi = "4:5 पोर्ट्रेट (मोबाइल फ़ीड के लिए उपयुक्त)";
+        aspectDescGu = "૪:૫ પોટ્રેટ (મોબાઇલ ફીડ માટે યોગ્ય)";
+      }
+
       // Derive clean filename or creative label
       const mediaNameMatch = userText.match(/"([^"]+)"/);
       const mediaName = mediaNameMatch ? mediaNameMatch[1] : "Custom Creative Asset";
@@ -2618,12 +2876,12 @@ export class MetaAIConversationService {
 
       state.validation = MetaCampaignValidationService.validateDraft(state.draft, state.context);
       const prefix = detectedLang.code === "mr"
-        ? `✅ **क्रिएटिव्ह इमेज "${mediaName}" लॉक केली आहे!**`
+        ? `✅ **क्रिएटिव्ह इमेज "${mediaName}" लॉक केली आहे!** 🎨\n*(${aspectDescMr})*`
         : detectedLang.code === "hi"
-        ? `✅ **क्रिएटिव इमेज "${mediaName}" लॉक कर दी गई है!**`
+        ? `✅ **क्रिएटिव इमेज "${mediaName}" लॉक कर दी गई है!** 🎨\n*(${aspectDescHi})*`
         : detectedLang.code === "gu"
-        ? `✅ **ક્રિએટિવ ઇમેજ "${mediaName}" લૉક થઈ ગઈ છે!**`
-        : `✅ **Custom Creative "${mediaName}" Locked!**`;
+        ? `✅ **ક્રિએટિવ ઇમેજ "${mediaName}" લૉક થઈ ગઈ છે!** 🎨\n*(${aspectDescGu})*`
+        : `✅ **Custom Creative "${mediaName}" Locked!** 🎨\n*(Detected ${aspectDesc})*`;
 
       return MetaAIConversationService.generateDeterministicNextStep(state, detectedLang, userText, prefix);
     }
@@ -2748,7 +3006,7 @@ export class MetaAIConversationService {
       let quickOptions: Array<{ label: string; value: string }> | undefined = undefined;
 
       if (detectedLang.code === "mr") {
-        responseText = `✅ **जाहिरात मजकूर (Ad Copy) मंजूर आणि सेव्ह केला आहे!**\n\n🎉 सर्व तपशील (व्यवसाय नाव, गंतव्य, शहर, वयोगट, बजेट, इमेज, जाहिरात मजकूर) Meta Graph API नियमांनुसार पूर्ण आणि वैध आहेत! तुम्ही खालील जाहिरात पूर्वावलोकन तपासून जाहिरात सुरू करण्यासाठी **"🚀 खात्री करा आणि लाँच करा"** वर क्लिक करू शकता.`;
+        responseText = `✅ **जाहिरात मजकूर (Ad Copy) मंजूर आणि सेव्ह केला आहे!**\n\n🎉 सर्व तपशील (व्यवसाय नाव, गंतव्य, शहर, वयोगट, बजेट, इमेज, जाहिरात मजकूर) Meta Graph API नियमांनुसार पूर्ण आणि वैध आहेत! तुम्ही खालील जाहिरात पूर्वावलोकन तपासून जाहिरात सुरू करण्यासाठी **"🚀 खात्री करा आणि लाँच करा"** वर क्लिक करू शकता।`;
         quickOptions = [
           { label: "🚀 खात्री करा आणि लाँच करा", value: "confirm_and_launch" },
           { label: "🔄 नवीन कॉपी बनवा", value: "regenerate_ad_copy" },
@@ -2792,43 +3050,69 @@ export class MetaAIConversationService {
       const promptLang = detectedLang.name;
 
       try {
-        const copySystemPrompt = `You are an elite Meta Ads Copywriter. Generate crisp, eye-catching, production-grade Ad Copy in ${promptLang} (${detectedLang.nativeName}) for the business "${bizName}".
-Strict Requirements:
-1. Headline: Punchy, urgent, high-converting 25-45 characters with emojis/numbers.
-2. Primary Text: Multi-line structured AIDA copy with an attention-grabbing hook, 3-4 bullet points with emojis for benefits/guarantees, and clear CTA pointing to button.
-3. Description: Production-grade link description featuring social proof, ratings, and guarantees (e.g. ⭐ 4.9/5 Rating • 1,800+ Happy Clients • 100% Guaranteed).
-Return ONLY a valid JSON object with:
+        const userContextSnippet = state.conversation
+          ?.filter(m => m.sender === "user")
+          ?.map(m => m.text)
+          ?.join(" ") || "";
+
+        const copySystemPrompt = `You are a Principal Meta Ads Creative Strategist & Direct-Response Copywriter for top tier growth agencies.
+Your objective is to engineer authentic, high-converting, professional Meta Ad Copy in ${promptLang} (${detectedLang.nativeName}) for "${bizName}".
+
+Business & Campaign Context:
+${userContextSnippet || bizName}
+Target Destination: ${state.draft.destination?.type || "WHATSAPP"}
+
+Strict Copywriting Standards (Professional & Production-Grade):
+1. HEADLINE (25–45 characters):
+   - Crisp, high-intent, and tailored to the exact niche and offer.
+   - Use compelling, believable value propositions (e.g. "Scalable Web & App Engineering | Free Blueprint", "Premium Handcrafted Sarees | Festive 30% Off", "Advanced Dental Care & Implants | Book Consultation").
+   - Avoid cheesy clickbait, fake discounts, or generic filler like "Get Results Fast!".
+
+2. PRIMARY TEXT (AIDA Framework):
+   - Hook: Address the customer's actual pain point, desire, or seasonal context with commercial authenticity.
+   - Core Value / Deliverables (3-4 bullet points): Use clean, professional formatting with minimal, tasteful emojis (or clean bullet points •). Emphasize real deliverables, warranties, technical stack, or terms (e.g. "• 100% IP & Source Code Ownership", "• RERA-Approved Prime Apartments with 0% Brokerage", "• Certified Specialists with NABH Accreditation").
+   - Avoid amateur AI clichés ("Stop paying...", "Happy clients", "Money-back guarantee on custom dev").
+   - Clear CTA: Natural, professional closing directing the prospect to the ${state.draft.destination?.type || "WhatsApp"} button.
+
+3. DESCRIPTION (Production-Grade Link Description):
+   - High-trust, verifiable proof, SLA, warranty, or concrete assurance (e.g. "⭐ 4.9/5 Rating • Full IP Ownership & 60-Day Support", "⭐ 4.9/5 Stars (5,000+ Verified Buyers) • Free Express Shipping & 7-Day Returns", "100% RERA Approved • Zero Brokerage • Free Site Visit Cab").
+   - NEVER output vague single-word phrases like "100% Guaranteed" or "Inquire Today".
+
+Return ONLY a valid JSON object:
 {
-  "headline": "A crisp, punchy 25-45 char headline with emojis",
-  "primaryText": "Multi-line structured ad copy with hook, 3 bullet points with emojis, and clear CTA",
-  "description": "Production link description with ratings and social proof (e.g. ⭐ 4.9/5 Rating • 1,800+ Happy Clients • 100% Guaranteed)"
+  "headline": "A crisp, high-intent 25-45 char headline",
+  "primaryText": "Structured professional ad copy with hook, 3-4 value bullet points, and CTA",
+  "description": "Concrete high-trust description with real metrics, SLAs, or warranties"
 }`;
         const copyRes = await MetaAIProviderService.generateStructuredResponse(
           copySystemPrompt,
-          `Generate crisp, eye-catching ad copy for business: ${bizName}, language: ${detectedLang.nativeName}`
+          `Engineer high-performance, professional ad copy for business: "${bizName}", campaign details: "${userContextSnippet}", language: ${detectedLang.nativeName}`
         );
 
         const prodFallback = MetaAIConversationService.generateProductionAdCopy(
           bizName,
           detectedLang.code || "en",
-          state.draft.destination?.type || "WHATSAPP"
+          state.draft.destination?.type || "WHATSAPP",
+          userContextSnippet
         );
+
+        // Pick a variation if previous copy matches the default to ensure fresh angles on regeneration
+        const currentHeadline = state.draft.creative?.headline;
+        const alternativeVariation = prodFallback.variations.find(v => v.headline !== currentHeadline) || prodFallback.variations[0];
 
         state.draft.creative.headline = copyRes?.headline && copyRes.headline.trim().length >= 5
           ? copyRes.headline.trim()
-          : prodFallback.headline;
+          : (alternativeVariation?.headline || prodFallback.headline);
 
         state.draft.creative.primaryText = copyRes?.primaryText && copyRes.primaryText.trim().length >= 10
           ? copyRes.primaryText.trim()
-          : prodFallback.primaryText;
+          : (alternativeVariation?.primaryText || prodFallback.primaryText);
 
         state.draft.creative.description = copyRes?.description && copyRes.description.trim().length >= 5
           ? copyRes.description.trim()
-          : prodFallback.description;
+          : (alternativeVariation?.description || prodFallback.description);
 
-        if (!state.draft.creative.variations || state.draft.creative.variations.length === 0) {
-          state.draft.creative.variations = prodFallback.variations;
-        }
+        state.draft.creative.variations = prodFallback.variations;
 
         MetaCampaignDraftService.setField(
           state.draft,
@@ -2911,11 +3195,11 @@ Return ONLY a valid JSON object with:
       selectedOptionValue === "tweak_ad";
 
     if (isTweakCopy) {
-      let tweakPrompt = `Sure! What headline or specific text would you like to use? Just type your custom headline or primary text below, and I will update your ad creative immediately.`;
+      let tweakPrompt = `Sure! What specific headline, offer, key benefit, or copy instruction would you like to use? Just type it below (e.g., "focus on 50% discount for students" or "headline: Best Saree Collection in Pune"), and I will instantly craft production-grade headline, primary text, and description!`;
       if (detectedLang.code === "mr") {
-        tweakPrompt = `नक्कीच! तुम्हाला हेडलाइन किंवा मजकुरात काय बदल करायचा आहे? तुमची नवीन हेडलाइन किंवा मजकूर खाली टाइप करा, मी लगेच तुमच्या जाहिरातीत अपडेट करेन.`;
+        tweakPrompt = `नक्कीच! तुम्हाला जाहिरातीमध्ये कोणता विशेष मुद्दा, ऑफर किंवा हेडलाइन हवी आहे? खाली टाइप करा (उदा. "दिवाळीसाठी ३०% सूट वर भर द्या" किंवा "पुण्यातील सर्वोत्तम साडी कलेक्शन"), मी लगेच संपूर्ण उत्पादन-दर्जाची जाहिरात कॉपी तयार करेन!`;
       } else if (detectedLang.code === "hi") {
-        tweakPrompt = `ज़रूर! आप हेडलाइन या विज्ञापन टेक्स्ट में क्या बदलाव करना चाहते हैं? कृपया अपना नया टेक्स्ट नीचे टाइप करें, मैं इसे तुरंत अपडेट कर दूँगा।`;
+        tweakPrompt = `ज़रूर! आप विज्ञापन में कौन सा विशेष ऑफर, मुख्य लाभ या हेडलाइन चाहते हैं? कृपया नीचे टाइप करें (उदा. "30% डिस्काउंट और फ्री डिलीवरी पर फोकस करें"), मैं तुरंत प्रोडक्शन-ग्रेड हेडलाइन, प्राइमरी टेक्स्ट और डिस्क्रिप्शन तैयार कर दूँगा!`;
       }
 
       state.status = "DRAFTING";
@@ -3164,29 +3448,29 @@ CRITICAL OPERATIONAL RULES:
 ---
 
 # PRODUCTION-GRADE AD COPYWRITING & HEADLINE GENERATION STANDARDS
-When crafting headlines and primary text descriptions in \`creativeProposal\`, NEVER output generic, generic single-line placeholders like "Boost Your Business Sales Today" or "Connect with us".
-Instead, adhere strictly to world-class Meta Advertising principles (Direct Response, AIDA framework, PAS framework):
+When crafting headlines, primary text, and link descriptions in \`creativeProposal\`, you MUST produce eye-catching, high-converting, and rigorously professional copy adhering to modern direct-response copywriting principles (AIDA, PAS, and Meta Ad Best Practices):
 
-1. **HEADLINE REQUIREMENTS**:
-   - Must be punchy, urgent, high-converting, and specific (e.g. "⚡ Get 50% OFF Your First Order | Limited Time Only", "🔥 Transform Your Business with AI Automation in 7 Days", "💬 Chat Directly on WhatsApp & Get Instant Free Quote").
-   - Include powerful trigger words, numbers, or clear value propositions.
-   - Keep headlines within Meta's sweet spot (25-45 characters for maximum readability on mobile feeds).
+1. **HEADLINE (25–45 characters) — EYE-CATCHING & HIGH-INTENT**:
+   - Must immediately capture attention on fast-scrolling mobile feeds with high intent, crystal-clear value, or irresistible commercial hooks.
+   - Tailored specifically to the exact business niche and offer (e.g. "⚡ Build Custom Software | Free Quote", "🚀 Scale Your Business with Custom CRM & Apps", "💎 Handcrafted Designer Sarees | 30% Off", "🏥 Advanced Dental Implants | Free Consultation").
+   - NEVER use lazy, vague, or cheesy generic headlines like "Boost Your Business", "Get Results Fast!", or "Connect With Us".
 
-2. **PRIMARY TEXT REQUIREMENTS**:
-   - Must be structured into a multi-line, highly compelling ad story / copy:
-     - **Hook (Line 1)**: Grab immediate attention with an urgent question, bold claim, or pain-point callout.
-     - **Body / Value Proposition**: Highlight key benefits, features, or exclusive perks using clean bullet points (e.g., ✅ 100% Guaranteed Results, ⚡ 24/7 Support, 🚀 Free Demo/Consultation).
-     - **Call To Action (CTA)**: Clear instruction on what to do next (e.g. "👉 Click 'Send WhatsApp Message' below to claim your spot today!").
-   - Include contextual emojis for high engagement on Facebook & Instagram.
+2. **PRIMARY TEXT (AIDA / PAS Framework) — ENGAGING & PROFESSIONAL**:
+   - **Hook (Line 1)**: Call out the target prospect's actual pain point, bottleneck, or core aspiration with commercial authenticity.
+   - **Bridge / Value Proposition**: Articulate the unique solution and why this brand outperforms generic competitors.
+   - **Key Deliverables (3-4 Bullet Points)**: Format cleanly with professional bullet points (\`•\` or tasteful emoji markers like \`✅\`, \`⚡\`, \`💯\`). Highlight tangible deliverables, technical advantages, full IP ownership, warranties, certifications, or transparent terms.
+   - **Clear Call To Action (CTA)**: A smooth, natural closing directing the prospect to the CTA button (e.g. "👉 Tap below to message us directly on WhatsApp & claim your free consultation!").
+   - Tone must be authoritative, polished, and free of generic AI clichés.
 
-3. **DESCRIPTION (LINK DESCRIPTION) REQUIREMENTS**:
-   - Must provide social proof or urgency reinforcement (e.g. "⭐ Rated 4.9/5 by 1,200+ Happy Customers • Free Consultation", "🔥 8 Spots Left for This Month • Tap to Chat Now").
+3. **DESCRIPTION (Link Description) — HIGH-TRUST SOCIAL PROOF & METRICS**:
+   - Provide concrete, verifiable social proof, SLAs, warranties, or security guarantees (e.g. "⭐ 4.9/5 Rating (500+ Happy Clients) • 100% Satisfaction Guarantee & Dedicated Support", "SOC-2 Compliant Architecture • Full IP Ownership • Senior Full-Stack Engineers", "⭐ 4.9/5 Rating (5,000+ Verified Buyers) • Free Shipping & Easy 7-Day Returns").
+   - NEVER output single generic words like "100% Guaranteed" or "Inquire Today".
 
 4. **3 CREATIVE VARIATIONS (MANDATORY)**:
    - Always supply 3 distinct creative copy variations in \`creativeProposal.variations\`:
-     - **Variation 1 (DIRECT_OFFER)**: Hard-hitting discount/offer focus with strong urgency.
-     - **Variation 2 (PAIN_POINT_CURIOSITY)**: Empathy/problem-focused hook addressing customer frustration.
-     - **Variation 3 (SOCIAL_PROOF)**: Review, rating, testimonial, or scale proof focus.
+     - **Variation 1 (DIRECT_OFFER)**: High-urgency value proposition with promotional or timeline incentives.
+     - **Variation 2 (PAIN_POINT_CURIOSITY)**: Empathy/problem-focused angle highlighting the cost of inaction or bad alternatives.
+     - **Variation 3 (SOCIAL_PROOF)**: Review, rating, case study, or client scale validation.
 
 ---
 
@@ -3464,10 +3748,16 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
         // Ingest Creative Proposal & Auto-Generate AI Graphic Artwork
         let newGeneratedImageUrl: string | null = null;
         if (aiResponse.creativeProposal) {
+          const userContextSnippet = state.conversation
+            ?.filter(m => m.sender === "user")
+            ?.map(m => m.text)
+            ?.join(" ") || userText || "";
+
           const prodFallback = MetaAIConversationService.generateProductionAdCopy(
             state.draft.campaign.name || "Business",
             detectedLang.code || "en",
-            state.draft.destination?.type || "WHATSAPP"
+            state.draft.destination?.type || "WHATSAPP",
+            userContextSnippet
           );
 
           if (aiResponse.creativeProposal.headline && aiResponse.creativeProposal.headline.trim().length >= 5) {
@@ -3695,7 +3985,8 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
   static generateProductionAdCopy(
     businessName: string = "Business",
     languageCode: string = "en",
-    destinationType: string = "WHATSAPP"
+    destinationType: string = "WHATSAPP",
+    contextSnippet: string = ""
   ): {
     headline: string;
     primaryText: string;
@@ -3721,57 +4012,95 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
     else if (destinationType === "APP") cta = "INSTALL_APP";
     else if (destinationType === "SHOP") cta = "SHOP_NOW";
 
-    const isTechSoftware = /software|tech|it\b|crm|erp|app\b|web|digital|automation|saas|developer|code|solution|cloud|cyber|program/i.test(cleanBiz);
-    const isHealthcare = /clinic|doctor|dental|dentist|hospital|health|skin|hair|ayurved|care|treatment|med|physio/i.test(cleanBiz);
-    const isRealEstate = /real estate|property|flat|apartment|builder|construction|plot|bhk|villa|housing|home|realty/i.test(cleanBiz);
-    const isEducation = /school|college|coaching|class|academy|course|training|education|institute|tutor|learn|classes/i.test(cleanBiz);
-    const isFinance = /loan|finance|insurance|tax|accounting|ca\b|mutual fund|investment|credit/i.test(cleanBiz);
+    const combinedSearchText = `${cleanBiz} ${contextSnippet}`.toLowerCase();
 
-    let ctaPhraseEn = "👉 Tap below to message us directly on WhatsApp & claim your spot!";
-    let ctaPhraseMr = "👉 खालील बटणावर क्लिक करा आणि थेट WhatsApp वर संपर्क साधा!";
-    let ctaPhraseHi = "👉 नीचे दिए गए बटन पर क्लिक करें और तुरंत WhatsApp पर संपर्क करें!";
-    let ctaPhraseGu = "👉 નીચે આપેલા બટન પર ક્લિક કરો અને સીધા WhatsApp પર વાત કરો!";
+    const isTechSoftware = /software|tech|it\b|crm|erp|app\b|web|digital|automation|saas|developer|code|solution|cloud|cyber|program|ai\b/i.test(combinedSearchText);
+    const isHealthcare = /clinic|doctor|dental|dentist|hospital|health|skin|hair|ayurved|care|treatment|med|physio|pharma|wellness|optical|eye/i.test(combinedSearchText);
+    const isRealEstate = /real estate|property|flat|apartment|builder|construction|plot|bhk|villa|housing|home|realty|land|commercial/i.test(combinedSearchText);
+    const isEducation = /school|college|coaching|class|academy|course|training|education|institute|tutor|learn|classes|spoken english|upsc|mpsc|ielts/i.test(combinedSearchText);
+    const isFinance = /loan|finance|insurance|tax|accounting|ca\b|mutual fund|investment|credit|wealth|advisory|gst/i.test(combinedSearchText);
+    const isEcommerceRetail = /clothing|fashion|jewellery|jewelry|saree|garment|shoes|footwear|boutique|store|shop|retail|electronics|gadget|mobile|watch|apparel|dress/i.test(combinedSearchText);
+    const isRestaurantFood = /restaurant|cafe|food|hotel|dining|sweet|bakery|catering|biryani|kitchen|pizza|burger|snack/i.test(combinedSearchText);
+    const isFitnessBeauty = /gym|fitness|salon|spa|beauty|parlour|parlor|yoga|makeup|haircut|body/i.test(combinedSearchText);
+    const isAutomotive = /auto|car|bike|motor|vehicle|garage|service center|ev\b|driving|tyre|battery|showroom/i.test(combinedSearchText);
+
+    let ctaPhraseEn = "👉 Tap below to message us directly on WhatsApp & claim your exclusive offer!";
+    let ctaPhraseMr = "👉 खालील बटणावर क्लिक करा आणि थेट WhatsApp वर संपर्क साधून विशेष ऑफरचा लाभ घ्या!";
+    let ctaPhraseHi = "👉 नीचे दिए गए बटन पर क्लिक करें और तुरंत WhatsApp पर बात करके विशेष ऑफर का लाभ उठाएं!";
+    let ctaPhraseGu = "👉 નીચે આપેલા બટન પર ક્લિક કરો અને સીધા WhatsApp પર સંપર્ક કરી ખાસ ઑફર મેળવો!";
 
     if (destinationType === "WEBSITE") {
-      ctaPhraseEn = "👉 Tap 'Learn More' below to visit our website & get started!";
-      ctaPhraseMr = "👉 अधिक माहितीसाठी खालील 'Learn More' वर क्लिक करा व वेबसाइटला भेट द्या!";
-      ctaPhraseHi = "👉 अधिक जानकारी के लिए नीचे 'Learn More' पर क्लिक कर वेबसाइट देखें!";
-      ctaPhraseGu = "👉 વધુ વિગતો માટે નીચે 'Learn More' પર ક્લિક કરો અને વેબસાઇટ જુઓ!";
+      ctaPhraseEn = "👉 Tap 'Learn More' below to explore our full collection & claim your offer!";
+      ctaPhraseMr = "👉 अधिक माहिती आणि ऑफरसाठी खालील 'Learn More' वर क्लिक करून आमच्या वेबसाइटला भेट द्या!";
+      ctaPhraseHi = "👉 पूरी जानकारी और खास ऑफर के लिए नीचे 'Learn More' पर क्लिक कर वेबसाइट देखें!";
+      ctaPhraseGu = "👉 વધુ વિગતો અને સ્પેશિયલ ઑફર માટે નીચે 'Learn More' પર ક્લિક કરો અને વેબસાઇટ જુઓ!";
     } else if (destinationType === "INSTANT_FORM" || destinationType === "LEAD_FORM") {
-      ctaPhraseEn = "👉 Tap below to fill the quick form & get an instant callback!";
-      ctaPhraseMr = "👉 मोफत माहिती व सल्ल्यासाठी खालील फॉर्म त्वरित भरा!";
-      ctaPhraseHi = "👉 तुरंत जानकारी और कंसल्टेशन के लिए नीचे दिया गया फॉर्म भरें!";
-      ctaPhraseGu = "👉 વધુ વિગતો અને ફ્રી માહિતી માટે નીચેનું ફોર્મ ભરો!";
+      ctaPhraseEn = "👉 Tap below to fill the quick form & receive an instant consultation + VIP pricing!";
+      ctaPhraseMr = "👉 मोफत सल्ला व विशेष सवलतीसाठी खालील त्वरित फॉर्म आत्ताच भरा!";
+      ctaPhraseHi = "👉 फ्री कंसल्टेशन और स्पेशल डिस्काउंट के लिए नीचे दिया गया फॉर्म तुरंत भरें!";
+      ctaPhraseGu = "👉 ફ્રી કન્સલ્ટેશન અને સ્પેશિયલ ડિસ્કાઉન્ટ માટે નીચેનું ફોર્મ તરત જ ભરો!";
     } else if (destinationType === "PHONE_CALL") {
-      ctaPhraseEn = "👉 Tap 'Call Now' below to speak directly with our specialists!";
-      ctaPhraseMr = "👉 थेट बोलण्यासाठी खालील 'Call Now' बटणावर क्लिक करा!";
-      ctaPhraseHi = "👉 सीधे विशेषज्ञों से बात करने के लिए 'Call Now' बटन पर क्लिक करें!";
-      ctaPhraseGu = "👉 સીધી વાત કરવા માટે નીચે આપેલા 'Call Now' બટન પર ક્લિક કરો!";
+      ctaPhraseEn = "👉 Tap 'Call Now' below to speak directly with our senior specialists today!";
+      ctaPhraseMr = "👉 थेट तज्ज्ञांशी बोलण्यासाठी खालील 'Call Now' बटणावर क्लिक करा!";
+      ctaPhraseHi = "👉 सीधे हमारे वरिष्ठ विशेषज्ञों से बात करने के लिए नीचे 'Call Now' पर क्लिक करें!";
+      ctaPhraseGu = "👉 નિષ્ણાતો સાથે સીધી વાત કરવા માટે નીચે આપેલા 'Call Now' બટન પર ક્લિક કરો!";
     }
 
+    // ==========================================
+    // MARATHI AD COPY
+    // ==========================================
     if (languageCode === "mr") {
-      if (isTechSoftware) {
+      if (isEcommerceRetail) {
         return {
-          headline: `⚡ ${cleanBiz} | आधुनिक बिझनेस सॉफ्टवेअर`,
-          primaryText: `💥 जुन्या मॅन्युअल पद्धतींना रामराम करा आणि बिझनेस ऑटोमेशन स्वीकारा!\n\nतुमच्या व्यवसायासाठी खास तयार केलेले कस्टम सॉफ्टवेअर, CRM व मोबाईल ॲप्स.\n\n✅ १००% कस्टमाइज्ड सोल्यूशन्स (CRM, ERP, Cloud)\n⚡ हाय-स्पीड वेब आणि मोबाईल ॲप्लिकेशन्स\n🚀 मोफत टेक्निकल कन्सल्टेशन आणि लाईव्ह डेमो\n💯 ५००+ समाधानी व्यावसायिक क्लायंट्स\n\n${ctaPhraseMr}`,
-          description: `⭐ ४.९/५ स्टार रेटिंग • १००% सुरक्षित व स्केलेबल सॉफ्टवेअर`,
+          headline: `🔥 ${cleanBiz} | नवीन कलेक्शनवर थेट ५०% पर्यंत सूट!`,
+          primaryText: `✨ तुमच्या स्टाईलला द्या नवा आणि आकर्षक लूक!\n\n${cleanBiz} घेऊन आले आहे प्रीमियम क्वॉलिटीचे नवीन ट्रेंडी कलेक्शन, तेही सर्वोत्तम दरांमध्ये.\n\n💎 १००% अस्सल व प्रीमियम फॅब्रिक / प्रॉडक्ट्स\n⚡ जलद होम डिलिव्हरी व कॅश ऑन डिलिव्हरी उपलब्ध\n🎁 मर्यादित कालावधीसाठी विशेष फेस्टिव्ह ऑफर व सवलत\n⭐ ५,०००+ पेक्षा जास्त समाधानी ग्राहकांची पहिली पसंती\n\n${ctaPhraseMr}`,
+          description: `⭐ ४.९/५ स्टार रेटिंग (५,०००+ समाधानी ग्राहक) • मोफत डिलिव्हरी व सुलभ रिटर्न`,
           callToAction: cta,
           variations: [
             {
               angle: "DIRECT_OFFER",
-              headline: `🚀 मोफत डेमो बुक करा | ${cleanBiz}`,
+              headline: `⚡ मर्यादित कालावधी ऑफर | ${cleanBiz}`,
+              primaryText: `🔥 आजच खरेदी करा आणि मिळवा विशेष सवलतींचे कूपन!\n\n✅ प्रीमियम गुणवत्ता व लेटेस्ट डिझाईन्स\n⚡ मोफत होम डिलिव्हरी\n🎁 पहिल्या ऑर्डरवर अतिरिक्त १०% सूट\n\n${ctaPhraseMr}`,
+              description: `⭐ मर्यादित स्टॉक उपलब्ध • ४.९/५ स्टार्स`,
+            },
+            {
+              angle: "PAIN_POINT_CURIOSITY",
+              headline: `💡 कमी दर्जाच्या प्रॉडक्ट्सना रामराम करा – ${cleanBiz}`,
+              primaryText: `ऑनलाइन शॉपिंगमध्ये निकृष्ट दर्जा मिळून त्रास झालाय?\n\n✅ १००% ओरिजिनल गॅरंटीड मटेरियल\n⚡ सुरक्षित डिलिव्हरी व सोपे एक्सचेंज\n💯 ग्राहकांच्या समाधानाची खात्री\n\n${ctaPhraseMr}`,
+              description: `⭐ १००% खात्रीशीर उत्पादने • जलद डिलिव्हरी`,
+            },
+            {
+              angle: "SOCIAL_PROOF",
+              headline: `🏆 महाराष्ट्राचा आवडता ब्रँड: ${cleanBiz}`,
+              primaryText: `हजारो ग्राहकांनी आम्हाला ५-स्टार रेटिंग का दिले आहे?\n\n✅ ५,०००+ आनंदी ग्राहक व उत्कृष्ट रिव्ह्यूज\n⚡ २४x७ कस्टमर सपोर्ट\n💯 विश्वासार्ह सेवा\n\n${ctaPhraseMr}`,
+              description: `⭐ ४.९/५ रेटिंग • ५,०००+ आनंदी खरेदीदार`,
+            },
+          ],
+        };
+      }
+
+      if (isTechSoftware) {
+        return {
+          headline: `⚡ ${cleanBiz} | आधुनिक बिझनेस ऑटोमेशन सॉफ्टवेअर`,
+          primaryText: `💥 जुन्या मॅन्युअल पद्धतींना रामराम करा आणि बिझनेस ऑटोमेशन स्वीकारा!\n\n${cleanBiz} तुमच्या व्यवसायासाठी खास तयार करते सुरक्षित, वेगवान व स्केलेबल कस्टम सॉफ्टवेअर, CRM आणि मोबाईल ॲप्स.\n\n✅ १००% कस्टमाइज्ड सोल्यूशन्स (CRM, ERP, Cloud)\n⚡ हाय-स्पीड वेब आणि मोबाईल ॲप्लिकेशन्स\n🚀 मोफत टेक्निकल कन्सल्टेशन आणि लाईव्ह डेमो\n💯 ५००+ समाधानी व्यावसायिक क्लायंट्स\n\n${ctaPhraseMr}`,
+          description: `⭐ ४.९/५ स्टार रेटिंग • १००% सुरक्षित, स्केलेबल व २५६-बिट एन्क्रिप्टेड`,
+          callToAction: cta,
+          variations: [
+            {
+              angle: "DIRECT_OFFER",
+              headline: `🚀 मोफत लाईव्ह डेमो बुक करा | ${cleanBiz}`,
               primaryText: `कस्टम सॉफ्टवेअरने व्यवसायाची कार्यक्षमता दुपटीने वाढवा.\n\n✅ ऑटोमेशनने वेळ व खर्च वाचवा\n⚡ सुरक्षित डेटा आणि अखंड सिस्टीम\n🎁 पहिल्या महिन्यासाठी मोफत मेंटेनन्स\n\n${ctaPhraseMr}`,
               description: `⭐ टॉप-रेटेड सॉफ्टवेअर सोल्यूशन्स • मोफत डेमो`,
             },
             {
               angle: "PAIN_POINT_CURIOSITY",
-              headline: `💡 सॉफ्टवेअर काम करत नाहीये? ${cleanBiz} निवडा!`,
+              headline: `💡 धीमे आणि अवघड सिस्टीमला पर्याय: ${cleanBiz}!`,
               primaryText: `मॅन्युअल काम आणि त्रुटींमुळे त्रास झालाय?\n\n✅ तुमच्या पद्धतीनुसार तयार केलेले सॉफ्टवेअर\n⚡ २४x७ समर्पित टेक्निकल सपोर्ट\n💯 सुरक्षित व वेगवान परफॉर्मन्स\n\n${ctaPhraseMr}`,
               description: `⭐ १००% विश्वासार्ह • सुलभ ऑटोमेशन`,
             },
             {
               angle: "SOCIAL_PROOF",
-              headline: `🏆 अग्रगण्य ब्रँड्सचा विश्वासू पार्टनर: ${cleanBiz}`,
+              headline: `🏆 ५००+ ब्रँड्सचा विश्वासू पार्टनर: ${cleanBiz}`,
               primaryText: `शेकडो व्यवसायांनी आमच्यावर विश्वास का ठेवला?\n\n✅ सिद्ध ट्रॅक रेकॉर्ड व यशस्वी प्रोजेक्ट्स\n⚡ आधुनिक तंत्रज्ञान स्टॅक\n💯 वेळेत डिलिव्हरीची हमी\n\n${ctaPhraseMr}`,
               description: `⭐ ४.९/५ रेटिंग • ५००+ यशस्वी प्रोजेक्ट्स`,
             },
@@ -3781,21 +4110,21 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
 
       return {
         headline: `🔥 ${cleanBiz} विशेष ऑफर | आजच संपर्क करा!`,
-        primaryText: `💥 तुमच्या व्यवसायासाठी सर्वोत्तम उत्पादने आणि सेवा!\n\n✅ १००% खात्रीशीर आणि प्रीमियम क्वालिटी\n⚡ जलद आणि विश्वासू सेवा\n🎁 विशेष सवलती आणि आकर्षक ऑफर्स\n💯 हजारो समाधानी ग्राहकांचा विश्वास\n\n${ctaPhraseMr}`,
-        description: `⭐ ४.९/५ स्टार रेटिंग (१,८००+ आनंदी ग्राहक) • १००% हमी`,
+        primaryText: `💥 तुमच्या व्यवसायासाठी सर्वोत्तम उत्पादने आणि विश्वासू सेवा!\n\n${cleanBiz} सोबत मिळवा उच्च दर्जाची सेवा आणि समाधान.\n\n✅ १००% खात्रीशीर आणि प्रीमियम क्वालिटी डिलिव्हरेबल्स\n⚡ जलद आणि विश्वासू सेवा व २४/७ सपोर्ट\n🎁 विशेष मर्यादित सवलती आणि आकर्षक पॅकेजेस\n💯 २,५००+ समाधानी ग्राहकांचा विश्वास\n\n${ctaPhraseMr}`,
+        description: `⭐ ४.९/५ स्टार रेटिंग (२,५००+ आनंदी ग्राहक) • १००% खात्रीशीर सेवा व वॉरंटी`,
         callToAction: cta,
         variations: [
           {
             angle: "DIRECT_OFFER",
             headline: `⚡ विशेष मर्यादित ऑफर – ${cleanBiz}!`,
             primaryText: `🔥 आजच मिळवा सर्वोत्तम दर आणि दर्जेदार सेवा!\n\n✅ प्रीमियम गुणवत्ता\n⚡ झटपट मदत व सपोर्ट\n🎁 मर्यादित कालावधीसाठी विशेष लाभ\n\n${ctaPhraseMr}`,
-            description: `⭐ ४.९/५ रेटिंग • १००% खात्री`,
+            description: `⭐ ४.९/५ रेटिंग • १००% खात्रीशीर सेवा`,
           },
           {
             angle: "PAIN_POINT_CURIOSITY",
             headline: `🎯 विश्वासू सेवा शोधताय? ${cleanBiz} येथे आहे!`,
             primaryText: `कमी दर्जाच्या सेवांना कंटाळला आहात का?\n\n✅ प्रामाणिक दर आणि विश्वासू काम\n⚡ पारदर्शक सेवा\n💯 समाधानाची १००% खात्री\n\n${ctaPhraseMr}`,
-            description: `⭐ १,५००+ समाधानी ग्राहक • १००% विश्वासू`,
+            description: `⭐ २,०००+ समाधानी ग्राहक • १००% विश्वासू`,
           },
           {
             angle: "SOCIAL_PROOF",
@@ -3807,12 +4136,44 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
       };
     }
 
+    // ==========================================
+    // HINDI AD COPY
+    // ==========================================
     if (languageCode === "hi") {
+      if (isEcommerceRetail) {
+        return {
+          headline: `🔥 ${cleanBiz} | नए कलेक्शन पर पाएं 50% तक की भारी छूट!`,
+          primaryText: `✨ अपने स्टाइल को दें एक प्रीमियम और ट्रेंडी लुक!\n\n${cleanBiz} आपके लिए लाया है प्रीमियम क्वालिटी का नया कलेक्शन सबसे किफायती दामों पर।\n\n💎 100% असली और प्रीमियम क्वालिटी उत्पाद\n⚡ तेज होम डिलीवरी एवं कैश ऑन डिलीवरी उपलब्ध\n🎁 सीमित समय के लिए विशेष फेस्टिव डिस्काउंट व गिफ्ट्स\n⭐ 5,000+ से अधिक संतुष्ट ग्राहकों का पहला भरोसा\n\n${ctaPhraseHi}`,
+          description: `⭐ 4.9/5 स्टार रेटिंग (5,000+ खुश ग्राहक) • 100% मनी-बैक गारंटी व फ्री डिलीवरी`,
+          callToAction: cta,
+          variations: [
+            {
+              angle: "DIRECT_OFFER",
+              headline: `⚡ लिमिटेड टाइम ऑफर | ${cleanBiz}`,
+              primaryText: `🔥 आज ही ऑर्डर करें और पाएं विशेष फेस्टिव डिस्काउंट!\n\n✅ प्रीमियम क्वालिटी एवं लेटेस्ट ट्रेंड्स\n⚡ फ्री होम डिलीवरी\n🎁 पहली खरीदारी पर अतिरिक्त 10% छूट\n\n${ctaPhraseHi}`,
+              description: `⭐ लिमिटेड स्टॉक उपलब्ध • 4.9/5 स्टार्स`,
+            },
+            {
+              angle: "PAIN_POINT_CURIOSITY",
+              headline: `💡 साधारण क्वालिटी से परेशान? ${cleanBiz} अपनाएं!`,
+              primaryText: `ऑनलाइन शॉपिंग में खराब क्वालिटी से तंग आ चुके हैं?\n\n✅ 100% ओरिजिनल व टेस्टेड प्रोडक्ट्स\n⚡ आसान रिटर्न व एक्सचेंज पॉलिसी\n💯 पूर्ण संतुष्टि की गारंटी\n\n${ctaPhraseHi}`,
+              description: `⭐ 100% असली व प्रमाणित प्रोडक्ट्स`,
+            },
+            {
+              angle: "SOCIAL_PROOF",
+              headline: `🏆 5,000+ ग्राहकों का भरोसेमंद ब्रांड: ${cleanBiz}`,
+              primaryText: `हज़ारों ग्राहकों ने हमें 5-स्टार रेटिंग क्यों दी?\n\n✅ 5,000+ खुश ग्राहक एवं शानदार रिव्यू\n⚡ 24x7 ग्राहक सहायता\n🎁 बेस्ट प्राइस की पक्की गारंटी\n\n${ctaPhraseHi}`,
+              description: `⭐ 4.9/5 स्टार रेटिंग • 5,000+ खुश ग्राहक`,
+            },
+          ],
+        };
+      }
+
       if (isTechSoftware) {
         return {
-          headline: `⚡ ${cleanBiz} | कस्टम सॉफ्टवेयर सॉल्यूशंस`,
-          primaryText: `💥 क्या आप पुराने मैन्युअल टूल्स और सिस्टम एरर्स से परेशान हैं?\n\nअपने बिज़नेस के लिए बनवाएं आधुनिक, सुरक्षित और स्केलेबल सॉफ्टवेयर सोल्यूशन्स।\n\n✅ 100% कस्टमाइज्ड वेब, मोबाइल व क्लाउड ऐप्स\n⚡ तेज़ व सुरक्षित CRM, ERP और ऑटोमेशन\n🚀 फ्री टेक्निकल कंसल्टेशन और लाइव डेमो\n💯 500+ संतुष्ट बिज़नेस क्लाइंट्स\n\n${ctaPhraseHi}`,
-          description: `⭐ 4.9/5 स्टार रेटिंग • 100% गारंटेड परफॉर्मेंस`,
+          headline: `⚡ ${cleanBiz} | कस्टम सॉफ्टवेयर व बिज़नेस ऑटोमेशन`,
+          primaryText: `💥 क्या आप पुराने मैन्युअल टूल्स और सिस्टम एरर्स से परेशान हैं?\n\n${cleanBiz} आपके बिज़नेस के लिए बनाता है आधुनिक, सुरक्षित और स्केलेबल सॉफ्टवेयर, CRM व मोबाइल ऐप्स।\n\n✅ 100% कस्टमाइज्ड वेब, मोबाइल व क्लाउड ऐप्स\n⚡ तेज़ व सुरक्षित CRM, ERP और ऑटोमेशन सोल्यूशन्स\n🚀 फ्री टेक्निकल आर्किटेक्चर कंसल्टेशन और लाइव डेमो\n💯 500+ संतुष्ट बिज़नेस क्लाइंट्स का भरोसा\n\n${ctaPhraseHi}`,
+          description: `⭐ 4.9/5 स्टार रेटिंग • 100% गारंटेड परफॉर्मेंस व 24x7 सपोर्ट`,
           callToAction: cta,
           variations: [
             {
@@ -3839,8 +4200,8 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
 
       return {
         headline: `🔥 ${cleanBiz} विशेष ऑफर | अभी संपर्क करें!`,
-        primaryText: `💥 अपने बिज़नेस के लिए चुनें बेहतरीन और भरोसेमंद सेवाएं!\n\n✅ 100% असली व प्रीमियम क्वालिटी\n⚡ सुपरफास्ट सर्विस और सपोर्ट\n🎁 सीमित समय के लिए आकर्षक ऑफर्स\n💯 हज़ारों खुश ग्राहकों का अटूट भरोसा\n\n${ctaPhraseHi}`,
-        description: `⭐ 4.9/5 स्टार रेटिंग (1,800+ खुश ग्राहक) • 100% गारंटी`,
+        primaryText: `💥 अपने बिज़नेस के लिए चुनें बेहतरीन और भरोसेमंद सेवाएं!\n\n${cleanBiz} के साथ पाएं प्रीमियम गुणवत्ता और उत्कृष्ट कस्टमर एक्सपीरियंस।\n\n✅ 100% असली व प्रीमियम क्वालिटी डिलीवरेबल्स\n⚡ सुपरफास्ट सर्विस और 24/7 डेडिकेटेड सपोर्ट\n🎁 सीमित समय के लिए आकर्षक ऑफर्स व स्पेशल प्राइजिंग\n💯 2,500+ खुश ग्राहकों का अटूट भरोसा\n\n${ctaPhraseHi}`,
+        description: `⭐ 4.9/5 स्टार रेटिंग (2,500+ खुश ग्राहक) • 100% प्रामाणिक सेवा व गारंटी`,
         callToAction: cta,
         variations: [
           {
@@ -3853,7 +4214,7 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
             angle: "PAIN_POINT_CURIOSITY",
             headline: `🎯 विश्वसनीय सेवा की तलाश? ${cleanBiz} है सही समाधान!`,
             primaryText: `क्या आप साधारण सर्विस से परेशान हैं?\n\n✅ पारदर्शी दाम और उच्च गुणवत्ता\n⚡ समय पर डिलीवरी\n💯 संतुष्टि की पूरी गारंटी\n\n${ctaPhraseHi}`,
-            description: `⭐ 1,500+ संतुष्ट ग्राहक • 100% गारंटी`,
+            description: `⭐ 2,000+ संतुष्ट ग्राहक • 100% गारंटी`,
           },
           {
             angle: "SOCIAL_PROOF",
@@ -3865,31 +4226,62 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
       };
     }
 
-    // Default English & International
-    if (isTechSoftware) {
+    // ==========================================
+    // ENGLISH & INTERNATIONAL AD COPY
+    // ==========================================
+    if (isEcommerceRetail) {
       return {
-        headline: `⚡ Custom Software Solutions | ${cleanBiz}`,
-        primaryText: `💥 Struggling with manual bottlenecks, inefficient workflows, or off-the-shelf tools?\n\nAccelerate your growth with custom-engineered software, CRM, and cloud applications designed specifically for your business.\n\n✅ 100% Bespoke Architecture & Scalable Code\n⚡ High-Performance Web, Mobile & Automation Platforms\n🚀 Free Technical Architecture Consultation & Live Demo\n💯 Trusted by Growth-Focused Brands & Leaders\n\n${ctaPhraseEn}`,
-        description: `⭐ 4.9/5 Rating (1,800+ Happy Clients) • 100% Guaranteed`,
+        headline: `🔥 ${cleanBiz} | Up to 50% OFF New Season Collection!`,
+        primaryText: `✨ Upgrade your wardrobe with handpicked, premium designs crafted for perfection.\n\nExplore our best-selling arrivals at unbeatable introductory prices.\n\n💎 100% Premium Certified Fabrics & Materials\n⚡ Fast Free Nationwide Shipping + Cash on Delivery\n🎁 Special Limited-Time Welcome Perk on Your First Order\n💯 Loved & Highly Rated by 5,000+ Fashion Enthusiasts\n\n${ctaPhraseEn}`,
+        description: `⭐ 4.9/5 Stars (5,000+ Verified Buyers) • Free Express Shipping & Easy 7-Day Returns`,
         callToAction: cta,
         variations: [
           {
             angle: "DIRECT_OFFER",
-            headline: `🚀 Book Free Tech Consultation | ${cleanBiz}`,
-            primaryText: `Scale your operations and cut overhead costs with intelligent custom software.\n\n✅ Eliminate manual errors with workflow automation\n⚡ Built for scale: Modern cloud, web & mobile architecture\n🎁 Includes 30 days complimentary post-launch support\n\n${ctaPhraseEn}`,
-            description: `⭐ Enterprise-Grade Engineering • Free Demo`,
+            headline: `⚡ Flash Sale Live Now | ${cleanBiz}`,
+            primaryText: `🔥 Get an extra 15% OFF today only on all trending arrivals!\n\n✅ Handcrafted premium build\n⚡ Next-day dispatch & hassle-free exchange\n🎁 Exclusive VIP access codes\n\n${ctaPhraseEn}`,
+            description: `⭐ Limited Stock Available • 4.9/5 Rated`,
           },
           {
             angle: "PAIN_POINT_CURIOSITY",
-            headline: `💡 Generic Tools Slowing You Down? Switch to ${cleanBiz}!`,
-            primaryText: `Stop paying for rigid SaaS tools that don't fit how you actually work.\n\n✅ Custom CRM, ERP, and internal workflow tools\n⚡ Clean code, fast delivery & 24/7 dedicated support\n💯 Transparent development milestones & weekly demos\n\n${ctaPhraseEn}`,
-            description: `⭐ 100% Custom Built • Built to Scale`,
+            headline: `💡 Tired of Flimsy Quality? Upgrade to ${cleanBiz}!`,
+            primaryText: `Stop settling for fast fashion that loses its charm in one wash.\n\n✅ Uncompromising durability & timeless designs\n⚡ 100% Money-Back Quality Guarantee\n💯 5,000+ verified rave reviews\n\n${ctaPhraseEn}`,
+            description: `⭐ 100% Quality Guaranteed • Zero-Risk Returns`,
           },
           {
             angle: "SOCIAL_PROOF",
-            headline: `🏆 Why 500+ Companies Build with ${cleanBiz}`,
-            primaryText: `Join fast-growing companies that rely on our custom software every single day.\n\n✅ Proven track record across fintech, healthcare, and enterprise tech\n⚡ High-speed performance with 99.9% uptime architecture\n🚀 On-time delivery guarantee\n\n${ctaPhraseEn}`,
-            description: `⭐ 4.9/5 Stars (500+ Reviews) • Verified Top Developer`,
+            headline: `🏆 Why 5,000+ Shoppers Love ${cleanBiz}`,
+            primaryText: `See why our community rates us 4.9 out of 5 stars across the country.\n\n✅ Premium build with verified customer satisfaction\n⚡ 24/7 VIP Concierge Support\n🚀 Fast delivery right to your doorstep\n\n${ctaPhraseEn}`,
+            description: `⭐ 4.9/5 Stars (5,000+ Reviews) • Verified Top Choice`,
+          },
+        ],
+      };
+    }
+
+    if (isTechSoftware) {
+      return {
+        headline: `Custom Web & Mobile Engineering | Scalable, Clean Code`,
+        primaryText: `Off-the-shelf software forces your business into rigid workflows. We engineer bespoke platforms built to scale with your operations.\n\nFrom internal CRM automation to high-concurrency mobile apps, our senior engineering teams deliver production-ready code with full IP ownership and zero technical debt.\n\n• Direct access to senior full-stack developers (No junior handoffs)\n• 100% Source code & IP rights transferred upon delivery\n• Weekly sprint demos with milestone-based billing\n• 60 days of complimentary post-deployment support and monitoring\n\n${ctaPhraseEn}`,
+        description: `SOC-2 Compliant Architecture • Full IP Ownership • Senior Full-Stack Engineers`,
+        callToAction: cta,
+        variations: [
+          {
+            angle: "DIRECT_OFFER",
+            headline: `Custom Software & App Development | Free Architecture Review`,
+            primaryText: `Scale your operations and reduce technical debt with custom-engineered software platforms.\n\n• 100% Clean Architecture & Full Source Code Ownership\n• Dedicated senior engineering squads with milestone delivery\n• 60-day post-launch warranty & SLA monitoring\n\n${ctaPhraseEn}`,
+            description: `⭐ 4.9/5 Rating (120+ Enterprise Apps) • 100% IP Transfer & Clean Codebase`,
+          },
+          {
+            angle: "PAIN_POINT_CURIOSITY",
+            headline: `Rigid Off-The-Shelf SaaS Slowing You Down? Build Custom`,
+            primaryText: `Stop forcing your operations into inflexible SaaS tools that don't fit how you work.\n\n• Bespoke CRM, ERP & Workflow Platforms engineered for your exact business logic\n• Sub-second response times, automated CI/CD & cloud scalability\n• Transparent sprint demos with weekly progress tracking\n\n${ctaPhraseEn}`,
+            description: `⚡ Cut Dev Timeline by 40% • Dedicated Agile Squad • Milestone-Based Escrow Delivery`,
+          },
+          {
+            angle: "SOCIAL_PROOF",
+            headline: `Trusted by 500+ High-Growth Companies | ${cleanBiz}`,
+            primaryText: `Join fast-growing companies that rely on our custom software platforms every single day.\n\n• Proven track record across fintech, healthcare, and high-concurrency B2B platforms\n• 99.9% Uptime SLA architecture with enterprise security protocols\n• On-time delivery guarantee with full IP transfer\n\n${ctaPhraseEn}`,
+            description: `⭐ 4.9/5 Rating (500+ Verified Deployments) • Top-Tier Engineering Partner`,
           },
         ],
       };
@@ -3897,56 +4289,231 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
 
     if (isHealthcare) {
       return {
-        headline: `🏥 Expert Care at ${cleanBiz} | Book Appointment`,
-        primaryText: `Consult experienced medical specialists dedicated to your health and recovery.\n\n✅ Certified & Experienced Doctors\n⚡ Modern Advanced Medical Equipment\n💯 Personalized Care & Safe Treatments\n\n${ctaPhraseEn}`,
-        description: `⭐ 4.9/5 Star Rating • 1,500+ Happy Patients`,
+        headline: `🏥 Expert Care & Consultations at ${cleanBiz} | Book Today`,
+        primaryText: `Take charge of your well-being with personalized medical care and specialized treatment plans.\n\n${cleanBiz} connects you with certified practitioners committed to your health and comfort.\n\n✅ Certified Specialists & Decades of Combined Experience\n⚡ State-of-the-Art Diagnostic Infrastructure & Safe Treatments\n🎁 Priority Appointment Slots with Zero Waiting Time\n💯 Trusted by 2,000+ Recovered Patients & Families\n\n${ctaPhraseEn}`,
+        description: `⭐ 4.9/5 Rating (2,000+ Patients) • Board-Certified Specialists • Zero Waiting Time & 100% Confidential`,
         callToAction: cta,
         variations: [
           {
             angle: "DIRECT_OFFER",
             headline: `⚡ Priority Consultation Available | ${cleanBiz}`,
             primaryText: `Get comprehensive diagnosis and treatment from trusted medical experts.\n\n✅ Minimal waiting time\n⚡ Advanced diagnostics & compassionate care\n\n${ctaPhraseEn}`,
-            description: `⭐ Top Rated Clinic • Book Online`,
+            description: `🩺 NABH / ISO Standard Clinic • Advanced In-House Diagnostics • Immediate Slot Confirmation`,
           },
           {
             angle: "PAIN_POINT_CURIOSITY",
             headline: `🎯 Don't Ignore Symptoms | Consult ${cleanBiz}`,
             primaryText: `Get the right diagnosis from certified healthcare professionals today.\n\n✅ Compassionate, personalized care\n⚡ Safe & hygienic environment\n\n${ctaPhraseEn}`,
-            description: `⭐ Trusted Medical Care`,
+            description: `⭐ 100% Verified Medical Specialists • Advanced Treatment Plans • Transparent Care`,
           },
           {
             angle: "SOCIAL_PROOF",
             headline: `🏆 Rated 4.9/5 by 2,000+ Patients: ${cleanBiz}`,
             primaryText: `Experience outstanding healthcare with proven results.\n\n✅ Dedicated doctors & friendly staff\n⚡ Comprehensive treatments\n\n${ctaPhraseEn}`,
-            description: `⭐ 4.9/5 Stars • Verified Reviews`,
+            description: `⭐ 4.9/5 Stars (2,000+ Verified Patient Reviews) • Trusted Multi-Speciality Clinic`,
           },
         ],
       };
     }
 
+    if (isRealEstate) {
+      return {
+        headline: `🏡 Premium Properties & Prime Locations | ${cleanBiz}`,
+        primaryText: `Find your dream home or high-ROI investment property with transparent deals and prime connectivity.\n\n✅ RERA-Registered Luxury Apartments & Prime Commercial Spaces\n⚡ Flexible Payment Plans & Zero Brokerage Assistance\n🎁 Exclusive Launch Discounts & Site Visit Pick-up Facility\n💯 1,200+ Happy Homeowners Handed Over Keys\n\n${ctaPhraseEn}`,
+        description: `⭐ 4.9/5 Stars (1,200+ Homeowners) • 100% RERA Approved • Zero Brokerage & Free Cab for Site Visit`,
+        callToAction: cta,
+        variations: [
+          {
+            angle: "DIRECT_OFFER",
+            headline: `⚡ Limited Launch Pricing | ${cleanBiz}`,
+            primaryText: `Book your site visit today and unlock exclusive pre-launch pricing.\n\n✅ Prime connectivity\n⚡ High rental yield & capital appreciation\n\n${ctaPhraseEn}`,
+            description: `🏢 Pre-Launch Exclusive Pricing • Flexible 10:90 Payment Plan • High Rental Yield Guarantee`,
+          },
+          {
+            angle: "PAIN_POINT_CURIOSITY",
+            headline: `💡 Tired of Property Search Frustrations? Meet ${cleanBiz}`,
+            primaryText: `Verified titles, transparent paperwork, and zero hidden costs.\n\n✅ 100% Legal Clearances\n⚡ Complete guidance from inspection to registration\n\n${ctaPhraseEn}`,
+            description: `🔒 100% Title Verified • Clear Legal Approvals • Zero Hidden Charges & Transparent Deals`,
+          },
+          {
+            angle: "SOCIAL_PROOF",
+            headline: `🏆 Trusted by 1,200+ Families: ${cleanBiz}`,
+            primaryText: `Join thousands of satisfied property owners who found their ideal home with us.\n\n✅ Proven construction quality\n⚡ On-time delivery track record\n\n${ctaPhraseEn}`,
+            description: `⭐ 4.9/5 Rating (1,200+ Happy Families) • 15+ Years Track Record • On-Time Possession Guarantee`,
+          },
+        ],
+      };
+    }
+
+    if (isEducation) {
+      return {
+        headline: `🎓 Master High-Demand Skills with ${cleanBiz} | Enroll Now`,
+        primaryText: `Fast-track your career with industry-recognized certifications and 1-on-1 mentorship.\n\n✅ Live Interactive Sessions with Industry Leaders\n⚡ 100% Practical Hands-on Projects & Portfolio Building\n🎁 Flexible Batches & Dedicated Placement Support\n💯 3,500+ Graduates Placed at Top Companies\n\n${ctaPhraseEn}`,
+        description: `⭐ 4.9/5 Stars (3,500+ Graduates) • Live Mentorship • 100% Placement Assistance & ISO Certification`,
+        callToAction: cta,
+        variations: [
+          {
+            angle: "DIRECT_OFFER",
+            headline: `🚀 Book Free Demo Class | ${cleanBiz}`,
+            primaryText: `Experience our practical teaching methodology with a complimentary live demo session.\n\n✅ Industry expert instructors\n⚡ Real-world case studies\n\n${ctaPhraseEn}`,
+            description: `🎓 Industry-Accredited Curriculum • 1-on-1 Mentorship • Free Live Demo & Career Roadmap`,
+          },
+          {
+            angle: "PAIN_POINT_CURIOSITY",
+            headline: `💡 Outdated Courses Holding You Back? Switch to ${cleanBiz}!`,
+            primaryText: `Learn modern, in-demand skills that companies are actually hiring for right now.\n\n✅ Up-to-date curriculum\n⚡ 1-on-1 career guidance\n\n${ctaPhraseEn}`,
+            description: `⚡ Hands-on Real-World Projects • Portfolio Building • Guaranteed Interview Calls`,
+          },
+          {
+            angle: "SOCIAL_PROOF",
+            headline: `🏆 3,500+ Career Transformations: ${cleanBiz}`,
+            primaryText: `See how our students landed jobs at leading companies.\n\n✅ Proven curriculum\n⚡ Lifetime alumni network access\n\n${ctaPhraseEn}`,
+            description: `⭐ 4.9/5 Stars (3,500+ Alumni Reviews) • 92% Placement Rate at Top Tier Companies`,
+          },
+        ],
+      };
+    }
+
+    if (isFinance) {
+      return {
+        headline: `💼 Smart Financial & Growth Advisory | ${cleanBiz}`,
+        primaryText: `Maximize your wealth and streamline your taxes with certified financial advisors.\n\n✅ Customized Wealth Management & Tax Planning Strategies\n⚡ Fast Approvals, Minimal Documentation & Transparent Terms\n🎁 Complimentary Financial Health Assessment\n💯 Trusted by 2,000+ Business Owners & High Net Worth Individuals\n\n${ctaPhraseEn}`,
+        description: `⭐ 4.9/5 Rating (2,000+ Clients) • SEBI / AMFI Registered Advisors • 100% Confidential Tax Planning`,
+        callToAction: cta,
+        variations: [
+          {
+            angle: "DIRECT_OFFER",
+            headline: `⚡ Free Portfolio Review | ${cleanBiz}`,
+            primaryText: `Get actionable insights to lower tax liability and grow your capital safely.\n\n✅ Certified experts\n⚡ Customized financial roadmap\n\n${ctaPhraseEn}`,
+            description: `📊 Detailed Portfolio Audit Report • Zero Hidden Fees • Certified Wealth Planners`,
+          },
+          {
+            angle: "PAIN_POINT_CURIOSITY",
+            headline: `💡 High Taxes & Low Returns? Discover ${cleanBiz}`,
+            primaryText: `Stop losing profits to unoptimized tax structures and poor asset allocation.\n\n✅ Compliant & legal tax optimization\n⚡ High-efficiency portfolio management\n\n${ctaPhraseEn}`,
+            description: `🔒 100% Compliant & Legal Tax Strategies • High-Efficiency Risk-Balanced Growth`,
+          },
+          {
+            angle: "SOCIAL_PROOF",
+            headline: `🏆 Managing ₹100Cr+ Assets: ${cleanBiz}`,
+            primaryText: `Find out why high-growth business owners trust us with their financial future.\n\n✅ Proven return record\n⚡ Dedicated private wealth manager\n\n${ctaPhraseEn}`,
+            description: `⭐ 4.9/5 Rating • ₹100Cr+ Assets Under Advisory • Verified Wealth Partner`,
+          },
+        ],
+      };
+    }
+
+    if (isRestaurantFood) {
+      return {
+        headline: `🍽️ Authentic Flavors & Signature Delights at ${cleanBiz}`,
+        primaryText: `Craving unforgettable flavors? Experience chef-crafted recipes prepared with fresh, premium ingredients.\n\n✅ 100% Freshly Sourced Authentic Ingredients\n⚡ Fast Table Reservations & Lightning-Quick Home Delivery\n🎁 Special Group Discounts & Chef's Complimentary Taster\n💯 Rated 4.9/5 by 4,000+ Food Lovers\n\n${ctaPhraseEn}`,
+        description: `⭐ 4.9/5 Rating (4,000+ Diners) • 100% Fresh Ingredients • Reserve Table & Get 15% Off`,
+        callToAction: cta,
+        variations: [
+          {
+            angle: "DIRECT_OFFER",
+            headline: `🍕 Special Dining Discount | ${cleanBiz}`,
+            primaryText: `Book your table or order today to get 20% off your bill!\n\n✅ Signature gourmet menu\n⚡ Cozy ambiance & fast service\n\n${ctaPhraseEn}`,
+            description: `🍷 Chef's Signature Specials • Instant Table Confirmation • Cozy Family Dining`,
+          },
+          {
+            angle: "PAIN_POINT_CURIOSITY",
+            headline: `🍴 Looking for Truly Authentic Taste? Visit ${cleanBiz}!`,
+            primaryText: `Experience real, slow-cooked authentic recipes that leave you wanting more.\n\n✅ Zero artificial flavors\n⚡ Hygienic preparation & friendly staff\n\n${ctaPhraseEn}`,
+            description: `🌿 100% Natural Fresh Ingredients • Zero Preservatives • FSSAI Certified Kitchen`,
+          },
+          {
+            angle: "SOCIAL_PROOF",
+            headline: `🏆 Voted Best Local Dining: ${cleanBiz}`,
+            primaryText: `Discover why thousands of foodies rank us as their favorite spot.\n\n✅ 4,000+ glowing reviews\n⚡ Memorable dining experience\n\n${ctaPhraseEn}`,
+            description: `⭐ 4.9/5 Stars (4,000+ Foodie Reviews) • Voted Best Dining Destination`,
+          },
+        ],
+      };
+    }
+
+    if (isFitnessBeauty) {
+      return {
+        headline: `✨ Transform Your Look & Energy at ${cleanBiz}`,
+        primaryText: `Feel confident, look stunning, and reach peak vitality with our certified specialists.\n\n✅ Certified Trainers & Expert Stylists with Years of Expertise\n⚡ State-of-the-Art Equipment & Clean, Relaxing Environment\n🎁 First Session / Consultation at 50% OFF for New Clients\n💯 2,800+ Happy Transformations & Glowing Reviews\n\n${ctaPhraseEn}`,
+        description: `⭐ 4.9/5 Rating (2,800+ Clients) • Certified Stylists & Trainers • 50% Off First Session`,
+        callToAction: cta,
+        variations: [
+          {
+            angle: "DIRECT_OFFER",
+            headline: `⚡ 50% OFF First Session | ${cleanBiz}`,
+            primaryText: `Experience premium wellness and styling at an unbeatable welcome rate.\n\n✅ Personalized attention\n⚡ Immediate visible results\n\n${ctaPhraseEn}`,
+            description: `💆 Premium International Products • Hygienic Sanitized Ambience • Book Online in 60s`,
+          },
+          {
+            angle: "PAIN_POINT_CURIOSITY",
+            headline: `🎯 Ready for a Fresh Transformation? Visit ${cleanBiz}!`,
+            primaryText: `Get the personalized care, styling, and fitness guidance you deserve.\n\n✅ Expert diagnosis and customized plans\n⚡ 100% satisfaction commitment\n\n${ctaPhraseEn}`,
+            description: `⭐ Tailored Makeovers & Personal Training • 100% Result Guarantee`,
+          },
+          {
+            angle: "SOCIAL_PROOF",
+            headline: `🏆 2,800+ 5-Star Reviews: ${cleanBiz}`,
+            primaryText: `Join a community that loves their results every single week.\n\n✅ High-rated specialists\n⚡ Modern, hygienic facilities\n\n${ctaPhraseEn}`,
+            description: `⭐ 4.9/5 Stars (2,800+ Transformations) • Award-Winning Studio & Salon`,
+          },
+        ],
+      };
+    }
+
+    if (isAutomotive) {
+      return {
+        headline: `🚗 Premium Auto Care & Certified Vehicles | ${cleanBiz}`,
+        primaryText: `Keep your vehicle running smoothly with precision diagnostics and certified maintenance.\n\n✅ Certified Master Technicians & 100% Genuine OEM Parts\n⚡ Quick Turnaround, Transparent Estimates & Warranty on Service\n🎁 Complimentary 30-Point Vehicle Health Check Included\n💯 Trusted by 3,200+ Happy Vehicle Owners\n\n${ctaPhraseEn}`,
+        description: `⭐ 4.9/5 Rating (3,200+ Owners) • 100% Genuine OEM Parts • 6-Month Service Warranty`,
+        callToAction: cta,
+        variations: [
+          {
+            angle: "DIRECT_OFFER",
+            headline: `⚡ Free 30-Point Inspection | ${cleanBiz}`,
+            primaryText: `Book your service today and get a complete multi-point diagnostic check free.\n\n✅ Genuine spares\n⚡ On-time delivery guarantee\n\n${ctaPhraseEn}`,
+            description: `🔧 Free Computerized Diagnostics • Transparent Digital Job Card • Same-Day Dispatch`,
+          },
+          {
+            angle: "PAIN_POINT_CURIOSITY",
+            headline: `💡 Tired of Unreliable Garages? Choose ${cleanBiz}!`,
+            primaryText: `Transparent pricing, detailed reports, and zero surprise bills.\n\n✅ Complete digital service logs\n⚡ 6-month warranty on labor & parts\n\n${ctaPhraseEn}`,
+            description: `🛡️ 100% Transparent Billing • Live Video Service Updates • Zero Hidden Surcharges`,
+          },
+          {
+            angle: "SOCIAL_PROOF",
+            headline: `🏆 Rated #1 Auto Service Partner: ${cleanBiz}`,
+            primaryText: `See why thousands of drivers trust us with their vehicles year after year.\n\n✅ 3,200+ 5-star ratings\n⚡ Rapid roadside & workshop assistance\n\n${ctaPhraseEn}`,
+            description: `⭐ 4.9/5 Stars (3,200+ Car Owners) • Certified Multi-Brand Workshop`,
+          },
+        ],
+      };
+    }
+
+    // Default High-Converting Direct-Response Ad Copy
     return {
-      headline: `🔥 ${cleanBiz} Special Offer | Inquire Today!`,
-      primaryText: `💥 Discover premium quality products and professional services tailored for you.\n\n✅ 100% Verified Quality & Authentic Deliverables\n⚡ Fast Turnaround & Dedicated Customer Support\n🎁 Special Limited-Time Perks & Exclusive Pricing\n💯 Trusted by 1,800+ 5-Star Rated Customers\n\n${ctaPhraseEn}`,
-      description: `⭐ 4.9/5 Rating (1,800+ Happy Clients) • 100% Guaranteed`,
+      headline: `🔥 Unlock Premium Excellence with ${cleanBiz} | Inquire Today!`,
+      primaryText: `💥 Elevate your standards with bespoke solutions tailored to deliver measurable results.\n\nDiscover why leaders and individuals across the region choose ${cleanBiz} for consistency, reliability, and superior value.\n\n✅ 100% Verified Quality & Authentic Deliverables\n⚡ Fast Turnaround & 24/7 Dedicated Customer Support\n🎁 Special Limited-Time Welcome Perks & VIP Pricing\n💯 Backed by 2,500+ 5-Star Reviews & Proven Track Record\n\n${ctaPhraseEn}`,
+      description: `⭐ 4.9/5 Rating (2,500+ Happy Clients) • 100% Satisfaction Guarantee & Fast Turnaround`,
       callToAction: cta,
       variations: [
         {
           angle: "DIRECT_OFFER",
           headline: `⚡ Limited-Time Special Deal at ${cleanBiz}!`,
-          primaryText: `🔥 Get the best value and top-tier service today!\n\n✅ Transparent Pricing & No Hidden Fees\n⚡ Instant Confirmation\n🎁 Special Seasonal Perks\n\n${ctaPhraseEn}`,
-          description: `⭐ 4.9/5 Rating • Limited Availability`,
+          primaryText: `🔥 Get the best value, priority service, and exclusive seasonal pricing today!\n\n✅ Transparent Pricing & No Hidden Fees\n⚡ Instant Confirmation & Priority Handling\n🎁 Special Seasonal Perks Included\n\n${ctaPhraseEn}`,
+          description: `🎁 Special Welcome Perk • Priority Onboarding • 100% Transparent Terms & No Hidden Costs`,
         },
         {
           angle: "PAIN_POINT_CURIOSITY",
           headline: `🎯 Tired of Mediocre Service? Switch to ${cleanBiz}!`,
           primaryText: `Stop settling for second-best when you deserve top tier.\n\n✅ 100% Authentic & Reliable Delivery\n⚡ Dedicated Support & Fast Resolution\n💯 Transparent Pricing with Zero Surprises\n\n${ctaPhraseEn}`,
-          description: `⭐ 100% Satisfaction Guarantee`,
+          description: `🛡️ 100% Verified Service Quality • Dedicated Account Manager • Zero-Risk Guarantee`,
         },
         {
           angle: "SOCIAL_PROOF",
           headline: `🏆 Why 5,000+ Clients Trust ${cleanBiz}!`,
           primaryText: `Join thousands of satisfied clients who recommend us every single day.\n\n✅ Rated 4.9/5 by 5,000+ Verified Buyers\n⚡ Unmatched Consistency & Service\n🎁 Exclusive Member Benefits\n\n${ctaPhraseEn}`,
-          description: `⭐ 4.9/5 Stars (5,000+ Reviews) • Verified Top Choice`,
+          description: `⭐ 4.9/5 Stars (5,000+ Verified Reviews) • Proven Regional Market Leader`,
         },
       ],
     };
@@ -4029,7 +4596,18 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
       (state.draft.sourceMap["destination.leadGenCustomQuestions"] || (state.draft.destination as any)?.customQuestionAnswered)
     );
 
-    const hasLocation = Boolean((state.draft.targeting?.locationDescription || (state.draft.targeting?.cities && state.draft.targeting.cities.length > 0)) && (state.draft.sourceMap["targeting.locationDescription"] || state.draft.sourceMap["targeting.cities"]));
+    const hasLocation = Boolean(
+      (state.draft.targeting?.locationDescription ||
+        (state.draft.targeting?.cities && state.draft.targeting.cities.length > 0) ||
+        (state.draft.targeting?.cityConfigs && state.draft.targeting.cityConfigs.length > 0) ||
+        (state.draft.targeting?.countries && state.draft.targeting.countries.length > 0) ||
+        (state.draft.targeting?.postalCodes && state.draft.targeting.postalCodes.length > 0)) &&
+      (state.draft.sourceMap["targeting.locationDescription"] ||
+        state.draft.sourceMap["targeting.cities"] ||
+        state.draft.sourceMap["targeting.countries"] ||
+        state.draft.sourceMap["targeting.postalCodes"] ||
+        state.draft.sourceMap["targeting.cityConfigs"])
+    );
     const hasDemographics = Boolean(state.draft.targeting?.ageMin && state.draft.targeting?.ageMax && (state.draft.sourceMap["targeting.ageMin"] || state.draft.sourceMap["targeting.gender"]));
     const hasInterests = Boolean(
       (state.draft.targeting?.interests && state.draft.targeting.interests.length > 0 && state.draft.sourceMap["targeting.interests"]) ||
@@ -4306,7 +4884,7 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
           { label: `📍 ${provenCitiesLabel} (⭐ मागील जाहिरातीत यशस्वी)`, value: provenCitiesLabel },
           { label: "📍 संपूर्ण महाराष्ट्र", value: "Maharashtra" },
           { label: "📍 संपूर्ण भारत (All India)", value: "ALL_INDIA" },
-          { label: "📍 नागपूर व नाशिक", value: "Nagpur, Nashik" },
+          { label: "🌐 मोठ्या प्रमाणात स्थाने (देश, शहरे, पिनकोड आणि त्रिज्या)", value: "OPEN_BULK_LOCATIONS" },
         ];
       } else if (lang === "hi") {
         nextQuestion = `📍 इस विज्ञापन के लिए **किस शहर या क्षेत्र (Target Location)** को लक्षित करना चाहते हैं? (पिछले विज्ञापन इतिहास के आधार पर सिद्ध शहर सुझावित हैं):`;
@@ -4314,7 +4892,7 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
           { label: `📍 ${provenCitiesLabel} (⭐ पिछले इतिहास में सर्वोत्तम)`, value: provenCitiesLabel },
           { label: "📍 पूरा भारत (All India)", value: "ALL_INDIA" },
           { label: "📍 दिल्ली एनसीआर", value: "Delhi" },
-          { label: "📍 बैंगलोर", value: "Bangalore" },
+          { label: "🌐 बल्क लोकेशन जोड़ें (देश, शहर, पिनकोड व दायरा)", value: "OPEN_BULK_LOCATIONS" },
         ];
       } else if (lang === "gu") {
         nextQuestion = `📍 આ જાહેરાત માટે **કયા શહેર કે વિસ્તાર (Target Location)** ને ટાર્ગેટ કરવો છે? (અગાઉના ઇતિહાસના આધારે સાબિત થયેલા શહેરો):`;
@@ -4322,7 +4900,7 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
           { label: `📍 ${provenCitiesLabel} (⭐ અગાઉ સફળ)`, value: provenCitiesLabel },
           { label: "📍 સમગ્ર ભારત (All India)", value: "ALL_INDIA" },
           { label: "📍 અમદાવાદ અને સુરત", value: "Ahmedabad, Surat" },
-          { label: "📍 સમગ્ર ગુજરાત", value: "Gujarat" },
+          { label: "🌐 બલ્ક લોકેશન (દેશ, શહેરો, પિનકોડ અને ત્રિજ્યા)", value: "OPEN_BULK_LOCATIONS" },
         ];
       } else {
         nextQuestion = `📍 Which **cities, regions, or states (Target Location)** would you like to target with this campaign? (Top-converting cities from your ad history are recommended below):`;
@@ -4330,7 +4908,7 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
           { label: `📍 ${provenCitiesLabel} (⭐ Proven in Ad History)`, value: provenCitiesLabel },
           { label: "📍 All India", value: "ALL_INDIA" },
           { label: "📍 Delhi NCR", value: "Delhi" },
-          { label: "📍 Bangalore", value: "Bangalore" },
+          { label: "🌐 Add Locations in Bulk (Countries, Cities, Pincodes & Radius)", value: "OPEN_BULK_LOCATIONS" },
         ];
       }
     } else if (!hasDemographics) {
@@ -4611,10 +5189,15 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
       }
     } else if (!hasCopyApproved) {
       const biz = state.draft.campaign.name || "Business";
+      const userContextSnippet = state.conversation
+        ?.filter(m => m.sender === "user")
+        ?.map(m => m.text)
+        ?.join(" ") || "";
       const prodCopy = MetaAIConversationService.generateProductionAdCopy(
         biz,
         lang,
-        destType || "WHATSAPP"
+        destType || "WHATSAPP",
+        userContextSnippet
       );
 
       if (!state.draft.creative.headline || state.draft.creative.headline.trim().length < 5) {
@@ -4828,7 +5411,11 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
     state.draft.creative.callToAction = state.draft.creative.callToAction || (destType === "WHATSAPP" ? "WHATSAPP_MESSAGE" : destType === "INSTANT_FORM" ? "SIGN_UP" : "LEARN_MORE");
 
     // Try AI generation with Groq / provider, fallback to production templates
-    const prodCopy = MetaAIConversationService.generateProductionAdCopy(brandName, lang, destType);
+    const userContextSnippet = state.conversation
+      ?.filter(m => m.sender === "user")
+      ?.map(m => m.text)
+      ?.join(" ") || "";
+    const prodCopy = MetaAIConversationService.generateProductionAdCopy(brandName, lang, destType, userContextSnippet);
     state.draft.creative.headline = prodCopy.headline;
     state.draft.creative.primaryText = prodCopy.primaryText;
     state.draft.creative.description = prodCopy.description;
@@ -4932,3 +5519,4 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
     return state;
   }
 }
+
