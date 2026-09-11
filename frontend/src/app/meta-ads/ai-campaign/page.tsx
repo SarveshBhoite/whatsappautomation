@@ -95,6 +95,21 @@ interface CampaignState {
   executionResult?: any;
 }
 
+function formatCleanText(text: string) {
+  if (!text) return null;
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return (
+        <strong key={idx} className="font-semibold text-slate-900">
+          {part.slice(2, -2).replace(/^\*+|\*+$/g, "")}
+        </strong>
+      );
+    }
+    return part.replace(/\*\*/g, "");
+  });
+}
+
 export default function MetaAIChatbotStudioPage() {
   const router = useRouter();
   const [orgId, setOrgId] = useState<string>(getOrgId());
@@ -722,7 +737,7 @@ export default function MetaAIChatbotStudioPage() {
                   return (
                     <div key={msg.id || index} className="flex justify-end animate-fadeIn">
                       <div className="max-w-[80%] bg-slate-900 text-white font-normal px-4 py-2.5 rounded-2xl rounded-tr-xs text-[13.5px] leading-relaxed shadow-xs break-words">
-                        <p className="whitespace-pre-line">{msg.text}</p>
+                        <p className="whitespace-pre-line">{formatCleanText(msg.text)}</p>
                         <div className="text-[10px] text-slate-400 text-right mt-1 font-medium">
                           {msg.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </div>
@@ -822,7 +837,7 @@ export default function MetaAIChatbotStudioPage() {
                           </div>
                         </div>
                       ) : (
-                        <p className="whitespace-pre-line text-slate-800 text-[13px]">{msg.text}</p>
+                        <p className="whitespace-pre-line text-slate-800 text-[13px]">{formatCleanText(msg.text)}</p>
                       )}
 
                       {/* Inline Interactive Upload Button Card when user wants to upload own media */}

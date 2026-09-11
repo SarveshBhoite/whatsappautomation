@@ -8,6 +8,7 @@ import { MetaAIProviderService } from "./metaAIProviderService";
 import { MetaAdsCapabilityService } from "./metaAdsCapabilityService";
 import { MetaImageGenerationService } from "./metaImageGenerationService";
 import { AccountPerformanceAudit, MetaAdsResearchService } from "./metaAdsResearchService";
+import { MetaAdsCoreService } from "./metaAdsCoreService";
 
 export type ConversationStatus =
   | "DISCOVERY"
@@ -251,10 +252,7 @@ export class MetaAIConversationService {
       draft.pageName = context.pages[0]?.name;
     }
 
-    if (context.whatsAppNumbers && context.whatsAppNumbers.length > 0) {
-      draft.destination.whatsappPhoneNumber = context.whatsAppNumbers[0].phoneNumber;
-      draft.destination.phoneNumber = context.whatsAppNumbers[0].phoneNumber;
-    }
+    // Note: Do not pre-fill draft.destination.whatsappPhoneNumber so user is prompted to choose from their linked numbers when selecting WhatsApp
 
     const validation = MetaCampaignValidationService.validateDraft(draft, context);
 
@@ -639,6 +637,15 @@ export class MetaAIConversationService {
       return state;
     }
 
+    // Ensure verified WhatsApp numbers are loaded in context if not yet present
+    if ((!state.context.whatsAppNumbers || state.context.whatsAppNumbers.length === 0) && state.context.organizationId) {
+      try {
+        state.context.whatsAppNumbers = await MetaAdsCoreService.getWhatsAppNumbers(state.context.organizationId);
+      } catch (e: any) {
+        console.warn("[MetaAIConversationService] On-demand WhatsApp numbers fetch warning:", e.message);
+      }
+    }
+
     // 2.1 Priority Phone Number Extraction Regex (e.g. +91 9325174465, 919325174465, 9325174465, 09325174465)
     const isUsePageNumber =
       selectedOptionValue === "USE_PAGE_NUMBER" ||
@@ -770,7 +777,7 @@ export class MetaAIConversationService {
 
         if (isPurePhoneInput && !hasLocationAlready && (state.draft.destination?.type === "WHATSAPP" || state.draft.destination?.type === "PHONE_CALL")) {
           const formattedNum = `+91 ${cleanPhone.slice(-10)}`;
-          let locPrompt = `✅ **Verified connected WhatsApp number \`${formattedNum}\` locked in!** 📱\n\nNext, **which city, state, or region would you like to target** for this campaign? (e.g. 'Mumbai', 'Pune', 'All India', or choose below):`;
+          let locPrompt = `Connected WhatsApp number (${formattedNum}) saved. 📱\n\nWhich city, state, or region would you like to target for this campaign?`;
           let locOptions = [
             { label: "📍 All India", value: "ALL_INDIA" },
             { label: "📍 Mumbai & Pune", value: "Mumbai, Pune" },
@@ -779,7 +786,7 @@ export class MetaAIConversationService {
           ];
 
           if (detectedLang.code === "mr") {
-            locPrompt = `✅ **सत्यापित जोडलेला व्हॉट्सॲप नंबर \`${formattedNum}\` नोंदवला आहे!** 📱\n\nआता या जाहिरातीसाठी **कोणत्या शहरात किंवा भागात (Location)** जाहिरात दाखवायची आहे? (उदा. 'मुंबई', 'पुणे', 'संपूर्ण महाराष्ट्र', 'संपूर्ण भारत', किंवा खालील पर्याय निवडा):`;
+            locPrompt = `व्हॉट्सॲप नंबर (${formattedNum}) नोंदवला आहे. 📱\n\nया मोहिमेसाठी कोणत्या शहरात किंवा भागात जाहिरात दाखवायची आहे?`;
             locOptions = [
               { label: "📍 संपूर्ण भारत (All India)", value: "ALL_INDIA" },
               { label: "📍 मुंबई आणि पुणे", value: "Mumbai, Pune" },
@@ -787,7 +794,7 @@ export class MetaAIConversationService {
               { label: "📍 संपूर्ण महाराष्ट्र", value: "Maharashtra" },
             ];
           } else if (detectedLang.code === "hi") {
-            locPrompt = `✅ **सत्यापित कनेक्टेड व्हाट्सएप नंबर \`${formattedNum}\` लॉक कर दिया गया है!** 📱\n\nअब इस विज्ञापन के लिए **किस शहर या क्षेत्र (Location)** को लक्षित करना चाहते हैं? (उदा. 'मुंबई', 'दिल्ली', 'पूरा भारत', या नीचे दिए गए विकल्प चुनें):`;
+            locPrompt = `व्हाट्सएप नंबर (${formattedNum}) सेव कर लिया गया है। 📱\n\nइस विज्ञापन के लिए किस शहर या क्षेत्र को लक्षित करना चाहते हैं?`;
             locOptions = [
               { label: "📍 संपूर्ण भारत (All India)", value: "ALL_INDIA" },
               { label: "📍 मुंबई और पुणे", value: "Mumbai, Pune" },
@@ -1440,14 +1447,65 @@ export class MetaAIConversationService {
         MetaCampaignDraftService.setField(state.draft, "campaign.objective", "OUTCOME_LEADS", "SYSTEM", 0.9, "WhatsApp messaging defaults to OUTCOME_LEADS");
       }
 
-      // Check if phone number was already provided in this message or earlier
-      const hasPhoneNow = Boolean(state.draft.destination.whatsappPhoneNumber);
+      // Check if verified phone number was already explicitly chosen by user in this session
+      const hasPhoneNow = Boolean(
+        state.draft.destination.whatsappPhoneNumber &&
+        state.draft.sourceMap["destination.whatsappPhoneNumber"]
+      );
       if (!hasPhoneNow) {
-        let askPhoneMsg = `✅ **Destination locked as WhatsApp!** 💬\n\nWhich **WhatsApp mobile number** should customers message you on? Please type your 10-digit number (e.g. \`+91 9876543210\`):`;
-        if (detectedLang.code === "mr") {
-          askPhoneMsg = `✅ **गंतव्य व्हॉट्सअॅप (WhatsApp) म्हणून नोंदवले आहे!** 💬\n\nग्राहकांनी तुम्हाला **कोणत्या व्हॉट्सअॅप नंबरवर** मेसेज करावा? कृपया तुमचा १० अंकी मोबाईल नंबर टाइप करा (उदा. \`+91 9876543210\` किंवा \`९८७६५४३२१०\`):`;
-        } else if (detectedLang.code === "hi") {
-          askPhoneMsg = `✅ **गंतव्य व्हाट्सएप (WhatsApp) के रूप में सेट कर दिया गया है!** 💬\n\nग्राहक आपको **किस व्हाट्सएप नंबर पर** संदेश भेजें? कृपया अपना 10 अंकों का मोबाइल नंबर दर्ज करें (उदा. \`+91 9876543210\`):`;
+        if ((!state.context.whatsAppNumbers || state.context.whatsAppNumbers.length === 0) && state.context.organizationId) {
+          try {
+            state.context.whatsAppNumbers = await MetaAdsCoreService.getWhatsAppNumbers(state.context.organizationId);
+          } catch (e: any) {
+            console.warn("[MetaAIConversationService] On-demand WhatsApp numbers fetch warning:", e.message);
+          }
+        }
+
+        const connectedNumbers = state.context?.whatsAppNumbers || [];
+        let askPhoneMsg = "";
+        let phoneQuickOptions: ConversationMessage["quickOptions"] = undefined;
+
+        if (connectedNumbers.length > 0) {
+          phoneQuickOptions = connectedNumbers.map((wn) => {
+            const cleanDigits = (wn.phoneNumber || "").replace(/\D/g, "");
+            const displayNum = wn.displayPhoneNumber || wn.phoneNumber;
+            const sourceText = wn.verifiedName || (wn.source === "WHATSAPP_CONFIG" ? "Connected WABA" : (wn.pageName ? `${wn.pageName} Page` : "Connected"));
+            return {
+              label: `📱 ${displayNum} (${sourceText})`,
+              value: `USE_PHONE_${cleanDigits}`,
+            };
+          });
+
+          if (connectedNumbers.length === 1) {
+            phoneQuickOptions.push({
+              label: `Use Connected Number (${connectedNumbers[0].displayPhoneNumber || connectedNumbers[0].phoneNumber})`,
+              value: "USE_PAGE_NUMBER",
+            });
+          }
+
+          if (detectedLang.code === "mr") {
+            askPhoneMsg = `या मोहिमेसाठी तुम्हाला कोणता व्हॉट्सअॅप नंबर वापरायचा आहे? कृपया खालीलपैकी पर्याय निवडा:`;
+          } else if (detectedLang.code === "hi") {
+            askPhoneMsg = `इस विज्ञापन के लिए आप किस व्हाट्सएप नंबर का उपयोग करना चाहते हैं? कृपया नीचे दिए गए विकल्पों में से चुनें:`;
+          } else if (detectedLang.code === "gu") {
+            askPhoneMsg = `આ જાહેરાત માટે તમે કયો વ્હોટ્સએપ નંબર વાપરવા માંગો છો? કૃપા કરીને નીચેના વિકલ્પોમાંથી પસંદ કરો:`;
+          } else {
+            askPhoneMsg = `Which WhatsApp number do you want to use for this campaign? Please select below:`;
+          }
+        } else {
+          if (detectedLang.code === "mr") {
+            askPhoneMsg = `तुमच्या फेसबुक पेजशी किंवा WABA खात्याशी कोणताही व्हॉट्सॲप नंबर जोडलेला आढळला नाही. कृपया खालीलपैकी दुसरा पर्याय निवडा:`;
+          } else if (detectedLang.code === "hi") {
+            askPhoneMsg = `आपके फेसबुक पेज या WABA खाते से कोई व्हाट्सएप नंबर नहीं जुड़ा है। कृपया नीचे दिए गए अन्य विकल्पों में से चुनें:`;
+          } else {
+            askPhoneMsg = `No linked WhatsApp numbers were found on your Facebook Page or WABA. Please choose an alternative destination below:`;
+          }
+
+          phoneQuickOptions = [
+            { label: "Use Instant Lead Form instead", value: "DESTINATION_INSTANT_FORM" },
+            { label: "Use Website / Landing Page", value: "DESTINATION_WEBSITE" },
+            { label: "Direct Phone Call", value: "DESTINATION_PHONE_CALL" },
+          ];
         }
 
         state.status = "DRAFTING";
@@ -1457,6 +1515,7 @@ export class MetaAIConversationService {
           sender: "ai",
           text: askPhoneMsg,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          quickOptions: phoneQuickOptions,
         });
 
         state.validation = MetaCampaignValidationService.validateDraft(state.draft, state.context);
@@ -3958,10 +4017,8 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
 
     const destType = state.draft.destination?.type;
     const hasPhone = Boolean(
-      (state.draft.destination?.whatsappPhoneNumber && state.draft.destination.whatsappPhoneNumber.length >= 10) ||
-      ((state.draft.destination as any)?.phoneNumber && (state.draft.destination as any).phoneNumber.length >= 10) ||
-      state.draft.sourceMap["destination.whatsappPhoneNumber"] ||
-      state.draft.sourceMap["destination.phoneNumber"] ||
+      (state.draft.destination?.whatsappPhoneNumber && state.draft.destination.whatsappPhoneNumber.length >= 10 && state.draft.sourceMap["destination.whatsappPhoneNumber"]) ||
+      ((state.draft.destination as any)?.phoneNumber && (state.draft.destination as any).phoneNumber.length >= 10 && state.draft.sourceMap["destination.phoneNumber"]) ||
       state.conversation.some(m => /phone number.*(saved|locked|set)|फोन नंबर.*(नोंदवला|लॉक|सेव्ह)/i.test(m.text))
     );
     const hasUrl = Boolean(state.draft.destination?.destinationUrl && state.draft.sourceMap["destination.destinationUrl"]);
@@ -4101,51 +4158,67 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
         ];
       }
     } else if (destType === "WHATSAPP" && !hasPhone) {
-      if (state.context?.whatsAppNumbers && state.context.whatsAppNumbers.length > 0) {
-        quickOptions = state.context.whatsAppNumbers.map((wn) => ({
-          label: `📱 ${wn.displayPhoneNumber || wn.phoneNumber}${wn.source ? ` (${wn.source})` : ""}`,
-          value: `USE_PHONE_${wn.phoneNumber.replace(/\D/g, "")}`,
-        }));
-        if (quickOptions.length === 1) {
+      const connectedNumbers = state.context?.whatsAppNumbers || [];
+      if (connectedNumbers.length > 0) {
+        quickOptions = connectedNumbers.map((wn) => {
+          const cleanDigits = (wn.phoneNumber || "").replace(/\D/g, "");
+          const displayNum = wn.displayPhoneNumber || wn.phoneNumber;
+          const sourceText = wn.verifiedName || (wn.source === "WHATSAPP_CONFIG" ? "Connected WABA" : (wn.pageName ? `${wn.pageName} Page` : "Connected"));
+          return {
+            label: `📱 ${displayNum} (${sourceText})`,
+            value: `USE_PHONE_${cleanDigits}`,
+          };
+        });
+        if (connectedNumbers.length === 1) {
           quickOptions.push({
-            label: `✅ Use Connected Number (${state.context.whatsAppNumbers[0].phoneNumber})`,
+            label: `Use Connected Number (${connectedNumbers[0].displayPhoneNumber || connectedNumbers[0].phoneNumber})`,
             value: "USE_PAGE_NUMBER",
           });
         }
+
         if (lang === "mr") {
-          nextQuestion = `💬 **मेटा धोरणानुसार (Meta Policy)**, व्हॉट्सॲप जाहिरातीसाठी तुमच्या फेसबुक पेज किंवा WABA खात्याशी जोडलेला अधिकृत नंबरच वापरता येतो.\n\nखालीलपैकी तुमचा कनेक्टेड नंबर निवडा:`;
+          nextQuestion = `या मोहिमेसाठी तुम्हाला कोणता व्हॉट्सअॅप नंबर वापरायचा आहे? कृपया खालीलपैकी पर्याय निवडा:`;
         } else if (lang === "hi") {
-          nextQuestion = `💬 **मेटा पॉलिसी के अनुसार (Meta Policy)**, व्हाट्सएप विज्ञापनों के लिए आपके फेसबुक पेज या WABA खाते से जुड़ा सत्यापित नंबर ही इस्तेमाल किया जा सकता है।\n\nकृपया नीचे अपना कनेक्टेड नंबर चुनें:`;
+          nextQuestion = `इस विज्ञापन के लिए आप किस व्हाट्सएप नंबर का उपयोग करना चाहते हैं? कृपया नीचे दिए गए विकल्पों में से चुनें:`;
         } else if (lang === "gu") {
-          nextQuestion = `💬 **મેટા નીતિ મુજબ (Meta Policy)**, વ્હોટ્સએપ જાહેરાત માટે તમારા ફેસબુક પેજ અથવા WABA એકાઉન્ટ સાથે જોડાયેલો નંબર જ વાપરી શકાય છે.\n\nકૃપા કરીને નીચે તમારો કનેક્ટેડ નંબર પસંદ કરો:`;
+          nextQuestion = `આ ઝુંબેશ માટે તમે કયો વ્હોટ્સએપ નંબર વાપરવા માંગો છો? કૃપા કરીને નીચેના વિકલ્પોમાંથી પસંદ કરો:`;
         } else {
-          nextQuestion = `💬 **Meta Policy Requirement**: Click-to-WhatsApp ads strictly require a WhatsApp number officially linked with your Facebook Page or Meta WABA ID.\n\nPlease select your connected number below:`;
+          nextQuestion = `Which WhatsApp number do you want to use for this campaign? Please select below:`;
         }
       } else {
         quickOptions = [
-          { label: "📝 Use Instant Lead Form (Recommended)", value: "DESTINATION_INSTANT_FORM" },
-          { label: "🌐 Send to Website", value: "DESTINATION_WEBSITE" },
-          { label: "📞 Direct Phone Call", value: "DESTINATION_PHONE_CALL" },
+          { label: "Use Instant Lead Form instead", value: "DESTINATION_INSTANT_FORM" },
+          { label: "Use Website / Landing Page", value: "DESTINATION_WEBSITE" },
+          { label: "Direct Phone Call", value: "DESTINATION_PHONE_CALL" },
         ];
         if (lang === "mr") {
-          nextQuestion = `⚠️ **व्हॉट्सॲप (WABA) लिंक नाही**: तुमच्या फेसबुक पेजशी (${state.draft.pageName || "Page"}) कोणताही अधिकृत व्हॉट्सॲप नंबर जोडलेला आढळला नाही. मेटा नियमांनुसार अशा जाहिराती चालवता येत नाहीत.\n\nतुम्ही **इन्स्टंट लीड फॉर्म** किंवा **वेबसाईट** वापरू शकता:`;
+          nextQuestion = `तुमच्या फेसबुक पेजशी कोणताही व्हॉट्सॲप नंबर जोडलेला आढळला नाही. कृपया खालीलपैकी दुसरा पर्याय निवडा:`;
         } else if (lang === "hi") {
-          nextQuestion = `⚠️ **व्हाट्सएप (WABA) लिंक नहीं है**: आपके फेसबुक पेज (${state.draft.pageName || "Page"}) से कोई आधिकारिक व्हाट्सएप नंबर नहीं जुड़ा है। मेटा ऐसे विज्ञापनों को अनुमति नहीं देता है।\n\nआप **इंस्टेंट लीड फॉर्म** या **वेबसाइट** चुन सकते हैं:`;
-        } else if (lang === "gu") {
-          nextQuestion = `⚠️ **વ્હોટ્સએપ (WABA) લિંક નથી**: તમારા ફેસબુક પેજ સાથે કોઈ વ્હોટ્સએપ નંબર જોડાયેલો નથી. મેટા આવી જાહેરાતો અસ્વીકાર કરે છે.\n\nતમે **ઇન્સ્ટન્ટ લીડ ફોર્મ** અથવા **વેબસાઇટ** વાપરી શકો છો:`;
+          nextQuestion = `आपके फेसबुक पेज से कोई व्हाट्सएप नंबर नहीं जुड़ा है। कृपया नीचे दिए गए अन्य विकल्पों में से चुनें:`;
         } else {
-          nextQuestion = `⚠️ **No Connected WhatsApp (WABA) Found**: No WhatsApp number is currently linked with your Facebook Page (${state.draft.pageName || "Page"}) or Meta WABA. Meta rejects CTWA ads without a linked number.\n\nWe recommend selecting an alternative destination below:`;
+          nextQuestion = `No WhatsApp number is linked with your Facebook Page or WABA. Please select an alternative destination below:`;
         }
       }
     } else if (destType === "PHONE_CALL" && !hasPhone) {
+      const connectedNumbers = state.context?.whatsAppNumbers || [];
+      if (connectedNumbers.length > 0) {
+        quickOptions = connectedNumbers.map((wn) => {
+          const cleanDigits = (wn.phoneNumber || "").replace(/\D/g, "");
+          const displayNum = wn.displayPhoneNumber || wn.phoneNumber;
+          return {
+            label: `📞 ${displayNum}`,
+            value: `USE_PHONE_${cleanDigits}`,
+          };
+        });
+      }
       if (lang === "mr") {
-        nextQuestion = `📞 ग्राहकांचे कॉल्स थेट येण्यासाठी तुमचा **१० अंकी फोन नंबर (Phone Call Number)** सांगा:`;
+        nextQuestion = `ग्राहकांचे कॉल्स थेट येण्यासाठी तुमचा १० अंकी फोन नंबर सांगा किंवा खालील पर्याय निवडा:`;
       } else if (lang === "hi") {
-        nextQuestion = `📞 ग्राहकों के कॉल सीधे प्राप्त करने के लिए अपना **10 अंकों का फोन नंबर (Phone Call Number)** दर्ज करें:`;
+        nextQuestion = `ग्राहकों के कॉल सीधे प्राप्त करने के लिए अपना 10 अंकों का फोन नंबर दर्ज करें या नीचे से चुनें:`;
       } else if (lang === "gu") {
-        nextQuestion = `📞 ગ્રાહકોના કોલ સીધા મેળવવા માટે તમારો **10 અંકનો ફોન નંબર (Phone Call Number)** આપો:`;
+        nextQuestion = `ગ્રાહકોના કોલ સીધા મેળવવા માટે તમારો 10 અંકનો ફોન નંબર આપો અથવા નીચેથી પસંદ કરો:`;
       } else {
-        nextQuestion = `📞 Please enter the **10-digit phone number** where customers can call you:`;
+        nextQuestion = `Please enter or select the 10-digit phone number where customers can call you:`;
       }
     } else if (destType === "WEBSITE" && !hasUrl) {
       if (lang === "mr") {
