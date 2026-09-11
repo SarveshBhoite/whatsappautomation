@@ -67,9 +67,9 @@ export interface CampaignState {
   channels?: string[];
   carouselCards?: Array<{ id: string; image: string; headline: string; finalUrl: string }>;
   callToAction?: string;
-  images?: Array<string | { url?: string; data?: string; fieldType?: string; name?: string }>;
-  logos?: Array<string | { url?: string; data?: string; fieldType?: string; name?: string }>;
-  videos?: Array<string | { url?: string; data?: string; name?: string }>;
+  images?: Array<string | { url?: string; data?: string; fieldType?: string; name?: string; aspectRatio?: string; dimensions?: { width: number; height: number } }>;
+  logos?: Array<string | { url?: string; data?: string; fieldType?: string; name?: string; aspectRatio?: string; dimensions?: { width: number; height: number } }>;
+  videos?: Array<string | { url?: string; data?: string; name?: string; aspectRatio?: string; dimensions?: { width: number; height: number } }>;
   appId?: string;
   appName?: string;
   platform?: "ANDROID" | "IOS";
@@ -264,9 +264,9 @@ export function reconcileCampaignStateBackend(state: CampaignState): CampaignSta
 
 export class GoogleAdsAiAssistantService {
   private static getGroqKey(): string {
-    const key = process.env.GROQ_KEY || "";
+    const key = process.env.GROQ_KEY || process.env.GROQ_API_KEY || "";
     if (!key) {
-      console.warn("[GoogleAdsAiAssistantService] Warning: GROQ_KEY is not configured in backend environment.");
+      console.warn("[GoogleAdsAiAssistantService] Warning: GROQ_KEY / GROQ_API_KEY is not configured in backend environment.");
     }
     return key;
   }
@@ -464,30 +464,40 @@ Stage 6: **VALIDATION & REVIEW**
   3. **Focus ONLY on what is missing or changed**: Ask ONLY about the specific goal or changes needed for this new campaign (e.g. new campaign objective, adjusted budget, or new product focus).
   4. **Preserve existing high-quality assets**: Inherit and retain headlines, descriptions, keywords, images, and logos from the reference context, making only relevant adaptations if requested.
 
+### MULTILINGUAL & MULTI-LANGUAGE SUPPORT (CRITICAL):
+- **DYNAMIC LANGUAGE ADAPTATION**: You MUST automatically detect the language of the user's input prompt (e.g. Hindi, Marathi, Gujarati, Spanish, French, German, Bengali, Tamil, Telugu, Kannada, Urdu, Arabic, Japanese, or any other language) or use the configured campaign language (\`currentState.language\`).
+- **CONVERSATIONAL REPLIES IN USER'S LANGUAGE**: If the user writes in a language other than English (e.g. Hindi "मुझे कपड़े बेचने के लिए कैंपेन बनाना है", Marathi "मला पुण्यात दुकानाची जाहिरात करायची आहे", Spanish, etc.), your response \`message\` and suggestion chips MUST be written naturally in that SAME language or script (supporting native Devanagari/scripts as well as Romanized text like Hinglish/Marathlish if the user typed Roman script).
+- **CREATIVE AD ASSETS IN TARGET / INPUT LANGUAGE**:
+  * When generating or suggesting **Headlines**, **Long Headlines**, **Descriptions**, and **Keywords**, generate them in the USER'S INPUT LANGUAGE (or specified target language).
+  * For example, if user asks in Hindi/Marathi/Gujarati/etc., generate headlines, long headlines, descriptions, and keywords in that language (or matching the user's linguistic style/script), ensuring character limits (Headlines <= 30 chars, Long Headlines <= 90 chars, Descriptions <= 90 chars) are respected in that language.
+- **LANGUAGE PARAMETER SYNCHRONIZATION**: Set \`campaignState.language\` to the corresponding language name (e.g. "Hindi", "Marathi", "Gujarati", "Spanish", "French", "German", "English", etc.) matching the user's primary language.
+
 ### STRICT DATA ACCURACY & SYNCHRONIZATION RULES:
-1. **OBJECTIVE INTEGRITY**:
+1. **NO SILENT DEFAULT VALUES FOR CORE FIELDS (BUSINESS NAME, BUDGET, CAMPAIGN NAME)**:
+   - **Business Name (\`businessName\`)**: NEVER invent or use a default like "My Business" or "Commercial Business". If the user has not provided their business/shop name, leave \`businessName: ""\` and ask the user directly: "What is your business or shop name?".
+   - **Daily Budget (\`dailyBudget\`)**: NEVER silently default to ₹1,000, ₹500, or any hardcoded number. If the user has not specified a budget yet, leave \`dailyBudget: null\` and ask the user directly: "What daily budget would you like to allocate for this campaign?".
+   - **Campaign Name (\`campaignName\`)**: Format campaign name strictly using the user's real business name and chosen campaign type: \`[Business_Name] - [CampaignType]\`. If the business name is not yet provided, leave \`campaignName: ""\` until the business name is known.
+   - **Website / Final URL (\`website\`)**: If missing, ask the user for their official website or landing page URL.
+2. **OBJECTIVE INTEGRITY**:
    - NEVER assume or default \`objective\` to \`LEADS\`.
    - If user only supplied business name: \`objective: ""\` (empty string).
    - If user provides a goal, intelligently match to one of the 7 CRM objectives (\`SALES\`, \`LEADS\`, \`WEBSITE_TRAFFIC\`, \`APP_PROMOTION\`, \`AWARENESS\`, \`LOCAL\`, \`NO_GUIDANCE\`).
    - Preserve existing \`currentState.objective\` if valid, unless user explicitly changes it.
-2. **BUDGET SYNCHRONIZATION**:
+3. **BUDGET SYNCHRONIZATION**:
    - When the user mentions a daily budget in natural language (e.g. "my budget is 5600 per day", "7000 daily", "Rs 5000", "500/day"), extract and set \`campaignState.dailyBudget\` as an integer (e.g. 5600, 7000, 5000, 500).
    - If the user changes their budget later in the conversation, immediately update \`campaignState.dailyBudget\` to the new number.
    - If the user has not mentioned a budget yet, leave \`dailyBudget\` as null. NEVER output 0.
-3. **SMART CONTEXTUAL CAMPAIGN NAMING**:
-   - Format campaign name as \`[Business_Name]\` (or \`[Business_Name] - [CampaignType]\` if campaign type is confirmed).
-   - If the user explicitly asks for a custom campaign name, respect and use their custom name verbatim.
 4. **IMAGE & ASSET VERIFICATION (NEVER FABRICATE ASSETS)**:
    - If the user claims "I attached images" or "I uploaded logos", but \`campaignState.images\` is empty (\`[]\`), DO NOT pretend images are present. Politely remind them to click the **Upload Media** or **Attach Images** button to attach real creative images.
    - Do NOT invent fake or placeholder URLs for images or logos in \`campaignState.images\` or \`campaignState.logos\`.
-5. **DEFAULT LOCATION & LANGUAGE**:
-   - Provide standard practical defaults if not specified: \`locations: ["India"]\`, \`language: "English"\`. If the user specifies different locations (e.g. "Pune", "United States", "Global") or languages (e.g. "Hindi", "Spanish"), update them immediately.
+5. **LOCATION & LANGUAGE INTEGRITY**:
+   - Only set \`locations\` and \`language\` if specified by the user or detected from their website content / \`currentState\`. If the user communicates in a non-English language, set \`language\` to that language (e.g., "Hindi", "Marathi", "Gujarati", "Spanish", "German").
 6. **MANDATORY GOOGLE ADS COPY REQUIREMENTS (NEVER GENERATE ONLY 1 HEADLINE OR DESCRIPTION)**:
    - When the user asks to "generate headlines", "generate ad copy", "create headlines and descriptions", "generate all required", or when ad copy is needed for the campaign:
-     * **HEADLINES (REQUIRED: MINIMUM 3 TO 5 DISTINCT HEADLINES)**: You MUST generate at least 3 to 5 unique, punchy headlines. NEVER generate only 1 headline. Each headline must be <= 30 characters.
-     * **LONG HEADLINES (REQUIRED: MINIMUM 1 TO 2 LONG HEADLINES)**: You MUST generate at least 1 to 2 long headlines. Each long headline must be <= 90 characters.
-     * **DESCRIPTIONS (REQUIRED: MINIMUM 2 TO 4 DISTINCT DESCRIPTIONS)**: You MUST generate at least 2 to 4 distinct descriptions. NEVER generate only 1 description. Each description must be <= 90 characters.
-     * **KEYWORDS (REQUIRED: MINIMUM 5 TO 10 KEYWORDS)**: If campaign type is Search or includes keywords, generate 5 to 10 high purchase-intent keywords.
+     * **HEADLINES (REQUIRED: MINIMUM 3 TO 5 DISTINCT HEADLINES)**: You MUST generate at least 3 to 5 unique, punchy headlines in the user's conversation language. NEVER generate only 1 headline. Each headline must be <= 30 characters.
+     * **LONG HEADLINES (REQUIRED: MINIMUM 1 TO 2 LONG HEADLINES)**: You MUST generate at least 1 to 2 long headlines in the user's conversation language. Each long headline must be <= 90 characters.
+     * **DESCRIPTIONS (REQUIRED: MINIMUM 2 TO 4 DISTINCT DESCRIPTIONS)**: You MUST generate at least 2 to 4 distinct descriptions in the user's conversation language. NEVER generate only 1 description. Each description must be <= 90 characters.
+     * **KEYWORDS (REQUIRED: MINIMUM 5 TO 10 KEYWORDS)**: If campaign type is Search or includes keywords, generate 5 to 10 high purchase-intent keywords in the user's language/script or relevant local terms.
    - Tailor all copy specifically to the user's business name, products/services, and website value propositions.
 
 ### OUTPUT JSON SCHEMA:
@@ -545,11 +555,11 @@ ${JSON.stringify(currentState, null, 2)}
       ];
 
       const candidateModels = [
-        "llama-3.1-8b-instant",
-        "llama3-70b-8192",
-        "llama3-8b-8192",
-        "mixtral-8x7b-32768",
-        "gemma2-9b-it"
+        "openai/gpt-oss-120b",
+        "groq/compound",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3.8-27b",
+        "qwen/qwen3.6-27b"
       ];
 
       let rawContent = "";
@@ -700,58 +710,8 @@ ${JSON.stringify(currentState, null, 2)}
         ? this.sanitizeArray(parsedState.longHeadlines || currentState.longHeadlines)
         : this.sanitizeArray(currentState.longHeadlines);
 
-      // Auto-guarantee minimum requirements for Google Ads compliance (min 3 headlines, min 1 long headline, min 2 descriptions)
-      if ((userAskedForGen || Boolean(resolvedBizName)) && resolvedBizName) {
-        if (cleanHeadlines.length < 3) {
-          const defaultH = [
-            resolvedBizName.slice(0, 30),
-            `Buy Laptops & Computers`.slice(0, 30),
-            `Top ${resolvedBizName} Deals`.slice(0, 30),
-            "Best Price Guaranteed".slice(0, 30),
-            "Shop Latest Tech Now".slice(0, 30)
-          ];
-          for (const h of defaultH) {
-            if (!cleanHeadlines.includes(h) && cleanHeadlines.length < 5) {
-              cleanHeadlines.push(h);
-            }
-          }
-        }
-
-        if (cleanLongHeadlines.length < 1) {
-          cleanLongHeadlines.push(`Shop Premium Laptops, Computers & Tech Accessories at ${resolvedBizName}`.slice(0, 90));
-        }
-
-        if (cleanDescriptions.length < 2) {
-          const defaultD = [
-            `Discover top deals on laptops & computers at ${resolvedBizName}. Genuine warranty and fast delivery.`.slice(0, 90),
-            `Upgrade your setup with high-performance laptops and PC parts. Shop online or visit us today!`.slice(0, 90)
-          ];
-          for (const d of defaultD) {
-            if (!cleanDescriptions.includes(d) && cleanDescriptions.length < 4) {
-              cleanDescriptions.push(d);
-            }
-          }
-        }
-
-        if (cleanKeywords.length < 5) {
-          const defaultKw = [
-            "buy laptops online",
-            "computer shop near me",
-            "best gaming laptops",
-            "desktop computers for sale",
-            "laptop repair and sales",
-            "affordable laptops"
-          ];
-          for (const kw of defaultKw) {
-            if (!cleanKeywords.includes(kw) && cleanKeywords.length < 10) {
-              cleanKeywords.push(kw);
-            }
-          }
-        }
-      }
-
       // User confirmed values vs recommendation values
-      const resolvedBiddingStrategy = parsedState.biddingStrategy || currentState.biddingStrategy || "Maximize conversions";
+      const resolvedBiddingStrategy = parsedState.biddingStrategy || currentState.biddingStrategy || "";
       const resolvedLanguage = parsedState.language || currentState.language || "English";
       const resolvedTargetCpa = explicitBudget !== null ? null : (parsedState.targetCpa ?? currentState.targetCpa ?? null);
       const resolvedTargetRoas = parsedState.targetRoas ?? currentState.targetRoas ?? null;
@@ -1028,27 +988,6 @@ ${JSON.stringify(currentState, null, 2)}
       let fallbackLongHeadlines = [...(currentState.longHeadlines || [])];
       let fallbackDescriptions = [...(currentState.descriptions || [])];
 
-      if (fallbackBizName) {
-        if (fallbackHeadlines.length < 3) {
-          fallbackHeadlines = [
-            fallbackBizName.slice(0, 30),
-            `Buy Laptops & Computers`.slice(0, 30),
-            `Top ${fallbackBizName} Deals`.slice(0, 30),
-            "Best Price Guaranteed".slice(0, 30),
-            "Shop Latest Tech Now".slice(0, 30)
-          ];
-        }
-        if (fallbackLongHeadlines.length < 1) {
-          fallbackLongHeadlines = [`Shop Premium Laptops, Computers & Tech Accessories at ${fallbackBizName}`.slice(0, 90)];
-        }
-        if (fallbackDescriptions.length < 2) {
-          fallbackDescriptions = [
-            `Discover top deals on laptops & computers at ${fallbackBizName}. Genuine warranty and fast delivery.`.slice(0, 90),
-            `Upgrade your setup with high-performance laptops and PC parts. Shop online or visit us today!`.slice(0, 90)
-          ];
-        }
-      }
-
       const fallbackState: CampaignState = {
         ...currentState,
         businessName: fallbackBizName,
@@ -1067,8 +1006,8 @@ ${JSON.stringify(currentState, null, 2)}
         headlines: fallbackHeadlines,
         longHeadlines: fallbackLongHeadlines,
         descriptions: fallbackDescriptions,
-        locations: currentState.locations?.length ? currentState.locations : ["India"],
-        language: currentState.language || "English",
+        locations: currentState.locations?.length ? currentState.locations : [],
+        language: currentState.language || "",
         readyForReview: !!(fallbackBizName || fallbackWebsite),
         readyForPublish: false,
         stage: "collecting_campaign_data"

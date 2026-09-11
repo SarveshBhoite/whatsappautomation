@@ -242,11 +242,13 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
       campaignBudget: null
     };
 
-    if (startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
-      campaignObj.startDate = startDate.replace(/-/g, "");
+    if (startDate) {
+      const startStr = String(startDate).split("T")[0];
+      campaignObj.startDateTime = `${startStr} 00:00:00`;
     }
-    if (endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
-      campaignObj.endDate = endDate.replace(/-/g, "");
+    if (endDate) {
+      const endStr = String(endDate).split("T")[0];
+      campaignObj.endDateTime = `${endStr} 23:59:59`;
     }
 
     try {

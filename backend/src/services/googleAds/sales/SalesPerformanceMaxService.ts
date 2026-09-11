@@ -4,8 +4,8 @@ import axios from "axios";
 export class SalesPerformanceMaxService extends GoogleAdsBaseService {
   public static async createCampaign(organizationId: string, customerId: string, payload: any) {
     const {
-      campaignName = "Sales Performance Max",
-      assetGroupName = "Asset Group 1",
+      campaignName,
+      assetGroupName,
       finalUrl,
       amountMicros,
       biddingFocus = "Maximize conversions",
@@ -19,16 +19,30 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       images = [],
       dailyBudget,
       budget,
+      startDate,
+      endDate,
       euPolitical = "NO",
       businessName,
       logos = [],
       brandGuidelinesEnabled = false
     } = payload;
 
+    if (!campaignName || !campaignName.trim()) {
+      throw new Error("Campaign Name is required. Please specify a campaign name.");
+    }
+
+    if (!businessName || !businessName.trim()) {
+      throw new Error("Business Name is required. Please specify your business or shop name.");
+    }
+
     const safeFinalUrl = GoogleAdsBaseService.cleanUrl(finalUrl);
     if (!safeFinalUrl) throw new Error("A valid Final URL is required.");
 
-    const effectiveBudget = Number(dailyBudget || budget || 1000);
+    const rawBudget = dailyBudget !== undefined && dailyBudget !== null ? dailyBudget : budget;
+    const effectiveBudget = Number(rawBudget);
+    if (isNaN(effectiveBudget) || effectiveBudget <= 0) {
+      throw new Error("Daily Budget is required and must be a valid positive amount greater than 0.");
+    }
     const amountMicrosVal = amountMicros || Math.round(effectiveBudget * 1_000_000);
 
     const validHeadlines = (headlines || []).filter((h: any) => h && h.trim());
@@ -51,7 +65,8 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       .filter((text: string) => text.length > 0);
     const safeDescriptions = (cleanedDescriptions.length >= 2 ? cleanedDescriptions : [...cleanedDescriptions, "Discover great offers and personalized support.", "Get in touch today for expert services."]).slice(0, 5);
 
-    const safeBusinessName = GoogleAdsBaseService.cleanAdText(businessName || "My Business", 25) || "My Business";
+    const safeBusinessName = GoogleAdsBaseService.cleanAdText(businessName.trim(), 25);
+    const effectiveAssetGroupName = assetGroupName && assetGroupName.trim() ? assetGroupName.trim() : `${campaignName.trim()} Asset Group 1`;
 
     const cid = (customerId || "").replace(/-/g, "").trim();
 
@@ -88,7 +103,9 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
               advertisingChannelType: "PERFORMANCE_MAX",
               campaignBudget: budgetRef,
               containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-              brandGuidelinesEnabled: false,
+              brandGuidelinesEnabled: Boolean(brandGuidelinesEnabled),
+              ...(startDate ? { startDateTime: `${String(startDate).split("T")[0]} 00:00:00` } : {}),
+              ...(endDate ? { endDateTime: `${String(endDate).split("T")[0]} 23:59:59` } : {}),
               ...biddingConfig
             }
           }]
@@ -108,7 +125,9 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
                 advertisingChannelType: "PERFORMANCE_MAX",
                 campaignBudget: budgetRef,
                 containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-                brandGuidelinesEnabled: false,
+                brandGuidelinesEnabled: Boolean(brandGuidelinesEnabled),
+                ...(startDate ? { startDateTime: `${String(startDate).split("T")[0]} 00:00:00` } : {}),
+                ...(endDate ? { endDateTime: `${String(endDate).split("T")[0]} 23:59:59` } : {}),
                 ...biddingConfig
               }
             }]
@@ -279,7 +298,7 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
             create: {
               resourceName: tempAssetGroupResourceName,
               campaign: campaignRef,
-              name: assetGroupName || `${campaignName} Asset Group 1`,
+              name: effectiveAssetGroupName,
               status: "ENABLED",
               finalUrls: [safeFinalUrl]
             }

@@ -29,6 +29,7 @@ import {
   CheckSquare,
   ArrowLeft,
   Upload,
+  UploadCloud,
   Calendar,
   Layers,
   Image as ImageIcon,
@@ -58,7 +59,12 @@ import {
   RotateCw,
   Scissors,
   Move,
-  Wand2
+  Wand2,
+  ChevronDown,
+  Settings2,
+  Paperclip,
+  FolderArchive,
+  FolderOpen
 } from "lucide-react";
 
 export interface BusinessContext {
@@ -72,6 +78,7 @@ export interface BusinessContext {
 }
 
 export interface CampaignState {
+  [x: string]: unknown;
   business?: BusinessContext;
   desiredOutcome?: string;
   objective?: string;
@@ -126,14 +133,25 @@ export interface CampaignState {
   budgetType?: string;
   adGroupName?: string;
   adGroupBid?: number | string | null;
+  assetGroupName?: string;
+  brandGuidelinesEnabled?: boolean;
   customerAcquisitionMode?: string;
   campaignPriority?: string;
   localProducts?: boolean;
   enableLocalProducts?: boolean;
   productGroupFilter?: string;
   productGroupSelectBy?: string;
-  productGroupCustomLabel?: string;
   trackingTemplate?: string;
+  finalUrlSuffix?: string;
+  customParameters?: Array<{ id?: string; name: string; value: string }>;
+  displayPath1?: string;
+  displayPath2?: string;
+  mobileFinalUrl?: string;
+  adSchedule?: Array<{ day: string; start: string; end: string }>;
+  devices?: { computers: boolean; mobile: boolean; tablets: boolean; tv: boolean };
+  demographicExclusions?: { ages?: string[]; genders?: string[] };
+  dataExclusions?: string[];
+  callPhoneNumber?: string;
   euPolitical?: "YES" | "NO";
   // Extension Assets
   promotions?: Array<{
@@ -165,6 +183,16 @@ export interface CampaignState {
     postSubmitHeadline?: string;
     postSubmitDescription?: string;
   }>;
+  valueRules?: {
+    type?: string;
+    conditionValue?: string;
+    operation?: "MULTIPLY" | "ADD";
+    value?: number;
+  };
+  thirdPartyMeasurement?: {
+    vendor?: string;
+    accountId?: string;
+  };
   readyForReview?: boolean;
   readyForPublish?: boolean;
   stage?: string;
@@ -539,6 +567,9 @@ export const reconcileCampaignStateWithManualFlow = (
   } else if (obj === "LOCAL") {
     updated.conversionGoals = [];
     updated.campaignType = "PERFORMANCE_MAX";
+    if (!updated.locations || updated.locations.length === 0) {
+      updated.locations = ["India"];
+    }
   } else if (obj === "NO_GUIDANCE") {
     const availableTypes = ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN", "SHOPPING"];
     if (!updated.campaignType || !availableTypes.includes(updated.campaignType)) {
@@ -555,6 +586,13 @@ export const reconcileCampaignStateWithManualFlow = (
     } else {
       updated.conversionGoals = [];
     }
+  }
+
+  if (!updated.locations || !Array.isArray(updated.locations) || updated.locations.filter(Boolean).length === 0) {
+    updated.locations = ["India"];
+  }
+  if (!updated.language || !updated.language.trim()) {
+    updated.language = "English";
   }
 
   return updated;
@@ -613,8 +651,8 @@ export default function AiGuidedCampaignPage() {
     website: "",
     dailyBudget: null,
     locations: ["India"],
-    language: "All languages",
-    startDate: todayIso,
+    language: "English",
+    startDate: undefined,
     endDate: undefined,
     keywords: [],
     headlines: [],
@@ -634,7 +672,7 @@ export default function AiGuidedCampaignPage() {
   const [isCustomCampaignName, setIsCustomCampaignName] = useState<boolean>(false);
   
   // Location selection mode and search in Cockpit ("ALL" | "INDIA" | "CUSTOM")
-  const [locationMode, setLocationMode] = useState<"ALL" | "INDIA" | "CUSTOM">("INDIA");
+  const [locationMode, setLocationMode] = useState<"ALL" | "INDIA" | "CUSTOM">("CUSTOM");
   const [locationSearchQuery, setLocationSearchQuery] = useState<string>("");
   const [locationSearchResults, setLocationSearchResults] = useState<Array<{ id?: string; name: string; canonicalName: string; targetType?: string }>>([]);
   const [isSearchingLocation, setIsSearchingLocation] = useState<boolean>(false);
@@ -644,10 +682,12 @@ export default function AiGuidedCampaignPage() {
   const [selectedLanguagesList, setSelectedLanguagesList] = useState<string[]>(["All languages"]);
   const [languageSearchQuery, setLanguageSearchQuery] = useState<string>("");
 
-  // Existing Campaigns for @ Mention / Reference Context & History Modal
+  // Existing Campaigns for @ Mention / Reference Context & History / Draft Picker Modal
   const [existingCampaignsList, setExistingCampaignsList] = useState<Array<any>>([]);
   const [isCampaignDropdownOpen, setIsCampaignDropdownOpen] = useState<boolean>(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState<boolean>(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+  const [isDraftPickerModalOpen, setIsDraftPickerModalOpen] = useState<boolean>(false);
   const [campaignSearchQuery, setCampaignSearchQuery] = useState<string>("");
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState<boolean>(false);
   const [referencedCampaign, setReferencedCampaign] = useState<any | null>(null);
@@ -660,81 +700,157 @@ export default function AiGuidedCampaignPage() {
   const [newDescriptionInput, setNewDescriptionInput] = useState<string>("");
   const [isAddingDescription, setIsAddingDescription] = useState<boolean>(false);
 
-  // Fetch user's existing campaigns for @ Reference
-  useEffect(() => {
-    const fetchExistingCampaigns = async () => {
-      try {
-        setIsLoadingCampaigns(true);
-        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
-        const cid = customerId || "6587355041";
-        const res = await fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setExistingCampaignsList(data);
-          }
-        }
-      } catch (err) {
-        console.warn("[AI-GUIDED] Failed to load existing campaigns for @ mention:", err);
-      } finally {
-        setIsLoadingCampaigns(false);
-      }
-    };
+  // Optional Parameters Accordion Toggle in Cockpit
+  const [showOptionalParams, setShowOptionalParams] = useState<boolean>(false);
 
+  // Cockpit Direct AI Generation Animation State
+  const [cockpitGeneratingTarget, setCockpitGeneratingTarget] = useState<string | null>(null);
+
+  // Fetch user's existing campaigns from database for Draft Picker and @ Reference
+  const fetchExistingCampaigns = async () => {
+    try {
+      setIsLoadingCampaigns(true);
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "6587355041";
+      const res = await fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setExistingCampaignsList(data);
+        }
+      }
+    } catch (err) {
+      console.warn("[AI-GUIDED] Failed to load existing campaigns for @ mention / draft picker:", err);
+    } finally {
+      setIsLoadingCampaigns(false);
+    }
+  };
+
+  useEffect(() => {
     fetchExistingCampaigns();
   }, [customerId]);
 
-  // Handle selecting an existing campaign to reuse context
-  const handleSelectReferenceCampaign = (camp: any) => {
-    setReferencedCampaign(camp);
-    setIsCampaignDropdownOpen(false);
+  // Handle Loading an Old Draft or Previous Campaign directly into Right-side Cockpit
+  const handleLoadDraftCampaign = (camp: any) => {
+    if (!camp) return;
 
-    // Extract reusable data from existing campaign
+    // Extract all parameters safely
     const rawBudget = camp.budget ? Number(camp.budget) : (camp.amountMicros ? Number(camp.amountMicros) / 1_000_000 : null);
     const parsedBudget = rawBudget && rawBudget > 0 ? rawBudget : null;
     const extractedBiz = camp.businessName || camp.name?.split(/[-–|]/)[0]?.trim() || "";
     const extractedWebsite = camp.website || camp.finalUrl || "";
-    const extractedLocs = Array.isArray(camp.locations) && camp.locations.length > 0 ? camp.locations : (camp.location ? [camp.location] : ["India"]);
-    const extractedLang = camp.language || "All languages";
+    const extractedLocs = Array.isArray(camp.locations) && camp.locations.length > 0
+      ? camp.locations
+      : (Array.isArray(camp.geoTargets) && camp.geoTargets.length > 0 ? camp.geoTargets : (camp.location ? [camp.location] : ["India"]));
+    
+    let extractedLang = "English";
+    if (camp.language) {
+      extractedLang = camp.language;
+    } else if (Array.isArray(camp.languages) && camp.languages.length > 0) {
+      extractedLang = camp.languages.join(", ");
+    }
+
     const extractedHeadlines = Array.isArray(camp.headlines) && camp.headlines.length > 0 ? camp.headlines : [];
+    const extractedLongHeadlines = Array.isArray(camp.longHeadlines) && camp.longHeadlines.length > 0 ? camp.longHeadlines : [];
     const extractedDescriptions = Array.isArray(camp.descriptions) && camp.descriptions.length > 0 ? camp.descriptions : [];
     const extractedKeywords = Array.isArray(camp.keywords) && camp.keywords.length > 0 ? camp.keywords : [];
     const extractedImages = Array.isArray(camp.images) && camp.images.length > 0 ? camp.images : [];
     const extractedLogos = Array.isArray(camp.logos) && camp.logos.length > 0 ? camp.logos : [];
+    const extractedVideos = Array.isArray(camp.videos) && camp.videos.length > 0 ? camp.videos : [];
 
-    // Automatically synchronize Live Campaign Cockpit with referenced campaign data
-    setCampaignState((prev) => {
+    // Parse draft extra metadata if stored in audienceSignal / draftData
+    const extraDraft = camp.audienceSignal && typeof camp.audienceSignal === "object" ? camp.audienceSignal : {};
+
+    // Auto-fill all old draft data directly into the Live Campaign Cockpit
+    setCampaignState(prev => {
       const merged: CampaignState = {
         ...prev,
-        businessName: prev.businessName || extractedBiz,
-        website: prev.website || extractedWebsite,
+        businessName: extractedBiz || prev.businessName,
+        campaignName: camp.name || prev.campaignName,
+        campaignType: camp.campaignType || prev.campaignType || "PERFORMANCE_MAX",
+        objective: camp.objective || extraDraft.objective || prev.objective,
+        conversionGoals: Array.isArray(camp.conversionGoals) ? camp.conversionGoals : (Array.isArray(extraDraft.conversionGoals) ? extraDraft.conversionGoals : prev.conversionGoals),
+        website: extractedWebsite || prev.website,
         business: {
           ...(prev.business || {}),
-          name: prev.business?.name || extractedBiz,
-          website: prev.business?.website || extractedWebsite
+          name: extractedBiz || prev.business?.name,
+          website: extractedWebsite || prev.business?.website,
+          description: camp.description || extraDraft.description || prev.business?.description || ""
         },
-        dailyBudget: prev.dailyBudget || parsedBudget,
-        locations: (prev.locations && prev.locations.length > 0 && prev.locations[0] !== "India") ? prev.locations : extractedLocs,
-        language: prev.language && prev.language !== "All languages" ? prev.language : extractedLang,
-        headlines: prev.headlines && prev.headlines.length > 0 ? prev.headlines : extractedHeadlines,
-        descriptions: prev.descriptions && prev.descriptions.length > 0 ? prev.descriptions : extractedDescriptions,
-        keywords: prev.keywords && prev.keywords.length > 0 ? prev.keywords : extractedKeywords,
-        images: prev.images && prev.images.length > 0 ? prev.images : extractedImages,
-        logos: prev.logos && prev.logos.length > 0 ? prev.logos : extractedLogos,
-        biddingStrategy: prev.biddingStrategy || camp.biddingStrategy || "Maximize conversions"
+        dailyBudget: parsedBudget || prev.dailyBudget,
+        locations: extractedLocs && extractedLocs.length > 0 ? extractedLocs : prev.locations,
+        language: extractedLang || prev.language,
+        startDate: camp.startDate ? new Date(camp.startDate).toISOString().split("T")[0] : prev.startDate,
+        endDate: camp.endDate ? new Date(camp.endDate).toISOString().split("T")[0] : prev.endDate,
+        biddingStrategy: camp.biddingStrategy || extraDraft.biddingStrategy || prev.biddingStrategy || "Maximize conversions",
+        targetCpa: camp.targetCpa !== undefined && camp.targetCpa !== null ? Number(camp.targetCpa) : (extraDraft.targetCpa !== undefined ? Number(extraDraft.targetCpa) : prev.targetCpa),
+        targetRoas: camp.targetRoas !== undefined && camp.targetRoas !== null ? Number(camp.targetRoas) : (extraDraft.targetRoas !== undefined ? Number(extraDraft.targetRoas) : prev.targetRoas),
+        maxCpcLimit: camp.maxCpcLimit || extraDraft.maxCpcLimit || prev.maxCpcLimit,
+        targetImpressionSharePercent: camp.targetImpressionSharePercent || extraDraft.targetImpressionSharePercent || prev.targetImpressionSharePercent,
+        impressionShareLocation: camp.impressionShareLocation || extraDraft.impressionShareLocation || prev.impressionShareLocation,
+        headlines: extractedHeadlines.length > 0 ? extractedHeadlines : prev.headlines,
+        longHeadlines: extractedLongHeadlines.length > 0 ? extractedLongHeadlines : prev.longHeadlines,
+        descriptions: extractedDescriptions.length > 0 ? extractedDescriptions : prev.descriptions,
+        keywords: extractedKeywords.length > 0 ? extractedKeywords : prev.keywords,
+        images: extractedImages.length > 0 ? extractedImages : prev.images,
+        logos: extractedLogos.length > 0 ? extractedLogos : prev.logos,
+        videos: extractedVideos.length > 0 ? extractedVideos : prev.videos,
+        merchantCenterId: camp.merchantCenterId || extraDraft.merchantCenterId || prev.merchantCenterId,
+        salesCountry: camp.salesCountry || extraDraft.salesCountry || prev.salesCountry,
+        feedLabel: camp.feedLabel || extraDraft.feedLabel || prev.feedLabel,
+        appId: camp.appId || extraDraft.appId || prev.appId,
+        appName: camp.appName || extraDraft.appName || prev.appName,
+        platform: camp.platform || extraDraft.platform || prev.platform,
+        appStore: camp.appStore || extraDraft.appStore || prev.appStore,
+        adGroupName: camp.adGroupName || extraDraft.adGroupName || prev.adGroupName,
+        brandGuidelinesEnabled: camp.brandGuidelinesEnabled !== undefined ? Boolean(camp.brandGuidelinesEnabled) : prev.brandGuidelinesEnabled,
+        customerAcquisitionMode: camp.customerAcquisitionMode || extraDraft.customerAcquisitionMode || prev.customerAcquisitionMode,
+        trackingTemplate: camp.trackingTemplate || extraDraft.trackingTemplate || prev.trackingTemplate,
+        finalUrlSuffix: camp.finalUrlSuffix || extraDraft.finalUrlSuffix || prev.finalUrlSuffix,
+        displayPath1: camp.displayPath1 || extraDraft.displayPath1 || prev.displayPath1,
+        displayPath2: camp.displayPath2 || extraDraft.displayPath2 || prev.displayPath2,
+        mobileFinalUrl: camp.mobileFinalUrl || extraDraft.mobileFinalUrl || prev.mobileFinalUrl,
+        callPhoneNumber: camp.callPhoneNumber || extraDraft.callPhoneNumber || prev.callPhoneNumber,
+        euPolitical: camp.euPolitical || extraDraft.euPolitical || prev.euPolitical
       };
+
+      merged.readyForPublish = checkIsCampaignReady(merged);
       return merged;
     });
 
     if (extractedLocs && extractedLocs.length > 0) {
       setSelectedLocationsList(extractedLocs);
     }
+    if (extractedLang) {
+      setSelectedLanguagesList(extractedLang.split(",").map(l => l.trim()).filter(Boolean));
+    }
+
+    // Add confirmation assistant message in chat
+    setMessages(prev => [
+      ...prev,
+      {
+        id: `msg-load-draft-${Date.now()}`,
+        role: "assistant",
+        content: `📂 **Loaded Draft Campaign:** "${camp.name}".\n\nAll previous parameters, budget (₹${parsedBudget || 'same'}), target locations (${extractedLocs.join(", ")}), headlines, descriptions, keywords, and creative assets have been populated into the **Campaign Cockpit** on the right. You can now edit any values or click **Launch** when ready.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      }
+    ]);
+
+    setIsDraftPickerModalOpen(false);
+  };
+
+  // Handle selecting an existing campaign to reuse context
+  const handleSelectReferenceCampaign = (camp: any) => {
+    handleLoadDraftCampaign(camp);
 
     // Prefill prompt input with @ reference tag and instructions
+    const rawBudget = camp.budget ? Number(camp.budget) : (camp.amountMicros ? Number(camp.amountMicros) / 1_000_000 : null);
+    const parsedBudget = rawBudget && rawBudget > 0 ? rawBudget : null;
+    const extractedBiz = camp.businessName || camp.name?.split(/[-–|]/)[0]?.trim() || "";
+
     const promptMessage = `Use settings and context from @[${camp.name}] (Business: ${extractedBiz || camp.name}, Budget: ₹${parsedBudget || 'same'}, Type: ${camp.campaignType || 'Existing'}). Create a new campaign keeping these base details and advise what goal/changes I should make.`;
     
-    // Automatically trigger or set input
     setInputVal(promptMessage);
     if (inputRef.current) {
       inputRef.current.focus();
@@ -801,6 +917,14 @@ export default function AiGuidedCampaignPage() {
   const [activeUploadTarget, setActiveUploadTarget] = useState<"IMAGE" | "LOGO" | "VIDEO">("IMAGE");
   const [uploadValidationError, setUploadValidationError] = useState<string | null>(null);
 
+  // ── Media Source Choice Modal & Past Media Library State ──
+  const [isMediaSourceModalOpen, setIsMediaSourceModalOpen] = useState<boolean>(false);
+  const [isPastMediaModalOpen, setIsPastMediaModalOpen] = useState<boolean>(false);
+  const [pastMediaList, setPastMediaList] = useState<Array<any>>([]);
+  const [isLoadingPastMedia, setIsLoadingPastMedia] = useState<boolean>(false);
+  const [pastMediaSearchQuery, setPastMediaSearchQuery] = useState<string>("");
+  const [pastMediaFilter, setPastMediaFilter] = useState<"ALL" | "IMAGE" | "LOGO" | "VIDEO">("ALL");
+
   // ── Image Editor & Cropper Modal State ──
   const [isImageEditorOpen, setIsImageEditorOpen] = useState<boolean>(false);
   const [editorFile, setEditorFile] = useState<File | null>(null);
@@ -850,6 +974,16 @@ export default function AiGuidedCampaignPage() {
     feedLabel?: string;
     adGroupName?: string;
     adGroupBid?: string | number;
+    assetGroupName?: string;
+    brandGuidelinesEnabled?: boolean;
+    customerAcquisitionMode?: string;
+    trackingTemplate?: string;
+    finalUrlSuffix?: string;
+    displayPath1?: string;
+    displayPath2?: string;
+    mobileFinalUrl?: string;
+    callPhoneNumber?: string;
+    euPolitical?: "YES" | "NO";
     campaignPriority?: string;
     localProducts?: boolean;
     appId?: string;
@@ -959,12 +1093,12 @@ export default function AiGuidedCampaignPage() {
     return null;
   };
 
-  // Real-time End Date Validator
+  // Real-time End Date Validator (Google Ads requires End Date to be strictly after Start Date)
   const validateEndDate = (endVal?: string, startVal?: string): string | null => {
-    if (!endVal) return null; // End date is optional
+    if (!endVal || !endVal.trim()) return null; // End date is optional
     const effectiveStart = startVal || todayIso;
-    if (endVal < effectiveStart) {
-      return "End date must be on or after start date.";
+    if (endVal <= effectiveStart) {
+      return `End date (${endVal}) must be after start date (${effectiveStart}).`;
     }
     return null;
   };
@@ -1152,6 +1286,9 @@ export default function AiGuidedCampaignPage() {
       return Boolean(isMidValid && hasCountry && isUrlValid && validHeadlines.length >= 1 && validDescriptions.length >= 1 && hasBudget);
     }
 
+    const hasLocations = Array.isArray(state.locations) && state.locations.filter(Boolean).length > 0;
+    if (!hasLocations) return false;
+
     return true;
   };
 
@@ -1184,6 +1321,15 @@ export default function AiGuidedCampaignPage() {
         label: cType === "DEMAND_GEN" ? "Daily Budget must be at least ₹416/day" : "Daily Budget is required (min ₹100/day)",
         field: "dailyBudget",
         fixAction: () => startFieldEdit("dailyBudget")
+      });
+    }
+
+    const hasLocs = Array.isArray(state.locations) && state.locations.filter(Boolean).length > 0;
+    if (!hasLocs) {
+      missing.push({
+        label: "Target Location is required (e.g. 'India' or your city)",
+        field: "locations",
+        fixAction: () => startFieldEdit("locations")
       });
     }
 
@@ -1308,6 +1454,68 @@ export default function AiGuidedCampaignPage() {
           fixAction: () => handleTriggerAiAssetGeneration("LOGO")
         });
       }
+    } else if (cType === "DEMAND_GEN") {
+      const dgFormat = (state.adFormat || "SINGLE_IMAGE").toUpperCase();
+      const allLogos = (state.logos || []).filter(l => l && (typeof l === "string" ? l.trim() : (l as any).url || (l as any).data || (l as any).asset));
+      const allImages = (state.images || []).filter(img => img && (typeof img === "string" ? img.trim() : (img as any).url || (img as any).data || (img as any).asset));
+      const allVideos = (state.videos || []).filter(v => v && (typeof v === "string" ? v.trim() : (v as any).asset || (v as any).videoId || (v as any).url));
+      const cards = Array.isArray(state.carouselCards) ? state.carouselCards : [];
+      const validCards = cards.filter(c => c && c.image?.trim() && c.headline?.trim());
+
+      if (validHeadlines.length < 1) {
+        missing.push({
+          label: "At least 1 Headline is required for Demand Gen (max 40 characters)",
+          field: "headlines",
+          fixAction: () => handleTriggerAiAssetGeneration("HEADLINES")
+        });
+      }
+      if (validDescriptions.length < 1) {
+        missing.push({
+          label: "At least 1 Description is required for Demand Gen (max 90 characters)",
+          field: "descriptions",
+          fixAction: () => handleTriggerAiAssetGeneration("DESCRIPTIONS")
+        });
+      }
+      if (allLogos.length < 1) {
+        missing.push({
+          label: "At least 1 Brand Logo (1:1) is required for Demand Gen",
+          field: "logos",
+          fixAction: () => handleTriggerAiAssetGeneration("LOGO")
+        });
+      }
+
+      if (dgFormat === "SINGLE_IMAGE") {
+        if (allImages.length < 1) {
+          missing.push({
+            label: "At least 1 Marketing Image (1.91:1 landscape or 1:1 square) is required for Single Image Demand Gen ads",
+            field: "images",
+            fixAction: () => handleTriggerAiAssetGeneration("IMAGE")
+          });
+        }
+      } else if (dgFormat === "VIDEO") {
+        if (allVideos.length < 1) {
+          missing.push({
+            label: "At least 1 YouTube Video is required for Video Demand Gen ads",
+            field: "videos",
+            fixAction: () => startFieldEdit("videos")
+          });
+        }
+        if (validLongHeadlines.length < 1) {
+          missing.push({
+            label: "At least 1 Long Headline is required for Video Demand Gen ads",
+            field: "longHeadlines",
+            fixAction: () => handleTriggerAiAssetGeneration("LONG_HEADLINES")
+          });
+        }
+      } else if (dgFormat === "CAROUSEL") {
+        if (validCards.length < 2) {
+          missing.push({
+            label: `At least 2 Carousel Cards with an image and headline are required (${validCards.length}/2 added)`,
+            field: "carouselCards",
+            fixAction: () => startFieldEdit("carouselCards")
+          });
+        }
+      }
     } else if (cType === "SHOPPING") {
       const mId = (state.merchantCenterId || (state as any).merchantId || "").trim();
       if (!/^\d+$/.test(mId)) {
@@ -1380,28 +1588,36 @@ export default function AiGuidedCampaignPage() {
       campaignName: campaignState.campaignName || "",
       objective: activeObj,
       conversionGoal: rawGoal,
-      campaignType: campaignState.campaignType || availableTypes[0]?.id || "",
+      campaignType: campaignState.campaignType || "",
       website: campaignState.website || "",
       dailyBudget: campaignState.dailyBudget !== null && campaignState.dailyBudget !== undefined ? campaignState.dailyBudget : "",
-      biddingStrategy: campaignState.biddingStrategy || "Maximize conversions",
+      biddingStrategy: campaignState.biddingStrategy || "",
       targetCpa: campaignState.targetCpa !== null && campaignState.targetCpa !== undefined ? campaignState.targetCpa : "",
       targetRoas: campaignState.targetRoas !== null && campaignState.targetRoas !== undefined ? campaignState.targetRoas : "",
       maxCpcLimit: campaignState.maxCpcLimit !== null && campaignState.maxCpcLimit !== undefined ? campaignState.maxCpcLimit : "",
-      targetImpressionSharePercent: campaignState.targetImpressionSharePercent !== null && campaignState.targetImpressionSharePercent !== undefined ? campaignState.targetImpressionSharePercent : "50",
-      impressionShareLocation: campaignState.impressionShareLocation || "Anywhere on results page",
+      targetImpressionSharePercent: campaignState.targetImpressionSharePercent !== null && campaignState.targetImpressionSharePercent !== undefined ? campaignState.targetImpressionSharePercent : "",
+      impressionShareLocation: campaignState.impressionShareLocation || "",
       locations: currentLocs.join(", "),
-      language: campaignState.language || "All languages",
-      startDate: campaignState.startDate || todayIso,
+      language: campaignState.language || "",
+      startDate: campaignState.startDate || "",
       endDate: campaignState.endDate || "",
       merchantCenterId: campaignState.merchantCenterId || "",
-      salesCountry: campaignState.salesCountry || "IN",
-      feedLabel: campaignState.feedLabel || "IN",
-      adGroupName: campaignState.adGroupName || "Ad group 1",
-      campaignPriority: campaignState.campaignPriority || "LOW",
+      salesCountry: campaignState.salesCountry || "",
+      adGroupName: campaignState.adGroupName || "",
+      brandGuidelinesEnabled: Boolean(campaignState.brandGuidelinesEnabled),
+      customerAcquisitionMode: campaignState.customerAcquisitionMode || "",
+      trackingTemplate: campaignState.trackingTemplate || "",
+      finalUrlSuffix: campaignState.finalUrlSuffix || "",
+      displayPath1: campaignState.displayPath1 || "",
+      displayPath2: campaignState.displayPath2 || "",
+      mobileFinalUrl: campaignState.mobileFinalUrl || "",
+      callPhoneNumber: campaignState.callPhoneNumber || "",
+      euPolitical: campaignState.euPolitical || "NO",
+      campaignPriority: campaignState.campaignPriority || "",
       localProducts: Boolean(campaignState.localProducts),
       appId: campaignState.appId || "",
       appName: campaignState.appName || "",
-      platform: campaignState.platform || (campaignState.appStore === "APPLE_APP_STORE" ? "IOS" : "ANDROID")
+      platform: campaignState.platform || ""
     });
   };
 
@@ -1508,7 +1724,7 @@ export default function AiGuidedCampaignPage() {
       }
 
       if (editingField === "conversionGoal" && tempEditValues.conversionGoal !== undefined) {
-        updated.conversionGoals = tempEditValues.conversionGoal.split(",").map(s => s.trim()).filter(Boolean);
+        updated.conversionGoals = tempEditValues.conversionGoal.split(",").map((s: string) => s.trim()).filter(Boolean);
       }
 
       if (editingField === "campaignType" && tempEditValues.campaignType !== undefined) {
@@ -1543,12 +1759,66 @@ export default function AiGuidedCampaignPage() {
       }
 
       if (editingField === "website" && tempEditValues.website !== undefined) {
-        let cleanUrl = tempEditValues.website.trim().replace(/^["'(\[<]+/, "").replace(/["')\]>.,;:]+$/, "").trim();
+        let cleanUrl = tempEditValues.website.trim().replace(/^["'(\[<\s]+/, "").replace(/[\s"'\(\)\[\]<>\.,;:?]+$/, "").trim();
         if (cleanUrl && !cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
           cleanUrl = `https://${cleanUrl}`;
         }
         updated.website = cleanUrl;
         if (updated.business) updated.business.website = cleanUrl;
+
+        // Trigger AI Guided Website Analysis on URL commit
+        if (cleanUrl && cleanUrl.includes(".")) {
+          const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+          setIsAnalyzingUrl(true);
+          fetch(`${BACKEND}/api/ads/ai-guided/analyze-url`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: cleanUrl })
+          })
+            .then(r => r.json())
+            .then(data => {
+              if (data && data.success) {
+                setCampaignState(prevState => {
+                  const extractedBizName = data.derivedBusinessName || data.title?.split(/[-|:]/)[0]?.trim() || prevState.businessName || "";
+                  return {
+                    ...prevState,
+                    website: cleanUrl,
+                    businessName: prevState.businessName || extractedBizName,
+                    business: {
+                      ...(prevState.business || {}),
+                      name: prevState.business?.name || extractedBizName,
+                      website: cleanUrl,
+                      description: prevState.business?.description || data.description || ""
+                    },
+                    locations: (data.locations && data.locations.length > 0 && (!prevState.locations || prevState.locations.length === 0 || prevState.locations[0] === "India"))
+                      ? data.locations
+                      : prevState.locations,
+                    language: (data.language && (!prevState.language || prevState.language === "All languages"))
+                      ? (data.language === "en" ? "English" : data.language)
+                      : prevState.language,
+                    headlines: (data.headlines && data.headlines.length > 0)
+                      ? Array.from(new Set([...(prevState.headlines || []), ...data.headlines]))
+                      : prevState.headlines,
+                    longHeadlines: (data.longHeadlines && data.longHeadlines.length > 0)
+                      ? Array.from(new Set([...(prevState.longHeadlines || []), ...data.longHeadlines]))
+                      : prevState.longHeadlines,
+                    descriptions: (data.descriptions && data.descriptions.length > 0)
+                      ? Array.from(new Set([...(prevState.descriptions || []), ...data.descriptions]))
+                      : prevState.descriptions,
+                    keywords: (data.keywords && data.keywords.length > 0)
+                      ? Array.from(new Set([...(prevState.keywords || []), ...data.keywords]))
+                      : prevState.keywords
+                  };
+                });
+              }
+            })
+            .catch(err => {
+              console.warn("[AI-GUIDED] Cockpit website analysis fetch error:", err.message);
+            })
+            .finally(() => {
+              setIsAnalyzingUrl(false);
+            });
+        }
       }
 
       if (editingField === "dailyBudget" && tempEditValues.dailyBudget !== undefined) {
@@ -1617,6 +1887,36 @@ export default function AiGuidedCampaignPage() {
       }
       if (editingField === "adGroupName" && tempEditValues.adGroupName !== undefined) {
         updated.adGroupName = tempEditValues.adGroupName.trim();
+      }
+      if (editingField === "assetGroupName" && tempEditValues.assetGroupName !== undefined) {
+        updated.assetGroupName = tempEditValues.assetGroupName.trim();
+      }
+      if (editingField === "brandGuidelinesEnabled" && tempEditValues.brandGuidelinesEnabled !== undefined) {
+        updated.brandGuidelinesEnabled = Boolean(tempEditValues.brandGuidelinesEnabled);
+      }
+      if (editingField === "customerAcquisitionMode" && tempEditValues.customerAcquisitionMode !== undefined) {
+        updated.customerAcquisitionMode = tempEditValues.customerAcquisitionMode;
+      }
+      if (editingField === "trackingTemplate" && tempEditValues.trackingTemplate !== undefined) {
+        updated.trackingTemplate = tempEditValues.trackingTemplate.trim();
+      }
+      if (editingField === "finalUrlSuffix" && tempEditValues.finalUrlSuffix !== undefined) {
+        updated.finalUrlSuffix = tempEditValues.finalUrlSuffix.trim();
+      }
+      if (editingField === "displayPath1" && tempEditValues.displayPath1 !== undefined) {
+        updated.displayPath1 = tempEditValues.displayPath1.trim();
+      }
+      if (editingField === "displayPath2" && tempEditValues.displayPath2 !== undefined) {
+        updated.displayPath2 = tempEditValues.displayPath2.trim();
+      }
+      if (editingField === "mobileFinalUrl" && tempEditValues.mobileFinalUrl !== undefined) {
+        updated.mobileFinalUrl = tempEditValues.mobileFinalUrl.trim();
+      }
+      if (editingField === "callPhoneNumber" && tempEditValues.callPhoneNumber !== undefined) {
+        updated.callPhoneNumber = tempEditValues.callPhoneNumber.trim();
+      }
+      if (editingField === "euPolitical" && tempEditValues.euPolitical !== undefined) {
+        updated.euPolitical = tempEditValues.euPolitical === "YES" ? "YES" : "NO";
       }
       if (editingField === "adGroupBid" && tempEditValues.adGroupBid !== undefined) {
         const pBid = parseFloat(String(tempEditValues.adGroupBid));
@@ -1690,8 +1990,10 @@ export default function AiGuidedCampaignPage() {
     campaignState.keywords,
     campaignState.images,
     campaignState.logos,
+    campaignState.brandLogos,
     campaignState.videos,
     campaignState.carouselCards,
+    campaignState.locations,
     campaignState.adFormat,
     campaignState.appId,
     campaignState.merchantCenterId,
@@ -1897,8 +2199,205 @@ export default function AiGuidedCampaignPage() {
     setIsImageEditorOpen(true);
   };
 
-  // Helper to trigger AI Image, Logo, Headlines, Long Headlines, or Descriptions Generation
-  const handleTriggerAiAssetGeneration = async (targetType: "IMAGE" | "LOGO" | "HEADLINES" | "LONG_HEADLINES" | "DESCRIPTIONS") => {
+  // Direct Cockpit AI Auto-Generator (Checks website/business data, preserves existing filled info, & directly generates assets without creating chat prompts)
+  const handleCockpitDirectAiGeneration = async (targetType: "IMAGE" | "LOGO" | "HEADLINES" | "LONG_HEADLINES" | "DESCRIPTIONS" | "ALL", isRegenerate: boolean = false) => {
+    let activeBizName = (campaignState.businessName || campaignState.business?.name || "").trim();
+    let activeWebsite = (campaignState.website || "").trim();
+    let activeBizDesc = (campaignState.business?.description || (campaignState as any).productOverview || "").trim();
+    const effectiveCampType = campaignState.campaignType ? formatCampaignTypeDisplay(campaignState.campaignType) : "";
+
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+
+    // 1. If website is given but hasn't been scraped yet, scrape website first!
+    if (activeWebsite && (!activeBizName || !activeBizDesc)) {
+      setIsAnalyzingUrl(true);
+      try {
+        const res = await fetch(`${BACKEND}/api/ads/ai-guided/analyze-url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: activeWebsite })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const derivedBiz = data.derivedBusinessName || data.title?.split(/[-|]/)[0]?.trim() || "";
+          if (!activeBizName && derivedBiz) activeBizName = derivedBiz;
+          if (!activeBizDesc && data.description) activeBizDesc = data.description;
+
+          setCampaignState(prev => ({
+            ...prev,
+            businessName: prev.businessName || derivedBiz,
+            business: {
+              ...(prev.business || {}),
+              name: prev.business?.name || derivedBiz,
+              description: prev.business?.description || data.description || ""
+            },
+            headlines: (data.headlines && data.headlines.length > 0 && !isRegenerate) ? Array.from(new Set([...(prev.headlines || []), ...data.headlines])) : (data.headlines || prev.headlines),
+            longHeadlines: (data.longHeadlines && data.longHeadlines.length > 0 && !isRegenerate) ? Array.from(new Set([...(prev.longHeadlines || []), ...data.longHeadlines])) : (data.longHeadlines || prev.longHeadlines),
+            descriptions: (data.descriptions && data.descriptions.length > 0 && !isRegenerate) ? Array.from(new Set([...(prev.descriptions || []), ...data.descriptions])) : (data.descriptions || prev.descriptions),
+            keywords: (data.keywords && data.keywords.length > 0 && !isRegenerate) ? Array.from(new Set([...(prev.keywords || []), ...data.keywords])) : (data.keywords || prev.keywords)
+          }));
+        }
+      } catch (err) {
+        console.warn("Auto website analysis error:", err);
+      } finally {
+        setIsAnalyzingUrl(false);
+      }
+    }
+
+    // 2. Verification: If business name AND website are missing, notify user to fill information first!
+    if (!activeBizName && !activeWebsite) {
+      alert("⚠️ Missing Information: Please enter your Business Name or Website URL first in the Cockpit settings or Chat before AI can auto-generate assets.");
+      startFieldEdit("businessName");
+      return;
+    }
+
+    // 3. Directly trigger generation via Grok/Groq AI pipeline
+    setIsLoading(true);
+    setCockpitGeneratingTarget(targetType);
+    try {
+      const bizContext = activeBizName || "our brand";
+      const descContext = activeBizDesc ? ` specializing in ${activeBizDesc}` : "";
+      const siteContext = activeWebsite ? ` (Website: ${activeWebsite})` : "";
+      const typeContext = effectiveCampType ? ` for our ${effectiveCampType} campaign` : "";
+
+      let intentMessage = "";
+      if (targetType === "ALL") {
+        intentMessage = isRegenerate
+          ? `Re-generate a fresh set of Google Ads campaign assets for "${bizContext}"${typeContext}${descContext}${siteContext}. Please provide new: 1) 5 Headlines (≤ 30 chars), 2) 3 Long Headlines (≤ 90 chars), 3) 4 Descriptions (≤ 90 chars) with strong CTAs, 4) Top 15 high-intent Keywords, and 5) Visual creatives concepts.`
+          : `Generate a complete end-to-end Google Ads campaign package for "${bizContext}"${typeContext}${descContext}${siteContext}. Please provide: 1) 5 high-CTR Headlines (≤ 30 chars), 2) 3 Long Headlines (≤ 90 chars), 3) 4 Descriptions (≤ 90 chars) with strong CTAs, 4) Top 15 high-intent Keywords, and 5) Creative visual direction for Landscape (1.91:1), Square (1:1) marketing images and Brand Logo.`;
+      } else if (targetType === "HEADLINES") {
+        intentMessage = `Generate 5 high-converting Google Ads compliant headlines (strictly ≤ 30 characters each) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+      } else if (targetType === "LONG_HEADLINES") {
+        intentMessage = `Generate 3 compelling Google Ads long headlines (strictly ≤ 90 characters each) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+      } else if (targetType === "DESCRIPTIONS") {
+        intentMessage = `Generate 4 engaging Google Ads descriptions (strictly ≤ 90 characters each) with strong CTAs for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+      } else if (targetType === "IMAGE") {
+        intentMessage = `Generate high-converting marketing creative images for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Landscape (1.91:1) and Square (1:1) ad creative concepts.`;
+      } else if (targetType === "LOGO") {
+        intentMessage = `Generate a modern, high-resolution Google Ads business logo for "${bizContext}"${descContext}${siteContext}. Requirements: Clean vector style, square (1:1) aspect ratio on a solid background.`;
+      }
+
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({
+          messages: [
+            ...messages.map(m => ({ role: m.role, content: m.content })),
+            { role: "user", content: intentMessage }
+          ],
+          campaignState: {
+            ...campaignState,
+            businessName: activeBizName,
+            website: activeWebsite,
+            business: {
+              ...(campaignState.business || {}),
+              name: activeBizName,
+              description: activeBizDesc,
+              website: activeWebsite
+            }
+          }
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`AI generation failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      if (data.campaignState) {
+        setCampaignState(prev => {
+          const merged: CampaignState = {
+            ...prev,
+            // Preserve existing core settings & parameters if already set by user
+            dailyBudget: prev.dailyBudget !== null && prev.dailyBudget !== undefined ? prev.dailyBudget : (data.campaignState.dailyBudget || null),
+            campaignName: prev.campaignName || data.campaignState.campaignName,
+            businessName: prev.businessName || data.campaignState.businessName,
+            website: prev.website || data.campaignState.website,
+            locations: (prev.locations && prev.locations.length > 0) ? prev.locations : (data.campaignState.locations || ["India"]),
+            language: prev.language || data.campaignState.language || "English",
+            startDate: prev.startDate || data.campaignState.startDate,
+            endDate: prev.endDate || data.campaignState.endDate,
+            biddingStrategy: prev.biddingStrategy || data.campaignState.biddingStrategy,
+            merchantCenterId: prev.merchantCenterId || data.campaignState.merchantCenterId,
+            salesCountry: prev.salesCountry || data.campaignState.salesCountry,
+            feedLabel: prev.feedLabel || data.campaignState.feedLabel,
+            appId: prev.appId || data.campaignState.appId,
+            appName: prev.appName || data.campaignState.appName,
+            business: {
+              ...(prev.business || {}),
+              ...(data.campaignState.business || {}),
+              name: prev.businessName || prev.business?.name || data.campaignState.businessName,
+              website: prev.website || prev.business?.website || data.campaignState.website
+            },
+            // If isRegenerate is true, replace; otherwise safely append new items while preserving existing old data
+            headlines: isRegenerate && data.campaignState.headlines && data.campaignState.headlines.length > 0
+              ? data.campaignState.headlines
+              : (data.campaignState.headlines && data.campaignState.headlines.length > 0)
+              ? Array.from(new Set([...(prev.headlines || []), ...data.campaignState.headlines]))
+              : prev.headlines,
+            longHeadlines: isRegenerate && data.campaignState.longHeadlines && data.campaignState.longHeadlines.length > 0
+              ? data.campaignState.longHeadlines
+              : (data.campaignState.longHeadlines && data.campaignState.longHeadlines.length > 0)
+              ? Array.from(new Set([...(prev.longHeadlines || []), ...data.campaignState.longHeadlines]))
+              : prev.longHeadlines,
+            descriptions: isRegenerate && data.campaignState.descriptions && data.campaignState.descriptions.length > 0
+              ? data.campaignState.descriptions
+              : (data.campaignState.descriptions && data.campaignState.descriptions.length > 0)
+              ? Array.from(new Set([...(prev.descriptions || []), ...data.campaignState.descriptions]))
+              : prev.descriptions,
+            keywords: isRegenerate && data.campaignState.keywords && data.campaignState.keywords.length > 0
+              ? data.campaignState.keywords
+              : (data.campaignState.keywords && data.campaignState.keywords.length > 0)
+              ? Array.from(new Set([...(prev.keywords || []), ...data.campaignState.keywords]))
+              : prev.keywords,
+            images: isRegenerate && data.campaignState.images && data.campaignState.images.length > 0
+              ? data.campaignState.images
+              : (data.campaignState.images && data.campaignState.images.length > 0)
+              ? Array.from(new Set([...(prev.images || []), ...data.campaignState.images]))
+              : prev.images,
+            logos: isRegenerate && data.campaignState.logos && data.campaignState.logos.length > 0
+              ? data.campaignState.logos
+              : (data.campaignState.logos && data.campaignState.logos.length > 0)
+              ? Array.from(new Set([...(prev.logos || []), ...data.campaignState.logos]))
+              : prev.logos
+          };
+
+          const validH = (merged.headlines || []).filter(h => h && h.trim().length > 0);
+          const validD = (merged.descriptions || []).filter(d => d && d.trim().length > 0);
+          const hasBud = merged.dailyBudget && merged.dailyBudget > 0;
+          merged.readyForPublish = !!(hasBud && merged.campaignName && validH.length >= 3 && validD.length >= 2);
+          return merged;
+        });
+      }
+
+      if (data.message) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `msg-direct-${Date.now()}`,
+            role: "assistant",
+            content: data.message,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          }
+        ]);
+      }
+    } catch (err: any) {
+      console.error("[Direct Cockpit AI Generation Error]:", err);
+      alert(`AI generation error: ${err.message || "Failed to generate assets"}`);
+    } finally {
+      setIsLoading(false);
+      setCockpitGeneratingTarget(null);
+    }
+  };
+
+  // Helper to trigger AI Image, Logo, Headlines, Long Headlines, Descriptions, All-in-One, or Text-Assets Generation (from Left Chat input)
+  const handleTriggerAiAssetGeneration = async (targetType: "IMAGE" | "LOGO" | "HEADLINES" | "LONG_HEADLINES" | "DESCRIPTIONS" | "ALL_IN_ONE" | "TEXT_ASSETS") => {
     let activeBizName = (campaignState.businessName || campaignState.business?.name || "").trim();
     let activeWebsite = (campaignState.website || "").trim();
     let activeBizDesc = (campaignState.business?.description || (campaignState as any).productOverview || "").trim();
@@ -1944,7 +2443,11 @@ export default function AiGuidedCampaignPage() {
     // 2. Check if essential inputs are missing. If so, request missing information in chat!
     let promptText = "";
     if (!activeBizName && !activeWebsite) {
-      if (targetType === "LOGO") {
+      if (targetType === "ALL_IN_ONE") {
+        promptText = `Generate a complete Google Ads campaign creative package (Headlines, Long Headlines, Descriptions, Keywords, Marketing Images & Logo concepts) for my business. Business Name: [Enter Name], Website: [Enter URL], Main Offerings: [Enter Details].`;
+      } else if (targetType === "TEXT_ASSETS") {
+        promptText = `Generate all ad copy texts (5 Headlines ≤ 30 chars, 3 Long Headlines ≤ 90 chars, 4 Descriptions ≤ 90 chars) for my business. Business Name: [Enter Name], Website: [Enter URL].`;
+      } else if (targetType === "LOGO") {
         promptText = `I want to generate a professional Google Ads logo. My business name is [Enter Business Name] and our website is [Enter Website URL or describe what we sell]. Please design a 1:1 square vector logo.`;
       } else if (targetType === "IMAGE") {
         promptText = `I want to generate Google Ads marketing images. My business name is [Enter Business Name] and our website is [Enter Website URL or describe services]. Please create landscape (1.91:1) and square (1:1) ad creative concepts.`;
@@ -1962,7 +2465,11 @@ export default function AiGuidedCampaignPage() {
       const siteContext = activeWebsite ? ` (Website: ${activeWebsite})` : "";
       const typeContext = effectiveCampType ? ` for our ${effectiveCampType} campaign` : "";
 
-      if (targetType === "LOGO") {
+      if (targetType === "ALL_IN_ONE") {
+        promptText = `Generate a complete end-to-end Google Ads campaign package for "${bizContext}"${typeContext}${descContext}${siteContext}. Please provide: 1) 5 high-CTR Headlines (≤ 30 chars), 2) 3 Long Headlines (≤ 90 chars), 3) 4 Descriptions (≤ 90 chars) with strong CTAs, 4) Top 15 high-intent Keywords, and 5) Creative visual direction for Landscape (1.91:1), Square (1:1) marketing images and Brand Logo.`;
+      } else if (targetType === "TEXT_ASSETS") {
+        promptText = `Generate complete high-converting Google Ads copy for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: 1) 5 Punchy Headlines (strictly ≤ 30 characters each), 2) 3 Compelling Long Headlines (strictly ≤ 90 characters each), and 3) 4 Engaging Descriptions (strictly ≤ 90 characters each with strong calls-to-action).`;
+      } else if (targetType === "LOGO") {
         promptText = `Generate a modern, high-resolution Google Ads business logo for "${bizContext}"${descContext}${siteContext}. Requirements: Clean vector style, square (1:1) aspect ratio on a solid/white background, optimized for mobile screens and Google Ads display.`;
       } else if (targetType === "IMAGE") {
         promptText = `Generate high-converting marketing creative images for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Professional high quality, Landscape (1.91:1 - 1200x628) and Square (1:1 - 1200x1200) Google Ads compliant creative compositions showcasing our key offerings with strong visual engagement.`;
@@ -2221,6 +2728,38 @@ export default function AiGuidedCampaignPage() {
     // Reset validation error
     setUploadValidationError(null);
 
+    // Duplicate File Name Check in existing campaign assets
+    const cleanFileName = file.name.trim().toLowerCase();
+    const baseRawName = cleanFileName.replace(/\.[^/.]+$/, "");
+
+    const matchesName = (candidateName?: string) => {
+      if (!candidateName) return false;
+      const cand = candidateName.toLowerCase().trim();
+      const candBase = cand.replace(/\.[^/.]+$/, "").replace(/_\d+x\d+$/, "").replace(/_gads.*$/, "");
+      return cand === cleanFileName || cand.includes(cleanFileName) || candBase === baseRawName;
+    };
+
+    const isDuplicateImage = (campaignState.images || []).some(img => {
+      const name = typeof img === "object" ? (img?.name || "") : (typeof img === "string" ? img : "");
+      return matchesName(name);
+    });
+    const isDuplicateLogo = (campaignState.logos || []).some(lg => {
+      const name = typeof lg === "object" ? (lg?.name || "") : (typeof lg === "string" ? lg : "");
+      return matchesName(name);
+    });
+    const isDuplicateVideo = (campaignState.videos || []).some(v => {
+      const name = typeof v === "object" ? (v?.name || "") : (typeof v === "string" ? v : "");
+      return matchesName(name);
+    });
+
+    if (isDuplicateImage || isDuplicateLogo || isDuplicateVideo) {
+      const duplicateMsg = `This file "${file.name}" is already uploaded to this campaign. Please choose a different file or edit the existing one.`;
+      setUploadValidationError(duplicateMsg);
+      alert(duplicateMsg);
+      if (e.target) e.target.value = "";
+      return;
+    }
+
     // Rule 1: The maximum file size for any image/logo is 5120 KB (5 MB)
     const maxSizeBytes = 5120 * 1024;
     if (file.size > maxSizeBytes && targetType !== "VIDEO") {
@@ -2339,6 +2878,110 @@ export default function AiGuidedCampaignPage() {
     }
   };
 
+  // ── Past Media Library Fetch & Attach Handlers ──
+  const fetchPastMediaLibrary = async () => {
+    setIsLoadingPastMedia(true);
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/media-library`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.files)) {
+        setPastMediaList(data.files);
+      }
+    } catch (err) {
+      console.warn("[AI-GUIDED] Failed to load media library from ImageKit:", err);
+    } finally {
+      setIsLoadingPastMedia(false);
+    }
+  };
+
+  const openMediaSourcePicker = (target: "IMAGE" | "LOGO" | "VIDEO") => {
+    setActiveUploadTarget(target);
+    setIsMediaSourceModalOpen(true);
+  };
+
+  const handleSelectPastMediaItem = (item: any) => {
+    if (!item || !item.url) return;
+    const targetType = activeUploadTarget;
+
+    // Check for duplicate in campaignState (by URL or file name)
+    const isAlreadyAttached = [
+      ...(campaignState.images || []),
+      ...(campaignState.logos || []),
+      ...(campaignState.videos || [])
+    ].some(media => {
+      const mediaUrl = typeof media === "string" ? media : (media as any)?.url || "";
+      const mediaName = typeof media === "object" ? (media as any)?.name || "" : "";
+      return (mediaUrl && mediaUrl === item.url) || (mediaName && item.name && mediaName.toLowerCase() === item.name.toLowerCase());
+    });
+
+    if (isAlreadyAttached) {
+      const duplicateMsg = `This file "${item.name || 'item'}" is already attached to this campaign.`;
+      setUploadValidationError(duplicateMsg);
+      alert(duplicateMsg);
+      return;
+    }
+
+    if (targetType === "VIDEO" || item.fileType === "video" || item.fieldType === "VIDEO") {
+      setCampaignState(prev => ({
+        ...prev,
+        videos: [...(prev.videos || []), { url: item.url, name: item.name }]
+      }));
+    } else if (targetType === "LOGO" || item.fieldType === "LOGO") {
+      setCampaignState(prev => {
+        const logos = [...(prev.logos || [])];
+        logos.push({
+          url: item.url,
+          name: item.name,
+          fieldType: "LOGO" as const,
+          aspectRatio: item.aspectRatio || "1:1",
+          dimensions: item.dimensions
+        });
+        return { ...prev, logos };
+      });
+    } else {
+      setCampaignState(prev => {
+        const images = [...(prev.images || [])];
+        const isSq = item.aspectRatio === "1:1" || item.fieldType === "SQUARE_MARKETING_IMAGE";
+        images.push({
+          url: item.url,
+          name: item.name,
+          fieldType: isSq ? ("SQUARE_MARKETING_IMAGE" as const) : ("MARKETING_IMAGE" as const),
+          aspectRatio: item.aspectRatio || (isSq ? "1:1" : "1.91:1"),
+          dimensions: item.dimensions
+        });
+        return { ...prev, images };
+      });
+    }
+
+    setIsPastMediaModalOpen(false);
+    setIsMediaSourceModalOpen(false);
+  };
+
+  const handleDeletePastMediaItem = async (e: React.MouseEvent, item: any) => {
+    e.stopPropagation();
+    if (!item || !item.id) return;
+    const confirmDelete = window.confirm(`Are you sure you want to delete "${item.name}" from your ImageKit library? This cannot be undone.`);
+    if (!confirmDelete) return;
+
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/media-library/${encodeURIComponent(item.id)}`, {
+        method: "DELETE"
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Remove item from state
+        setPastMediaList(prev => prev.filter(f => f.id !== item.id));
+      } else {
+        alert(data.error || "Failed to delete file from ImageKit");
+      }
+    } catch (err: any) {
+      console.error("[Delete Media Error]:", err);
+      alert("Failed to delete file from library. Please try again.");
+    }
+  };
+
   // Backwards compatible trigger
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleMediaUpload(e, activeUploadTarget);
@@ -2371,22 +3014,68 @@ export default function AiGuidedCampaignPage() {
         });
         const analysisData = await res.json();
         
-        // Immediate state update with website data
-        const extractedBizName = analysisData.derivedBusinessName || analysisData.title?.split(/[-|:]/)[0]?.trim() || activeState.businessName || "";
+        // Helper to clean and strictly clamp text
+        const cleanCopyFrontend = (str: any, maxLen: number) => {
+          if (!str || typeof str !== "string") return "";
+          let c = str
+            .replace(/[|│┃]/g, " - ")
+            .replace(/[•●▪◆★►▶✔✓]/g, " ")
+            .replace(/[\/~^_*<>{}[\]\\#@+=]/g, " ")
+            .replace(/\s*[-–—]+\s*/g, " - ")
+            .replace(/^[\s,.\-!?;:_~@#$%^&*+=<>]+/, "")
+            .replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "")
+            .replace(/([,.!?;:])\1+/g, "$1")
+            .replace(/([,.!?;:])([a-zA-Z0-9])/g, "$1 $2")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (c.length > maxLen) {
+            c = c.slice(0, maxLen).replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "").trim();
+          }
+          return c;
+        };
+
+        // Immediate state update with comprehensive verified website data
+        const rawBizName = analysisData.derivedBusinessName || analysisData.title?.split(/[-|:]/)[0]?.trim() || activeState.businessName || "";
+        const extractedBizName = cleanCopyFrontend(rawBizName, 25);
+
+        const newHeadlines = (analysisData.headlines && analysisData.headlines.length > 0)
+          ? analysisData.headlines.map((h: string) => cleanCopyFrontend(h, 30)).filter((h: string) => h.length > 0)
+          : [];
+        const newLongHeadlines = (analysisData.longHeadlines && analysisData.longHeadlines.length > 0)
+          ? analysisData.longHeadlines.map((lh: string) => cleanCopyFrontend(lh, 90)).filter((lh: string) => lh.length > 0)
+          : [];
+        const newDescriptions = (analysisData.descriptions && analysisData.descriptions.length > 0)
+          ? analysisData.descriptions.map((d: string) => cleanCopyFrontend(d, 90)).filter((d: string) => d.length > 0)
+          : [];
+
         activeState = {
           ...activeState,
           website: detectedUrl,
-          businessName: activeState.businessName || extractedBizName,
+          businessName: activeState.businessName ? cleanCopyFrontend(activeState.businessName, 25) : extractedBizName,
           business: {
             ...(activeState.business || {}),
-            name: activeState.business?.name || extractedBizName,
+            name: activeState.business?.name ? cleanCopyFrontend(activeState.business.name, 25) : extractedBizName,
             website: detectedUrl,
-            description: activeState.business?.description || analysisData.description || ""
+            description: activeState.business?.description || cleanCopyFrontend(analysisData.description, 150) || ""
           },
-          headlines: (analysisData.headlines && analysisData.headlines.length > 0) ? analysisData.headlines : activeState.headlines,
-          longHeadlines: (analysisData.longHeadlines && analysisData.longHeadlines.length > 0) ? analysisData.longHeadlines : activeState.longHeadlines,
-          descriptions: (analysisData.descriptions && analysisData.descriptions.length > 0) ? analysisData.descriptions : activeState.descriptions,
-          keywords: (analysisData.keywords && analysisData.keywords.length > 0) ? analysisData.keywords : activeState.keywords
+          locations: (analysisData.locations && analysisData.locations.length > 0)
+            ? analysisData.locations
+            : activeState.locations,
+          language: (analysisData.language && analysisData.language.trim().length > 0)
+            ? (analysisData.language === "en" ? "English" : analysisData.language)
+            : activeState.language,
+          headlines: (newHeadlines.length > 0)
+            ? Array.from(new Set([...(activeState.headlines || []).map(h => cleanCopyFrontend(h, 30)).filter(Boolean), ...newHeadlines]))
+            : (activeState.headlines || []).map(h => cleanCopyFrontend(h, 30)).filter(Boolean),
+          longHeadlines: (newLongHeadlines.length > 0)
+            ? Array.from(new Set([...(activeState.longHeadlines || []).map(lh => cleanCopyFrontend(lh, 90)).filter(Boolean), ...newLongHeadlines]))
+            : (activeState.longHeadlines || []).map(lh => cleanCopyFrontend(lh, 90)).filter(Boolean),
+          descriptions: (newDescriptions.length > 0)
+            ? Array.from(new Set([...(activeState.descriptions || []).map(d => cleanCopyFrontend(d, 90)).filter(Boolean), ...newDescriptions]))
+            : (activeState.descriptions || []).map(d => cleanCopyFrontend(d, 90)).filter(Boolean),
+          keywords: (analysisData.keywords && analysisData.keywords.length > 0)
+            ? Array.from(new Set([...(activeState.keywords || []), ...analysisData.keywords]))
+            : activeState.keywords
         };
         // Update Live Campaign Cockpit right away
         setCampaignState(activeState);
@@ -2538,20 +3227,176 @@ export default function AiGuidedCampaignPage() {
       const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
 
       const effectiveState = { ...campaignState };
+      
+      // 1. Business Name Validation & Sanitization
+      const rawBizName = effectiveState.businessName || effectiveState.business?.name;
+      if (!rawBizName || !String(rawBizName).trim()) {
+        startFieldEdit("businessName");
+        throw new Error("Business Name is required. Please specify your business or shop name in chat or the Live Cockpit.");
+      }
+      const cleanBizName = String(rawBizName).replace(/[|│┃]/g, " - ").replace(/[•●▪◆★►▶✔✓\/~^_*<>{}[\]\\#@+=]/g, " ").replace(/\s*[-–—]+\s*/g, " - ").replace(/^[\s,.\-!?;:_~@#$%^&*+=<>]+/, "").replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "").replace(/\s+/g, " ").trim().slice(0, 25);
+      effectiveState.businessName = cleanBizName;
+
+      // 2. Daily Budget Validation (Must be positive number > 0)
+      const budgetNum = Number(effectiveState.dailyBudget);
+      if (!effectiveState.dailyBudget || isNaN(budgetNum) || budgetNum <= 0) {
+        startFieldEdit("dailyBudget");
+        throw new Error("Daily Budget is required and must be greater than ₹0. Please set a daily budget in chat or the Live Cockpit.");
+      }
+
+      // 3. Campaign Name Validation (Must not be empty)
+      if (!effectiveState.campaignName || !effectiveState.campaignName.trim()) {
+        effectiveState.campaignName = generateCampaignName(cleanBizName, effectiveState.campaignType || "PERFORMANCE_MAX");
+      }
+
+      // 4. Final URL Validation
       if (effectiveState.website) {
-        let cleanUrl = effectiveState.website.trim().replace(/^["'(\[<]+/, "").replace(/["')\]>.,;:]+$/, "").trim();
+        let cleanUrl = effectiveState.website.trim().replace(/^["'(\[<\s]+/, "").replace(/[\s"'\(\)\[\]<>\.,;:?]+$/, "").trim();
         if (cleanUrl && !cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
           cleanUrl = `https://${cleanUrl}`;
         }
         effectiveState.website = cleanUrl;
-      } else {
+      } else if (effectiveState.campaignType !== "APP") {
+        startFieldEdit("website");
         throw new Error("Final URL (website) is missing. Please provide a valid landing page URL.");
       }
 
-      // Check dummy/unreachable domains that trigger Google Ads DESTINATION_NOT_WORKING
-      const dummyRegex = /^(https?:\/\/)?(raj\.com|rajcomputer\.com|example\.com|test\.com|myshop\.com|mywebsite\.com)\/?$/i;
-      if (dummyRegex.test(effectiveState.website || "")) {
-        throw new Error(`Landing page URL "${effectiveState.website}" is unreachable or not a live registered website (DESTINATION_NOT_WORKING). Google Ads requires a real, active website that returns HTTP 200 (e.g., https://yourbrand.in or a live store domain). Please update your website URL.`);
+      // Helper for clean copy text
+      const sanitizeCopy = (t: any, maxLen: number) => {
+        if (!t || typeof t !== "string") return "";
+        let c = t
+          .replace(/[|│┃]/g, " - ")
+          .replace(/[•●▪◆★►▶✔✓]/g, " ")
+          .replace(/[\/~^_*<>{}[\]\\#@+=]/g, " ")
+          .replace(/\s*[-–—]+\s*/g, " - ")
+          .replace(/^[\s,.\-!?;:_~@#$%^&*+=<>]+/, "")
+          .replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "")
+          .replace(/([,.!?;:])\1+/g, "$1")
+          .replace(/([,.!?;:])([a-zA-Z0-9])/g, "$1 $2")
+          .replace(/\s+/g, " ")
+          .trim();
+        return c.slice(0, maxLen).replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "").trim();
+      };
+
+      // 5. Locations Validation & Auto-Resolution (Frontend Level)
+      const validLocs = (effectiveState.locations || []).filter((l: any) => l && String(l).trim());
+      if (validLocs.length === 0) {
+        if (selectedLocationsList && selectedLocationsList.length > 0 && selectedLocationsList[0]) {
+          effectiveState.locations = selectedLocationsList;
+        } else {
+          // Safe smart default to India if not specified
+          effectiveState.locations = ["India"];
+          setCampaignState(p => ({ ...p, locations: ["India"] }));
+        }
+      }
+
+      // 6. Language Auto-Resolution
+      if (!effectiveState.language || !effectiveState.language.trim()) {
+        effectiveState.language = "English";
+        setCampaignState(p => ({ ...p, language: "English" }));
+      }
+
+      // 6b. Start Date and End Date Sanitization (Google Ads requires End Date > Start Date)
+      const todayStr = new Date().toISOString().split("T")[0];
+      if (!effectiveState.startDate || !String(effectiveState.startDate).trim()) {
+        effectiveState.startDate = todayStr;
+      }
+      if (effectiveState.endDate) {
+        const rawEndDate = String(effectiveState.endDate).trim();
+        if (!rawEndDate) {
+          delete effectiveState.endDate;
+        } else {
+          const startMs = new Date(effectiveState.startDate).getTime();
+          const endMs = new Date(rawEndDate).getTime();
+          if (isNaN(endMs) || endMs <= startMs) {
+            // End date must strictly be after start date; if same-day or past, remove end date so campaign runs continuously without throwing error
+            console.warn(`[AI-GUIDED] Removing invalid same-day/past end date (${rawEndDate}) <= start date (${effectiveState.startDate}) to prevent Google Ads validation error.`);
+            delete effectiveState.endDate;
+            setCampaignState(p => ({ ...p, endDate: undefined }));
+          } else {
+            effectiveState.endDate = rawEndDate;
+          }
+        }
+      }
+
+      // 7. Campaign Type Specific Client-Side Pre-Flight Checks & Sanitization
+      const cType = effectiveState.campaignType || "PERFORMANCE_MAX";
+      const validH = (effectiveState.headlines || []).map((h: any) => sanitizeCopy(String(h), 30)).filter((h: string) => h.length > 0);
+      const validLH = (effectiveState.longHeadlines || []).map((lh: any) => sanitizeCopy(String(lh), 90)).filter((lh: string) => lh.length > 0);
+      const validD = (effectiveState.descriptions || []).map((d: any) => sanitizeCopy(String(d), 90)).filter((d: string) => d.length > 0);
+      const validK = (effectiveState.keywords || []).map((k: any) => sanitizeCopy(String(k), 80)).filter((k: string) => k.length > 0);
+
+      effectiveState.headlines = validH;
+      effectiveState.longHeadlines = validLH;
+      effectiveState.descriptions = validD;
+      effectiveState.keywords = validK;
+
+      if (cType === "PERFORMANCE_MAX") {
+        if (validH.length < 3) {
+          throw new Error(`Performance Max requires at least 3 Headlines (${validH.length}/3 added). Please add headlines in the Live Cockpit or ask AI to generate them.`);
+        }
+        if (validLH.length < 1) {
+          throw new Error("Performance Max requires at least 1 Long Headline (up to 90 chars). Please add one in the Live Cockpit or ask AI to generate it.");
+        }
+        if (validD.length < 2) {
+          throw new Error(`Performance Max requires at least 2 Descriptions (${validD.length}/2 added). Please add descriptions in the Live Cockpit or ask AI to generate them.`);
+        }
+      } else if (cType === "SEARCH") {
+        if (validH.length < 3) {
+          throw new Error(`Search campaigns require at least 3 Headlines (${validH.length}/3 added).`);
+        }
+        if (validD.length < 2) {
+          throw new Error(`Search campaigns require at least 2 Descriptions (${validD.length}/2 added).`);
+        }
+        if (validK.length < 1) {
+          throw new Error("Search campaigns require at least 1 keyword.");
+        }
+      } else if (cType === "DEMAND_GEN") {
+        const dgFormat = (effectiveState.adFormat || "SINGLE_IMAGE").toUpperCase();
+        if (validH.length < 1) {
+          throw new Error("Demand Gen requires at least 1 Headline (up to 40 chars). Please add a headline in the Live Cockpit or ask AI to generate it.");
+        }
+        if (validD.length < 1) {
+          throw new Error("Demand Gen requires at least 1 Description (up to 90 chars). Please add a description in the Live Cockpit or ask AI to generate it.");
+        }
+        const dgLogos = (effectiveState.logos || []).filter((l: any) => l && (typeof l === "string" ? l.trim() : l.url || l.data || l.asset));
+        if (dgLogos.length < 1) {
+          throw new Error("Demand Gen requires at least 1 Brand Logo (1:1). Please upload a logo in the Live Cockpit or ask AI to generate one.");
+        }
+        if (budgetNum < 416) {
+          startFieldEdit("dailyBudget");
+          throw new Error(`Demand Gen campaigns require a minimum Daily Budget of ₹416/day (currently ₹${budgetNum}/day).`);
+        }
+        if (dgFormat === "SINGLE_IMAGE") {
+          const dgImages = (effectiveState.images || []).filter((im: any) => im && (typeof im === "string" ? im.trim() : im.url || im.data || im.asset));
+          if (dgImages.length < 1) {
+            throw new Error("Demand Gen Single Image format requires at least 1 marketing image (1.91:1 landscape or 1:1 square).");
+          }
+        } else if (dgFormat === "VIDEO") {
+          const dgVideos = (effectiveState.videos || []).filter((v: any) => v && (typeof v === "string" ? v.trim() : v.asset || v.videoId || v.url));
+          if (dgVideos.length < 1) {
+            throw new Error("Demand Gen Video format requires at least 1 YouTube video URL or asset.");
+          }
+          if (validLH.length < 1) {
+            effectiveState.longHeadlines = [validH[0]];
+          }
+        } else if (dgFormat === "CAROUSEL") {
+          const cards = Array.isArray(effectiveState.carouselCards) ? effectiveState.carouselCards : [];
+          const validCards = cards.filter((c: any) => c && c.image?.trim() && c.headline?.trim());
+          if (validCards.length < 2) {
+            throw new Error(`Demand Gen Carousel format requires at least 2 cards with image and headline (${validCards.length}/2 added).`);
+          }
+        }
+      } else if (cType === "APP") {
+        if (!effectiveState.appId || !effectiveState.appId.trim()) {
+          startFieldEdit("appId");
+          throw new Error("App ID / Package Name is required for App campaigns.");
+        }
+      } else if (cType === "SHOPPING") {
+        if (!effectiveState.merchantCenterId || !/^\d+$/.test(effectiveState.merchantCenterId)) {
+          startFieldEdit("merchantCenterId");
+          throw new Error("Valid Google Merchant Center Account ID is required for Shopping campaigns.");
+        }
       }
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/create-campaign`, {
@@ -2569,7 +3414,14 @@ export default function AiGuidedCampaignPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to create campaign. Validation requirements may be missing.");
+        if (data.missingFields && Array.isArray(data.missingFields) && data.missingFields.length > 0) {
+          throw new Error(`Campaign validation failed:\n• ${data.missingFields.join("\n• ")}`);
+        }
+        if (data.validationErrors && Array.isArray(data.validationErrors) && data.validationErrors.length > 0) {
+          throw new Error(`Campaign validation failed:\n• ${data.validationErrors.map((e: any) => e.message || e).join("\n• ")}`);
+        }
+        const errMsg = data.error || data.message || (typeof data.details === "string" ? data.details : data.details?.error?.message) || "Failed to create campaign. Validation requirements may be missing.";
+        throw new Error(errMsg);
       }
 
       setPublishSuccess(`🎉 Success! Campaign "${campaignState.campaignName || "AI Campaign"}" has been created in Google Ads.`);
@@ -2922,8 +3774,8 @@ export default function AiGuidedCampaignPage() {
             <span className="hidden sm:inline">Back</span>
           </button>
           <div className="flex items-center gap-2 border-l border-slate-200 pl-2 sm:pl-4">
-            <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0">
-              <Sparkles className="h-3.5 w-3.5" />
+            <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 shadow-xs flex items-center justify-center p-0.5 shrink-0">
+              <img src="/icon.jpeg" alt="JDS" className="w-full h-full object-contain rounded-md" />
             </div>
             <span className="text-xs sm:text-sm font-bold text-slate-900 truncate max-w-[140px] sm:max-w-none">
               AI Campaign Studio
@@ -3071,13 +3923,21 @@ export default function AiGuidedCampaignPage() {
                 >
                   {/* Avatar */}
                   <div
-                    className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-xs font-bold shadow-xs ${
+                    className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-xs font-bold overflow-hidden shadow-xs ${
                       msg.role === "user"
                         ? "bg-slate-800 text-white"
-                        : "bg-blue-600 text-white shadow-blue-500/20 shadow-md"
+                        : "bg-white border border-slate-200 shadow-md p-0.5 ring-1 ring-blue-500/20"
                     }`}
                   >
-                    {msg.role === "user" ? "You" : <Sparkles className="h-4 w-4" />}
+                    {msg.role === "user" ? (
+                      "You"
+                    ) : (
+                      <img
+                        src="/icon.jpeg"
+                        alt="JDS AI Assistant"
+                        className="w-full h-full object-contain rounded-lg"
+                      />
+                    )}
                   </div>
 
                   {/* Message Bubble */}
@@ -4354,20 +5214,30 @@ export default function AiGuidedCampaignPage() {
               </div>
             ))}
 
-            {/* Typing / Analysis Indicator */}
+            {/* Typing / Generation Animation Indicator */}
             {(isLoading || isAnalyzingUrl || isUploadingMedia) && (
-              <div className="flex items-center gap-3 animate-in fade-in duration-200">
-                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
-                  <Sparkles className="h-4 w-4 animate-spin"/>
+              <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="relative w-9 h-9 rounded-xl bg-white border border-blue-200 shadow-md p-1 flex items-center justify-center shrink-0 ring-2 ring-blue-500/20">
+                  <img
+                    src="/icon.jpeg"
+                    alt="JDS Copilot"
+                    className="w-full h-full object-contain rounded-lg animate-pulse"
+                  />
+                  {/* Glowing radiating ripple ring */}
+                  <span className="absolute -inset-1 rounded-2xl bg-blue-500/20 animate-ping pointer-events-none" />
                 </div>
-                <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl rounded-tl-xs shadow-xs text-xs text-slate-600 flex items-center gap-2.5">
-                  <Loader2 className="h-3.5 w-3.5 text-blue-600 animate-spin" />
-                  <span>
+                <div className="px-4 py-3 bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-purple-50/60 border border-blue-200/80 rounded-2xl rounded-tl-xs shadow-sm text-xs text-slate-700 flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-2 h-2 rounded-full bg-indigo-600 animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-2 h-2 rounded-full bg-purple-600 animate-bounce" />
+                  </div>
+                  <span className="font-medium text-slate-800">
                     {isUploadingMedia
                       ? "Uploading asset to ImageKit CDN..."
                       : isAnalyzingUrl
                       ? "Analyzing website structure & content..."
-                      : "AI Copilot is analyzing and formulating strategy..."}
+                      : "JDS AI Copilot is formulating campaign recommendations..."}
                   </span>
                 </div>
               </div>
@@ -4422,98 +5292,6 @@ export default function AiGuidedCampaignPage() {
 
           {/* Quick Action Pills & Input Bar */}
           <div className="p-4 bg-slate-50 border-t border-slate-200 shrink-0 space-y-2.5">
-            
-            {/* Quick Pills Bar */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] scrollbar-none">
-              <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 shrink-0 mr-1">Quick:</span>
-              <button
-                type="button"
-                onClick={() => handleSendMessage("I want more leads & phone calls")}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs"
-              >
-                I want more leads & phone calls
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSendMessage("I want to sell products online")}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs"
-              >
-                I want to sell products online
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSendMessage("What campaign type do you recommend for my business?")}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs"
-              >
-                Recommend Campaign Type
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTriggerAiAssetGeneration("HEADLINES")}
-                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-bold"
-              >
-                <Sparkles className="h-3 w-3 text-emerald-200" />
-                Generate Headlines
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTriggerAiAssetGeneration("DESCRIPTIONS")}
-                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-bold"
-              >
-                <Sparkles className="h-3 w-3 text-amber-200" />
-                Generate Descriptions
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTriggerAiAssetGeneration("IMAGE")}
-                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-bold"
-              >
-                <Wand2 className="h-3 w-3 text-blue-200" />
-                Generate Images
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTriggerAiAssetGeneration("LOGO")}
-                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-bold"
-              >
-                <Sparkles className="h-3 w-3 text-pink-200" />
-                Generate Logo
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveUploadTarget("IMAGE");
-                  imageInputRef.current?.click();
-                }}
-                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-semibold"
-              >
-                <Upload className="h-3 w-3" />
-                Upload Image
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveUploadTarget("LOGO");
-                  logoInputRef.current?.click();
-                }}
-                className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-semibold"
-              >
-                <Upload className="h-3 w-3" />
-                Upload Logo
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveUploadTarget("VIDEO");
-                  videoInputRef.current?.click();
-                }}
-                className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1 font-semibold"
-              >
-                <Video className="h-3 w-3" />
-                Upload Video
-              </button>
-            </div>
-
             {/* Active Reference Campaign Chip Banner */}
             {referencedCampaign && (
               <div className="flex items-center justify-between px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 animate-in fade-in slide-in-from-bottom-1">
@@ -4541,7 +5319,7 @@ export default function AiGuidedCampaignPage() {
               </div>
             )}
 
-            {/* Chat Input Form */}
+            {/* Chat Input Form with ChatGPT-style Action Pin/Paperclip Menu */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -4549,19 +5327,242 @@ export default function AiGuidedCampaignPage() {
               }}
               className="flex items-end gap-2 relative"
             >
+              {/* ChatGPT-style Attachment/Actions Pin Button */}
+              <div className="relative shrink-0 pb-0.5">
+                <button
+                  type="button"
+                  onClick={() => setIsActionsMenuOpen(!isActionsMenuOpen)}
+                  title="Attach media or Generate AI Assets"
+                  className={`w-10 h-10 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+                    isActionsMenuOpen
+                      ? "bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/20"
+                      : "bg-white hover:bg-slate-100 text-slate-700 hover:text-blue-600 border-slate-300 shadow-2xs"
+                  }`}
+                >
+                  <Paperclip className="h-4.5 w-4.5 shrink-0 stroke-[2.2]" />
+                </button>
+
+                {/* ChatGPT-style Popover Menu for AI Generation & Media Uploads */}
+                {isActionsMenuOpen && (
+                  <div className="absolute bottom-full left-0 mb-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150 max-h-[80vh] overflow-y-auto scrollbar-thin">
+                    <div className="flex items-center justify-between px-1 pb-1.5 border-b border-slate-100">
+                      <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+                        AI & Media Actions
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsActionsMenuOpen(false)}
+                        className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Quick Bundle Prompts */}
+                    <div className="space-y-1">
+                      <p className="px-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">All-in-One Prompts</p>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          handleTriggerAiAssetGeneration("ALL_IN_ONE");
+                        }}
+                        className="w-full text-left px-2.5 py-2 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200/60 text-blue-950 text-xs font-semibold flex items-center gap-2.5 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Zap className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="leading-tight font-bold text-blue-900">Generate All in One Prompt</p>
+                          <p className="text-[10px] text-blue-600/90 font-normal truncate">Headlines, descriptions, keywords & creatives</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          handleTriggerAiAssetGeneration("TEXT_ASSETS");
+                        }}
+                        className="w-full text-left px-2.5 py-2 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border border-purple-200/60 text-purple-950 text-xs font-semibold flex items-center gap-2.5 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <FileText className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="leading-tight font-bold text-purple-900">Generate Headlines & Descriptions in One Prompt</p>
+                          <p className="text-[10px] text-purple-600/90 font-normal truncate">Headlines, long headlines & descriptions bundle</p>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* AI Generation Tools */}
+                    <div className="space-y-1 pt-1 border-t border-slate-100">
+                      <p className="px-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">AI Generators</p>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          handleTriggerAiAssetGeneration("HEADLINES");
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                          <FileText className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="leading-tight">Generate Headlines prompt</p>
+                          <p className="text-[10px] text-slate-400 font-normal">AI punchy titles (&le; 30 chars)</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          handleTriggerAiAssetGeneration("LONG_HEADLINES");
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-teal-50 text-slate-700 hover:text-teal-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
+                          <FileText className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="leading-tight">Generate Long Headlines prompt</p>
+                          <p className="text-[10px] text-slate-400 font-normal">AI extended titles (&le; 90 chars)</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          handleTriggerAiAssetGeneration("DESCRIPTIONS");
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-amber-50 text-slate-700 hover:text-amber-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="leading-tight">Generate Descriptions prompt</p>
+                          <p className="text-[10px] text-slate-400 font-normal">AI ad copy (&le; 90 chars)</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          handleTriggerAiAssetGeneration("IMAGE");
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-blue-50 text-slate-700 hover:text-blue-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                          <Wand2 className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="leading-tight">Generate Marketing Images</p>
+                          <p className="text-[10px] text-slate-400 font-normal">Landscape & Square creatives</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          handleTriggerAiAssetGeneration("LOGO");
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-purple-50 text-slate-700 hover:text-purple-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="leading-tight">Generate Brand Logo</p>
+                          <p className="text-[10px] text-slate-400 font-normal">Square brand icon (1:1)</p>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Media Uploads */}
+                    <div className="space-y-1 pt-1.5 border-t border-slate-100">
+                      <p className="px-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Media Uploads</p>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          setActiveUploadTarget("IMAGE");
+                          imageInputRef.current?.click();
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                          <ImageIcon className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="leading-tight">Upload Marketing Image</p>
+                          <p className="text-[10px] text-slate-400 font-normal">PNG, JPG, WebP</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          setActiveUploadTarget("LOGO");
+                          logoInputRef.current?.click();
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                          <Upload className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="leading-tight">Upload Brand Logo</p>
+                          <p className="text-[10px] text-slate-400 font-normal">1:1 square icon</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          setActiveUploadTarget("VIDEO");
+                          videoInputRef.current?.click();
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                          <Video className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="leading-tight">Upload Video Asset</p>
+                          <p className="text-[10px] text-slate-400 font-normal">MP4 video file</p>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* @ Button on the LEFT side of the Chat Input Box */}
               <div className="relative shrink-0 pb-0.5">
                 <button
                   type="button"
                   onClick={() => setIsCampaignDropdownOpen(!isCampaignDropdownOpen)}
                   title="Reference Existing Campaign (@) to reuse business, budget & assets"
-                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+                  className={`w-10 h-10 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
                     isCampaignDropdownOpen || referencedCampaign
                       ? "bg-purple-600 text-white border-purple-600 shadow-sm shadow-purple-500/20"
                       : "bg-white hover:bg-purple-50 text-slate-600 hover:text-purple-700 border-slate-300 shadow-2xs"
                   }`}
                 >
-                  <AtSign className="h-4 w-4" />
+                  <AtSign className="h-4.5 w-4.5 shrink-0 stroke-[2.2]" />
                 </button>
 
                 {/* Dropdown Menu for Selecting Existing Campaign */}
@@ -4700,45 +5701,18 @@ export default function AiGuidedCampaignPage() {
                   disabled={isLoading || isPublishing}
                   className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all disabled:opacity-60 shadow-xs resize-none min-h-[42px] max-h-[140px] leading-relaxed scrollbar-thin overflow-y-auto block"
                 />
-                {inputVal.includes("http") && (
-                  <span className="absolute right-3 top-2.5 px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono pointer-events-none">
-                    URL Detected
+                {isAnalyzingUrl ? (
+                  <span className="absolute right-3 top-2.5 px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300 text-[9px] font-semibold flex items-center gap-1 animate-pulse pointer-events-none">
+                    <Loader2 className="h-2.5 w-2.5 animate-spin text-blue-600" />
+                    <span>Analyzing your website...</span>
                   </span>
+                ) : (
+                  inputVal.includes("http") && (
+                    <span className="absolute right-3 top-2.5 px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono pointer-events-none">
+                      URL Detected
+                    </span>
+                  )
                 )}
-              </div>
-
-              {/* Media Picker & AI Generator Dropdown/Trigger */}
-              <div className="flex items-center gap-1 shrink-0 pb-0.5">
-                <button
-                  type="button"
-                  onClick={() => handleTriggerAiAssetGeneration("IMAGE")}
-                  title="Generate Marketing Creative Images with AI Prompt"
-                  className="p-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white transition-all cursor-pointer shrink-0 shadow-xs"
-                >
-                  <Wand2 className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveUploadTarget("IMAGE");
-                    imageInputRef.current?.click();
-                  }}
-                  title="Upload Marketing Image (1.91:1 / 1:1)"
-                  className="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-all cursor-pointer shrink-0"
-                >
-                  <ImageIcon className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveUploadTarget("LOGO");
-                    logoInputRef.current?.click();
-                  }}
-                  title="Upload Business Logo (1:1 / 4:1)"
-                  className="p-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-all cursor-pointer shrink-0"
-                >
-                  <Upload className="h-4 w-4" />
-                </button>
               </div>
 
               <button
@@ -4776,6 +5750,22 @@ export default function AiGuidedCampaignPage() {
 
           {/* Cockpit Scrollable Content Area */}
           <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+            {/* Live Website Fetching & Extraction Animation Banner */}
+            {isAnalyzingUrl && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 border border-blue-300 animate-pulse text-xs text-blue-900 shadow-xs space-y-2">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-blue-600 animate-spin" />
+                  <span className="font-bold text-blue-950">Crawling Website & Extracting Assets...</span>
+                </div>
+                <p className="text-[11px] text-blue-800 leading-relaxed">
+                  Fetching live meta tags, headings, product keywords, and brand identity from your website to auto-populate the Cockpit.
+                </p>
+                <div className="w-full bg-blue-200/60 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-blue-600 h-full rounded-full animate-[progress_1.5s_ease-in-out_infinite]" style={{ width: "65%" }}></div>
+                </div>
+              </div>
+            )}
+
             {/* 1. CAMPAIGN STRATEGY CARD (All 11 Exact Fields with Inline Edit Support) */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
               <div className="flex items-center justify-between">
@@ -5348,7 +6338,7 @@ export default function AiGuidedCampaignPage() {
                           type="button"
                           onClick={saveFieldEdit}
                           className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                          title="Save"
+                          title="Save & Analyze"
                         >
                           <Check className="h-3 w-3" />
                         </button>
@@ -5362,9 +6352,17 @@ export default function AiGuidedCampaignPage() {
                         </button>
                       </div>
                     ) : (
-                      <span className="font-mono text-blue-600 truncate max-w-[200px] text-right">
-                        {campaignState.website || "Not set"}
-                      </span>
+                      <div className="flex items-center gap-1.5 truncate max-w-[240px] justify-end">
+                        {isAnalyzingUrl && (
+                          <span className="flex items-center gap-1 text-[10px] text-blue-600 font-medium animate-pulse">
+                            <Loader2 className="h-3 w-3 animate-spin text-blue-600 shrink-0" />
+                            <span>Analyzing...</span>
+                          </span>
+                        )}
+                        <span className="font-mono text-blue-600 truncate text-right">
+                          {campaignState.website || "Not set"}
+                        </span>
+                      </div>
                     )}
                   </div>
                   {editingField === "website" && fieldError && (
@@ -5867,6 +6865,547 @@ export default function AiGuidedCampaignPage() {
                   )}
                 </div>
 
+                {/* OPTIONAL PARAMETERS ACCORDION - Only displayed when both Objective and Campaign Type are selected */}
+                {Boolean(campaignState.objective && campaignState.campaignType) && (
+                  <div className="pt-2 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setShowOptionalParams(prev => !prev)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-purple-50/70 hover:bg-purple-100/80 border border-purple-200/80 text-purple-900 font-semibold text-[11px] transition-all cursor-pointer shadow-2xs group"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Settings2 className="h-3.5 w-3.5 text-purple-600 group-hover:rotate-45 transition-transform" />
+                        <span>Optional Settings & Parameters ({campaignState.campaignType?.replace("_", " ")})</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px] text-purple-700 font-medium">
+                        <span>{showOptionalParams ? "Hide" : "Show"}</span>
+                        {showOptionalParams ? (
+                          <ChevronDown className="h-3.5 w-3.5 text-purple-600 transition-transform" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 text-purple-600 transition-transform" />
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Optional Parameters Expandable Body */}
+                    {showOptionalParams && (
+                      <div className="mt-2.5 p-3 rounded-xl bg-slate-50/90 border border-purple-100 space-y-2.5 text-[11px] animate-in fade-in duration-150">
+                        <div className="text-[10px] font-semibold text-purple-800 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <Sparkles className="h-3 w-3 text-purple-600" />
+                          <span>Optional Parameters for {campaignState.objective} • {campaignState.campaignType}</span>
+                        </div>
+
+                        {/* Optional Param 1: Asset Group / Ad Group Name */}
+                        <div className="py-1 border-b border-slate-200/70 group">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-1 text-slate-500">
+                              <span>{campaignState.campaignType === "PERFORMANCE_MAX" ? "Asset Group Name:" : "Ad Group Name:"}</span>
+                              <button
+                                type="button"
+                                onClick={() => (editingField === "assetGroupName" ? cancelFieldEdit() : startFieldEdit("assetGroupName"))}
+                                className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                                title="Edit Asset Group Name"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </button>
+                            </div>
+                            {editingField === "assetGroupName" ? (
+                              <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                                <input
+                                  type="text"
+                                  value={tempEditValues.assetGroupName || ""}
+                                  onChange={(e) => setTempEditValues({ ...tempEditValues, assetGroupName: e.target.value })}
+                                  onKeyDown={handleKeyDownSave}
+                                  placeholder="e.g. Sales Group 1"
+                                  className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  onClick={saveFieldEdit}
+                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                  title="Save"
+                                >
+                                  <Check className="h-3 w-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelFieldEdit}
+                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                  title="Cancel"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-800 font-medium truncate max-w-[180px]">
+                                {campaignState.assetGroupName || `${campaignState.businessName || "Campaign"} ${campaignState.campaignType === "PERFORMANCE_MAX" ? "Asset Group" : "Ad Group"} 1`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Optional Param 2: EU Political Advertising */}
+                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                          <span className="text-slate-500">EU Political Ads:</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, euPolitical: "NO" }))}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                (campaignState.euPolitical || "NO") === "NO"
+                                  ? "bg-purple-600 text-white shadow-2xs"
+                                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                              }`}
+                            >
+                              NO
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, euPolitical: "YES" }))}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                campaignState.euPolitical === "YES"
+                                  ? "bg-purple-600 text-white shadow-2xs"
+                                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                              }`}
+                            >
+                              YES
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Optional Param 3: Brand Guidelines (PMax & Display & Demand Gen) */}
+                        {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "DEMAND_GEN" || campaignState.campaignType === "DISPLAY") && (
+                          <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                            <span className="text-slate-500">Brand Guidelines:</span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, brandGuidelinesEnabled: false }))}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                  !campaignState.brandGuidelinesEnabled
+                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                Off
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, brandGuidelinesEnabled: true }))}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                  campaignState.brandGuidelinesEnabled
+                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                On
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Optional Param 4: Customer Acquisition Mode (Sales / Leads PMax) */}
+                        {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SEARCH") && (
+                          <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                            <span className="text-slate-500">Customer Acquisition:</span>
+                            <select
+                              value={campaignState.customerAcquisitionMode || "EQUAL"}
+                              onChange={(e) => setCampaignState(prev => ({ ...prev, customerAcquisitionMode: e.target.value }))}
+                              className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:border-blue-500 max-w-[160px]"
+                            >
+                              <option value="EQUAL">Bid equally (New & Existing)</option>
+                              <option value="BID_HIGHER">Bid higher for new customers</option>
+                              <option value="ONLY_NEW">Only bid for new customers</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Optional Param 5: Tracking Template */}
+                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
+                          <div className="flex items-center gap-1 text-slate-500">
+                            <span>Tracking Template:</span>
+                            <button
+                              type="button"
+                              onClick={() => (editingField === "trackingTemplate" ? cancelFieldEdit() : startFieldEdit("trackingTemplate"))}
+                              className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                              title="Edit Tracking Template"
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </button>
+                          </div>
+                          {editingField === "trackingTemplate" ? (
+                            <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                              <input
+                                type="text"
+                                value={tempEditValues.trackingTemplate || ""}
+                                onChange={(e) => setTempEditValues({ ...tempEditValues, trackingTemplate: e.target.value })}
+                                onKeyDown={handleKeyDownSave}
+                                placeholder="{lpurl}?utm_source=google"
+                                className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={saveFieldEdit}
+                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                title="Save"
+                              >
+                                <Check className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelFieldEdit}
+                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                title="Cancel"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-800 font-medium font-mono text-[10px] truncate max-w-[160px]">
+                              {campaignState.trackingTemplate || "None"}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Optional Param 6: Final URL Suffix */}
+                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
+                          <div className="flex items-center gap-1 text-slate-500">
+                            <span>Final URL Suffix:</span>
+                            <button
+                              type="button"
+                              onClick={() => (editingField === "finalUrlSuffix" ? cancelFieldEdit() : startFieldEdit("finalUrlSuffix"))}
+                              className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                              title="Edit Final URL Suffix"
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </button>
+                          </div>
+                          {editingField === "finalUrlSuffix" ? (
+                            <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                              <input
+                                type="text"
+                                value={tempEditValues.finalUrlSuffix || ""}
+                                onChange={(e) => setTempEditValues({ ...tempEditValues, finalUrlSuffix: e.target.value })}
+                                onKeyDown={handleKeyDownSave}
+                                placeholder="utm_source=google&utm_medium=cpc"
+                                className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={saveFieldEdit}
+                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                title="Save"
+                              >
+                                <Check className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelFieldEdit}
+                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                title="Cancel"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-800 font-medium font-mono text-[10px] truncate max-w-[160px]">
+                              {campaignState.finalUrlSuffix || "None"}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Optional Param 7: Display Path 1 & 2 */}
+                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
+                          <div className="flex items-center gap-1 text-slate-500">
+                            <span>Display Paths:</span>
+                            <button
+                              type="button"
+                              onClick={() => (editingField === "displayPath1" ? cancelFieldEdit() : startFieldEdit("displayPath1"))}
+                              className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                              title="Edit Display Paths"
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </button>
+                          </div>
+                          {editingField === "displayPath1" ? (
+                            <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                              <input
+                                type="text"
+                                maxLength={15}
+                                value={tempEditValues.displayPath1 || ""}
+                                onChange={(e) => setTempEditValues({ ...tempEditValues, displayPath1: e.target.value })}
+                                placeholder="Path 1"
+                                className="w-1/2 bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                autoFocus
+                              />
+                              <input
+                                type="text"
+                                maxLength={15}
+                                value={tempEditValues.displayPath2 || ""}
+                                onChange={(e) => setTempEditValues({ ...tempEditValues, displayPath2: e.target.value })}
+                                onKeyDown={handleKeyDownSave}
+                                placeholder="Path 2"
+                                className="w-1/2 bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={saveFieldEdit}
+                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                title="Save"
+                              >
+                                <Check className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelFieldEdit}
+                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                title="Cancel"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-800 font-medium font-mono text-[10px] truncate max-w-[160px]">
+                              {campaignState.displayPath1 || campaignState.displayPath2
+                                ? `/${campaignState.displayPath1 || ""}${campaignState.displayPath2 ? `/${campaignState.displayPath2}` : ""}`
+                                : "Standard URL"}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Optional Param 8: Mobile Final URL */}
+                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
+                          <div className="flex items-center gap-1 text-slate-500">
+                            <span>Mobile Final URL:</span>
+                            <button
+                              type="button"
+                              onClick={() => (editingField === "mobileFinalUrl" ? cancelFieldEdit() : startFieldEdit("mobileFinalUrl"))}
+                              className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                              title="Edit Mobile URL"
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </button>
+                          </div>
+                          {editingField === "mobileFinalUrl" ? (
+                            <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                              <input
+                                type="url"
+                                value={tempEditValues.mobileFinalUrl || ""}
+                                onChange={(e) => setTempEditValues({ ...tempEditValues, mobileFinalUrl: e.target.value })}
+                                onKeyDown={handleKeyDownSave}
+                                placeholder="https://m.example.com"
+                                className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={saveFieldEdit}
+                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                title="Save"
+                              >
+                                <Check className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelFieldEdit}
+                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                title="Cancel"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-800 font-medium truncate max-w-[160px]">
+                              {campaignState.mobileFinalUrl || "Same as Final URL"}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Optional Param 9: Call Extension Phone Number */}
+                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
+                          <div className="flex items-center gap-1 text-slate-500">
+                            <span>Call Phone Number:</span>
+                            <button
+                              type="button"
+                              onClick={() => (editingField === "callPhoneNumber" ? cancelFieldEdit() : startFieldEdit("callPhoneNumber"))}
+                              className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                              title="Edit Phone Number"
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </button>
+                          </div>
+                          {editingField === "callPhoneNumber" ? (
+                            <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                              <input
+                                type="tel"
+                                value={tempEditValues.callPhoneNumber || ""}
+                                onChange={(e) => setTempEditValues({ ...tempEditValues, callPhoneNumber: e.target.value })}
+                                onKeyDown={handleKeyDownSave}
+                                placeholder="+91 9876543210"
+                                className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={saveFieldEdit}
+                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                title="Save"
+                              >
+                                <Check className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelFieldEdit}
+                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                title="Cancel"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-800 font-medium font-mono text-[10px] truncate max-w-[160px]">
+                              {campaignState.callPhoneNumber || "None"}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Optional Param 10: Device Targeting */}
+                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                          <span className="text-slate-500">Device Targeting:</span>
+                          <div className="flex items-center gap-1 text-[10px]">
+                            {["computers", "mobile", "tablets", "tv"].map((dev) => {
+                              const active = (campaignState.devices as any)?.[dev] !== false;
+                              return (
+                                <button
+                                  key={dev}
+                                  type="button"
+                                  onClick={() => {
+                                    setCampaignState(prev => {
+                                      const currentDevs = prev.devices || { computers: true, mobile: true, tablets: true, tv: true };
+                                      return {
+                                        ...prev,
+                                        devices: { ...currentDevs, [dev]: !active }
+                                      };
+                                    });
+                                  }}
+                                  className={`px-1.5 py-0.5 rounded font-semibold transition-colors cursor-pointer ${
+                                    active
+                                      ? "bg-purple-100 text-purple-700 border border-purple-300"
+                                      : "bg-slate-100 text-slate-400 border border-slate-200 hover:bg-slate-200"
+                                  }`}
+                                  title={`Toggle ${dev}`}
+                                >
+                                  {dev === "computers" ? "Desktop" : dev === "mobile" ? "Mobile" : dev === "tablets" ? "Tablet" : "TV"}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Optional Param 11: Value Rules (Conversion Value Adjustments) */}
+                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                          <span className="text-slate-500">Value Rules:</span>
+                          <select
+                            value={(campaignState.valueRules as any)?.type || "NONE"}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCampaignState(prev => ({
+                                ...prev,
+                                valueRules: val === "NONE" ? undefined : {
+                                  type: val,
+                                  operation: "MULTIPLY",
+                                  value: 1.2
+                                }
+                              }));
+                            }}
+                            className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none max-w-[160px]"
+                          >
+                            <option value="NONE">None</option>
+                            <option value="AUDIENCE">Adjust by Audience (1.2x)</option>
+                            <option value="DEVICE">Adjust by Device (1.2x)</option>
+                            <option value="GEO">Adjust by Location (1.2x)</option>
+                          </select>
+                        </div>
+
+                        {/* Optional Param 12: Merchant Center & Feeds (PMax / Shopping) */}
+                        {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SHOPPING") && (
+                          <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
+                            <div className="flex items-center gap-1 text-slate-500">
+                              <span>Merchant Center ID:</span>
+                              <button
+                                type="button"
+                                onClick={() => (editingField === "merchantCenterId" ? cancelFieldEdit() : startFieldEdit("merchantCenterId"))}
+                                className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                                title="Edit Merchant Center ID"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </button>
+                            </div>
+                            {editingField === "merchantCenterId" ? (
+                              <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                                <input
+                                  type="text"
+                                  value={tempEditValues.merchantCenterId || ""}
+                                  onChange={(e) => setTempEditValues({ ...tempEditValues, merchantCenterId: e.target.value })}
+                                  onKeyDown={handleKeyDownSave}
+                                  placeholder="e.g. 5840531233"
+                                  className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  onClick={saveFieldEdit}
+                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                  title="Save"
+                                >
+                                  <Check className="h-3 w-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelFieldEdit}
+                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                  title="Cancel"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-800 font-medium font-mono text-[10px] truncate max-w-[160px]">
+                                {campaignState.merchantCenterId || "None"}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Optional Param 13: 3rd-Party Measurement */}
+                        <div className="py-1 flex items-center justify-between">
+                          <span className="text-slate-500">3rd-Party Measurement:</span>
+                          <select
+                            value={(campaignState.thirdPartyMeasurement as any)?.vendor || "NONE"}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setCampaignState(prev => ({
+                                ...prev,
+                                thirdPartyMeasurement: v === "NONE" ? undefined : { vendor: v }
+                              }));
+                            }}
+                            className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none max-w-[160px]"
+                          >
+                            <option value="NONE">None</option>
+                            <option value="ADLOOX">Adloox</option>
+                            <option value="DOUBLE_VERIFY">DoubleVerify</option>
+                            <option value="INTEGRAL_AD_SCIENCE">Integral Ad Science (IAS)</option>
+                            <option value="MOAT">Moat by Oracle</option>
+                          </select>
+                        </div>
+
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -6360,7 +7899,38 @@ export default function AiGuidedCampaignPage() {
                     <ImageIcon className="h-4 w-4 text-blue-600" />
                     <span className="font-bold text-xs text-slate-900">Campaign Creatives & Assets</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
+                    {(() => {
+                      const hasHeadlines = (campaignState.headlines || []).length >= 3;
+                      const hasDescriptions = (campaignState.descriptions || []).length >= 2;
+                      const hasImages = (campaignState.images || []).length > 0;
+                      const isFullyFilled = hasHeadlines && hasDescriptions && hasImages;
+
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => handleCockpitDirectAiGeneration("ALL", isFullyFilled)}
+                          className={`px-2.5 py-1 rounded-lg text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs ${
+                            isFullyFilled
+                              ? "bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 hover:from-amber-700 hover:to-rose-700"
+                              : "bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                          }`}
+                          title={isFullyFilled ? "Re-generate & replace current AI assets with fresh creative variations" : "Auto-Generate all campaign assets while preserving your existing filled details"}
+                        >
+                          {isFullyFilled ? (
+                            <>
+                              <RefreshCw className="h-2.5 w-2.5" />
+                              <span>🔄 Re-Generate AI Assets</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-2.5 w-2.5" />
+                              <span>✨ Generate All</span>
+                            </>
+                          )}
+                        </button>
+                      );
+                    })()}
                     <button
                       type="button"
                       onClick={() => setUploadGuidelineModal("IMAGE")}
@@ -6372,67 +7942,54 @@ export default function AiGuidedCampaignPage() {
                     </button>
                   </div>
                 </div>
+                {/* Live Cockpit Direct AI Generation Animation Banner */}
+                {cockpitGeneratingTarget && (
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 border border-purple-300 animate-in fade-in zoom-in-95 duration-200 text-xs shadow-md space-y-2.5 relative overflow-hidden">
+                    {/* Animated Shimmer Bar */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full animate-[shimmer_2s_infinite]" />
 
-                {/* Direct Upload & AI Generate Buttons Bar */}
-                <div className="space-y-1.5">
-                  <div className="grid grid-cols-3 gap-1.5 p-1 bg-white border border-slate-200 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveUploadTarget("IMAGE");
-                        imageInputRef.current?.click();
-                      }}
-                      className="py-1.5 px-2 rounded-lg bg-blue-50/80 hover:bg-blue-100 text-blue-700 font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
-                    >
-                      <Upload className="h-3 w-3 text-blue-600" />
-                      <span>+ Image</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveUploadTarget("LOGO");
-                        logoInputRef.current?.click();
-                      }}
-                      className="py-1.5 px-2 rounded-lg bg-purple-50/80 hover:bg-purple-100 text-purple-700 font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
-                    >
-                      <Upload className="h-3 w-3 text-purple-600" />
-                      <span>+ Logo</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveUploadTarget("VIDEO");
-                        videoInputRef.current?.click();
-                      }}
-                      className="py-1.5 px-2 rounded-lg bg-red-50/80 hover:bg-red-100 text-red-700 font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
-                    >
-                      <Video className="h-3 w-3 text-red-600" />
-                      <span>+ Video</span>
-                    </button>
-                  </div>
+                    <div className="flex items-center gap-2.5 relative z-10">
+                      <div className="w-8 h-8 rounded-xl bg-white border border-purple-200 shadow-sm p-0.5 flex items-center justify-center shrink-0 ring-2 ring-purple-500/20">
+                        <img src="/icon.jpeg" alt="JDS" className="w-full h-full object-contain rounded-lg animate-pulse" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-purple-600 animate-spin" />
+                            <span>
+                              {cockpitGeneratingTarget === "ALL"
+                                ? "Auto-Generating All Campaign Assets..."
+                                : cockpitGeneratingTarget === "IMAGE"
+                                ? "AI Synthesizing Landscape & Square Creatives..."
+                                : cockpitGeneratingTarget === "LOGO"
+                                ? "AI Designing Brand Identity Logo..."
+                                : cockpitGeneratingTarget === "HEADLINES"
+                                ? "AI Formulating High-CTR Headlines..."
+                                : cockpitGeneratingTarget === "LONG_HEADLINES"
+                                ? "AI Crafting Compelling Long Headlines..."
+                                : "AI Generating Engaging Descriptions..."}
+                            </span>
+                          </p>
+                        </div>
+                        <p className="text-[10px] text-slate-500 truncate">
+                          Studying website & business data to optimize Google Ads compliance
+                        </p>
+                      </div>
+                    </div>
 
-                  {/* AI Generation Quick Actions */}
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleTriggerAiAssetGeneration("IMAGE")}
-                      className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20"
-                      title="Generate Google Ads compliant marketing images with AI prompt"
-                    >
-                      <Wand2 className="h-3 w-3 text-blue-200" />
-                      <span>Generate Images</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleTriggerAiAssetGeneration("LOGO")}
-                      className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-purple-500/20"
-                      title="Generate high-resolution logo with AI prompt"
-                    >
-                      <Sparkles className="h-3 w-3 text-pink-200" />
-                      <span>Generate Logo</span>
-                    </button>
+                    <div className="space-y-1 relative z-10">
+                      <div className="w-full bg-purple-100 rounded-full h-1.5 overflow-hidden">
+                        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 h-full rounded-full animate-[progress_1.2s_ease-in-out_infinite]" style={{ width: "80%" }} />
+                      </div>
+                      <div className="flex justify-between text-[9px] text-purple-700 font-mono">
+                        <span>Grok AI Engine active</span>
+                        <span className="animate-pulse">Populating Cockpit fields...</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+
 
                 {/* Live Performance Max Asset Requirements Checklist when type is PERFORMANCE_MAX */}
                 {campaignState.campaignType === "PERFORMANCE_MAX" && (() => {
@@ -6656,6 +8213,71 @@ export default function AiGuidedCampaignPage() {
                   </div>
                 )}
 
+                {/* Live Demand Gen Asset Requirements Checklist when type is DEMAND_GEN */}
+                {campaignState.campaignType === "DEMAND_GEN" && (
+                  <div className="p-2.5 rounded-xl bg-white border border-indigo-200 shadow-2xs space-y-1.5 text-[10px]">
+                    <div className="flex items-center justify-between font-bold text-slate-800">
+                      <span className="flex items-center gap-1 text-indigo-700">
+                        <Sparkles className="h-3 w-3 text-indigo-600" />
+                        Demand Gen Readiness ({(campaignState.adFormat || "SINGLE_IMAGE").replace("_", " ")})
+                      </span>
+                      <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
+                        {campaignState.readyForPublish ? "Complete ✓" : "Required items missing"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-slate-600">
+                      {(campaignState.adFormat || "SINGLE_IMAGE") === "SINGLE_IMAGE" && (
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Marketing Images:</span>
+                          <span className={(campaignState.images?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                            {(campaignState.images?.length || 0) > 0 ? "✓ Uploaded" : "Missing"}
+                          </span>
+                        </div>
+                      )}
+                      {(campaignState.adFormat || "SINGLE_IMAGE") === "VIDEO" && (
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>YouTube Video:</span>
+                          <span className={(campaignState.videos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                            {(campaignState.videos?.length || 0) > 0 ? "✓ Uploaded" : "Missing"}
+                          </span>
+                        </div>
+                      )}
+                      {(campaignState.adFormat || "SINGLE_IMAGE") === "CAROUSEL" && (
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Carousel Cards:</span>
+                          <span className={(campaignState.carouselCards?.filter(c => c && c.image?.trim() && c.headline?.trim()).length || 0) >= 2 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                            {campaignState.carouselCards?.filter(c => c && c.image?.trim() && c.headline?.trim()).length || 0}/2 (min 2)
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Logo (1:1):</span>
+                        <span className={(campaignState.logos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.logos?.length || 0) > 0 ? "✓ Uploaded" : "Missing"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Headlines:</span>
+                        <span className={(campaignState.headlines?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {campaignState.headlines?.length || 0}/5 (min 1)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Descriptions:</span>
+                        <span className={(campaignState.descriptions?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {campaignState.descriptions?.length || 0}/5 (min 1)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>Daily Budget (≥ ₹416):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {allAssetsCount === 0 ? (
                   <div className="border-2 border-dashed border-slate-200 rounded-xl p-3.5 text-center space-y-2.5 bg-white/50">
                     <Upload className="h-5 w-5 text-slate-400 mx-auto" />
@@ -6667,29 +8289,33 @@ export default function AiGuidedCampaignPage() {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            setActiveUploadTarget("IMAGE");
-                            imageInputRef.current?.click();
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-[10px] border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+                          onClick={() => openMediaSourcePicker("IMAGE")}
+                          className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-[10px] border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer flex items-center gap-1"
                         >
-                          + Image
+                          <Plus className="h-3 w-3" />
+                          <span>+ Image</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setActiveUploadTarget("LOGO");
-                            logoInputRef.current?.click();
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200 hover:bg-purple-100 transition-colors cursor-pointer"
+                          onClick={() => openMediaSourcePicker("LOGO")}
+                          className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200 hover:bg-purple-100 transition-colors cursor-pointer flex items-center gap-1"
                         >
-                          + Logo
+                          <Plus className="h-3 w-3" />
+                          <span>+ Logo</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openMediaSourcePicker("VIDEO")}
+                          className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold text-[10px] border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>+ Video</span>
                         </button>
                       </div>
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleTriggerAiAssetGeneration("IMAGE")}
+                          onClick={() => handleCockpitDirectAiGeneration("IMAGE")}
                           className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
                         >
                           <Wand2 className="h-2.5 w-2.5" />
@@ -6697,7 +8323,7 @@ export default function AiGuidedCampaignPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleTriggerAiAssetGeneration("LOGO")}
+                          onClick={() => handleCockpitDirectAiGeneration("LOGO")}
                           className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
                         >
                           <Sparkles className="h-2.5 w-2.5" />
@@ -6708,6 +8334,73 @@ export default function AiGuidedCampaignPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
+                    {/* Media Actions Quick Bar */}
+                    <div className="space-y-1.5 pb-2 border-b border-slate-200">
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        {/* Manual / Library Upload Controls */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openMediaSourcePicker("IMAGE")}
+                            className="px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[9px] border border-blue-200 transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                            <span>+ Image</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openMediaSourcePicker("LOGO")}
+                            className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[9px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                            <span>+ Logo</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openMediaSourcePicker("VIDEO")}
+                            className="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[9px] border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                            <span>+ Video</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              fetchPastMediaLibrary();
+                              setIsPastMediaModalOpen(true);
+                            }}
+                            className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[9px] transition-colors cursor-pointer flex items-center gap-1 border border-slate-200"
+                            title="Open past uploads and generated files library"
+                          >
+                            <History className="h-2.5 w-2.5 text-slate-500" />
+                            <span>Past Files</span>
+                          </button>
+                        </div>
+
+                        {/* AI Generation Quick Triggers */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleCockpitDirectAiGeneration("IMAGE")}
+                            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-[9px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                            title="AI Generate additional marketing images"
+                          >
+                            <Wand2 className="h-2.5 w-2.5" />
+                            <span>AI Generate Images</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCockpitDirectAiGeneration("LOGO")}
+                            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-[9px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                            title="AI Generate new logo"
+                          >
+                            <Sparkles className="h-2.5 w-2.5" />
+                            <span>AI Generate Logo</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Images Preview Grid */}
                     {campaignState.images && campaignState.images.length > 0 && (
                       <div className="space-y-1">
@@ -6969,6 +8662,22 @@ export default function AiGuidedCampaignPage() {
                 </span>
               </div>
 
+              {/* Text Generation Live Shimmer Indicator */}
+              {(cockpitGeneratingTarget === "ALL" || cockpitGeneratingTarget === "HEADLINES" || cockpitGeneratingTarget === "LONG_HEADLINES" || cockpitGeneratingTarget === "DESCRIPTIONS") && (
+                <div className="p-2.5 rounded-xl bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-200 text-[11px] text-purple-900 shadow-2xs flex items-center justify-between animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-3.5 w-3.5 text-purple-600 animate-spin" />
+                    <span className="font-semibold">
+                      AI is formulating compliant copy & character limits...
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-ping" />
+                    <span className="text-[9px] font-mono text-purple-600 font-bold">Auto-Injecting</span>
+                  </div>
+                </div>
+              )}
+
               {/* 1. HEADLINES SECTION */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
@@ -6983,7 +8692,7 @@ export default function AiGuidedCampaignPage() {
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleTriggerAiAssetGeneration("HEADLINES")}
+                      onClick={() => handleCockpitDirectAiGeneration("HEADLINES")}
                       className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-colors shadow-2xs"
                       title="AI Generate Headlines (max 30 chars each)"
                     >
@@ -7014,6 +8723,9 @@ export default function AiGuidedCampaignPage() {
                           if (e.key === "Enter" && newHeadlineInput.trim()) {
                             e.preventDefault();
                             const val = newHeadlineInput.trim();
+                            if ((campaignState.headlines || []).some(h => h.trim().toLowerCase() === val.toLowerCase())) {
+                              return;
+                            }
                             setCampaignState(prev => ({
                               ...prev,
                               headlines: [...(prev.headlines || []), val]
@@ -7023,15 +8735,22 @@ export default function AiGuidedCampaignPage() {
                           }
                         }}
                         placeholder="Enter headline (e.g. Premium Deals)..."
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white"
+                        className={`flex-1 border rounded-lg px-2.5 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none ${
+                          (campaignState.headlines || []).some(h => h.trim().toLowerCase() === newHeadlineInput.trim().toLowerCase() && newHeadlineInput.trim() !== "")
+                            ? "bg-rose-50/50 border-rose-500 focus:border-rose-600 text-rose-900"
+                            : "bg-slate-50 border-slate-200 focus:border-blue-600 focus:bg-white"
+                        }`}
                         autoFocus
                       />
                       <button
                         type="button"
-                        disabled={!newHeadlineInput.trim()}
+                        disabled={!newHeadlineInput.trim() || (campaignState.headlines || []).some(h => h.trim().toLowerCase() === newHeadlineInput.trim().toLowerCase())}
                         onClick={() => {
                           if (!newHeadlineInput.trim()) return;
                           const val = newHeadlineInput.trim();
+                          if ((campaignState.headlines || []).some(h => h.trim().toLowerCase() === val.toLowerCase())) {
+                            return;
+                          }
                           setCampaignState(prev => ({
                             ...prev,
                             headlines: [...(prev.headlines || []), val]
@@ -7054,6 +8773,11 @@ export default function AiGuidedCampaignPage() {
                         <X className="h-3 w-3" />
                       </button>
                     </div>
+                    {(campaignState.headlines || []).some(h => h.trim().toLowerCase() === newHeadlineInput.trim().toLowerCase() && newHeadlineInput.trim() !== "") && (
+                      <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pl-1">
+                        <AlertCircle className="h-2.5 w-2.5 shrink-0" /> Headline already exists. Each headline must be different.
+                      </p>
+                    )}
                     <div className="flex justify-between items-center px-1 text-[9px] text-slate-400 font-mono">
                       <span>Press Enter to save</span>
                       <span className={newHeadlineInput.length > 30 ? "text-rose-600 font-bold" : ""}>
@@ -7110,7 +8834,7 @@ export default function AiGuidedCampaignPage() {
                     {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "DISPLAY" || campaignState.campaignType === "DEMAND_GEN" || !campaignState.campaignType) && (
                       <button
                         type="button"
-                        onClick={() => handleTriggerAiAssetGeneration("LONG_HEADLINES")}
+                        onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINES")}
                         className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-colors shadow-2xs"
                         title="AI Generate Long Headlines (max 90 chars each)"
                       >
@@ -7142,6 +8866,9 @@ export default function AiGuidedCampaignPage() {
                           if (e.key === "Enter" && newLongHeadlineInput.trim()) {
                             e.preventDefault();
                             const val = newLongHeadlineInput.trim();
+                            if ((campaignState.longHeadlines || []).some(lh => lh.trim().toLowerCase() === val.toLowerCase())) {
+                              return;
+                            }
                             setCampaignState(prev => ({
                               ...prev,
                               longHeadlines: [...(prev.longHeadlines || []), val]
@@ -7151,15 +8878,22 @@ export default function AiGuidedCampaignPage() {
                           }
                         }}
                         placeholder="Enter long headline..."
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white"
+                        className={`flex-1 border rounded-lg px-2.5 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none ${
+                          (campaignState.longHeadlines || []).some(lh => lh.trim().toLowerCase() === newLongHeadlineInput.trim().toLowerCase() && newLongHeadlineInput.trim() !== "")
+                            ? "bg-rose-50/50 border-rose-500 focus:border-rose-600 text-rose-900"
+                            : "bg-slate-50 border-slate-200 focus:border-blue-600 focus:bg-white"
+                        }`}
                         autoFocus
                       />
                       <button
                         type="button"
-                        disabled={!newLongHeadlineInput.trim()}
+                        disabled={!newLongHeadlineInput.trim() || (campaignState.longHeadlines || []).some(lh => lh.trim().toLowerCase() === newLongHeadlineInput.trim().toLowerCase())}
                         onClick={() => {
                           if (!newLongHeadlineInput.trim()) return;
                           const val = newLongHeadlineInput.trim();
+                          if ((campaignState.longHeadlines || []).some(lh => lh.trim().toLowerCase() === val.toLowerCase())) {
+                            return;
+                          }
                           setCampaignState(prev => ({
                             ...prev,
                             longHeadlines: [...(prev.longHeadlines || []), val]
@@ -7182,6 +8916,11 @@ export default function AiGuidedCampaignPage() {
                         <X className="h-3 w-3" />
                       </button>
                     </div>
+                    {(campaignState.longHeadlines || []).some(lh => lh.trim().toLowerCase() === newLongHeadlineInput.trim().toLowerCase() && newLongHeadlineInput.trim() !== "") && (
+                      <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pl-1">
+                        <AlertCircle className="h-2.5 w-2.5 shrink-0" /> Long headline already exists. Each long headline must be different.
+                      </p>
+                    )}
                     <div className="flex justify-between items-center px-1 text-[9px] text-slate-400 font-mono">
                       <span>Press Enter to save</span>
                       <span className={newLongHeadlineInput.length > 90 ? "text-rose-600 font-bold" : ""}>
@@ -7239,7 +8978,7 @@ export default function AiGuidedCampaignPage() {
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleTriggerAiAssetGeneration("DESCRIPTIONS")}
+                      onClick={() => handleCockpitDirectAiGeneration("DESCRIPTIONS")}
                       className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-colors shadow-2xs"
                       title="AI Generate Descriptions (max 90 chars each)"
                     >
@@ -7270,6 +9009,9 @@ export default function AiGuidedCampaignPage() {
                           if (e.key === "Enter" && newDescriptionInput.trim()) {
                             e.preventDefault();
                             const val = newDescriptionInput.trim();
+                            if ((campaignState.descriptions || []).some(d => d.trim().toLowerCase() === val.toLowerCase())) {
+                              return;
+                            }
                             setCampaignState(prev => ({
                               ...prev,
                               descriptions: [...(prev.descriptions || []), val]
@@ -7279,15 +9021,22 @@ export default function AiGuidedCampaignPage() {
                           }
                         }}
                         placeholder="Enter description (e.g. Discover our best deals today)..."
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white"
+                        className={`flex-1 border rounded-lg px-2.5 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none ${
+                          (campaignState.descriptions || []).some(d => d.trim().toLowerCase() === newDescriptionInput.trim().toLowerCase() && newDescriptionInput.trim() !== "")
+                            ? "bg-rose-50/50 border-rose-500 focus:border-rose-600 text-rose-900"
+                            : "bg-slate-50 border-slate-200 focus:border-blue-600 focus:bg-white"
+                        }`}
                         autoFocus
                       />
                       <button
                         type="button"
-                        disabled={!newDescriptionInput.trim()}
+                        disabled={!newDescriptionInput.trim() || (campaignState.descriptions || []).some(d => d.trim().toLowerCase() === newDescriptionInput.trim().toLowerCase())}
                         onClick={() => {
                           if (!newDescriptionInput.trim()) return;
                           const val = newDescriptionInput.trim();
+                          if ((campaignState.descriptions || []).some(d => d.trim().toLowerCase() === val.toLowerCase())) {
+                            return;
+                          }
                           setCampaignState(prev => ({
                             ...prev,
                             descriptions: [...(prev.descriptions || []), val]
@@ -7310,6 +9059,11 @@ export default function AiGuidedCampaignPage() {
                         <X className="h-3 w-3" />
                       </button>
                     </div>
+                    {(campaignState.descriptions || []).some(d => d.trim().toLowerCase() === newDescriptionInput.trim().toLowerCase() && newDescriptionInput.trim() !== "") && (
+                      <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pl-1">
+                        <AlertCircle className="h-2.5 w-2.5 shrink-0" /> Description already exists. Each description must be different.
+                      </p>
+                    )}
                     <div className="flex justify-between items-center px-1 text-[9px] text-slate-400 font-mono">
                       <span>Press Enter to save</span>
                       <span className={newDescriptionInput.length > 90 ? "text-rose-600 font-bold" : ""}>
@@ -7379,7 +9133,9 @@ export default function AiGuidedCampaignPage() {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
+
+            {/* Edit Actions Grid */}
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
                 onClick={() => {
@@ -7400,6 +9156,21 @@ export default function AiGuidedCampaignPage() {
                 <span className="truncate">{editingField ? "Done" : "Inline Edit"}</span>
               </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  fetchExistingCampaigns();
+                  setIsDraftPickerModalOpen(true);
+                }}
+                className="px-2.5 py-2 text-[11px] font-semibold rounded-xl text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                title="Edit from old draft / Load previous campaign parameters from database"
+              >
+                <FolderOpen className="h-3.5 w-3.5 text-indigo-600" />
+                <span className="truncate">Edit from Old Draft</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
                 onClick={handleEditDetailsInForm}
@@ -7751,6 +9522,192 @@ export default function AiGuidedCampaignPage() {
         </div>
       )}
 
+      {/* ── EDIT FROM OLD DRAFT MODAL ── */}
+      {isDraftPickerModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-indigo-50/80 via-purple-50/60 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                  <FolderArchive className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                    <span>Edit from Old Draft Campaigns</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold font-mono">
+                      {existingCampaignsList.length} Available
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Select any previous draft or campaign from database to auto-fill its parameters, assets, and settings into the Cockpit
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDraftPickerModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Search and Refresh Bar */}
+            <div className="p-3.5 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={campaignSearchQuery}
+                  onChange={(e) => setCampaignSearchQuery(e.target.value)}
+                  placeholder="Search draft campaigns by name, business, type, or budget..."
+                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 transition-all shadow-2xs"
+                  autoFocus
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchExistingCampaigns()}
+                disabled={isLoadingCampaigns}
+                className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs shrink-0"
+                title="Refresh campaigns list from database"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoadingCampaigns ? "animate-spin text-indigo-600" : "text-slate-500"}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+            </div>
+
+            {/* Drafts List Container */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 min-h-0">
+              {isLoadingCampaigns ? (
+                <div className="py-16 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+                  <span>Loading draft campaigns from database...</span>
+                </div>
+              ) : existingCampaignsList.length === 0 ? (
+                <div className="py-16 text-center text-xs text-slate-400 space-y-2">
+                  <FolderArchive className="h-10 w-10 text-slate-200 mx-auto" />
+                  <p className="font-bold text-sm text-slate-700">No draft campaigns found in database</p>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Any campaigns or drafts you create in Google Ads Studio will automatically appear here for one-click editing and restoration.
+                  </p>
+                </div>
+              ) : (
+                existingCampaignsList
+                  .filter((c) =>
+                    !campaignSearchQuery ||
+                    (c.name || "").toLowerCase().includes(campaignSearchQuery.toLowerCase()) ||
+                    (c.campaignType || "").toLowerCase().includes(campaignSearchQuery.toLowerCase()) ||
+                    (c.status || "").toLowerCase().includes(campaignSearchQuery.toLowerCase()) ||
+                    (c.businessName || "").toLowerCase().includes(campaignSearchQuery.toLowerCase())
+                  )
+                  .map((camp) => {
+                    const budget = camp.budget ? Number(camp.budget) : (camp.amountMicros ? Number(camp.amountMicros) / 1_000_000 : null);
+                    const isDraftStatus = (camp.status || "").toUpperCase() === "DRAFT";
+                    const isPublished = Boolean(camp.googleAdsCampaignId || camp.status === "ENABLED" || camp.status === "PAUSED");
+
+                    const headlinesCount = Array.isArray(camp.headlines) ? camp.headlines.length : 0;
+                    const descriptionsCount = Array.isArray(camp.descriptions) ? camp.descriptions.length : 0;
+                    const keywordsCount = Array.isArray(camp.keywords) ? camp.keywords.length : 0;
+
+                    return (
+                      <div
+                        key={camp.id || camp.googleAdsCampaignId || Math.random()}
+                        className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all space-y-2.5 group"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                                {camp.name}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {camp.campaignType || "PERFORMANCE_MAX"}
+                              </span>
+                              {isDraftStatus ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                  Saved Draft
+                                </span>
+                              ) : isPublished ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                  <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
+                                  <span>Published</span>
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                                  {camp.status || "Configured"}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Details Row */}
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
+                              {budget && budget > 0 && (
+                                <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">
+                                  ₹{budget.toLocaleString()}/day
+                                </span>
+                              )}
+                              {camp.biddingStrategy && (
+                                <span className="text-slate-600">
+                                  Strategy: <strong className="text-slate-800">{camp.biddingStrategy}</strong>
+                                </span>
+                              )}
+                              {headlinesCount > 0 && (
+                                <span className="text-slate-500">
+                                  {headlinesCount} Headlines · {descriptionsCount} Descriptions
+                                </span>
+                              )}
+                              {keywordsCount > 0 && (
+                                <span className="text-slate-500">
+                                  {keywordsCount} Keywords
+                                </span>
+                              )}
+                              {camp.startDate && (
+                                <span className="text-slate-400 text-[10px] flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{new Date(camp.startDate).toLocaleDateString()}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick Edit / Load Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleLoadDraftCampaign(camp)}
+                            className="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs group-hover:bg-indigo-600 group-hover:text-white"
+                            title="Auto-fill this draft into Cockpit"
+                          >
+                            <FolderOpen className="h-3.5 w-3.5" />
+                            <span>Load & Edit</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Click <strong>"Load & Edit"</strong> to auto-fill all parameters and assets into the right-side Campaign Cockpit.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsDraftPickerModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* ── AI Generated & Published Campaign History Modal ── */}
       {isHistoryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -7911,6 +9868,365 @@ export default function AiGuidedCampaignPage() {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 1: MEDIA SOURCE PICKER (Upload vs Past Files)          */}
+      {/* ------------------------------------------------------------- */}
+      {isMediaSourceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col scale-in-95 duration-150">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-purple-50/60 via-blue-50/40 to-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+                  <ImageIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900 capitalize">
+                    Add {activeUploadTarget}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Choose how you want to select your asset</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMediaSourceModalOpen(false)}
+                className="p-1.5 rounded-full hover:bg-slate-200/70 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Selection Options */}
+            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-slate-50/50">
+              {/* Option 1: Device File Explorer */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMediaSourceModalOpen(false);
+                  if (activeUploadTarget === "IMAGE") imageInputRef.current?.click();
+                  else if (activeUploadTarget === "LOGO") logoInputRef.current?.click();
+                  else if (activeUploadTarget === "VIDEO") videoInputRef.current?.click();
+                }}
+                className="p-4 rounded-2xl border-2 border-slate-200 hover:border-blue-500 bg-white hover:bg-blue-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
+              >
+                <div className="h-12 w-12 rounded-2xl bg-blue-100/70 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <UploadCloud className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-xs text-slate-800 group-hover:text-blue-600">
+                    Device File Explorer
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                    Upload from local drive, camera or PC
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 2: Choose Past Files */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMediaSourceModalOpen(false);
+                  fetchPastMediaLibrary();
+                  setIsPastMediaModalOpen(true);
+                }}
+                className="p-4 rounded-2xl border-2 border-slate-200 hover:border-purple-500 bg-white hover:bg-purple-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
+              >
+                <div className="h-12 w-12 rounded-2xl bg-purple-100/70 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Bookmark className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-xs text-slate-800 group-hover:text-purple-600">
+                    Past Files & Media Library
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                    Browse previously saved ImageKit assets
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 bg-slate-100/80 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsMediaSourceModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 2: PAST MEDIA & IMAGEKIT LIBRARY GALLERY MODAL         */}
+      {/* ------------------------------------------------------------- */}
+      {isPastMediaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col scale-in-95 duration-150">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-purple-50 via-blue-50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+                  <Bookmark className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                    <span>Past Files & ImageKit Library</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                      Target: {activeUploadTarget.toUpperCase()}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Select any previously uploaded or AI-generated creative to attach instantly to this campaign
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fetchPastMediaLibrary()}
+                  disabled={isLoadingPastMedia}
+                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer text-xs font-semibold flex items-center gap-1"
+                  title="Refresh library"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isLoadingPastMedia ? "animate-spin text-purple-600" : ""}`} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPastMediaModalOpen(false)}
+                  className="p-1.5 rounded-full hover:bg-slate-200/70 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Bar & Search */}
+            <div className="p-3 sm:p-4 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              {/* Search */}
+              <div className="relative flex-1">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={pastMediaSearchQuery}
+                  onChange={(e) => setPastMediaSearchQuery(e.target.value)}
+                  placeholder="Search past assets by name or tag..."
+                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-600 shadow-2xs"
+                />
+              </div>
+
+              {/* Type Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                {(["ALL", "IMAGE", "LOGO", "VIDEO"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setPastMediaFilter(tab)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      pastMediaFilter === tab
+                        ? "bg-purple-600 text-white shadow-xs"
+                        : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Gallery Grid */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 min-h-[300px]">
+              {isLoadingPastMedia ? (
+                <div className="py-20 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                  <span className="font-semibold text-slate-700">Loading stored creatives from ImageKit...</span>
+                </div>
+              ) : pastMediaList.length === 0 ? (
+                <div className="py-20 text-center text-xs text-slate-400 space-y-3">
+                  <ImageIcon className="h-12 w-12 text-slate-300 mx-auto" />
+                  <p className="font-bold text-sm text-slate-700">No past media found</p>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    When you generate visuals with AI or upload from file explorer, they are automatically stored in your ImageKit library and will show here.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPastMediaModalOpen(false);
+                      if (activeUploadTarget === "IMAGE") imageInputRef.current?.click();
+                      else if (activeUploadTarget === "LOGO") logoInputRef.current?.click();
+                      else if (activeUploadTarget === "VIDEO") videoInputRef.current?.click();
+                    }}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md shadow-purple-500/20 cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <UploadCloud className="h-3.5 w-3.5" />
+                    <span>Upload from Device Now</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                  {pastMediaList
+                    .filter((item) => {
+                      const itemType = (item.type || item.fileType || "").toLowerCase();
+                      const itemField = (item.fieldType || "").toUpperCase();
+                      const nameLower = (item.name || "").toLowerCase();
+
+                      const isLogo = itemType === "logo" || itemField === "LOGO" || nameLower.includes("logo");
+                      const isVideo = itemType === "video" || itemField === "VIDEO" || nameLower.endsWith(".mp4") || nameLower.endsWith(".webm");
+                      const isImage = !isLogo && !isVideo;
+
+                      // Filter by Tab
+                      if (pastMediaFilter === "IMAGE" && !isImage) return false;
+                      if (pastMediaFilter === "LOGO" && !isLogo) return false;
+                      if (pastMediaFilter === "VIDEO" && !isVideo) return false;
+
+                      // Filter by Search
+                      if (pastMediaSearchQuery) {
+                        const q = pastMediaSearchQuery.toLowerCase();
+                        return nameLower.includes(q) || (item.aspectRatio || "").toLowerCase().includes(q);
+                      }
+                      return true;
+                    })
+                    .map((item) => {
+                      const itemType = (item.type || item.fileType || "").toLowerCase();
+                      const itemField = (item.fieldType || "").toUpperCase();
+                      const nameLower = (item.name || "").toLowerCase();
+                      const isLogo = itemType === "logo" || itemField === "LOGO" || nameLower.includes("logo");
+                      const isVideo = itemType === "video" || itemField === "VIDEO" || nameLower.endsWith(".mp4") || nameLower.endsWith(".webm");
+                      const displayType = isLogo ? "logo" : isVideo ? "video" : "image";
+
+                      return (
+                      <div
+                        key={item.id}
+                        className="group relative rounded-2xl border border-slate-200 bg-white overflow-hidden hover:border-purple-400 hover:shadow-lg transition-all flex flex-col"
+                      >
+                        {/* Thumbnail View */}
+                        <div className="relative aspect-square w-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                          {isVideo ? (
+                            <div className="flex flex-col items-center justify-center text-slate-400 gap-1 p-2">
+                              <Video className="h-8 w-8 text-purple-600" />
+                              <span className="text-[10px] font-mono text-center truncate max-w-full px-1">
+                                {item.name}
+                              </span>
+                            </div>
+                          ) : (
+                            <img
+                              src={item.url}
+                              alt={item.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              loading="lazy"
+                            />
+                          )}
+
+                          {/* Aspect Ratio & Type Badges */}
+                          <div className="absolute top-2 left-2 flex flex-col gap-1 items-start pointer-events-none">
+                            <span className="px-1.5 py-0.5 rounded-md bg-black/70 text-white text-[9px] font-mono font-bold backdrop-blur-xs">
+                              {item.aspectRatio || (isLogo ? "1:1" : isVideo ? "16:9" : "1.91:1")}
+                            </span>
+                            {item.width && item.height && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-black/50 text-white text-[8px] font-mono">
+                                {item.width}×{item.height}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="absolute top-2 right-2 flex items-center gap-1">
+                            <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase shadow-2xs pointer-events-none ${
+                              displayType === "logo"
+                                ? "bg-amber-500 text-white"
+                                : displayType === "video"
+                                ? "bg-indigo-600 text-white"
+                                : "bg-purple-600 text-white"
+                            }`}>
+                              {displayType}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeletePastMediaItem(e, item)}
+                              className="p-1 rounded-md bg-black/60 hover:bg-rose-600 text-white transition-colors cursor-pointer shadow-xs"
+                              title="Delete from ImageKit permanent library"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Card Info & Select Button */}
+                        <div className="p-2.5 flex flex-col justify-between flex-1 gap-2 bg-white">
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-slate-800 truncate" title={item.name}>
+                              {item.name}
+                            </p>
+                            {item.createdAt && (
+                              <p className="text-[9px] text-slate-400">
+                                {new Date(item.createdAt).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectPastMediaItem(item)}
+                              className="flex-1 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-600 text-purple-700 hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer border border-purple-200 hover:border-purple-600 group-hover:bg-purple-600 group-hover:text-white"
+                            >
+                              <Check className="h-3 w-3" />
+                              <span>Select</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeletePastMediaItem(e, item)}
+                              className="p-1.5 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Delete from Library"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">
+                  Total saved items: <strong>{pastMediaList.length}</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPastMediaModalOpen(false);
+                    if (activeUploadTarget === "IMAGE") imageInputRef.current?.click();
+                    else if (activeUploadTarget === "LOGO") logoInputRef.current?.click();
+                    else if (activeUploadTarget === "VIDEO") videoInputRef.current?.click();
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <UploadCloud className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Upload New Instead</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPastMediaModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition-all cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

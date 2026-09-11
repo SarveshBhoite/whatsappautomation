@@ -4,7 +4,7 @@ import { CampaignState } from "./GoogleAdsAiAssistantService";
 export interface GeneratedCreativeImage {
   url: string;
   name: string;
-  fieldType: "MARKETING_IMAGE" | "LOGO";
+  fieldType: "MARKETING_IMAGE" | "SQUARE_MARKETING_IMAGE" | "LOGO";
   aspectRatio: "1.91:1" | "1:1" | "4:1" | "4:5" | "9:16";
   dimensions: { width: number; height: number };
   prompt: string;
@@ -214,6 +214,8 @@ export class GoogleAdsImageGenService {
           formData.append("file", imageUrl);
           formData.append("fileName", fileName);
           formData.append("useUniqueFileName", "true");
+          formData.append("folder", "/google_ads/ai_guided");
+          formData.append("tags", `google_ads,ai_generated,${cfg.fieldType.toLowerCase()},${cfg.aspectRatio.replace(":", "x")}`);
 
           const authHeader = Buffer.from(`${privateKey}:`).toString("base64");
           const ikRes = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData, {

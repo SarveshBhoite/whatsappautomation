@@ -158,9 +158,9 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
    * Throws an error if unresolved in AI Guided mode instead of silently converting.
    */
   public static async resolveGeoTargetConstant(
-    locationNameOrId: string,
-    headers: any,
-    isAiGuided: boolean
+    locationNameOrId: any,
+    headers?: any,
+    isAiGuided: boolean | string = false
   ): Promise<string | null> {
     if (!locationNameOrId || typeof locationNameOrId !== "string") return null;
     const trimmed = locationNameOrId.trim();
@@ -443,8 +443,8 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
             advertisingChannelType: "SEARCH",
             campaignBudget: budgetRef,
             containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-            ...(startDate ? { startDate: String(startDate).replace(/-/g, "").slice(0, 8) } : {}),
-            ...(endDate ? { endDate: String(endDate).replace(/-/g, "").slice(0, 8) } : {}),
+            ...(startDate ? { startDateTime: `${String(startDate).split("T")[0]} 00:00:00` } : {}),
+            ...(endDate ? { endDateTime: `${String(endDate).split("T")[0]} 23:59:59` } : {}),
             aiMaxSetting: {
               enableAiMax: Boolean(enableAiMax)
             },

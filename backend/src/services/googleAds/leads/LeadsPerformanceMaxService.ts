@@ -228,8 +228,8 @@ export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
           brandGuidelinesEnabled: false,
           ...biddingConfig
         };
-        if (formattedStartDate) createOp.startDate = formattedStartDate;
-        if (formattedEndDate) createOp.endDate = formattedEndDate;
+        if (formattedStartDate) createOp.startDateTime = `${formattedStartDate} 00:00:00`;
+        if (formattedEndDate) createOp.endDateTime = `${formattedEndDate} 23:59:59`;
 
         const campaignPayload = {
           operations: [{ create: createOp }]
@@ -250,8 +250,8 @@ export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
             brandGuidelinesEnabled: false,
             ...biddingConfig
           };
-          if (formattedStartDate) retryOp.startDate = formattedStartDate;
-          if (formattedEndDate) retryOp.endDate = formattedEndDate;
+          if (formattedStartDate) retryOp.startDateTime = `${formattedStartDate} 00:00:00`;
+          if (formattedEndDate) retryOp.endDateTime = `${formattedEndDate} 23:59:59`;
 
           const retryPayload = {
             operations: [{ create: retryOp }]

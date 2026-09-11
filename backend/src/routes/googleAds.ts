@@ -487,7 +487,7 @@ router.get("/campaigns/drafts", async (req, res) => {
 router.put("/campaigns/:id", async (req, res) => {
   try {
     const orgId = getOrgId(req);
-    const { customerId, name, status, endDate } = req.body;
+    const { customerId, name, status, budget, endDate, finalUrl, headlines, descriptions, keywords, biddingStrategy, geoTargets, languages, searchThemes, audienceSignal } = req.body;
     const campaign = await prisma.googleAdCampaign.findFirst({ where: { id: req.params.id, organizationId: orgId } });
     if (!campaign) return res.status(404).json({ error: "Campaign not found" });
 
@@ -495,11 +495,35 @@ router.put("/campaigns/:id", async (req, res) => {
     if (campaign.googleAdsCampaignId) {
       const resourceName = `customers/${cid}/campaigns/${campaign.googleAdsCampaignId}`;
       await GoogleAdsService.updateCampaign(orgId, cid, resourceName, { name, status, endDate });
+      
+      if (budget !== undefined && budget !== null && Number(budget) > 0) {
+        if (campaign.budgetResourceName) {
+          try {
+            await GoogleAdsService.updateBudget(orgId, cid, campaign.budgetResourceName, Number(budget));
+          } catch (bErr: any) {
+            console.warn("[updateCampaign] updateBudget error:", bErr.message);
+          }
+        }
+      }
     }
 
     const updated = await prisma.googleAdCampaign.update({
       where: { id: req.params.id },
-      data: { ...(name && { name }), ...(status && { status }), ...(endDate && { endDate: new Date(endDate) }) }
+      data: {
+        ...(name && { name }),
+        ...(status && { status }),
+        ...(budget !== undefined && budget !== null && Number(budget) > 0 ? { budget: Number(budget) } : {}),
+        ...(endDate !== undefined ? { endDate: endDate ? new Date(endDate) : null } : {}),
+        ...(finalUrl !== undefined ? { finalUrl } : {}),
+        ...(headlines !== undefined ? { headlines } : {}),
+        ...(descriptions !== undefined ? { descriptions } : {}),
+        ...(keywords !== undefined ? { keywords } : {}),
+        ...(biddingStrategy !== undefined ? { biddingStrategy } : {}),
+        ...(geoTargets !== undefined ? { geoTargets } : {}),
+        ...(languages !== undefined ? { languages } : {}),
+        ...(searchThemes !== undefined ? { searchThemes } : {}),
+        ...(audienceSignal !== undefined ? { audienceSignal } : {})
+      }
     });
     res.status(200).json({ message: "Campaign updated", campaign: updated });
   } catch (error: any) {
@@ -1315,17 +1339,19 @@ Return ONLY a JSON array of strings (no markdown):
 // POST /api/ads/generate-copy — AI ad copy generation using env API key (GROQ_KEY)
 router.post("/generate-copy", async (req, res) => {
   try {
-    const { businessName, finalUrl, type = "HEADLINES" } = req.body;
+    const { businessName, finalUrl, type = "HEADLINES", language = "English", prompt: userCustomPrompt } = req.body;
     const targetUrl = finalUrl && finalUrl.trim() ? finalUrl.trim() : "https://japatracker-7f759.web.app/";
     
     // Extract domain keyword (e.g., japatracker, portfolio, store, etc.)
-    let domainName = "My Product";
+    let domainName = businessName || "My Product";
     try {
       const parsed = new URL(targetUrl.startsWith("http") ? targetUrl : `https://${targetUrl}`);
-      domainName = parsed.hostname.replace("www.", "").split(".")[0] || "Business";
-      domainName = domainName.charAt(0).toUpperCase() + domainName.slice(1);
+      if (!businessName) {
+        domainName = parsed.hostname.replace("www.", "").split(".")[0] || "Business";
+        domainName = domainName.charAt(0).toUpperCase() + domainName.slice(1);
+      }
     } catch (e) {
-      domainName = "Business";
+      if (!businessName) domainName = "Business";
     }
 
     // Try AI generation with GROQ LLM
@@ -1334,10 +1360,22 @@ router.post("/generate-copy", async (req, res) => {
 
     if (apiKey) {
       try {
-        const prompt = `You are a Google Ads copywriter. Generate unique, high-converting ad copy for website: ${targetUrl} (Domain: ${domainName}).
+        const langInstruction = language && language.toLowerCase() !== "english"
+          ? `CRITICAL LANGUAGE REQUIREMENT: Generate all headlines, long headlines, and descriptions in ${language} (or in the language of the prompt).`
+          : `Generate ad copy in English or the natural language of the business/prompt.`;
+
+        const prompt = `You are an expert Google Ads copywriter. Generate unique, high-converting ad copy for business: "${domainName}" (Website: ${targetUrl}).
+${userCustomPrompt ? `User Instructions/Context: ${userCustomPrompt}` : ""}
+${langInstruction}
+
+Rules:
+- Headlines: 5 distinct headlines (each <= 30 characters).
+- Long Headlines: 5 distinct long headlines (each <= 90 characters).
+- Descriptions: 5 distinct descriptions (each <= 90 characters).
+
 Return ONLY a JSON object:
 {
-  "headlines": ["Unique Headline 1", "Unique Headline 2", "Unique Headline 3", "Unique Headline 4", "Unique Headline 5"],
+  "headlines": ["Headline 1", "Headline 2", "Headline 3", "Headline 4", "Headline 5"],
   "longHeadlines": ["Long Headline 1", "Long Headline 2", "Long Headline 3", "Long Headline 4", "Long Headline 5"],
   "descriptions": ["Description 1", "Description 2", "Description 3", "Description 4", "Description 5"]
 }`;

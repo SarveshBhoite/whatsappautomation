@@ -66,8 +66,8 @@ export class LeadsVideoService extends GoogleAdsBaseService {
             demandGenCampaignSettings: {
               upgradedTargeting: true
             },
-            ...(startDate ? { startDate: startDate.replace(/-/g, "") } : {}),
-            ...(endDate ? { endDate: endDate.replace(/-/g, "") } : {}),
+            ...(startDate ? { startDateTime: `${String(startDate).split("T")[0]} 00:00:00` } : {}),
+            ...(endDate ? { endDateTime: `${String(endDate).split("T")[0]} 23:59:59` } : {}),
             ...biddingConfig
           }
         }]

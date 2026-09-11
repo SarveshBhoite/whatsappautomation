@@ -68,9 +68,9 @@ export class LeadsSearchService extends GoogleAdsBaseService {
    * Throws an error if unresolved in AI Guided mode instead of silently converting.
    */
   public static async resolveGeoTargetConstant(
-    locationNameOrId: string,
-    headers: any,
-    isAiGuided: boolean
+    locationNameOrId: any,
+    headers?: any,
+    isAiGuided: boolean | string = false
   ): Promise<string | null> {
     if (!locationNameOrId || typeof locationNameOrId !== "string") return null;
     const trimmed = locationNameOrId.trim();
@@ -114,7 +114,7 @@ export class LeadsSearchService extends GoogleAdsBaseService {
     // ── 1. AI GUIDED STRICT PRE-FLIGHT VALIDATION ──
     if (isAiGuided) {
       const cleanCid = (customerId || "").replace(/-/g, "").trim();
-      const fakeCids = ["1234567890", "6587355041", "default", "demo-org-123"];
+      const fakeCids = ["1234567890", "0000000000", "default", "demo-org-123"];
       if (!cleanCid || fakeCids.includes(cleanCid) || !/^\d{10}$/.test(cleanCid)) {
         throw new Error("A valid 10-digit Google Ads Customer ID is required for AI-guided campaign creation.");
       }
@@ -327,8 +327,8 @@ export class LeadsSearchService extends GoogleAdsBaseService {
             advertisingChannelType: "SEARCH",
             campaignBudget: budgetRef,
             containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-            ...(startDate ? { startDate: String(startDate).replace(/-/g, "").slice(0, 8) } : {}),
-            ...(endDate ? { endDate: String(endDate).replace(/-/g, "").slice(0, 8) } : {}),
+            ...(startDate ? { startDateTime: `${String(startDate).split("T")[0]} 00:00:00` } : {}),
+            ...(endDate ? { endDateTime: `${String(endDate).split("T")[0]} 23:59:59` } : {}),
             ...biddingConfig
           }
         }]

@@ -235,7 +235,7 @@ export class YoutubeDisplayLocalService extends GoogleAdsBaseService {
       throw new Error("Customer ID is required for Display campaign creation.");
     }
     const cleanCid = customerId.replace(/-/g, "").trim();
-    const fakeCids = ["1234567890", "0000000000", "default", "demo-org-123", "6587355041"];
+    const fakeCids = ["1234567890", "0000000000", "default", "demo-org-123"];
     if (!cleanCid || fakeCids.includes(cleanCid) || !/^\d{10}$/.test(cleanCid)) {
       throw new Error(`A valid 10-digit Google Ads Customer ID is required (received: "${customerId}"). Placeholder account IDs are not permitted.`);
     }
@@ -478,12 +478,12 @@ export class YoutubeDisplayLocalService extends GoogleAdsBaseService {
         advertisingChannelType: "DISPLAY",
         campaignBudget: budgetRef,
         containsEuPoliticalAdvertising: euPoliticalValue,
-        startDate: startStr.replace(/-/g, ""),
+        startDateTime: `${startStr} 00:00:00`,
         ...biddingConfig
       };
 
       if (endStr) {
-        campaignPayloadCreate.endDate = endStr.replace(/-/g, "");
+        campaignPayloadCreate.endDateTime = `${endStr} 23:59:59`;
       }
 
       if (trackingTemplate) campaignPayloadCreate.trackingUrlTemplate = trackingTemplate;

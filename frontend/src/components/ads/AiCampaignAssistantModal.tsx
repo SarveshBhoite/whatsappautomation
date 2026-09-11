@@ -708,20 +708,24 @@ export function AiCampaignAssistantModal({
             <div className="p-4 bg-slate-50 border-t border-slate-200 shrink-0 space-y-2.5">
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] scrollbar-none">
                 <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 shrink-0 mr-1">Quick:</span>
-                <button
-                  type="button"
-                  onClick={() => handleSendMessage("I want more leads & phone calls")}
-                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs"
-                >
-                  I want more leads & phone calls
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSendMessage("I want to sell products online")}
-                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs"
-                >
-                  I want to sell products online
-                </button>
+                {messages.length <= 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSendMessage("I want more leads & phone calls")}
+                      className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs"
+                    >
+                      I want more leads & phone calls
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendMessage("I want to sell products online")}
+                      className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 whitespace-nowrap transition-all shrink-0 cursor-pointer shadow-xs"
+                    >
+                      I want to sell products online
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}

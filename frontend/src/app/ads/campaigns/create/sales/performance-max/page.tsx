@@ -25,7 +25,7 @@ function SalesPerformanceMaxContent() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY">("BIDDING");
-  const [campaignName, setCampaignName] = useState<string>("Sales-Performance Max-1");
+  const [campaignName, setCampaignName] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showDraftModal, setShowDraftModal] = useState<boolean>(false);
@@ -40,7 +40,7 @@ function SalesPerformanceMaxContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: customerId || accountInfo?.customerId || "default",
-          campaignName: campaignName || "Sales-Performance Max-1",
+          campaignName: campaignName || "Draft Campaign",
           campaignType: "PERFORMANCE_MAX",
           biddingStrategy: biddingFocus || "Maximize conversion value",
           budget: typeof dailyBudgetValue !== "undefined" && dailyBudgetValue ? Number(dailyBudgetValue) : null,
@@ -2588,7 +2588,17 @@ function SalesPerformanceMaxContent() {
                     <h2 className="text-sm font-semibold text-slate-900">Assets</h2>
                     <button 
                       type="button" 
-                      onClick={() => setIsAssetsSectionOpen(false)}
+                      onClick={() => {
+                        const hasDuplicateHl = headlines.some((hl, i) => hl.trim() !== "" && headlines.some((o, idx) => idx !== i && o.trim().toLowerCase() === hl.trim().toLowerCase()));
+                        const hasDuplicateLh = longHeadlines.some((lh, i) => lh.trim() !== "" && longHeadlines.some((o, idx) => idx !== i && o.trim().toLowerCase() === lh.trim().toLowerCase()));
+                        const hasDuplicateDesc = descriptions.some((d, i) => d.trim() !== "" && descriptions.some((o, idx) => idx !== i && o.trim().toLowerCase() === d.trim().toLowerCase()));
+                        
+                        if (hasDuplicateHl || hasDuplicateLh || hasDuplicateDesc) {
+                          alert("Please remove duplicate headlines, long headlines, or descriptions before saving. Each asset must be unique.");
+                          return;
+                        }
+                        setIsAssetsSectionOpen(false);
+                      }}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
                     >
                       Save
@@ -2656,15 +2666,32 @@ function SalesPerformanceMaxContent() {
                             <button type="button" onClick={() => setHeadlines(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add headline</button>
                           </div>
                         </div>
-                        {headlines.map((hl, i) => (
-                          <div key={i} className="space-y-1">
-                            <input type="text" value={hl} onChange={(e) => { const u = [...headlines]; u[i] = e.target.value; setHeadlines(u); }} maxLength={30} placeholder={`Headline ${i + 1} (required: 3 min)`} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
-                            <div className="flex justify-between text-[10px] text-slate-500">
-                              <span>Text is {hl.length} characters out of 30</span>
-                              <span>{hl.length} / 30</span>
+                        {headlines.map((hl, i) => {
+                          const isDuplicate = hl.trim() !== "" && headlines.some((otherHl, otherIdx) => otherIdx !== i && otherHl.trim().toLowerCase() === hl.trim().toLowerCase());
+                          return (
+                            <div key={i} className="space-y-1">
+                              <input
+                                type="text"
+                                value={hl}
+                                onChange={(e) => { const u = [...headlines]; u[i] = e.target.value; setHeadlines(u); }}
+                                maxLength={30}
+                                placeholder={`Headline ${i + 1} (required: 3 min)`}
+                                className={`w-full bg-slate-50 border rounded-xl px-4 py-2 text-xs focus:outline-none transition-colors ${
+                                  isDuplicate ? "border-rose-500 focus:border-rose-600 bg-rose-50/40 text-rose-900" : "border-slate-200 focus:border-primary"
+                                }`}
+                              />
+                              {isDuplicate && (
+                                <p className="text-[11px] text-rose-500 font-semibold flex items-center gap-1 pl-1">
+                                  <AlertCircle className="h-3 w-3 shrink-0" /> Duplicate headline. Each headline must be unique.
+                                </p>
+                              )}
+                              <div className="flex justify-between text-[10px] text-slate-500">
+                                <span>Text is {hl.length} characters out of 30</span>
+                                <span>{hl.length} / 30</span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {/* 3) Long Headlines */}
@@ -2693,15 +2720,32 @@ function SalesPerformanceMaxContent() {
                             <button type="button" onClick={() => setLongHeadlines(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add long headline</button>
                           </div>
                         </div>
-                        {longHeadlines.map((lh, i) => (
-                          <div key={i} className="space-y-1">
-                            <input type="text" value={lh} onChange={(e) => { const u = [...longHeadlines]; u[i] = e.target.value; setLongHeadlines(u); }} maxLength={90} placeholder={`Long headline ${i + 1} (required: 1 min)`} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
-                            <div className="flex justify-between text-[10px] text-slate-500">
-                              <span>Text is {lh.length} characters out of 90</span>
-                              <span>{lh.length} / 90</span>
+                        {longHeadlines.map((lh, i) => {
+                          const isDuplicate = lh.trim() !== "" && longHeadlines.some((otherLh, otherIdx) => otherIdx !== i && otherLh.trim().toLowerCase() === lh.trim().toLowerCase());
+                          return (
+                            <div key={i} className="space-y-1">
+                              <input
+                                type="text"
+                                value={lh}
+                                onChange={(e) => { const u = [...longHeadlines]; u[i] = e.target.value; setLongHeadlines(u); }}
+                                maxLength={90}
+                                placeholder={`Long headline ${i + 1} (required: 1 min)`}
+                                className={`w-full bg-slate-50 border rounded-xl px-4 py-2 text-xs focus:outline-none transition-colors ${
+                                  isDuplicate ? "border-rose-500 focus:border-rose-600 bg-rose-50/40 text-rose-900" : "border-slate-200 focus:border-primary"
+                                }`}
+                              />
+                              {isDuplicate && (
+                                <p className="text-[11px] text-rose-500 font-semibold flex items-center gap-1 pl-1">
+                                  <AlertCircle className="h-3 w-3 shrink-0" /> Duplicate long headline. Each long headline must be unique.
+                                </p>
+                              )}
+                              <div className="flex justify-between text-[10px] text-slate-500">
+                                <span>Text is {lh.length} characters out of 90</span>
+                                <span>{lh.length} / 90</span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {/* 4) Descriptions */}
@@ -2730,15 +2774,32 @@ function SalesPerformanceMaxContent() {
                             <button type="button" onClick={() => setDescriptions(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add description</button>
                           </div>
                         </div>
-                        {descriptions.map((desc, i) => (
-                          <div key={i} className="space-y-1">
-                            <input type="text" value={desc} onChange={(e) => { const u = [...descriptions]; u[i] = e.target.value; setDescriptions(u); }} maxLength={90} placeholder={`Description ${i + 1} (required: 2 min)`} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
-                            <div className="flex justify-between text-[10px] text-slate-500">
-                              <span>Text is {desc.length} characters out of 90</span>
-                              <span>{desc.length} / 90</span>
+                        {descriptions.map((desc, i) => {
+                          const isDuplicate = desc.trim() !== "" && descriptions.some((otherDesc, otherIdx) => otherIdx !== i && otherDesc.trim().toLowerCase() === desc.trim().toLowerCase());
+                          return (
+                            <div key={i} className="space-y-1">
+                              <input
+                                type="text"
+                                value={desc}
+                                onChange={(e) => { const u = [...descriptions]; u[i] = e.target.value; setDescriptions(u); }}
+                                maxLength={90}
+                                placeholder={`Description ${i + 1} (required: 2 min)`}
+                                className={`w-full bg-slate-50 border rounded-xl px-4 py-2 text-xs focus:outline-none transition-colors ${
+                                  isDuplicate ? "border-rose-500 focus:border-rose-600 bg-rose-50/40 text-rose-900" : "border-slate-200 focus:border-primary"
+                                }`}
+                              />
+                              {isDuplicate && (
+                                <p className="text-[11px] text-rose-500 font-semibold flex items-center gap-1 pl-1">
+                                  <AlertCircle className="h-3 w-3 shrink-0" /> Duplicate description. Each description must be unique.
+                                </p>
+                              )}
+                              <div className="flex justify-between text-[10px] text-slate-500">
+                                <span>Text is {desc.length} characters out of 90</span>
+                                <span>{desc.length} / 90</span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {/* 5) Images, Videos, Animated Clips Uploads */}
@@ -4009,9 +4070,21 @@ function SalesPerformanceMaxContent() {
               onClick={async () => {
                 setSubmitError(null);
 
+                // 0. Campaign Name validation (must be provided by user)
+                if (!campaignName || !campaignName.trim()) {
+                  setSubmitError("Campaign Name is required. Please enter a campaign name.");
+                  return;
+                }
+
+                // 0b. Business Name validation (must be provided by user)
+                if (!businessName || !businessName.trim()) {
+                  setSubmitError("Business Name is required. Please enter your business or shop name in Brand Guidelines.");
+                  return;
+                }
+
                 // 1. Budget validation (cannot be negative or zero)
                 if (!dailyBudgetValue || isNaN(Number(dailyBudgetValue)) || Number(dailyBudgetValue) <= 0) {
-                  setSubmitError("Budget cannot be negative or zero. Please enter a valid positive amount.");
+                  setSubmitError("Daily Budget is required and cannot be negative or zero. Please enter a valid positive amount.");
                   return;
                 }
 

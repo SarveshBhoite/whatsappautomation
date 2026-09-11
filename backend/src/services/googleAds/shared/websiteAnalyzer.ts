@@ -116,16 +116,40 @@ export async function analyzeWebsiteUrl(targetUrl: string): Promise<WebsiteAnaly
       };
     }
 
+    const isBotChallenge = (text?: string): boolean => {
+      if (!text) return false;
+      const t = text.toLowerCase();
+      return (
+        t.includes("javascript is disabled") ||
+        t.includes("enable javascript") ||
+        t.includes("verify that you're not a robot") ||
+        t.includes("verify you are a human") ||
+        t.includes("robot or human") ||
+        t.includes("access denied") ||
+        t.includes("cloudflare") ||
+        t.includes("attention required") ||
+        t.includes("security check") ||
+        t.includes("captcha") ||
+        t.includes("ddos protection")
+      );
+    };
+
     // Extract Title
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : undefined;
+    let title = titleMatch ? titleMatch[1].trim() : undefined;
+    if (isBotChallenge(title)) {
+      title = undefined;
+    }
 
     // Extract Meta Description
     const metaDescMatch =
       html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i) ||
       html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i) ||
       html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']*)["']/i);
-    const description = metaDescMatch ? metaDescMatch[1].trim() : undefined;
+    let description = metaDescMatch ? metaDescMatch[1].trim() : undefined;
+    if (isBotChallenge(description)) {
+      description = undefined;
+    }
 
     // Extract Headings (H1, H2)
     const headings: string[] = [];
@@ -133,25 +157,33 @@ export async function analyzeWebsiteUrl(targetUrl: string): Promise<WebsiteAnaly
     let h1Match;
     while ((h1Match = h1Regex.exec(html)) !== null && headings.length < 5) {
       const cleanH1 = h1Match[1].replace(/<[^>]+>/g, "").trim();
-      if (cleanH1 && !headings.includes(cleanH1)) headings.push(cleanH1);
+      if (cleanH1 && !headings.includes(cleanH1) && !isBotChallenge(cleanH1)) {
+        headings.push(cleanH1);
+      }
     }
 
     const h2Regex = /<h2[^>]*>([^<]+)<\/h2>/gi;
     let h2Match;
     while ((h2Match = h2Regex.exec(html)) !== null && headings.length < 8) {
       const cleanH2 = h2Match[1].replace(/<[^>]+>/g, "").trim();
-      if (cleanH2 && !headings.includes(cleanH2)) headings.push(cleanH2);
+      if (cleanH2 && !headings.includes(cleanH2) && !isBotChallenge(cleanH2)) {
+        headings.push(cleanH2);
+      }
     }
 
     // Extract readable text snippets (strip scripts, styles, tags)
     const stripped = html
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
       .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+      .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, " ")
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ")
       .trim();
 
-    const mainTextSnippet = stripped.slice(0, 1500);
+    let mainTextSnippet = stripped.slice(0, 1500);
+    if (isBotChallenge(mainTextSnippet)) {
+      mainTextSnippet = "";
+    }
 
     return {
       success: true,

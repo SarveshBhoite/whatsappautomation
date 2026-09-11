@@ -60,8 +60,20 @@ router.post("/analyze-url", async (req, res) => {
       snippetLength: analysis.mainTextSnippet?.length || 0
     });
 
-    // Derive business name from title or hostname
+    // Comprehensive AI Analysis with Groq/Grok Llama-3.3-70B model
     let derivedBusinessName = "";
+    let industry = "";
+    let productsServices: string[] = [];
+    let businessDescription = analysis.description || "";
+    let usp = "";
+    let targetAudience = "";
+    let locations: string[] = [];
+    let language = "en";
+    let headlines: string[] = [];
+    let longHeadlines: string[] = [];
+    let descriptions: string[] = [];
+    let keywords: string[] = [];
+
     if (analysis.title) {
       derivedBusinessName = analysis.title.split(/[-|:–]/)[0]?.trim();
     }
@@ -73,33 +85,41 @@ router.post("/analyze-url", async (req, res) => {
       } catch {}
     }
 
-    // Generate real Search & PMax ad copy and purchase-intent keywords from website content
-    let headlines: string[] = [];
-    let longHeadlines: string[] = [];
-    let descriptions: string[] = [];
-    let keywords: string[] = [];
-
-    const groqKey = process.env.GROQ_KEY || "";
+    const groqKey = process.env.GROQ_KEY || process.env.GROQ_API_KEY || "";
     if (groqKey) {
       try {
-        const prompt = `Extract authentic Google Ads Search & Performance Max ad copy and high purchase-intent keywords from this website content.
+        const prompt = `Analyze this verified website content to extract comprehensive Google Ads business parameters and creative assets.
 Website URL: ${url}
 Page Title: ${analysis.title || ""}
 Meta Description: ${analysis.description || ""}
 Headings: ${(analysis.headings || []).join(" | ")}
-Website Snippet: ${(analysis.mainTextSnippet || "").slice(0, 1000)}
+Website Snippet: ${(analysis.mainTextSnippet || "").slice(0, 1500)}
 
-Rules:
-1. Business Name: max 25 characters
-2. Headlines: exactly 3 to 7 distinct, punchy headlines, each <= 30 characters
-3. Long Headlines: 1 to 2 long headlines, each <= 90 characters
-4. Descriptions: 2 to 4 distinct descriptions, each <= 90 characters
-5. Keywords: 5 to 10 highly relevant search/purchase-intent keywords based strictly on the actual products/services on this website. Include standard plain keywords or match types ([exact], "phrase").
-6. Only extract genuine claims, offerings, and value propositions found in the website content. Do not hallucinate fake products or claims.
+Instructions:
+1. Extract authentic, verified data only from the provided text. Do not invent products or claims not mentioned.
+2. Business Name: Real business/brand name (max 25 characters).
+3. Industry: Specific commercial or business category (e.g., "Computer Hardware & IT Retail", "Real Estate", "SaaS").
+4. Products/Services: 3 to 6 actual products or service categories offered on this website.
+5. Description: 1 to 2 clear sentences describing the business value proposition (max 150 chars).
+6. USP: The Unique Selling Proposition or key benefit stated on the site (e.g., "Authorized Dealer with Free Same-Day Shipping").
+7. Target Audience: Intended customer demographic (e.g., "Gamers, IT professionals, and students").
+8. Locations: Geographic area or country served if detected (e.g. ["India"] or ["United States"]).
+9. Language: Primary website language name or code (e.g., "English", "Hindi", "Marathi", "Gujarati", "Spanish", "French", "German").
+10. Headlines: 3 to 7 punchy Google Ads headlines in the website's primary language (each <= 30 characters).
+11. Long Headlines: 1 to 3 long headlines in the website's primary language (each <= 90 characters).
+12. Descriptions: 2 to 4 descriptions in the website's primary language (each <= 90 characters).
+13. Keywords: 5 to 10 purchase-intent search keywords based strictly on actual website offerings (in primary language or relevant search terms).
 
-Return JSON format:
+Return ONLY JSON matching this format:
 {
   "businessName": "string",
+  "industry": "string",
+  "productsServices": ["string"],
+  "description": "string",
+  "usp": "string",
+  "targetAudience": "string",
+  "locations": ["string"],
+  "language": "string",
   "headlines": ["string"],
   "longHeadlines": ["string"],
   "descriptions": ["string"],
@@ -109,13 +129,13 @@ Return JSON format:
         const groqRes = await axios.post(
           "https://api.groq.com/openai/v1/chat/completions",
           {
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [
-              { role: "system", content: "You are a Google Ads specialist extracting ad copy and keywords from verified website content. Return ONLY JSON." },
+              { role: "system", content: "You are an expert Google Ads strategist extracting verified business information and ad copy from website content. Output strictly valid JSON." },
               { role: "user", content: prompt }
             ],
             temperature: 0.1,
-            max_tokens: 800,
+            max_tokens: 1000,
             response_format: { type: "json_object" }
           },
           {
@@ -123,13 +143,34 @@ Return JSON format:
               "Content-Type": "application/json",
               Authorization: `Bearer ${groqKey}`
             },
-            timeout: 10000
+            timeout: 12000
           }
         );
 
         const copyData = JSON.parse(groqRes.data?.choices?.[0]?.message?.content || "{}");
         if (copyData.businessName && typeof copyData.businessName === "string" && copyData.businessName.length <= 25) {
           derivedBusinessName = copyData.businessName.trim();
+        }
+        if (copyData.industry && typeof copyData.industry === "string") {
+          industry = copyData.industry.trim();
+        }
+        if (Array.isArray(copyData.productsServices) && copyData.productsServices.length > 0) {
+          productsServices = copyData.productsServices.map((p: string) => String(p).trim()).filter(Boolean);
+        }
+        if (copyData.description && typeof copyData.description === "string") {
+          businessDescription = copyData.description.trim();
+        }
+        if (copyData.usp && typeof copyData.usp === "string") {
+          usp = copyData.usp.trim();
+        }
+        if (copyData.targetAudience && typeof copyData.targetAudience === "string") {
+          targetAudience = copyData.targetAudience.trim();
+        }
+        if (Array.isArray(copyData.locations) && copyData.locations.length > 0) {
+          locations = copyData.locations.map((l: string) => String(l).trim()).filter(Boolean);
+        }
+        if (copyData.language && typeof copyData.language === "string") {
+          language = copyData.language.trim();
         }
         if (Array.isArray(copyData.headlines) && copyData.headlines.length > 0) {
           headlines = copyData.headlines.map((h: string) => h.trim().slice(0, 30)).filter(Boolean);
@@ -144,39 +185,63 @@ Return JSON format:
           keywords = copyData.keywords.map((k: string) => k.trim()).filter(Boolean);
         }
       } catch (gErr: any) {
-        console.warn("[AI-GUIDED] Groq copy extraction from website failed, using heuristic extraction:", gErr.message);
+        console.warn("[AI-GUIDED] AI analysis from website failed, falling back to heuristic extraction:", gErr.message);
       }
     }
 
-    // Heuristic fallback extraction if Groq copy was not generated
+    // Heuristic fallbacks if AI copy was not completely generated
+    const isBotText = (t?: string): boolean => {
+      if (!t) return false;
+      const lower = t.toLowerCase();
+      return (
+        lower.includes("javascript is disabled") ||
+        lower.includes("enable javascript") ||
+        lower.includes("verify that you're not a robot") ||
+        lower.includes("verify you are a human") ||
+        lower.includes("robot or human") ||
+        lower.includes("access denied") ||
+        lower.includes("security check") ||
+        lower.includes("captcha") ||
+        lower.includes("this requires javascript")
+      );
+    };
+
     if (headlines.length < 3) {
       const candidates: string[] = [];
-      if (analysis.title) candidates.push(analysis.title.slice(0, 30));
+      if (analysis.title && !isBotText(analysis.title)) candidates.push(GoogleAdsBaseService.cleanAdText(analysis.title, 30));
       if (analysis.headings) {
         for (const h of analysis.headings) {
-          if (h.length <= 30 && !candidates.includes(h)) candidates.push(h);
+          const cleanedH = GoogleAdsBaseService.cleanAdText(h, 30);
+          if (cleanedH && !candidates.includes(cleanedH) && !isBotText(cleanedH)) candidates.push(cleanedH);
         }
       }
       if (derivedBusinessName && !candidates.includes(derivedBusinessName)) {
-        candidates.unshift(derivedBusinessName.slice(0, 30));
+        candidates.unshift(GoogleAdsBaseService.cleanAdText(derivedBusinessName, 30));
       }
-      headlines = candidates.slice(0, 5);
+      headlines = candidates.filter(h => !isBotText(h) && h.length > 0).slice(0, 5);
     }
 
     if (longHeadlines.length < 1) {
-      if (analysis.description && analysis.description.length <= 90) {
-        longHeadlines.push(analysis.description);
-      } else if (analysis.title && analysis.title.length > 30) {
-        longHeadlines.push(analysis.title.slice(0, 90));
+      if (analysis.description && analysis.description.length <= 90 && !isBotText(analysis.description)) {
+        longHeadlines.push(GoogleAdsBaseService.cleanAdText(analysis.description, 90));
+      } else if (analysis.title && !isBotText(analysis.title)) {
+        longHeadlines.push(GoogleAdsBaseService.cleanAdText(analysis.title, 90));
+      } else if (derivedBusinessName) {
+        longHeadlines.push(GoogleAdsBaseService.cleanAdText(`Discover Top Deals and Authentic Products at ${derivedBusinessName}`, 90));
       }
     }
 
     if (descriptions.length < 2) {
-      if (analysis.description) {
-        descriptions.push(analysis.description.slice(0, 90));
+      if (businessDescription && !isBotText(businessDescription)) {
+        descriptions.push(GoogleAdsBaseService.cleanAdText(businessDescription, 90));
+      } else if (analysis.description && !isBotText(analysis.description)) {
+        descriptions.push(GoogleAdsBaseService.cleanAdText(analysis.description, 90));
       }
       if (analysis.mainTextSnippet) {
-        const sentences = analysis.mainTextSnippet.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length >= 20 && s.length <= 90);
+        const sentences = analysis.mainTextSnippet
+          .split(/[.!?]+/)
+          .map(s => GoogleAdsBaseService.cleanAdText(s, 90))
+          .filter(s => s.length >= 20 && s.length <= 90 && !isBotText(s));
         for (const s of sentences) {
           if (!descriptions.includes(s) && descriptions.length < 4) {
             descriptions.push(s);
@@ -184,28 +249,34 @@ Return JSON format:
         }
       }
     }
-
-    // Heuristic keywords fallback if keywords not yet generated
-    if (keywords.length < 3) {
-      const kwSet = new Set<string>();
-      if (derivedBusinessName) kwSet.add(derivedBusinessName.toLowerCase());
-      if (analysis.headings) {
-        for (const h of analysis.headings) {
-          const cleanH = h.replace(/[^a-zA-Z0-9\s]/g, "").trim().toLowerCase();
-          if (cleanH.length >= 4 && cleanH.length <= 40 && !cleanH.includes("http")) {
-            kwSet.add(cleanH);
-          }
-        }
-      }
-      keywords = Array.from(kwSet).slice(0, 8);
+    if (descriptions.length === 0 && businessDescription && !isBotText(businessDescription)) {
+      descriptions.push(GoogleAdsBaseService.cleanAdText(businessDescription, 90));
     }
+
+    // Clean and sanitize all returned items
+    const sanitizedHeadlines = headlines
+      .map(h => GoogleAdsBaseService.cleanAdText(h, 30))
+      .filter(h => h.length > 0);
+    const sanitizedLongHeadlines = longHeadlines
+      .map(lh => GoogleAdsBaseService.cleanAdText(lh, 90))
+      .filter(lh => lh.length > 0);
+    const sanitizedDescriptions = descriptions
+      .map(d => GoogleAdsBaseService.cleanAdText(d, 90))
+      .filter(d => d.length > 0);
 
     return res.status(200).json({
       ...analysis,
-      derivedBusinessName: derivedBusinessName.slice(0, 25),
-      headlines,
-      longHeadlines,
-      descriptions,
+      derivedBusinessName: GoogleAdsBaseService.cleanAdText(derivedBusinessName, 25),
+      industry,
+      productsServices,
+      description: GoogleAdsBaseService.cleanAdText(businessDescription, 150),
+      usp: GoogleAdsBaseService.cleanAdText(usp, 90),
+      targetAudience,
+      locations: locations.length > 0 ? locations : [],
+      language: language || "",
+      headlines: sanitizedHeadlines,
+      longHeadlines: sanitizedLongHeadlines,
+      descriptions: sanitizedDescriptions,
       keywords
     });
   } catch (error: any) {
@@ -230,6 +301,8 @@ router.post("/upload-media", async (req, res) => {
       formData.append("file", file);
       formData.append("fileName", name);
       formData.append("useUniqueFileName", "true");
+      formData.append("folder", "/google_ads/ai_guided");
+      formData.append("tags", `google_ads,upload,${String(fieldType).toLowerCase()}`);
 
       const authHeader = Buffer.from(`${privateKey}:`).toString("base64");
       const ikRes = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData, {
@@ -242,21 +315,167 @@ router.post("/upload-media", async (req, res) => {
         success: true,
         url: ikRes.data.url,
         name: ikRes.data.name || name,
+        fileId: ikRes.data.fileId,
+        thumbnailUrl: ikRes.data.thumbnailUrl || ikRes.data.url,
+        width: ikRes.data.width,
+        height: ikRes.data.height,
         fieldType
       });
     }
 
-    // Fallback if no ImageKit credentials configured in dev
-    return res.status(200).json({
-      success: true,
-      url: typeof file === "string" && file.startsWith("http") ? file : "https://ik.imagekit.io/automationjds/sample_web_portfolio.png",
-      name,
-      fieldType
+    if (typeof file === "string" && file.startsWith("http")) {
+      return res.status(200).json({
+        success: true,
+        url: file,
+        name,
+        fieldType
+      });
+    }
+
+    return res.status(400).json({
+      error: "ImageKit configuration is required to upload local images."
     });
   } catch (error: any) {
     console.error("[AI Guided upload-media error]:", error?.response?.data || error.message);
     return res.status(500).json({
       error: error?.response?.data?.message || error.message || "Failed to upload media"
+    });
+  }
+});
+
+// GET /api/ads/ai-guided/media-library
+router.get("/media-library", async (req, res) => {
+  try {
+    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+    if (!privateKey) {
+      return res.status(200).json({
+        success: true,
+        files: []
+      });
+    }
+
+    const authHeader = Buffer.from(`${privateKey}:`).toString("base64");
+    
+    // Query files from ImageKit API (searches all files or specific google_ads folder)
+    const ikRes = await axios.get("https://api.imagekit.io/v1/files", {
+      headers: {
+        Authorization: `Basic ${authHeader}`
+      },
+      params: {
+        path: "/google_ads/ai_guided",
+        limit: 100,
+        sort: "DESC_CREATED"
+      },
+      timeout: 15000
+    }).catch(async () => {
+      // Fallback without path filter if folder is new
+      return await axios.get("https://api.imagekit.io/v1/files", {
+        headers: {
+          Authorization: `Basic ${authHeader}`
+        },
+        params: {
+          limit: 100,
+          sort: "DESC_CREATED"
+        },
+        timeout: 15000
+      });
+    });
+
+    const rawFiles = Array.isArray(ikRes.data) ? ikRes.data : [];
+
+    const files = rawFiles.map((f: any) => {
+      const width = f.width || 0;
+      const height = f.height || 0;
+      const ratio = height > 0 ? (width / height) : 1;
+      
+      let inferredFieldType: "MARKETING_IMAGE" | "SQUARE_MARKETING_IMAGE" | "LOGO" | "VIDEO" = "MARKETING_IMAGE";
+      let inferredAspect = "1.91:1";
+
+      const tags = Array.isArray(f.tags) ? f.tags : [];
+      const nameLower = (f.name || "").toLowerCase();
+
+      if (f.fileType === "video" || nameLower.endsWith(".mp4") || nameLower.endsWith(".webm") || tags.includes("video")) {
+        inferredFieldType = "VIDEO";
+        inferredAspect = "16:9";
+      } else if (tags.includes("logo") || nameLower.includes("logo")) {
+        inferredFieldType = "LOGO";
+        inferredAspect = ratio >= 3.5 ? "4:1" : "1:1";
+      } else if (ratio >= 0.9 && ratio <= 1.1) {
+        inferredFieldType = "SQUARE_MARKETING_IMAGE";
+        inferredAspect = "1:1";
+      } else if (ratio >= 1.7 && ratio <= 2.1) {
+        inferredFieldType = "MARKETING_IMAGE";
+        inferredAspect = "1.91:1";
+      } else if (ratio >= 0.75 && ratio <= 0.85) {
+        inferredFieldType = "MARKETING_IMAGE";
+        inferredAspect = "4:5";
+      } else if (ratio >= 0.5 && ratio <= 0.65) {
+        inferredFieldType = "MARKETING_IMAGE";
+        inferredAspect = "9:16";
+      }
+
+      const isVideo = f.fileType === "video" || nameLower.endsWith(".mp4") || nameLower.endsWith(".webm") || tags.includes("video") || inferredFieldType === "VIDEO";
+      const isLogo = tags.includes("logo") || nameLower.includes("logo") || inferredFieldType === "LOGO";
+      const mediaType = isVideo ? "video" : isLogo ? "logo" : "image";
+
+      return {
+        id: f.fileId,
+        name: f.name,
+        url: f.url,
+        thumbnailUrl: f.thumbnail || f.url,
+        fileType: f.fileType || "image",
+        type: mediaType,
+        fieldType: inferredFieldType,
+        aspectRatio: inferredAspect,
+        dimensions: { width, height },
+        size: f.size,
+        createdAt: f.createdAt
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      files
+    });
+  } catch (error: any) {
+    console.error("[AI Guided media-library error]:", error?.response?.data || error.message);
+    return res.status(200).json({
+      success: true,
+      files: []
+    });
+  }
+});
+
+// DELETE /api/ads/ai-guided/media-library/:fileId
+router.delete("/media-library/:fileId", async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    if (!fileId) {
+      return res.status(400).json({ success: false, error: "fileId is required" });
+    }
+
+    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+    if (!privateKey) {
+      return res.status(400).json({ success: false, error: "IMAGEKIT_PRIVATE_KEY is not configured" });
+    }
+
+    const authHeader = Buffer.from(`${privateKey}:`).toString("base64");
+    await axios.delete(`https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`, {
+      headers: {
+        Authorization: `Basic ${authHeader}`
+      },
+      timeout: 15000
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "File deleted successfully from ImageKit"
+    });
+  } catch (error: any) {
+    console.error("[AI Guided delete media error]:", error?.response?.data || error.message);
+    return res.status(500).json({
+      success: false,
+      error: error?.response?.data?.message || error.message || "Failed to delete file from ImageKit"
     });
   }
 });
@@ -305,16 +524,26 @@ router.post("/chat", async (req, res) => {
 router.post("/create-campaign", async (req, res) => {
   try {
     const { customerId, campaignState } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
 
     if (!customerId) {
       return res.status(400).json({ error: "Missing customerId" });
+    }
+    if (!orgId) {
+      return res.status(400).json({ error: "Missing organization ID (x-organization-id header or orgId parameter)" });
     }
     if (!campaignState || !campaignState.campaignType) {
       return res.status(400).json({ error: "Missing campaignState or campaignType" });
     }
 
     const state: CampaignState = campaignState;
+    if (!state.locations || !Array.isArray(state.locations) || state.locations.filter((l: any) => l && String(l).trim()).length === 0) {
+      state.locations = ["India"];
+    }
+    if (!state.language || !state.language.trim()) {
+      state.language = "English";
+    }
+
     const valResult = GoogleAdsCampaignValidator.validate(state);
     if (!valResult.isValid) {
       return res.status(400).json({
@@ -324,17 +553,26 @@ router.post("/create-campaign", async (req, res) => {
       });
     }
 
-    const campaignName = state.campaignName || `${state.businessName || "My Business"} - ${state.campaignType}`;
+    const campaignName = GoogleAdsBaseService.cleanAdText(state.campaignName || `${state.businessName} - ${state.campaignType}`, 100);
     const dailyBudget = Number(state.dailyBudget);
-    const locations = (state.locations && state.locations.length > 0) ? state.locations : ["India"];
-    const languages = [state.language || "English"];
+    const locations = (state.locations && state.locations.length > 0) ? state.locations : [];
+    const languages = state.language ? [state.language] : [];
 
-    const validHeadlines = (state.headlines || []).filter(h => h && h.trim().length > 0);
-    const validDescriptions = (state.descriptions || []).filter(d => d && d.trim().length > 0);
-    const validKeywords = (state.keywords || []).filter(k => k && k.trim().length > 0);
+    const validHeadlines = (state.headlines || [])
+      .map(h => GoogleAdsBaseService.cleanAdText(String(h), 30))
+      .filter(h => h.length > 0);
+    const validLongHeadlines = (state.longHeadlines || [])
+      .map(lh => GoogleAdsBaseService.cleanAdText(String(lh), 90))
+      .filter(lh => lh.length > 0);
+    const validDescriptions = (state.descriptions || [])
+      .map(d => GoogleAdsBaseService.cleanAdText(String(d), 90))
+      .filter(d => d.length > 0);
+    const validKeywords = (state.keywords || [])
+      .map(k => GoogleAdsBaseService.cleanAdText(String(k), 80))
+      .filter(k => k.length > 0);
 
     let result: any;
-    const objective = (state.objective || "SALES").toUpperCase();
+    const objective = (state.objective || "").toUpperCase();
 
     switch (state.campaignType) {
       case "SEARCH": {
@@ -406,15 +644,16 @@ router.post("/create-campaign", async (req, res) => {
           targetCpa: state.targetCpa || undefined,
           targetRoas: state.targetRoas || undefined,
           headlines: validHeadlines,
-          longHeadlines: state.longHeadlines && state.longHeadlines.length > 0 ? state.longHeadlines : [],
+          longHeadlines: validLongHeadlines,
           descriptions: validDescriptions,
           images: state.images || [],
           logos: state.logos || [],
           brandLogos: state.logos || [],
-          assetGroupName: `${state.businessName || (objective === "WEBSITE_TRAFFIC" ? "Website Traffic" : objective === "LEADS" ? "Leads" : (objective === "LOCAL" || objective === "STORE_VISITS") ? "Store Visits" : objective === "NO_GUIDANCE" ? "All Channels" : "Sales")} - ${objective === "WEBSITE_TRAFFIC" ? "Traffic Growth" : objective === "LEADS" ? "Lead Generation" : (objective === "LOCAL" || objective === "STORE_VISITS") ? "Store Visits" : objective === "NO_GUIDANCE" ? "Performance Max" : "Sales Growth"}`,
+          assetGroupName: (state as any).assetGroupName || `${state.businessName || (objective === "WEBSITE_TRAFFIC" ? "Website Traffic" : objective === "LEADS" ? "Leads" : (objective === "LOCAL" || objective === "STORE_VISITS") ? "Store Visits" : objective === "NO_GUIDANCE" ? "All Channels" : "Sales")} - ${objective === "WEBSITE_TRAFFIC" ? "Traffic Growth" : objective === "LEADS" ? "Lead Generation" : (objective === "LOCAL" || objective === "STORE_VISITS") ? "Store Visits" : objective === "NO_GUIDANCE" ? "Performance Max" : "Sales Growth"}`,
+          brandGuidelinesEnabled: Boolean((state as any).brandGuidelinesEnabled),
           startDate: state.startDate,
           endDate: state.endDate,
-          euPolitical: state.euPolitical || "NO"
+          euPolitical: (state as any).euPolitical || "NO"
         };
         if (objective === "NO_GUIDANCE" || objective === "NO-GUIDANCE") {
           result = await NoGuidancePerformanceMaxService.createCampaign(orgId, customerId, payload);
@@ -699,9 +938,10 @@ router.post("/create-campaign", async (req, res) => {
     });
   } catch (error: any) {
     console.error("[AI Guided Campaign Creation Error]:", error?.response?.data || error.message);
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
     const errorDetails = error?.response?.data || error.message;
     return res.status(500).json({
-      error: error?.response?.data?.error?.message || error.message || "Failed to create campaign via AI Guided flow.",
+      error: formattedError || error?.response?.data?.error?.message || error.message || "Failed to create campaign via AI Guided flow.",
       details: errorDetails
     });
   }

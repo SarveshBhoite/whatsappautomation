@@ -178,9 +178,9 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
   }
 
   public static async resolveGeoTargetConstant(
-    locationNameOrId: string,
-    headers: any,
-    isAiGuided: boolean
+    locationNameOrId: any,
+    headers?: any,
+    isAiGuided: boolean | string = false
   ): Promise<string | null> {
     if (!locationNameOrId || typeof locationNameOrId !== "string") return null;
     const trimmed = locationNameOrId.trim();

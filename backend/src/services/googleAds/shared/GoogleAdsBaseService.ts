@@ -63,18 +63,37 @@ export class GoogleAdsBaseService {
   public static cleanAdText(text: string, maxLength?: number): string {
     if (!text || typeof text !== "string") return "";
     let cleaned = text.trim();
-    // 1. Remove leading punctuation & symbols (e.g. ",knb", "..hello", "-word")
-    cleaned = cleaned.replace(/^[,.!?;:\-_/\\|~@#$%^&*+=<>\s]+/, "");
-    // 2. Remove trailing invalid punctuation
-    cleaned = cleaned.replace(/[,:;\-_/\\|~@#$%^&*+=<>\s]+$/, "");
-    // 3. Replace multiple repeating punctuation with single (e.g. ",," -> ",", "!!" -> "!")
+
+    // 1. Replace vertical bars, slashes, and bullet characters with hyphens or spaces
+    cleaned = cleaned
+      .replace(/[|│┃]/g, " - ")
+      .replace(/[•●▪◆★►▶✔✓]/g, " ")
+      .replace(/[\/~^_*<>{}[\]\\#@+=]/g, " ");
+
+    // 2. Normalize hyphens and multiple dashes
+    cleaned = cleaned.replace(/\s*[-–—]+\s*/g, " - ");
+
+    // 3. Remove leading punctuation & symbols (e.g. ",knb", "..hello", "-word", " - hello")
+    cleaned = cleaned.replace(/^[\s,.\-!?;:_~@#$%^&*+=<>]+/, "");
+
+    // 4. Remove trailing invalid punctuation & symbols
+    cleaned = cleaned.replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "");
+
+    // 5. Replace multiple repeating punctuation with single (e.g. ",," -> ",", "!!" -> "!")
     cleaned = cleaned.replace(/([,.!?;:])\1+/g, "$1");
-    // 4. Fix missing space after punctuation (e.g. ",knb" -> ", knb", "hello.world" -> "hello. world")
+
+    // 6. Fix missing space after punctuation (e.g. ",knb" -> ", knb", "hello.world" -> "hello. world")
     cleaned = cleaned.replace(/([,.!?;:])([a-zA-Z0-9])/g, "$1 $2");
-    // 5. Replace multiple consecutive spaces with a single space
+
+    // 7. Replace multiple consecutive spaces with a single space
     cleaned = cleaned.replace(/\s+/g, " ").trim();
+
+    // 8. Final trim of leading/trailing dashes if left behind
+    cleaned = cleaned.replace(/^[-–—\s]+/, "").replace(/[-–—\s]+$/, "").trim();
+
     if (maxLength && cleaned.length > maxLength) {
       cleaned = cleaned.slice(0, maxLength).trim();
+      cleaned = cleaned.replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "").trim();
     }
     return cleaned;
   }
@@ -83,7 +102,8 @@ export class GoogleAdsBaseService {
     if (!url || typeof url !== "string") return "";
     let cleaned = url.trim();
     // Remove enclosing quotes, brackets, or trailing punctuation (such as trailing dots, parentheses, colons, slashes)
-    cleaned = cleaned.replace(/^["'(\[<]+/, "").replace(/["')\]>.,;:]+$/, "").trim();
+    cleaned = cleaned.replace(/^["'(\[<\s]+/, "");
+    cleaned = cleaned.replace(/[\s"'\(\)\[\]<>\.,;:?]+$/, "").trim();
     if (!cleaned) return "";
     if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
       cleaned = `https://${cleaned}`;
@@ -116,8 +136,12 @@ export class GoogleAdsBaseService {
             } else if (err.message) {
               const fieldPath = err.location?.fieldPathElements?.map((f: any) => f.fieldName).join(".") || "";
               const trigger = err.trigger?.stringValue || "";
-              extractedErrors.push(`${err.message}${fieldPath ? ` (at field: ${fieldPath})` : ""}${trigger ? ` (trigger: ${trigger})` : ""}`);
+              extractedErrors.push(`${err.message}${fieldPath ? ` (field: ${fieldPath})` : ""}${trigger ? ` (value: "${trigger}")` : ""}`);
             }
+          }
+        } else if (detail.fieldViolations && Array.isArray(detail.fieldViolations)) {
+          for (const fv of detail.fieldViolations) {
+            extractedErrors.push(`${fv.description || "Invalid argument"}${fv.field ? ` at ${fv.field}` : ""}`);
           }
         }
       }
@@ -125,7 +149,7 @@ export class GoogleAdsBaseService {
       if (extractedErrors.length > 0) {
         return Array.from(new Set(extractedErrors)).join(" | ");
       }
-      return data.error?.message || JSON.stringify(data);
+      return data.error?.message || data.message || JSON.stringify(data);
     }
     return error.message || "An unexpected Google Ads API error occurred.";
   }
@@ -284,16 +308,14 @@ export class GoogleAdsBaseService {
    * Resolve a location string or object into an official Google Ads GeoTargetConstant ID
    * via SuggestGeoTargetConstants or fallback dictionary / Places lookup.
    */
-  /**
-   * Resolve a location string or object into an official Google Ads GeoTargetConstant ID
-   * via SuggestGeoTargetConstants or fallback dictionary / Places lookup.
-   */
   public static async resolveGeoTargetConstant(
     locationInput: any,
-    headers: any,
-    locale = "en"
+    headers?: any,
+    localeOrAiGuided: any = "en"
   ): Promise<string | null> {
     if (!locationInput) return null;
+
+    const locale = typeof localeOrAiGuided === "string" && localeOrAiGuided.length > 0 ? localeOrAiGuided : "en";
 
     let targetStr = "";
     if (typeof locationInput === "string") {
