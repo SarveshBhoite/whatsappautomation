@@ -16,7 +16,11 @@ export type DestinationType =
   | "MESSENGER"
   | "INSTAGRAM"
   | "INSTANT_FORM"
-  | "APP";
+  | "APP"
+  | "PHONE_CALL"
+  | "PAGE_EVENT"
+  | "SHOP"
+  | "INSTAGRAM_PROFILE";
 
 export interface CanonicalCampaignConfiguration {
   campaign: {
@@ -29,66 +33,43 @@ export interface CanonicalCampaignConfiguration {
   budget: {
     type: "DAILY" | "LIFETIME";
     amount: number;
-    currency: string;
-    level: "CAMPAIGN" | "AD_SET";
+    billingEvent: "IMPRESSIONS" | "CLICKS";
+    pacing?: "STANDARD" | "ACCELERATED";
   };
-  schedule: {
-    startDate?: string;
-    startTime?: string;
-    endDate?: string;
-    endTime?: string;
-    timezone?: string;
-  };
-  optimization: {
-    goal?: string;
-    billingEvent?: string;
-    bidStrategy?: string;
-    bidAmount?: number;
-  };
-  audience: {
+  targeting: {
     ageMin?: number;
     ageMax?: number;
-    genders?: number[]; // 0 = All, 1 = Male, 2 = Female
-    locations?: Array<{
-      type: string;
-      name?: string;
-      country?: string;
-      city?: string;
-      radius?: number;
-    }>;
-    interests?: string[];
-    behaviors?: string[];
-    customAudiences?: string[];
-    advantageAudience?: boolean;
-  };
-  placements: {
-    mode: "AUTOMATIC" | "MANUAL";
-    platforms?: string[];
+    genders?: number[];
+    geoLocations?: {
+      countries?: string[];
+      cities?: Array<{ key?: string; name: string; radius?: number; distance_unit?: string }>;
+    };
+    publisherPlatforms?: string[];
+    facebookPositions?: string[];
   };
   destination: {
     type: DestinationType;
     url?: string;
-    pageId?: string;
-    instagramAccountId?: string;
-    whatsappPhoneNumberId?: string;
+    phone?: string;
     formId?: string;
-    appId?: string;
   };
   creative: {
-    format: "SINGLE_IMAGE" | "VIDEO" | "CAROUSEL";
-    pageId?: string;
-    instagramActorId?: string;
-    primaryText?: string;
-    headline?: string;
+    name?: string;
+    primaryText: string;
+    headline: string;
     description?: string;
-    callToAction?: string;
-    imageUrl?: string;
-    videoId?: string;
+    callToAction: string;
+    mediaUrl?: string;
+    mediaType?: "IMAGE" | "VIDEO";
   };
-  tracking?: {
-    pixelId?: string;
-    conversionEvent?: string;
-  };
+}
+
+export interface ValidationIssue {
+  severity: "ERROR" | "WARNING";
+  category: "BUDGET" | "TARGETING" | "CREATIVE" | "DESTINATION" | "OBJECTIVE";
+  field: string;
+  message: string;
+  suggestedFix?: string;
 }
 
 export interface PreflightValidationResult {
@@ -105,7 +86,7 @@ export interface PreflightValidationResult {
 
 export class MetaPreflightService {
   /**
-   * Objective Compatibility Matrix
+   * Pre-validated combination rules per Meta Ads ODAX schema
    */
   static getObjectiveRules(objective: CampaignObjective) {
     const rules: Record<CampaignObjective, {
@@ -116,37 +97,37 @@ export class MetaPreflightService {
     }> = {
       OUTCOME_AWARENESS: {
         allowedGoals: ["REACH", "IMPRESSIONS", "AD_RECALL_LIFT"],
-        allowedDestinations: ["WEBSITE", "INSTAGRAM"],
-        allowedCTAs: ["LEARN_MORE", "WATCH_MORE", "NO_BUTTON"],
+        allowedDestinations: ["WEBSITE", "INSTAGRAM", "PAGE_EVENT"],
+        allowedCTAs: ["LEARN_MORE", "WATCH_MORE", "NO_BUTTON", "EVENT_RSVP"],
         defaultBillingEvent: "IMPRESSIONS",
       },
       OUTCOME_TRAFFIC: {
         allowedGoals: ["LINK_CLICKS", "LANDING_PAGE_VIEWS", "IMPRESSIONS"],
-        allowedDestinations: ["WEBSITE", "WHATSAPP", "MESSENGER"],
-        allowedCTAs: ["LEARN_MORE", "WHATSAPP_MESSAGE", "CONTACT_US"],
+        allowedDestinations: ["WEBSITE", "WHATSAPP", "MESSENGER", "PHONE_CALL", "INSTAGRAM_PROFILE", "APP"],
+        allowedCTAs: ["LEARN_MORE", "WHATSAPP_MESSAGE", "CONTACT_US", "CALL_NOW", "VISIT_WEBSITE"],
         defaultBillingEvent: "IMPRESSIONS",
       },
       OUTCOME_ENGAGEMENT: {
         allowedGoals: ["MESSAGES", "POST_ENGAGEMENT", "PAGE_LIKES"],
-        allowedDestinations: ["WHATSAPP", "MESSENGER", "INSTAGRAM"],
-        allowedCTAs: ["WHATSAPP_MESSAGE", "SEND_MESSAGE", "LEARN_MORE"],
+        allowedDestinations: ["WHATSAPP", "MESSENGER", "INSTAGRAM", "PAGE_EVENT"],
+        allowedCTAs: ["WHATSAPP_MESSAGE", "SEND_MESSAGE", "LEARN_MORE", "EVENT_RSVP"],
         defaultBillingEvent: "IMPRESSIONS",
       },
       OUTCOME_LEADS: {
         allowedGoals: ["LEADS", "QUALITY_LEADS", "MESSAGES"],
-        allowedDestinations: ["WHATSAPP", "INSTANT_FORM", "WEBSITE"],
-        allowedCTAs: ["WHATSAPP_MESSAGE", "APPLY_NOW", "GET_QUOTE", "LEARN_MORE"],
+        allowedDestinations: ["WHATSAPP", "INSTANT_FORM", "WEBSITE", "PHONE_CALL", "MESSENGER"],
+        allowedCTAs: ["WHATSAPP_MESSAGE", "APPLY_NOW", "GET_QUOTE", "LEARN_MORE", "CALL_NOW", "CONTACT_US"],
         defaultBillingEvent: "IMPRESSIONS",
       },
       OUTCOME_APP_PROMOTION: {
         allowedGoals: ["APP_INSTALLS", "VALUE", "IN_APP_EVENTS"],
         allowedDestinations: ["APP"],
-        allowedCTAs: ["INSTALL_MOBILE_APP", "USE_APP", "PLAY_GAME"],
+        allowedCTAs: ["INSTALL_MOBILE_APP", "USE_APP", "PLAY_GAME", "DOWNLOAD"],
         defaultBillingEvent: "IMPRESSIONS",
       },
       OUTCOME_SALES: {
         allowedGoals: ["OFFSITE_CONVERSIONS", "VALUE", "LANDING_PAGE_VIEWS"],
-        allowedDestinations: ["WEBSITE", "WHATSAPP"],
+        allowedDestinations: ["WEBSITE", "WHATSAPP", "SHOP"],
         allowedCTAs: ["SHOP_NOW", "ORDER_NOW", "WHATSAPP_MESSAGE", "BUY_NOW"],
         defaultBillingEvent: "IMPRESSIONS",
       },

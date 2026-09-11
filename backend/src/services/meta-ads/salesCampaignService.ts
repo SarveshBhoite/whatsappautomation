@@ -2,6 +2,7 @@ import prisma from "../../utils/prisma";
 import axios from "axios";
 import { MetaAdsCoreService, META_GRAPH_BASE } from "./metaAdsCoreService";
 import { CreateMetaCampaignPayload } from "../metaAdsService";
+import { MetaAdsCapabilityService } from "./metaAdsCapabilityService";
 
 export class SalesCampaignService {
   /**
@@ -146,19 +147,13 @@ export class SalesCampaignService {
           };
 
           if (destType === "WHATSAPP" || destType === "MESSENGER") {
-            promotedObject = {
-              page_id: activePageId,
-              pixel_id: pixelId,
-              custom_event_type: customEventType,
-            };
+            promotedObject = { page_id: activePageId };
           } else if (destType === "APP") {
             promotedObject = {
               application_id: config.appId || "36702477879366478",
               object_store_url: payload.objectStoreUrl || "https://play.google.com/store/apps/details?id=com.whatsapp",
               custom_event_type: customEventType,
             };
-          } else if (activePageId) {
-            promotedObject.page_id = activePageId;
           }
 
           // Attribution Spec
@@ -171,8 +166,20 @@ export class SalesCampaignService {
           if (payload.gender === "MEN" || payload.gender === "MALE") parsedGenders = [1];
           else if (payload.gender === "WOMEN" || payload.gender === "FEMALE") parsedGenders = [2];
 
+          const isSpecialCategory = Boolean(payload.specialAdCategory && payload.specialAdCategory !== "NONE");
+          const geoLocations = await MetaAdsCapabilityService.resolveGeoLocations(
+            {
+              cities: payload.cities || payload.targeting?.cities,
+              locationDescription: payload.locationDescription || payload.targeting?.locationDescription,
+              countries: payload.targeting?.countries || payload.countries || ["IN"],
+              radiusKm: payload.targeting?.radiusKm || payload.radiusKm,
+            },
+            isSpecialCategory,
+            config.accessToken
+          );
+
           const targetingObj: any = {
-            geo_locations: { countries: payload.targeting?.countries || ["IN"] },
+            geo_locations: geoLocations,
             age_min: payload.ageMin || payload.targeting?.ageMin || 18,
             age_max: payload.ageMax || payload.targeting?.ageMax || 65,
             genders: parsedGenders,

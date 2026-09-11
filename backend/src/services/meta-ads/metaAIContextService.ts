@@ -1,6 +1,7 @@
 import prisma from "../../utils/prisma";
 import axios from "axios";
 import { META_GRAPH_BASE, MetaAdsCoreService } from "./metaAdsCoreService";
+import { AccountPerformanceAudit, MetaAdsResearchService } from "./metaAdsResearchService";
 
 export interface MetaAdAccountContext {
   id: string;
@@ -39,6 +40,8 @@ export interface MetaWhatsAppNumberContext {
   verifiedName?: string;
   pageId?: string;
   pageName?: string;
+  wabaId?: string;
+  source?: "PAGE" | "WABA" | "WHATSAPP_CONFIG";
 }
 
 export interface MetaHistoricalCampaignSummary {
@@ -78,6 +81,7 @@ export interface MetaAdsContext {
   };
   currencies: string[];
   timezones: string[];
+  researchAudit?: AccountPerformanceAudit;
 }
 
 export class MetaAIContextService {
@@ -113,78 +117,66 @@ export class MetaAIContextService {
       return context;
     }
 
-    // 1. Fetch Ad Accounts (from Graph API and database)
-    try {
-      const rawAccounts = await MetaAdsCoreService.getAdAccounts(organizationId);
-      context.adAccounts = rawAccounts.map((acc: any) => ({
-        id: acc.id || acc.adAccountId,
-        adAccountId: acc.id || acc.adAccountId,
-        name: acc.name || `Ad Account (${acc.id})`,
-        accountStatus: acc.account_status ?? acc.accountStatus ?? 1,
-        currency: acc.currency || "INR",
-        timezoneName: acc.timezone_name || acc.timezoneName || "Asia/Kolkata",
-        businessName: acc.business_name || acc.businessName || null,
-        isActive: acc.account_status === 1 || acc.isActive !== false,
-      }));
+    // Parallelize all independent Meta Graph API context calls for ultra-fast page load / refresh
+    const fetchPromises = [
+      // 1. Fetch Ad Accounts
+      MetaAdsCoreService.getAdAccounts(organizationId).then((rawAccounts) => {
+        context.adAccounts = rawAccounts.map((acc: any) => ({
+          id: acc.id || acc.adAccountId,
+          adAccountId: acc.id || acc.adAccountId,
+          name: acc.name || `Ad Account (${acc.id})`,
+          accountStatus: acc.account_status ?? acc.accountStatus ?? 1,
+          currency: acc.currency || "INR",
+          timezoneName: acc.timezone_name || acc.timezoneName || "Asia/Kolkata",
+          businessName: acc.business_name || acc.businessName || null,
+          isActive: acc.account_status === 1 || acc.isActive !== false,
+        }));
+        context.adAccounts.forEach((acc) => {
+          if (acc.currency && !context.currencies.includes(acc.currency)) context.currencies.push(acc.currency);
+          if (acc.timezoneName && !context.timezones.includes(acc.timezoneName)) context.timezones.push(acc.timezoneName);
+        });
+      }).catch((e) => console.warn("[MetaAIContextService] Ad accounts load warning:", e.message)),
 
-      // Collect distinct currencies and timezones from connected accounts
-      context.adAccounts.forEach((acc) => {
-        if (acc.currency && !context.currencies.includes(acc.currency)) {
-          context.currencies.push(acc.currency);
-        }
-        if (acc.timezoneName && !context.timezones.includes(acc.timezoneName)) {
-          context.timezones.push(acc.timezoneName);
-        }
-      });
-    } catch (e: any) {
-      console.warn("[MetaAIContextService] Failed loading ad accounts:", e.message);
-    }
+      // 2. Fetch Facebook Pages
+      MetaAdsCoreService.getPages(organizationId).then((rawPages) => {
+        context.pages = rawPages.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          picture: p.picture?.data?.url,
+        }));
+      }).catch((e) => console.warn("[MetaAIContextService] Pages load warning:", e.message)),
 
-    // 2. Fetch Facebook Pages
-    try {
-      const rawPages = await MetaAdsCoreService.getPages(organizationId);
-      context.pages = rawPages.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        category: p.category,
-        picture: p.picture?.data?.url,
-      }));
-    } catch (e: any) {
-      console.warn("[MetaAIContextService] Failed loading pages:", e.message);
-    }
+      // 3. Fetch Instagram Accounts
+      MetaAdsCoreService.getInstagramAccounts(organizationId).then((inst) => {
+        context.instagramAccounts = inst;
+      }).catch((e) => console.warn("[MetaAIContextService] IG accounts load warning:", e.message)),
 
-    // 3. Fetch Instagram Business Accounts
-    try {
-      context.instagramAccounts = await MetaAdsCoreService.getInstagramAccounts(organizationId);
-    } catch (e: any) {
-      console.warn("[MetaAIContextService] Failed loading instagram accounts:", e.message);
-    }
+      // 4. Fetch Pixels
+      MetaAdsCoreService.getPixels(organizationId).then((rawPixels) => {
+        context.pixels = rawPixels.map((px: any) => ({
+          id: px.id,
+          name: px.name,
+          isUnavailable: px.is_unavailable,
+        }));
+      }).catch((e) => console.warn("[MetaAIContextService] Pixels load warning:", e.message)),
 
-    // 4. Fetch Meta Pixels
-    try {
-      const rawPixels = await MetaAdsCoreService.getPixels(organizationId);
-      context.pixels = rawPixels.map((px: any) => ({
-        id: px.id,
-        name: px.name,
-        isUnavailable: px.is_unavailable,
-      }));
-    } catch (e: any) {
-      console.warn("[MetaAIContextService] Failed loading pixels:", e.message);
-    }
+      // 5. Fetch WhatsApp Numbers
+      MetaAdsCoreService.getWhatsAppNumbers(organizationId).then((wa) => {
+        context.whatsAppNumbers = wa;
+      }).catch((e) => console.warn("[MetaAIContextService] WhatsApp load warning:", e.message)),
 
-    // 5. Fetch Connected WhatsApp Numbers
-    try {
-      context.whatsAppNumbers = await MetaAdsCoreService.getWhatsAppNumbers(organizationId);
-    } catch (e: any) {
-      console.warn("[MetaAIContextService] Failed loading WhatsApp numbers:", e.message);
-    }
+      // 6. Fetch Audiences
+      MetaAdsCoreService.getAudiences(organizationId).then((aud) => {
+        context.customAudiences = aud;
+      }).catch((e) => console.warn("[MetaAIContextService] Audiences load warning:", e.message)),
+    ];
 
-    // 6. Fetch Custom Audiences
-    try {
-      context.customAudiences = await MetaAdsCoreService.getAudiences(organizationId);
-    } catch (e: any) {
-      console.warn("[MetaAIContextService] Failed loading custom audiences:", e.message);
-    }
+    // Wrap with timeout to guarantee ultra-fast response
+    await Promise.allSettled([
+      Promise.allSettled(fetchPromises),
+      new Promise((resolve) => setTimeout(resolve, 300)),
+    ]);
 
     // 7. Fetch Live Historical Campaigns & Insights (from Graph API or Prisma DB)
     try {
@@ -269,6 +261,13 @@ export class MetaAIContextService {
       }
     } catch (e: any) {
       console.warn("[MetaAIContextService] Failed loading historical campaign insights:", e.message);
+    }
+
+    // 8. Run deep account analysis & audit
+    try {
+      context.researchAudit = MetaAdsResearchService.analyzeAccount(context);
+    } catch (auditErr: any) {
+      console.warn("[MetaAIContextService] Research audit computation warning:", auditErr.message);
     }
 
     return context;

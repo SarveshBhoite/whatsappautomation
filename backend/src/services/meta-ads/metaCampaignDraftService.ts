@@ -15,6 +15,15 @@ export interface MetaCampaignDraft {
   pageName?: string | null;
   instagramAccountId?: string | null;
   pixelId?: string | null;
+  conversationLanguage?: {
+    code: string;
+    name: string;
+    nativeName: string;
+    metaLocaleKey: number;
+    localeCode: string;
+    script: string;
+    confidence: number;
+  };
 
   campaign: {
     name?: string;
@@ -40,6 +49,8 @@ export interface MetaCampaignDraft {
     ageMax?: number;
     gender?: "ALL" | "MEN" | "WOMEN";
     interests?: string[];
+    locales?: number[];
+    languages?: string[];
     customAudiences?: string[];
     excludedAudiences?: string[];
     advantagePlusAudience?: boolean;
@@ -49,10 +60,25 @@ export interface MetaCampaignDraft {
   };
 
   destination: {
-    type?: "WHATSAPP" | "INSTANT_FORM" | "WEBSITE" | "MESSENGER" | "PHONE_CALL" | "INSTAGRAM_DM" | "APP";
+    type?: "WHATSAPP" | "INSTANT_FORM" | "WEBSITE" | "MESSENGER" | "PHONE_CALL" | "INSTAGRAM_DM" | "PAGE_EVENT" | "APP" | "SHOP" | "INSTAGRAM_PROFILE";
     destinationUrl?: string;
+    displayLink?: string;
+    browserAddOn?: "NONE" | "CALL" | "MESSENGER" | "WHATSAPP";
     whatsappPhoneNumber?: string;
+    phoneNumber?: string;
+    welcomeMessage?: string;
     leadGenFormId?: string;
+    leadGenFormTitle?: string;
+    leadGenFormFields?: string[];
+    leadGenCustomQuestions?: string[];
+    eventId?: string;
+    eventName?: string;
+    eventUrl?: string;
+    appUrl?: string;
+    appId?: string;
+    shopUrl?: string;
+    instagramProfileUrl?: string;
+    pixelId?: string;
     pixelTracking?: {
       pixelId?: string;
       conversionEvent?: string;
@@ -65,9 +91,37 @@ export interface MetaCampaignDraft {
     description?: string;
     callToAction?: string;
     visualDirection?: string;
+    aspectRatio?: "1:1" | "9:16";
     mediaUrl?: string;
     mediaType?: "IMAGE" | "VIDEO";
+    mediaApproved?: boolean;
+    copyApproved?: boolean;
     displayLink?: string;
+    variations?: Array<{
+      angle?: string;
+      headline?: string;
+      primaryText?: string;
+      description?: string;
+    }>;
+  };
+
+  abTesting?: {
+    enabled: boolean;
+    splitType?: "LOCATION" | "AUDIENCE" | "CREATIVE";
+    adSets?: Array<{
+      name: string;
+      cities?: string[];
+      interests?: string[];
+      budgetRatio?: number;
+    }>;
+  };
+
+  crmBotFlowLink?: {
+    autoLinkWhatsAppBot: boolean;
+    flowName?: string;
+    welcomeMessage?: string;
+    triggerKeyword?: string;
+    crmFlowId?: string;
   };
 
   sourceMap: Record<string, FieldProvenance>;
@@ -90,14 +144,24 @@ export class MetaCampaignDraftService {
       },
       targeting: {
         gender: "ALL",
-        advantagePlusAudience: true,
       },
-      destination: {
-        type: "WHATSAPP",
-      },
+      destination: {},
       creative: {},
       sourceMap: {},
-      missingFields: ["business_or_goal", "budget", "location"],
+      missingFields: [
+        "business_or_goal",
+        "special_category",
+        "destination",
+        "location",
+        "demographics_age_gender",
+        "interests_and_targeting",
+        "placements",
+        "budget",
+        "schedule",
+        "creative_visual",
+        "call_to_action",
+        "copy_approval"
+      ],
       recommendations: [],
     };
   }
@@ -124,11 +188,29 @@ export class MetaCampaignDraftService {
       return false; // Do not overwrite explicit user decision
     }
 
+    let finalValue: any = value;
+    if (path === "campaign.objective" && typeof value === "string") {
+      const valUpper = value.toUpperCase();
+      if (valUpper === "BRAND_AWARENESS" || valUpper === "REACH" || valUpper === "AWARENESS") {
+        finalValue = "OUTCOME_AWARENESS";
+      } else if (valUpper === "LEAD_GENERATION" || valUpper === "LEADS") {
+        finalValue = "OUTCOME_LEADS";
+      } else if (valUpper === "CONVERSIONS" || valUpper === "SALES" || valUpper === "PRODUCT_CATALOG_SALES") {
+        finalValue = "OUTCOME_SALES";
+      } else if (valUpper === "LINK_CLICKS" || valUpper === "TRAFFIC") {
+        finalValue = "OUTCOME_TRAFFIC";
+      } else if (valUpper === "MESSAGES" || valUpper === "POST_ENGAGEMENT" || valUpper === "ENGAGEMENT") {
+        finalValue = "OUTCOME_ENGAGEMENT";
+      } else if (valUpper === "APP_INSTALLS" || valUpper === "APP_PROMOTION") {
+        finalValue = "OUTCOME_APP_PROMOTION";
+      }
+    }
+
     // Apply to deep path in draft
-    this.assignDeepValue(draft, path, value);
+    this.assignDeepValue(draft, path, finalValue);
 
     draft.sourceMap[path] = {
-      value,
+      value: finalValue,
       source,
       confidence,
       reason,

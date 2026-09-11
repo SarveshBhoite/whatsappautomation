@@ -65,7 +65,7 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
             igConfigs: true,
             ytConfigs: true,
             linkedInConfig: true,
-            aiAgentConfig: true,
+            aiAgentConfigs: true,
           },
         },
       },
@@ -81,7 +81,7 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
     }
 
     const orgId = conversation.organizationId;
-    const aiConfig = conversation.organization.aiAgentConfig;
+    const aiConfig: any = conversation.organization?.aiAgentConfigs?.[0];
 
     // Default configuration if client hasn't saved one yet
     const agentName = aiConfig?.agentName || "AI Sales & Support Specialist";
@@ -89,6 +89,13 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
       "You are a warm, highly knowledgeable human sales & customer representative. Chat in a friendly, conversational tone. Answer questions based on trained company data. Attach relevant portfolio screenshots or PDFs when requested, and collect contact details if the user wants to be called back.";
     const activeMode = aiConfig?.activeMode || "AI_AGENT";
     const autoSendMedia = aiConfig?.autoSendMedia !== false;
+
+    // Resolve Groq API Key early for LLM
+    const groqApiKey = (aiConfig as any)?.groqApiKey?.trim() || process.env.GROQ_KEY;
+    if (!groqApiKey) {
+      console.warn("[AI AGENT ENGINE] GROQ_KEY is missing from configuration & environment.");
+      return;
+    }
 
     // 2. Fetch last 15 messages for natural dialogue context (ordered chronologically)
     const recentMessagesDesc = await prisma.message.findMany({
@@ -130,36 +137,65 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
         : "an audio file";
       customerQuery = `[The customer just sent ${mediaLabel}. Acknowledge receipt naturally and continue collecting any remaining information needed based on the recent chat context. Do NOT ask them to send the file again — it has been received.]`;
     } else if (rawContent.startsWith("[Received ")) {
-      // Already patched by webhook controller for media acknowledgement
       customerQuery = rawContent;
     }
 
-    const companyName = conversation.organization.name || "our company";
+    // 3a. Detect Meta Ad Referral & Click-to-WhatsApp Attribution
+let clickedAdHeadline: string | null = null;
+const adMatch = customerQuery.match(/\[Customer clicked Meta Ad:\s*"([^"]+)"\]/i) ||
+  rawContent.match(/\[Customer clicked Meta Ad:\s*"([^"]+)"\]/i);
+if (adMatch) {
+  clickedAdHeadline = adMatch[1].trim();
+} else {
+  for (const m of recentMessages) {
+    const histMatch = (m.content || "").match(/\[Customer clicked Meta Ad:\s*"([^"]+)"\]/i);
+    if (histMatch) {
+      clickedAdHeadline = histMatch[1].trim();
+      break;
+    }
+  }
+}
 
-    // Format Full Knowledge Base Context for THIS SPECIFIC ORGANIZATION ONLY
-    let knowledgeContextText = "";
-    if (allKnowledgeItems.length > 0) {
-      knowledgeContextText = allKnowledgeItems.map(k => `
+const companyName = conversation.organization.name || "our company";
+
+// Format Full Knowledge Base Context with Smart Meta Ad Matching
+let knowledgeContextText = "";
+let targetedAdAssetNote = "";
+
+if (allKnowledgeItems.length > 0) {
+  let sortedKnowledgeItems = [...allKnowledgeItems];
+  if (clickedAdHeadline) {
+    const headlineLower = clickedAdHeadline.toLowerCase();
+    sortedKnowledgeItems.sort((a, b) => {
+      const scoreA = (headlineLower.includes(a.topic.toLowerCase()) ? 10 : 0) +
+        (a.keywords && headlineLower.split(/\s+/).some(w => w.length > 3 && a.keywords.toLowerCase().includes(w)) ? 5 : 0);
+      const scoreB = (headlineLower.includes(b.topic.toLowerCase()) ? 10 : 0) +
+        (b.keywords && headlineLower.split(/\s+/).some(w => w.length > 3 && b.keywords.toLowerCase().includes(w)) ? 5 : 0);
+      return scoreB - scoreA;
+    });
+
+    const topMatchWithMedia = sortedKnowledgeItems.find(k => k.mediaUrl && (headlineLower.includes(k.topic.toLowerCase()) || (k.keywords && headlineLower.split(/\s+/).some(w => w.length > 3 && k.keywords.toLowerCase().includes(w)))));
+    if (topMatchWithMedia) {
+      targetedAdAssetNote = `\n[TARGET META AD ASSET AVAILABLE]: The customer arrived from Meta Ad "${clickedAdHeadline}". We have a matching asset "${topMatchWithMedia.mediaTitle || topMatchWithMedia.topic}" (Asset ID: "${topMatchWithMedia.id}"). If the customer confirms interest or asks for samples/details, attach this Asset ID in attachKnowledgeIds!\n`;
+    }
+  }
+
+  knowledgeContextText = sortedKnowledgeItems.map(k => `
 [KNOWLEDGE TOPIC: ${k.topic}] (Category: ${k.category})
 Keywords Tagged: ${k.keywords}
 Detailed Information: ${k.content}
 ${k.mediaUrl ? `Media Asset ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.mediaTitle || 'Attachment'}", URL: ${k.mediaUrl})` : 'No media asset attached'}
----`).join("\n");
-    } else {
-      knowledgeContextText = `Company Name: ${companyName}. Answer customer questions politely based on your training and offer to have our human team reach out.`;
-    }
+---`).join("\n") + targetedAdAssetNote;
+} else {
+  knowledgeContextText = `Company Name: ${companyName}. Answer customer questions politely based on your training and offer to have our human team reach out.`;
+}
 
-    // 4. Build Groq AI System Prompt with Dynamic Organization Awareness
-    const groqApiKey = (aiConfig as any)?.groqApiKey?.trim() || process.env.GROQ_KEY;
-    if (!groqApiKey) {
-      console.warn("[AI AGENT ENGINE] GROQ_KEY is missing from configuration & environment.");
-      return;
-    }
-    const currentTimestamp = new Date();
-    const currentDateStr = currentTimestamp.toISOString().split("T")[0];
-    const currentTimeStr = currentTimestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
+// 4. Build Groq AI System Prompt with Dynamic Organization Awareness
+const currentTimestamp = new Date();
+const currentDateStr = currentTimestamp.toISOString().split("T")[0];
+const currentTimeStr = currentTimestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
 
-    const systemPrompt = `You are "${agentName}", representing "${companyName}". You are a warm, highly intelligent, and human-like sales, growth and support consultant.
+const systemPrompt = `You are "${agentName}", representing "${companyName}". You are a warm, highly intelligent, and human-like sales, growth and support consultant.
 Current Date & Time in IST: ${currentDateStr} at ${currentTimeStr}.
 
 ### YOUR PERSONALITY & DIALOGUE GOALS:
@@ -187,8 +223,10 @@ Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. W
    - Detect the language of the customer's incoming message (e.g., Hindi, Marathi, Telugu, Tamil, Kannada, Gujarati, Hinglish, English, etc.).
    - Respond strictly in the EXACT SAME LANGUAGE as the user! Maintain this detected language for all subsequent responses throughout the chat history.
 8. **OUTBOUND TEMPLATE, ADS & CAMPAIGN CONTINUITY**:
-   - If the customer clicked on a Meta Ad (e.g. contains '[Customer clicked Meta Ad]' or mentions seeing an ad/offer/promotion), immediately welcome them enthusiastically to the promotion:
-     "Welcome! You've unlocked our active Meta Ads Special Offer: 50% OFF on all Website & Mobile App Development packages (starting at ₹5,999/-) and 30% OFF on Digital Marketing & SEO! What project can we help you build today to lock in your discount?"
+   - If the customer clicked on a Meta Ad (e.g. contains '[Customer clicked Meta Ad: "..."]' or mentions seeing an ad/offer/promotion):
+     - Extract the specific ad headline or topic from '[Customer clicked Meta Ad: "<Headline>"]'.
+     - Greet them warmly and enthusiastically confirm the specific offer, service, or topic mentioned in that ad headline using relevant details from ${companyName}'s trained knowledge base.
+     - Never contradict the ad topic. If the ad was about web development, SEO, leads, or a specific service, speak directly to that topic and invite them to share their project details or claim their promotional rate.
    - If the template offered a preview, catalog, rate card, or brochure, and the customer replies with confirmation (*"Yes send"*, *"Sure"*, *"Send it"*, *"Okay"*), IMMEDIATELY respond warmly and include the matching asset ID in "attachKnowledgeIds".
    - If the customer asks *"Why are you messaging me?"* or *"Who is this?"*, explain naturally: *"We reached out from ${companyName} regarding the offer/information sent above to see if it would help your business!"*
 9. **GOOGLE MEET APPOINTMENT BOOKING (CRITICAL RULE)**:
@@ -209,7 +247,8 @@ Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. W
          "timeStr": "<HH:MM AM/PM>",
          "title": "<Dynamic Subject/Title Based On User Topic>"
        }
->>>>>>> origin/feature/multi-id
+   - If not booking:
+     - Keep "requestedAppointment": { "isBookingRequested": false }
 
 ### TRAINED COMPANY KNOWLEDGE BASE DATA:
 ${knowledgeContextText}
@@ -254,462 +293,468 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
   }
 }`;
 
-    // 5. Call Groq REST API using GPT model
-    let response: any;
-    const primaryModel = "openai/gpt-oss-120b";
-    const fallbackModel = "openai/gpt-oss-120b";
+// 5. Call Groq REST API using GPT model
+let response: any;
+const primaryModel = "openai/gpt-oss-120b";
+const fallbackModel = "openai/gpt-oss-120b";
 
-    try {
-      response = await axios.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          model: primaryModel,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }
-          ],
-          temperature: 0.6,
-          response_format: { type: "json_object" }
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${groqApiKey}`,
-            "Content-Type": "application/json"
-          }
-        }
-      );
-    } catch (primaryErr: any) {
-      if (primaryErr?.response?.data?.error?.code === "rate_limit_exceeded" || primaryErr?.response?.status === 429) {
-        console.warn(`[AI AGENT ENGINE] Primary model ${primaryModel} rate limited. Retrying with fallback model ${fallbackModel}...`);
-        response = await axios.post(
-          "https://api.groq.com/openai/v1/chat/completions",
-          {
-            model: fallbackModel,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }
-            ],
-            temperature: 0.6,
-            response_format: { type: "json_object" }
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${groqApiKey}`,
-              "Content-Type": "application/json"
-            }
-          }
-        );
-      } else {
-        throw primaryErr;
+try {
+  response = await axios.post(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      model: primaryModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }
+      ],
+      temperature: 0.6,
+      response_format: { type: "json_object" }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${groqApiKey}`,
+        "Content-Type": "application/json"
       }
     }
-
-    const rawChoiceContent = response.data.choices?.[0]?.message?.content;
-    if (!rawChoiceContent) {
-      console.error("[AI AGENT ENGINE] Empty response from Groq API.");
-      return;
-    }
-
-    let parsedResult: any;
-    try {
-      parsedResult = JSON.parse(rawChoiceContent);
-    } catch (parseErr) {
-      console.error("[AI AGENT ENGINE] Error parsing JSON from Groq:", parseErr);
-      parsedResult = { replyText: rawChoiceContent };
-    }
-
-    let replyText = parsedResult.replyText || "Thank you for reaching out! Let me connect you with our team specialist for full details.";
-    
-    // Strip any hallucinated/fake meet.google.com links the LLM might have written
-    replyText = replyText.replace(/https?:\/\/meet\.google\.com\/[a-zA-Z0-9_-]+/gi, "").trim();
-
-    const customerPhone = conversation.customerPhone;
-
-    // Scan full chat history & current message for email address
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-    const combinedChatText = `${recentMessages.map(m => m.content).join(" ")} ${customerQuery} ${replyText}`;
-    const matchedEmails = combinedChatText.match(emailRegex);
-    const extractedEmail = parsedResult.requestedAppointment?.customerEmail || (matchedEmails ? matchedEmails[0] : null);
-
-    // 5.5 Automatic Google Calendar & Google Meet Appointment Scheduling
-    // CRITICAL: ONLY trigger when customer EXPLICITLY requests a meeting/call in their current message OR the LLM marked isBookingRequested = true
-    const explicitBookingRegex = /\b(schedule|book|appointment|calendar|google\s+meet|zoom|consultation|joining\s+link|meet\s+link|call\s+me|set\s+up\s+a\s+meeting|demo\s+call|arrange\s+a\s+meet)\b/i;
-    const isExplicitlyRequestedByCustomer = explicitBookingRegex.test(customerQuery);
-    const isBookingRequested = Boolean(
-      (parsedResult.requestedAppointment?.isBookingRequested === true && isExplicitlyRequestedByCustomer) ||
-      (isExplicitlyRequestedByCustomer && !/^(hi|hii|hiii|hello|hey|good\s+morning|good\s+evening|namaste)$/i.test(customerQuery.trim()))
+  );
+} catch (primaryErr: any) {
+  if (primaryErr?.response?.data?.error?.code === "rate_limit_exceeded" || primaryErr?.response?.status === 429) {
+    console.warn(`[AI AGENT ENGINE] Primary model ${primaryModel} rate limited. Retrying with fallback model ${fallbackModel}...`);
+    response = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        model: fallbackModel,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }
+        ],
+        temperature: 0.6,
+        response_format: { type: "json_object" }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${groqApiKey}`,
+          "Content-Type": "application/json"
+        }
+      }
     );
+  } else {
+    throw primaryErr;
+  }
+}
 
-    if (isBookingRequested) {
-      try {
-        const reqAppt = parsedResult.requestedAppointment || {};
-        const isInstant = /instant|now|right now|immediately|today/i.test(customerQuery);
-        
-        let startTime: Date;
-        if (isInstant || !reqAppt.dateStr) {
-          // Instant meeting starts now (or within 2 minutes)
-          startTime = new Date();
-        } else {
-          const apptDate = reqAppt.dateStr;
-          const apptTime = reqAppt.timeStr || "11:00 AM";
-          const startTimeStr = `${apptDate} ${apptTime}`;
-          startTime = isNaN(new Date(startTimeStr).getTime()) ? new Date() : new Date(startTimeStr);
-        }
-        const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);
+const rawChoiceContent = response.data.choices?.[0]?.message?.content;
+if (!rawChoiceContent) {
+  console.error("[AI AGENT ENGINE] Empty response from Groq API.");
+  return;
+}
 
-        const customerName = reqAppt.customerName || conversation.customerName || customerPhone;
+let parsedResult: any;
+try {
+  parsedResult = JSON.parse(rawChoiceContent);
+} catch (parseErr) {
+  console.error("[AI AGENT ENGINE] Error parsing JSON from Groq:", parseErr);
+  parsedResult = { replyText: rawChoiceContent };
+}
 
-        // Dynamic Title Generation matching user context
-        let dynamicTitle = reqAppt.title;
-        if (!dynamicTitle || dynamicTitle === "AI Consultation / Demo / Service Meeting" || dynamicTitle === "AI Strategy & Consultation Meeting") {
-          if (/seo|ranking|google search/i.test(customerQuery)) {
-            dynamicTitle = `SEO & Search Growth Consultation with ${customerName}`;
-          } else if (/web|website|portal|app|development|software/i.test(customerQuery)) {
-            dynamicTitle = `Web & App Development Strategy Session with ${customerName}`;
-          } else if (/ad|meta|facebook|instagram|ppc/i.test(customerQuery)) {
-            dynamicTitle = `Performance Ads & ROI Consultation with ${customerName}`;
-          } else if (/job|career|interview|resume|hiring/i.test(customerQuery)) {
-            dynamicTitle = `Careers & Candidate Interview Call with ${customerName}`;
-          } else if (isInstant) {
-            dynamicTitle = `Instant Strategy Call with ${customerName}`;
-          } else {
-            dynamicTitle = `Strategy & Growth Consultation with ${customerName}`;
-          }
-        }
+let replyText = parsedResult.replyText || "Thank you for reaching out! Let me connect you with our team specialist for full details.";
 
-        const { AppointmentService } = require("./appointmentService");
-        const apptResult = await AppointmentService.createAppointment({
-          organizationId: orgId,
-          conversationId: conversation.id,
-          customerPhone,
-          customerName,
-          customerEmail: extractedEmail || null,
-          title: dynamicTitle,
-          description: `Booked via WhatsApp AI Agent. Topic: ${customerQuery}`,
-          startTime,
-          endTime,
-          timezone: "Asia/Kolkata",
-          skipWhatsAppNotification: true // AI agent sends the single combined natural reply below
-        });
+// Strip any hallucinated/fake meet.google.com links the LLM might have written
+replyText = replyText.replace(/https?:\/\/meet\.google\.com\/[a-zA-Z0-9_-]+/gi, "").trim();
 
-        const formattedDate = new Date(startTime).toLocaleDateString("en-IN", {
-          weekday: "short",
-          day: "numeric",
-          month: "short",
-          year: "numeric"
-        });
-        const formattedTime = `${new Date(startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+const customerPhone = conversation.customerPhone;
 
-        // Clean out any broken LLM text remnants like "here's a link:" before appending real link
-        replyText = replyText
-          .replace(/here['’]?s\s+(a\s+)?(fresh\s+)?(google\s+meet\s+)?link:?/gi, "")
-          .replace(/sure,?\s*:?/gi, "")
-          .replace(/let me know if you need anything else\.?/gi, "")
-          .trim();
+// Scan full chat history & current message for email address
+const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+const combinedChatText = `${recentMessages.map(m => m.content).join(" ")} ${customerQuery} ${replyText}`;
+const matchedEmails = combinedChatText.match(emailRegex);
+const extractedEmail = parsedResult.requestedAppointment?.customerEmail || (matchedEmails ? matchedEmails[0] : null);
 
-        const prefix = replyText ? `${replyText}\n\n` : "I have scheduled your consultation right away!\n\n";
+// 5.5 Automatic Google Calendar & Google Meet Appointment Scheduling
+// CRITICAL: ONLY trigger when customer EXPLICITLY requests a meeting/call in their current message OR the LLM marked isBookingRequested = true
+const explicitBookingRegex = /\b(schedule|book|appointment|calendar|google\s+meet|zoom|consultation|joining\s+link|meet\s+link|call\s+me|set\s+up\s+a\s+meeting|demo\s+call|arrange\s+a\s+meet)\b/i;
+const isExplicitlyRequestedByCustomer = explicitBookingRegex.test(customerQuery);
+const isBookingRequested = Boolean(
+  (parsedResult.requestedAppointment?.isBookingRequested === true && isExplicitlyRequestedByCustomer) ||
+  (isExplicitlyRequestedByCustomer && !/^(hi|hii|hiii|hello|hey|good\s+morning|good\s+evening|namaste)$/i.test(customerQuery.trim()))
+);
 
-        // Attach verified, genuine Google Meet link to the WhatsApp message
-        if (apptResult.meetUrl) {
-          replyText = `${prefix}🎥 *Join Google Meet:* ${apptResult.meetUrl}\n📅 *Time:* ${formattedDate} at ${formattedTime}\n\nLooking forward to speaking with you!`;
-        }
+if (isBookingRequested) {
+  try {
+    const reqAppt = parsedResult.requestedAppointment || {};
+    const isInstant = /instant|now|right now|immediately|today/i.test(customerQuery);
 
-        console.log(`[AI AGENT ENGINE] 🚀 Authentic Google Meet link generated & saved to Appointments for ${customerName} (${customerPhone}): ${apptResult.meetUrl}`);
-      } catch (apptErr: any) {
-        console.error("[AI AGENT ENGINE] Appointment scheduling error:", apptErr.message);
-      }
+    let startTime: Date;
+    if (isInstant || !reqAppt.dateStr) {
+      // Instant meeting starts now (or within 2 minutes)
+      startTime = new Date();
+    } else {
+      const apptDate = reqAppt.dateStr;
+      const apptTime = reqAppt.timeStr || "11:00 AM";
+      const startTimeStr = `${apptDate} ${apptTime}`;
+      startTime = isNaN(new Date(startTimeStr).getTime()) ? new Date() : new Date(startTimeStr);
     }
-    
-    // Support single ID or array of IDs
-    let rawAttachIds: string[] = [];
-    if (Array.isArray(parsedResult.attachKnowledgeIds)) {
-      rawAttachIds = parsedResult.attachKnowledgeIds;
-    } else if (parsedResult.attachKnowledgeId) {
-      rawAttachIds = [parsedResult.attachKnowledgeId];
-    }
+    const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);
 
-    // 6. Collect all matching Knowledge Media Items
-    const attachedItems: KnowledgeItem[] = [];
-    if (autoSendMedia && rawAttachIds.length > 0) {
-      for (const id of rawAttachIds) {
-        const found = allKnowledgeItems.find(k => k.id === id);
-        if (found && found.mediaUrl) {
-          attachedItems.push(found as KnowledgeItem);
-        }
+    const customerName = reqAppt.customerName || conversation.customerName || customerPhone;
+
+    // Dynamic Title Generation matching user context
+    let dynamicTitle = reqAppt.title;
+    if (!dynamicTitle || dynamicTitle === "AI Consultation / Demo / Service Meeting" || dynamicTitle === "AI Strategy & Consultation Meeting") {
+      if (/seo|ranking|google search/i.test(customerQuery)) {
+        dynamicTitle = `SEO & Search Growth Consultation with ${customerName}`;
+      } else if (/web|website|portal|app|development|software/i.test(customerQuery)) {
+        dynamicTitle = `Web & App Development Strategy Session with ${customerName}`;
+      } else if (/ad|meta|facebook|instagram|ppc/i.test(customerQuery)) {
+        dynamicTitle = `Performance Ads & ROI Consultation with ${customerName}`;
+      } else if (/job|career|interview|resume|hiring/i.test(customerQuery)) {
+        dynamicTitle = `Careers & Candidate Interview Call with ${customerName}`;
+      } else if (isInstant) {
+        dynamicTitle = `Instant Strategy Call with ${customerName}`;
+      } else {
+        dynamicTitle = `Strategy & Growth Consultation with ${customerName}`;
       }
     }
 
-    // 7. Save AI Agent Response to DB & Dispatch via Channel API
-    const isWhatsApp = conversation.platform === "whatsapp";
-    const isInstagram = conversation.platform === "instagram";
-    const isYouTube = conversation.platform === "youtube";
-    const isLinkedIn = conversation.platform === "linkedin";
+    const { AppointmentService } = require("./appointmentService");
+    const apptResult = await AppointmentService.createAppointment({
+      organizationId: orgId,
+      conversationId: conversation.id,
+      customerPhone,
+      customerName,
+      customerEmail: extractedEmail || null,
+      title: dynamicTitle,
+      description: `Booked via WhatsApp AI Agent. Topic: ${customerQuery}`,
+      startTime,
+      endTime,
+      timezone: "Asia/Kolkata",
+      skipWhatsAppNotification: true // AI agent sends the single combined natural reply below
+    });
 
-    const conversationPhoneId = (conversation as any).phoneNumberId;
-    const waConfig = (conversationPhoneId 
-      ? conversation.organization.waConfigs?.find((c: any) => c.phoneNumberId === conversationPhoneId)
-      : null) || conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
-    const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
-    const ytConfig = (conversation.organization as any).ytConfigs?.find((a: any) => a.isDefault) || (conversation.organization as any).ytConfigs?.[0];
-    const linkedInConfig = conversation.organization.linkedInConfig;
+    const formattedDate = new Date(startTime).toLocaleDateString("en-IN", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+    const formattedTime = `${new Date(startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
-    // Dispatch Text Message
-    let outWaId: string | null = null;
+    // Clean out any broken LLM text remnants like "here's a link:" before appending real link
+    replyText = replyText
+      .replace(/here['’]?s\s+(a\s+)?(fresh\s+)?(google\s+meet\s+)?link:?/gi, "")
+      .replace(/sure,?\s*:?/gi, "")
+      .replace(/let me know if you need anything else\.?/gi, "")
+      .trim();
+
+    const prefix = replyText ? `${replyText}\n\n` : "I have scheduled your consultation right away!\n\n";
+
+    // Attach verified, genuine Google Meet link to the WhatsApp message
+    if (apptResult.meetUrl) {
+      replyText = `${prefix}🎥 *Join Google Meet:* ${apptResult.meetUrl}\n📅 *Time:* ${formattedDate} at ${formattedTime}\n\nLooking forward to speaking with you!`;
+    }
+
+    console.log(`[AI AGENT ENGINE] 🚀 Authentic Google Meet link generated & saved to Appointments for ${customerName} (${customerPhone}): ${apptResult.meetUrl}`);
+  } catch (apptErr: any) {
+    console.error("[AI AGENT ENGINE] Appointment scheduling error:", apptErr.message);
+  }
+}
+
+// Support single ID or array of IDs
+let rawAttachIds: string[] = [];
+if (Array.isArray(parsedResult.attachKnowledgeIds)) {
+  rawAttachIds = parsedResult.attachKnowledgeIds;
+} else if (parsedResult.attachKnowledgeId) {
+  rawAttachIds = [parsedResult.attachKnowledgeId];
+}
+
+// 6. Collect all matching Knowledge Media Items
+const attachedItems: KnowledgeItem[] = [];
+if (autoSendMedia && rawAttachIds.length > 0) {
+  for (const id of rawAttachIds) {
+    const found = allKnowledgeItems.find(k => k.id === id);
+    if (found && found.mediaUrl) {
+      attachedItems.push(found as KnowledgeItem);
+    }
+  }
+}
+
+// 7. Save AI Agent Response to DB & Dispatch via Channel API
+const isWhatsApp = conversation.platform === "whatsapp";
+const isInstagram = conversation.platform === "instagram";
+const isYouTube = conversation.platform === "youtube";
+const isLinkedIn = conversation.platform === "linkedin";
+
+const conversationPhoneId = (conversation as any).phoneNumberId;
+const waConfig = (conversationPhoneId
+  ? conversation.organization.waConfigs?.find((c: any) => c.phoneNumberId === conversationPhoneId)
+  : null) || conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
+const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
+const ytConfig = (conversation.organization as any).ytConfigs?.find((a: any) => a.isDefault) || (conversation.organization as any).ytConfigs?.[0];
+const linkedInConfig = conversation.organization.linkedInConfig;
+
+// Dispatch Text Message
+let outWaId: string | null = null;
+if (isWhatsApp && waConfig?.phoneNumberId && waConfig?.accessToken) {
+  const resData = await WhatsAppService.sendTextMessage(
+    waConfig.phoneNumberId,
+    waConfig.accessToken,
+    customerPhone,
+    replyText
+  );
+  outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
+} else if (isInstagram && igConfig?.pageId && igConfig?.pageAccessToken) {
+  await InstagramService.sendTextMessage(
+    igConfig.pageAccessToken,
+    customerPhone,
+    replyText
+  );
+} else if (isYouTube && ytConfig?.accessToken) {
+  await YouTubeService.sendCommentReply(
+    ytConfig.channelId || "",
+    ytConfig.accessToken,
+    customerPhone,
+    replyText
+  );
+} else if (isLinkedIn && linkedInConfig?.accessToken) {
+  await LinkedInService.replyToComment(
+    linkedInConfig.accessToken,
+    customerPhone,
+    replyText
+  );
+}
+
+// Save text message in Database
+const savedTextMessage = await prisma.message.create({
+  data: {
+    conversationId: conversation.id,
+    direction: "outbound",
+    messageType: "text",
+    content: replyText,
+    waMessageId: outWaId,
+    status: "sent",
+    senderName: agentName,
+  },
+});
+
+// Broadcast Socket.IO event for live agent dashboard monitoring
+try {
+  const { io: socketIo } = require("../index");
+  if (socketIo) {
+    socketIo.to(orgId).emit("new-message", {
+      conversationId: conversation.id,
+      message: savedTextMessage,
+    });
+  }
+} catch (ioErr: any) {
+  console.warn("[AI AGENT ENGINE] Socket emit warning:", ioErr.message);
+}
+
+// Dispatch Attached Media (Screenshot / PDF / Multiple Images) if requested
+for (const attachedItem of attachedItems) {
+  if (!attachedItem.mediaUrl) continue;
+
+  const mediaType = attachedItem.mediaType || "image";
+  const rawMediaString = attachedItem.mediaUrl.trim();
+  const mediaCaption = attachedItem.mediaTitle || attachedItem.topic;
+
+  // Extract all media URLs (supports single URL, comma-separated, pipe-separated, or JSON array string)
+  let mediaUrls: string[] = [];
+  if (rawMediaString.startsWith("[")) {
+    try { mediaUrls = JSON.parse(rawMediaString); } catch (e) { mediaUrls = [rawMediaString]; }
+  } else if (rawMediaString.includes(",")) {
+    mediaUrls = rawMediaString.split(",").map(u => u.trim()).filter(Boolean);
+  } else if (rawMediaString.includes("|")) {
+    mediaUrls = rawMediaString.split("|").map(u => u.trim()).filter(Boolean);
+  } else {
+    mediaUrls = [rawMediaString];
+  }
+
+  for (const singleMediaUrl of mediaUrls) {
+    if (!singleMediaUrl) continue;
+
+    let mediaWaId: string | null = null;
     if (isWhatsApp && waConfig?.phoneNumberId && waConfig?.accessToken) {
-      const resData = await WhatsAppService.sendTextMessage(
+      const resMediaData = await WhatsAppService.sendMediaMessage(
         waConfig.phoneNumberId,
         waConfig.accessToken,
         customerPhone,
-        replyText
+        mediaType === "document" ? "document" : "image",
+        singleMediaUrl,
+        attachedItem.mediaTitle || undefined,
+        mediaCaption || undefined
       );
-      outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
-    } else if (isInstagram && igConfig?.pageId && igConfig?.pageAccessToken) {
-      await InstagramService.sendTextMessage(
+      mediaWaId = resMediaData?.messages?.[0]?.id || resMediaData?.message_id || null;
+    } else if (isInstagram && igConfig?.pageAccessToken) {
+      await InstagramService.sendMediaMessage(
         igConfig.pageAccessToken,
         customerPhone,
-        replyText
-      );
-    } else if (isYouTube && ytConfig?.accessToken) {
-      await YouTubeService.sendCommentReply(
-        ytConfig.channelId || "",
-        ytConfig.accessToken,
-        customerPhone,
-        replyText
-      );
-    } else if (isLinkedIn && linkedInConfig?.accessToken) {
-      await LinkedInService.replyToComment(
-        linkedInConfig.accessToken,
-        customerPhone,
-        replyText
+        mediaType === "document" ? "document" : "image",
+        singleMediaUrl,
+        attachedItem.mediaTitle || undefined,
+        mediaCaption
       );
     }
 
-    // Save text message in Database
-    const savedTextMessage = await prisma.message.create({
+    // Save media message in DB
+    const savedMediaMessage = await prisma.message.create({
       data: {
         conversationId: conversation.id,
         direction: "outbound",
-        messageType: "text",
-        content: replyText,
-        waMessageId: outWaId,
+        messageType: mediaType === "document" ? "document" : "image",
+        content: mediaType === "document" ? `${attachedItem.mediaTitle || 'Document.pdf'}|${singleMediaUrl}` : singleMediaUrl,
+        mediaUrl: singleMediaUrl,
+        waMessageId: mediaWaId,
         status: "sent",
         senderName: agentName,
       },
     });
 
-    // Broadcast Socket.IO event for live agent dashboard monitoring
     try {
       const { io: socketIo } = require("../index");
       if (socketIo) {
         socketIo.to(orgId).emit("new-message", {
           conversationId: conversation.id,
-          message: savedTextMessage,
+          message: savedMediaMessage,
         });
       }
     } catch (ioErr: any) {
-      console.warn("[AI AGENT ENGINE] Socket emit warning:", ioErr.message);
-    }
-
-    // Dispatch Attached Media (Screenshot / PDF / Multiple Images) if requested
-    for (const attachedItem of attachedItems) {
-      if (!attachedItem.mediaUrl) continue;
-
-      const mediaType = attachedItem.mediaType || "image";
-      const rawMediaString = attachedItem.mediaUrl.trim();
-      const mediaCaption = attachedItem.mediaTitle || attachedItem.topic;
-
-      // Extract all media URLs (supports single URL, comma-separated, pipe-separated, or JSON array string)
-      let mediaUrls: string[] = [];
-      if (rawMediaString.startsWith("[")) {
-        try { mediaUrls = JSON.parse(rawMediaString); } catch(e) { mediaUrls = [rawMediaString]; }
-      } else if (rawMediaString.includes(",")) {
-        mediaUrls = rawMediaString.split(",").map(u => u.trim()).filter(Boolean);
-      } else if (rawMediaString.includes("|")) {
-        mediaUrls = rawMediaString.split("|").map(u => u.trim()).filter(Boolean);
-      } else {
-        mediaUrls = [rawMediaString];
-      }
-
-      for (const singleMediaUrl of mediaUrls) {
-        if (!singleMediaUrl) continue;
-
-        let mediaWaId: string | null = null;
-        if (isWhatsApp && waConfig?.phoneNumberId && waConfig?.accessToken) {
-          const resMediaData = await WhatsAppService.sendMediaMessage(
-            waConfig.phoneNumberId,
-            waConfig.accessToken,
-            customerPhone,
-            mediaType === "document" ? "document" : "image",
-            singleMediaUrl,
-            attachedItem.mediaTitle || undefined,
-            mediaCaption || undefined
-          );
-          mediaWaId = resMediaData?.messages?.[0]?.id || resMediaData?.message_id || null;
-        } else if (isInstagram && igConfig?.pageAccessToken) {
-          await InstagramService.sendMediaMessage(
-            igConfig.pageAccessToken,
-            customerPhone,
-            mediaType === "document" ? "document" : "image",
-            singleMediaUrl,
-            attachedItem.mediaTitle || undefined,
-            mediaCaption
-          );
-        }
-
-        // Save media message in DB
-        const savedMediaMessage = await prisma.message.create({
-          data: {
-            conversationId: conversation.id,
-            direction: "outbound",
-            messageType: mediaType === "document" ? "document" : "image",
-            content: mediaType === "document" ? `${attachedItem.mediaTitle || 'Document.pdf'}|${singleMediaUrl}` : singleMediaUrl,
-            mediaUrl: singleMediaUrl,
-            waMessageId: mediaWaId,
-            status: "sent",
-            senderName: agentName,
-          },
-        });
-
-        try {
-          const { io: socketIo } = require("../index");
-          if (socketIo) {
-            socketIo.to(orgId).emit("new-message", {
-              conversationId: conversation.id,
-              message: savedMediaMessage,
-            });
-          }
-        } catch (ioErr: any) {
-          console.warn("[AI AGENT ENGINE] Socket media emit warning:", ioErr.message);
-        }
-      }
-    }
-
-    // 8. Handle AI Captured Lead (Service requirement, pricing, job inquiries, callback requests)
-    // Ignore system notifications, deleted messages, or calls
-    const isSystemMessage = customerQuery.startsWith("ℹ️") || 
-                            customerQuery.startsWith("💬") || 
-                            customerQuery.startsWith("📞") || 
-                            customerQuery.startsWith("🗑️") || 
-                            /system notification|unsupported payload/i.test(customerQuery);
-
-    const isLeadExpressingInterest = !isSystemMessage && (
-      parsedResult?.capturedLead?.isLead === true ||
-      (parsedResult?.capturedLead && (parsedResult.capturedLead.phone || parsedResult.capturedLead.email || parsedResult.capturedLead.name || parsedResult.capturedLead.topic)) ||
-      /\b(website|web app|web dev|web design|landing page|seo|google ranking|digital marketing|meta ads|social media|mobile app|android app|ios app|flutter|pricing|cost|discount|quote|hiring|job|resume|cv|vacancy)\b/i.test(customerQuery)
-    );
-
-    if (isLeadExpressingInterest) {
-      const leadData = parsedResult?.capturedLead || {};
-      
-      // Check if conversation history is a job application
-      const isJobCandidateContext = recentMessages.some(m => /\b(job|career|resume|cv|hiring|vacancy|interview|apply|applying)\b/i.test(m.content));
-
-      // Determine precise topic
-      let topicSummary = leadData.topic || "";
-      if (isJobCandidateContext) {
-        topicSummary = `Job Candidate / Hiring Inquiry (${customerQuery.slice(0, 50)})`;
-      } else if (!topicSummary || topicSummary === "extracted_topic_or_null") {
-        if (/\b(website|web app|web dev|web design|landing page)\b/i.test(customerQuery)) topicSummary = "Website Development";
-        else if (/\b(android app|ios app|mobile app|flutter|react native)\b/i.test(customerQuery)) topicSummary = "Mobile App Development";
-        else if (/\b(seo|google ranking|search engine)\b/i.test(customerQuery)) topicSummary = "SEO & Google Ranking";
-        else if (/\b(digital marketing|meta ads|social media|smm)\b/i.test(customerQuery)) topicSummary = "Digital Marketing & Ads";
-        else if (/\b(job|career|resume|cv|hiring|vacancy|interview)\b/i.test(customerQuery)) topicSummary = "Job Candidate / Hiring Inquiry";
-        else if (/\b(price|pricing|cost|quote|discount|package|rate)\b/i.test(customerQuery)) topicSummary = "Pricing & Package Inquiry";
-        else topicSummary = customerQuery.slice(0, 100);
-      }
-
-      const notesText = (leadData.notes && leadData.notes !== "additional_notes_or_null") 
-        ? leadData.notes 
-        : `Discussed ${topicSummary} via ${conversation.platform || 'WhatsApp'}`;
-      
-      const leadName = (leadData.name && leadData.name !== "extracted_name_or_null") ? leadData.name : (conversation.customerName || "WhatsApp Lead");
-      const leadEmail = (leadData.email && leadData.email !== "extracted_email_or_null") ? leadData.email : null;
-
-      try {
-        const existingLead = await prisma.aiCapturedLead.findFirst({
-          where: { organizationId: orgId, customerPhone }
-        });
-
-        if (existingLead) {
-          await prisma.aiCapturedLead.update({
-            where: { id: existingLead.id },
-            data: {
-              customerName: leadName !== "WhatsApp Lead" ? leadName : existingLead.customerName,
-              email: leadEmail || existingLead.email,
-              topicDiscussed: topicSummary.slice(0, 255),
-              notes: notesText,
-              updatedAt: new Date(),
-            }
-          });
-          console.log(`[AI AGENT ENGINE] ✅ Lead updated for phone: ${customerPhone} -> ${topicSummary}`);
-        } else {
-          await prisma.aiCapturedLead.create({
-            data: {
-              organizationId: orgId,
-              customerPhone,
-              customerName: leadName,
-              email: leadEmail,
-              topicDiscussed: topicSummary.slice(0, 255),
-              notes: notesText,
-              status: "NEW",
-            }
-          });
-          console.log(`[AI AGENT ENGINE] ✅ New Lead captured for phone: ${customerPhone} -> ${topicSummary}`);
-        }
-      } catch (leadErr: any) {
-        console.error(`[AI AGENT ENGINE] Error saving captured lead:`, leadErr.message);
-      }
-    }
-
-    console.log(`[AI AGENT ENGINE] Replied to ${customerPhone} with "${replyText.slice(0, 40)}..."`);
-  } catch (error: any) {
-    console.error("[AI AGENT ENGINE] Error processing AI chat:", JSON.stringify(error.response?.data || error.message || error, null, 2));
-    
-    // GUARANTEED ZERO UNREPLIED MESSAGES FALLBACK
-    try {
-      const fallbackConv = await prisma.conversation.findUnique({
-        where: { id: conversationId },
-        include: { organization: { include: { waConfigs: true, igConfigs: true } } },
-      });
-      if (fallbackConv && !fallbackConv.isBotPaused) {
-        const fallbackText = "Thank you for reaching out to Jisnu Digital Solutions! Our senior representative has received your message and will guide you personally in just a moment.";
-        const waConfig = fallbackConv.organization.waConfigs?.find((c: any) => c.isDefault) || fallbackConv.organization.waConfigs?.[0];
-        const customerPhone = fallbackConv.customerPhone;
-        
-        let outWaId: string | null = null;
-        if (fallbackConv.platform === "whatsapp" && waConfig?.phoneNumberId && waConfig?.accessToken) {
-          const resData = await WhatsAppService.sendTextMessage(
-            waConfig.phoneNumberId,
-            waConfig.accessToken,
-            customerPhone,
-            fallbackText
-          );
-          outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
-        }
-
-        const savedFallback = await prisma.message.create({
-          data: {
-            conversationId: fallbackConv.id,
-            direction: "outbound",
-            messageType: "text",
-            content: fallbackText,
-            waMessageId: outWaId,
-            status: "sent",
-            senderName: "AI Sales Specialist",
-          },
-        });
-
-        const { io: socketIo } = require("../index");
-        if (socketIo) {
-          socketIo.to(fallbackConv.organizationId).emit("new-message", {
-            conversationId: fallbackConv.id,
-            message: savedFallback,
-          });
-        }
-        console.log(`[AI AGENT ENGINE] Emergency fallback reply sent to ${customerPhone}`);
-      }
-    } catch (fallbackErr: any) {
-      console.error("[AI AGENT ENGINE] Emergency fallback error:", fallbackErr.message);
+      console.warn("[AI AGENT ENGINE] Socket media emit warning:", ioErr.message);
     }
   }
+}
+
+// 8. Handle AI Captured Lead (Service requirement, pricing, job inquiries, callback requests)
+// Ignore system notifications, deleted messages, or calls
+const isSystemMessage = customerQuery.startsWith("ℹ️") ||
+  customerQuery.startsWith("💬") ||
+  customerQuery.startsWith("📞") ||
+  customerQuery.startsWith("🗑️") ||
+  /system notification|unsupported payload/i.test(customerQuery);
+
+const isLeadExpressingInterest = !isSystemMessage && (
+  parsedResult?.capturedLead?.isLead === true ||
+  (parsedResult?.capturedLead && (parsedResult.capturedLead.phone || parsedResult.capturedLead.email || parsedResult.capturedLead.name || parsedResult.capturedLead.topic)) ||
+  /\b(website|web app|web dev|web design|landing page|seo|google ranking|digital marketing|meta ads|social media|mobile app|android app|ios app|flutter|pricing|cost|discount|quote|hiring|job|resume|cv|vacancy)\b/i.test(customerQuery)
+);
+
+if (isLeadExpressingInterest) {
+  const leadData = parsedResult?.capturedLead || {};
+
+  // Check if conversation history is a job application
+  const isJobCandidateContext = recentMessages.some(m => /\b(job|career|resume|cv|hiring|vacancy|interview|apply|applying)\b/i.test(m.content));
+
+  // Determine precise topic
+  let topicSummary = leadData.topic || "";
+  if (clickedAdHeadline) {
+    topicSummary = `Meta Ad: ${clickedAdHeadline}`;
+  } else if (isJobCandidateContext) {
+    topicSummary = `Job Candidate / Hiring Inquiry (${customerQuery.slice(0, 50)})`;
+  } else if (!topicSummary || topicSummary === "extracted_topic_or_null") {
+    if (/\b(website|web app|web dev|web design|landing page)\b/i.test(customerQuery)) topicSummary = "Website Development";
+    else if (/\b(android app|ios app|mobile app|flutter|react native)\b/i.test(customerQuery)) topicSummary = "Mobile App Development";
+    else if (/\b(seo|google ranking|search engine)\b/i.test(customerQuery)) topicSummary = "SEO & Google Ranking";
+    else if (/\b(digital marketing|meta ads|social media|smm)\b/i.test(customerQuery)) topicSummary = "Digital Marketing & Ads";
+    else if (/\b(job|career|resume|cv|hiring|vacancy|interview)\b/i.test(customerQuery)) topicSummary = "Job Candidate / Hiring Inquiry";
+    else if (/\b(price|pricing|cost|quote|discount|package|rate)\b/i.test(customerQuery)) topicSummary = "Pricing & Package Inquiry";
+    else topicSummary = customerQuery.slice(0, 100);
+  }
+
+  const adAttributionTag = clickedAdHeadline ? `[Meta Ad: "${clickedAdHeadline}"] ` : "";
+  const notesText = (leadData.notes && leadData.notes !== "additional_notes_or_null")
+    ? `${adAttributionTag}${leadData.notes}`
+    : `${adAttributionTag}Discussed ${topicSummary} via ${conversation.platform || 'WhatsApp'}`;
+
+  const leadRemark = clickedAdHeadline ? `Meta Ad: ${clickedAdHeadline}` : undefined;
+  const leadName = (leadData.name && leadData.name !== "extracted_name_or_null") ? leadData.name : (conversation.customerName || "WhatsApp Lead");
+  const leadEmail = (leadData.email && leadData.email !== "extracted_email_or_null") ? leadData.email : null;
+
+  try {
+    const existingLead = await prisma.aiCapturedLead.findFirst({
+      where: { organizationId: orgId, customerPhone }
+    });
+
+    if (existingLead) {
+      await prisma.aiCapturedLead.update({
+        where: { id: existingLead.id },
+        data: {
+          customerName: leadName !== "WhatsApp Lead" ? leadName : existingLead.customerName,
+          email: leadEmail || existingLead.email,
+          topicDiscussed: topicSummary.slice(0, 255),
+          notes: notesText,
+          remark: leadRemark || existingLead.remark,
+          updatedAt: new Date(),
+        }
+      });
+      console.log(`[AI AGENT ENGINE] ✅ Lead updated for phone: ${customerPhone} -> ${topicSummary} (Ad: ${clickedAdHeadline || 'Direct'})`);
+    } else {
+      await prisma.aiCapturedLead.create({
+        data: {
+          organizationId: orgId,
+          customerPhone,
+          customerName: leadName,
+          email: leadEmail,
+          topicDiscussed: topicSummary.slice(0, 255),
+          notes: notesText,
+          remark: leadRemark,
+          status: "NEW",
+        }
+      });
+      console.log(`[AI AGENT ENGINE] ✅ New Lead captured for phone: ${customerPhone} -> ${topicSummary} (Ad: ${clickedAdHeadline || 'Direct'})`);
+    }
+  } catch (leadErr: any) {
+    console.error(`[AI AGENT ENGINE] Error saving captured lead:`, leadErr.message);
+  }
+}
+
+console.log(`[AI AGENT ENGINE] Replied to ${customerPhone} with "${replyText.slice(0, 40)}..."`);
+  } catch (error: any) {
+  console.error("[AI AGENT ENGINE] Error processing AI chat:", JSON.stringify(error.response?.data || error.message || error, null, 2));
+
+  // GUARANTEED ZERO UNREPLIED MESSAGES FALLBACK
+  try {
+    const fallbackConv = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { organization: { include: { waConfigs: true, igConfigs: true } } },
+    });
+    if (fallbackConv && !fallbackConv.isBotPaused) {
+      const fallbackText = "Thank you for reaching out to Jisnu Digital Solutions! Our senior representative has received your message and will guide you personally in just a moment.";
+      const waConfig = fallbackConv.organization.waConfigs?.find((c: any) => c.isDefault) || fallbackConv.organization.waConfigs?.[0];
+      const customerPhone = fallbackConv.customerPhone;
+
+      let outWaId: string | null = null;
+      if (fallbackConv.platform === "whatsapp" && waConfig?.phoneNumberId && waConfig?.accessToken) {
+        const resData = await WhatsAppService.sendTextMessage(
+          waConfig.phoneNumberId,
+          waConfig.accessToken,
+          customerPhone,
+          fallbackText
+        );
+        outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
+      }
+
+      const savedFallback = await prisma.message.create({
+        data: {
+          conversationId: fallbackConv.id,
+          direction: "outbound",
+          messageType: "text",
+          content: fallbackText,
+          waMessageId: outWaId,
+          status: "sent",
+          senderName: "AI Sales Specialist",
+        },
+      });
+
+      const { io: socketIo } = require("../index");
+      if (socketIo) {
+        socketIo.to(fallbackConv.organizationId).emit("new-message", {
+          conversationId: fallbackConv.id,
+          message: savedFallback,
+        });
+      }
+      console.log(`[AI AGENT ENGINE] Emergency fallback reply sent to ${customerPhone}`);
+    }
+  } catch (fallbackErr: any) {
+    console.error("[AI AGENT ENGINE] Emergency fallback error:", fallbackErr.message);
+  }
+}
 }

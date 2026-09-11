@@ -443,39 +443,153 @@ export class MetaAdsCoreService {
   }
 
   /**
-   * Fetch WhatsApp Numbers connected to Pages
+   * Fetch WhatsApp Numbers connected to Pages, linked WABA accounts, and organization WhatsApp config
    */
   static async getWhatsAppNumbers(organizationId: string) {
     const config = await this.getConfig(organizationId);
-    if (!config.accessToken) return [];
+    const waNumbers: any[] = [];
+    const seenPhones = new Set<string>();
 
+    const addNumberIfValid = (
+      rawPhone: string | null | undefined,
+      metadata: {
+        displayPhoneNumber?: string;
+        verifiedName?: string;
+        pageId?: string;
+        pageName?: string;
+        wabaId?: string;
+        source?: "PAGE" | "WABA" | "WHATSAPP_CONFIG";
+      }
+    ) => {
+      if (!rawPhone) return;
+      const cleanDigits = rawPhone.replace(/\D/g, "");
+      if (cleanDigits.length < 10) return;
+      // Standardize 10-digit suffix for deduplication
+      const key = cleanDigits.slice(-10);
+      if (!seenPhones.has(key)) {
+        seenPhones.add(key);
+        waNumbers.push({
+          phoneNumber: rawPhone,
+          displayPhoneNumber: metadata.displayPhoneNumber || rawPhone,
+          verifiedName: metadata.verifiedName || "Connected WhatsApp",
+          pageId: metadata.pageId,
+          pageName: metadata.pageName,
+          wabaId: metadata.wabaId,
+          source: metadata.source || "PAGE",
+        });
+      }
+    };
+
+    // 1. Fetch from organization's connected WhatsApp Business Configs in DB (WABA accounts)
+    try {
+      const dbWaConfigs = await prisma.whatsAppConfig.findMany({
+        where: { organizationId, isActive: true },
+      });
+      for (const item of dbWaConfigs) {
+        if (item.phoneNumber) {
+          addNumberIfValid(item.phoneNumber, {
+            displayPhoneNumber: item.phoneNumber,
+            verifiedName: item.accountName || "Connected WABA",
+            wabaId: item.wabaId,
+            source: "WHATSAPP_CONFIG",
+          });
+        }
+      }
+    } catch (e: any) {
+      console.warn("[MetaAdsCoreService] DB WhatsApp config fetch warning:", e.message);
+    }
+
+    if (!config.accessToken) return waNumbers;
+
+    // 2. Fetch from connected Facebook Pages (Page WhatsApp & Page Linked WABA)
     try {
       const pages = await this.getPages(organizationId);
-      const waNumbers: any[] = [];
-
       for (const p of pages) {
+        const pageToken = (p as any).access_token || config.accessToken;
         try {
           const waResp = await axios.get(`${META_GRAPH_BASE}/${p.id}`, {
             params: {
-              fields: "whatsapp_number",
-              access_token: config.accessToken,
+              fields: "whatsapp_number,page_whatsapp_number,whatsapp_business_account{id,name,phone_numbers{id,display_phone_number,verified_name}}",
+              access_token: pageToken,
             },
           });
-          if (waResp.data?.whatsapp_number) {
-            waNumbers.push({
-              phoneNumber: waResp.data.whatsapp_number,
+
+          // Direct Page WhatsApp number
+          const pageNum = waResp.data?.whatsapp_number || waResp.data?.page_whatsapp_number;
+          if (pageNum) {
+            addNumberIfValid(pageNum, {
+              displayPhoneNumber: pageNum,
+              verifiedName: `${p.name} WhatsApp`,
               pageId: p.id,
               pageName: p.name,
+              source: "PAGE",
             });
           }
-        } catch (e) {}
-      }
 
-      return waNumbers;
+          // Page linked WABA phone numbers
+          const pageWaba = waResp.data?.whatsapp_business_account;
+          const wabaNums = pageWaba?.phone_numbers?.data || pageWaba?.phone_numbers || [];
+          if (Array.isArray(wabaNums)) {
+            for (const wn of wabaNums) {
+              const phone = wn.display_phone_number || wn.phoneNumber || wn.id;
+              addNumberIfValid(phone, {
+                displayPhoneNumber: wn.display_phone_number || phone,
+                verifiedName: wn.verified_name || `${p.name} WABA`,
+                pageId: p.id,
+                pageName: p.name,
+                wabaId: pageWaba?.id,
+                source: "WABA",
+              });
+            }
+          }
+        } catch (pageErr: any) {
+          try {
+            const fallbackResp = await axios.get(`${META_GRAPH_BASE}/${p.id}`, {
+              params: {
+                fields: "whatsapp_number",
+                access_token: config.accessToken,
+              },
+            });
+            if (fallbackResp.data?.whatsapp_number) {
+              addNumberIfValid(fallbackResp.data.whatsapp_number, {
+                displayPhoneNumber: fallbackResp.data.whatsapp_number,
+                verifiedName: `${p.name} WhatsApp`,
+                pageId: p.id,
+                pageName: p.name,
+                source: "PAGE",
+              });
+            }
+          } catch (e) {}
+        }
+      }
     } catch (err: any) {
-      console.warn("[MetaAdsCoreService] Failed to fetch WhatsApp Numbers:", err.message);
-      return [];
+      console.warn("[MetaAdsCoreService] Page WhatsApp fetch warning:", err.message);
     }
+
+    // 3. Fetch from Meta Client WhatsApp Business Accounts (/me/client_whatsapp_business_accounts)
+    try {
+      const wabaRes = await axios.get(`${META_GRAPH_BASE}/me/client_whatsapp_business_accounts`, {
+        params: {
+          fields: "id,name,phone_numbers{id,display_phone_number,verified_name}",
+          access_token: config.accessToken,
+        },
+      });
+      const clientWabas = wabaRes.data?.data || [];
+      for (const waba of clientWabas) {
+        const phoneList = waba.phone_numbers?.data || waba.phone_numbers || [];
+        for (const wn of phoneList) {
+          const phone = wn.display_phone_number || wn.id;
+          addNumberIfValid(phone, {
+            displayPhoneNumber: wn.display_phone_number || phone,
+            verifiedName: wn.verified_name || waba.name,
+            wabaId: waba.id,
+            source: "WABA",
+          });
+        }
+      }
+    } catch (wabaClientErr: any) {}
+
+    return waNumbers;
   }
 
   /**
@@ -641,5 +755,37 @@ export class MetaAdsCoreService {
         effectiveStatus: status,
       },
     });
+  }
+
+  /**
+   * Search Meta Interest Targeting Database via Graph API (/search?type=adinterest)
+   * Returns exact Meta Interest IDs with live audience reach lower/upper bound estimates
+   */
+  static async searchInterests(organizationId: string, query: string): Promise<Array<{ id: string; name: string; audience_size_lower_bound: number; audience_size_upper_bound: number; path: string[] }>> {
+    try {
+      const config = await this.getConfig(organizationId);
+      if (!config.accessToken) return [];
+
+      const res = await axios.get(`${META_GRAPH_BASE}/search`, {
+        params: {
+          type: "adinterest",
+          q: query,
+          limit: 8,
+          access_token: config.accessToken,
+        },
+      });
+
+      const items = res.data?.data || [];
+      return items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        audience_size_lower_bound: item.audience_size_lower_bound || 1000000,
+        audience_size_upper_bound: item.audience_size_upper_bound || 50000000,
+        path: item.path || [item.name],
+      }));
+    } catch (err: any) {
+      console.warn("[MetaAdsCoreService] Interest search error:", err.message);
+      return [];
+    }
   }
 }

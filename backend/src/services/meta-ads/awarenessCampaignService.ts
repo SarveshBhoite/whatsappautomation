@@ -2,6 +2,7 @@ import prisma from "../../utils/prisma";
 import axios from "axios";
 import { MetaAdsCoreService, META_GRAPH_BASE } from "./metaAdsCoreService";
 import { CreateMetaCampaignPayload } from "../metaAdsService";
+import { MetaAdsCapabilityService } from "./metaAdsCapabilityService";
 
 export class AwarenessCampaignService {
   /**
@@ -141,8 +142,20 @@ export class AwarenessCampaignService {
           if (payload.gender === "MEN" || payload.gender === "MALE") parsedGenders = [1];
           else if (payload.gender === "WOMEN" || payload.gender === "FEMALE") parsedGenders = [2];
 
+          const isSpecialCategory = Boolean(payload.specialAdCategory && payload.specialAdCategory !== "NONE");
+          const geoLocations = await MetaAdsCapabilityService.resolveGeoLocations(
+            {
+              cities: payload.cities || payload.targeting?.cities,
+              locationDescription: payload.locationDescription || payload.targeting?.locationDescription,
+              countries: payload.targeting?.countries || payload.countries || ["IN"],
+              radiusKm: payload.targeting?.radiusKm || payload.radiusKm,
+            },
+            isSpecialCategory,
+            config.accessToken
+          );
+
           const targetingObj: any = {
-            geo_locations: { countries: payload.targeting?.countries || ["IN"] },
+            geo_locations: geoLocations,
             age_min: payload.ageMin || payload.targeting?.ageMin || 18,
             age_max: payload.ageMax || payload.targeting?.ageMax || 65,
             genders: parsedGenders,
@@ -216,14 +229,32 @@ export class AwarenessCampaignService {
         // STEP 4 — Ad + Creative (POST /act_{AD_ACCOUNT_ID}/adcreatives & /ads)
         if (metaAdSetId && activePageId) {
           let ctaType = (payload.callToAction || "LEARN_MORE").toUpperCase();
-          if (ctaType.includes("WATCH")) ctaType = "WATCH_MORE";
+          if (ctaType.includes("CALL") || payload.destinationType === "PHONE_CALL") ctaType = "CALL_NOW";
+          else if (ctaType.includes("WATCH")) ctaType = "WATCH_MORE";
           else if (ctaType.includes("SHOP")) ctaType = "SHOP_NOW";
           else if (ctaType.includes("CONTACT")) ctaType = "CONTACT_US";
           else if (ctaType.includes("WHATSAPP")) ctaType = "WHATSAPP_MESSAGE";
           else if (ctaType.includes("MESSAGE")) ctaType = "MESSAGE_PAGE";
           else ctaType = "LEARN_MORE";
 
-          const linkUrl = payload.websiteUrl || payload.creativeMediaUrl || "https://example.com";
+          const linkUrl = payload.websiteUrl || payload.creativeMediaUrl || "https://jisnudigital.com";
+
+          // Dynamic Phone Number Formatting
+          let rawPhone = payload.phoneNumber || payload.phone || process.env.WHATSAPP_PHONE_NUMBER || "";
+          let formattedPhone = "";
+          if (rawPhone) {
+            const cleanDigits = rawPhone.replace(/\D/g, "");
+            formattedPhone = cleanDigits.length === 10 ? `+91${cleanDigits}` : cleanDigits.startsWith("91") && cleanDigits.length === 12 ? `+${cleanDigits}` : `+${cleanDigits}`;
+          }
+
+          const callToActionObj: any = {
+            type: ctaType,
+            value: { link: linkUrl }
+          };
+
+          if (ctaType === "CALL_NOW" && formattedPhone) {
+            callToActionObj.value.call_phone_number = formattedPhone;
+          }
 
           const creativePayload: any = {
             name: `${payload.adName || payload.name} Awareness Creative`,
@@ -241,26 +272,23 @@ export class AwarenessCampaignService {
                 title: payload.creativeHeadline || "Brand Story",
                 message: payload.creativeBody,
                 image_url: payload.creativeThumbnailUrl || payload.creativeMediaUrl,
-                call_to_action: {
-                  type: ctaType,
-                  value: { link: linkUrl },
-                },
+                call_to_action: callToActionObj,
               },
             };
           } else {
+            const linkData: any = {
+              message: payload.creativeBody || `${payload.name || 'Special Offer'} - Connect with our team!`,
+              name: payload.creativeHeadline || payload.name || "Exclusive Offer",
+              description: payload.creativeDescription || "Discover our brand story",
+              link: linkUrl,
+              call_to_action: callToActionObj,
+            };
+            if (payload.creativeMediaUrl && payload.creativeMediaUrl.startsWith("http") && !payload.creativeMediaUrl.includes("pollinations.ai")) {
+              linkData.picture = payload.creativeMediaUrl;
+            }
             creativePayload.object_story_spec = {
               page_id: activePageId,
-              link_data: {
-                message: payload.creativeBody,
-                name: payload.creativeHeadline,
-                description: payload.creativeDescription || "Discover our brand story",
-                link: linkUrl,
-                picture: payload.creativeMediaUrl || undefined,
-                call_to_action: {
-                  type: ctaType,
-                  value: { link: linkUrl },
-                },
-              },
+              link_data: linkData,
             };
           }
 

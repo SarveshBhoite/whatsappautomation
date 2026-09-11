@@ -32,7 +32,7 @@ model Organization {
   googleQuestions     GoogleQuestion[]
   googleAdCampaigns   GoogleAdCampaign[]
   googleAdAccounts    GoogleAdAccount[]
-  aiAgentConfig       AiAgentConfig?
+  aiAgentConfigs      AiAgentConfig[]
   aiKnowledgeItems    AiKnowledgeItem[]
   aiCapturedLeads     AiCapturedLead[]
   metaAdConfig        MetaAdConfig?
@@ -968,6 +968,134 @@ model MetaAutomatedRule {
   lastTriggered  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// ─── Meta Ads AI Studio Production Engine Models ───────────────────────────
+
+model MetaCampaignDraftRecord {
+  id             String                       @id @default(uuid())
+  organizationId String
+  adAccountId    String?
+  name           String                       @default("Untitled Campaign Draft")
+  currentVersion Int                          @default(1)
+  stateSnapshot  Json                         // Complete MetaCampaignDraft state
+  sourceMap      Json                         @default("{}") // Field provenance
+  status         String                       @default("DRAFTING") // DRAFTING, CONFIRMATION, EXECUTING, COMPLETED, FAILED
+  versions       MetaCampaignDraftVersion[]
+  confirmations  MetaCampaignConfirmation[]
+  executions     MetaCampaignExecutionRecord[]
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+
+  @@index([organizationId])
+  @@map("meta_campaign_draft_records")
+}
+
+model MetaCampaignDraftVersion {
+  id                String                  @id @default(uuid())
+  draftId           String
+  draft             MetaCampaignDraftRecord @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  versionNumber     Int
+  stateSnapshot     Json                    // Immutable snapshot
+  appliedOperations Json                    // CampaignStateOperation[]
+  triggeredBy       String                  @default("USER") // USER, AI, SYSTEM, META
+  messageId         String?
+  intent            String?
+  confidence        Float                   @default(1.0)
+  createdAt         DateTime                @default(now())
+
+  confirmations     MetaCampaignConfirmation[]
+  executions        MetaCampaignExecutionRecord[]
+
+  @@unique([draftId, versionNumber])
+  @@index([draftId])
+  @@map("meta_campaign_draft_versions")
+}
+
+model MetaCampaignConfirmation {
+  id                String                   @id @default(uuid())
+  draftId           String
+  draft             MetaCampaignDraftRecord  @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  versionId         String
+  version           MetaCampaignDraftVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  versionNumber     Int
+  confirmationToken String                   @unique
+  isConfirmed       Boolean                  @default(false)
+  confirmedAt       DateTime?
+  expiresAt         DateTime
+  createdAt         DateTime                 @default(now())
+
+  @@index([draftId])
+  @@index([confirmationToken])
+  @@map("meta_campaign_confirmations")
+}
+
+model MetaCampaignExecutionRecord {
+  id             String                    @id @default(uuid())
+  idempotencyKey String                    @unique
+  organizationId String
+  draftId        String
+  draft          MetaCampaignDraftRecord   @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  versionId      String
+  version        MetaCampaignDraftVersion  @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  versionNumber  Int
+  status         String                    @default("PENDING") // PENDING, CAMPAIGN_CREATED, ADSET_CREATED, CREATIVE_CREATED, AD_CREATED, COMPLETED, FAILED, REQUIRES_RECOVERY
+  
+  metaCampaignId String?
+  metaAdSetId    String?
+  metaCreativeId String?
+  metaAdId       String?
+  
+  executionStep  String                    @default("INIT")
+  retryCount     Int                       @default(0)
+  errorCategory  String?
+  errorMessage   String?
+  errorDetails   Json?
+  
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  @@index([organizationId])
+  @@index([idempotencyKey])
+  @@map("meta_campaign_execution_records")
+}
+
+model MetaAIInteractionLog {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  conversationId     String?
+  messageId          String?
+  draftId            String?
+  draftVersion       Int?
+  model              String
+  provider           String
+  latencyMs          Int
+  intent             String
+  fieldsUpdated      String[] @default([])
+  missingFields      String[] @default([])
+  validationSummary  Json?
+  nextAction         String
+  reasonCode         String?
+  rawOperationsCount Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([draftId])
+  @@map("meta_ai_interaction_logs")
+}
+
+model MetaCapabilitySnapshotRecord {
+  id             String   @id @default(uuid())
+  organizationId String
+  adAccountId    String
+  capabilities   Json     // MetaAccountCapabilities
+  lastSyncedAt   DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, adAccountId])
+  @@index([organizationId])
+  @@map("meta_capability_snapshot_records")
 }
 
 // ─── WhatsApp Drip Campaign Models ─────────────────────────────────────────

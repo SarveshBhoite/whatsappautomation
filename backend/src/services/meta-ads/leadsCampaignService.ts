@@ -2,6 +2,7 @@ import prisma from "../../utils/prisma";
 import axios from "axios";
 import { MetaAdsCoreService, META_GRAPH_BASE } from "./metaAdsCoreService";
 import { CreateMetaCampaignPayload } from "../metaAdsService";
+import { MetaAdsCapabilityService } from "./metaAdsCapabilityService";
 
 export class LeadsCampaignService {
   /**
@@ -71,6 +72,10 @@ export class LeadsCampaignService {
           access_token: config.accessToken,
         };
 
+        if (payload.specialAdCategory && payload.specialAdCategory !== "NONE") {
+          campaignPayload.special_ad_category_country = payload.countries && payload.countries.length > 0 ? payload.countries : ["IN"];
+        }
+
         if (isCbo) {
           if (payload.budgetMode === "LIFETIME") {
             campaignPayload.lifetime_budget = budgetMinor;
@@ -113,7 +118,7 @@ export class LeadsCampaignService {
           else if (rawDest.includes("WHATSAPP")) destType = "WHATSAPP";
           else if (rawDest.includes("MESSENGER")) destType = "MESSENGER";
           else if (rawDest.includes("INSTAGRAM")) destType = "INSTAGRAM_DIRECT";
-          else if (rawDest.includes("CALL")) destType = "PHONE_CALL";
+          else if (rawDest.includes("CALL") || rawDest.includes("PHONE")) destType = "ON_AD";
           else if (rawDest.includes("APP")) destType = "APP";
           else destType = "ON_AD";
 
@@ -147,9 +152,21 @@ export class LeadsCampaignService {
           else if (payload.gender === "WOMEN" || payload.gender === "FEMALE") parsedGenders = [2];
 
           const isAdvantageAudience = payload.advantageAudience !== false;
+          const isSpecialCategory = Boolean(payload.specialAdCategory && payload.specialAdCategory !== "NONE");
+
+          const geoLocations = await MetaAdsCapabilityService.resolveGeoLocations(
+            {
+              cities: payload.cities || payload.targeting?.cities,
+              locationDescription: payload.locationDescription || payload.targeting?.locationDescription,
+              countries: payload.targeting?.countries || payload.countries || ["IN"],
+              radiusKm: payload.targeting?.radiusKm || payload.radiusKm,
+            },
+            isSpecialCategory,
+            config.accessToken
+          );
 
           const targetingObj: any = {
-            geo_locations: { countries: payload.targeting?.countries || ["IN"] },
+            geo_locations: geoLocations,
             age_min: payload.ageMin || payload.targeting?.ageMin || 18,
             age_max: isAdvantageAudience ? 65 : (payload.ageMax || payload.targeting?.ageMax || 65),
             genders: parsedGenders,
@@ -377,15 +394,38 @@ export class LeadsCampaignService {
     const activePageId = pageId || config.pageId;
     if (!activePageId) return [];
 
+    let pageToken = config.accessToken;
+    try {
+      const pages = await MetaAdsCoreService.getPages(organizationId);
+      const targetPage = pages.find((p: any) => p.id === activePageId);
+      if (targetPage?.access_token) {
+        pageToken = targetPage.access_token;
+      }
+    } catch (e) {}
+
     try {
       const resp = await axios.get(`${META_GRAPH_BASE}/${activePageId}/leadgen_forms`, {
         params: {
           fields: "id,name,status,leads_count,created_time,questions,privacy_policy",
-          access_token: config.accessToken,
+          access_token: pageToken,
         },
       });
       return resp.data?.data || [];
     } catch (err: any) {
+      if (pageToken !== config.accessToken) {
+        try {
+          const resp2 = await axios.get(`${META_GRAPH_BASE}/${activePageId}/leadgen_forms`, {
+            params: {
+              fields: "id,name,status,leads_count,created_time,questions,privacy_policy",
+              access_token: config.accessToken,
+            },
+          });
+          return resp2.data?.data || [];
+        } catch (e2: any) {
+          console.warn("[LeadsCampaignService] Failed to fetch Lead Gen Forms:", e2.message);
+          return [];
+        }
+      }
       console.warn("[LeadsCampaignService] Failed to fetch Lead Gen Forms:", err.message);
       return [];
     }
@@ -400,30 +440,53 @@ export class LeadsCampaignService {
       throw new Error("Meta Access Token missing.");
     }
 
+    let pageToken = config.accessToken;
     try {
-      const resp = await axios.post(`${META_GRAPH_BASE}/${pageId}/leadgen_forms`, {
-        name: formData.name || "Contact Form",
-        questions: formData.questions || [
-          { type: "FULL_NAME" },
-          { type: "EMAIL" },
-          { type: "PHONE" },
-        ],
-        privacy_policy: formData.privacy_policy || {
-          url: "https://example.com/privacy",
-          link_text: "Privacy Policy",
-        },
-        thank_you_page: formData.thank_you_page || {
-          title: "Thanks!",
-          body: "We will contact you soon.",
-          button_type: "VIEW_WEBSITE",
-          website_url: "https://example.com",
-        },
-        should_enforce_work_email: formData.should_enforce_work_email || false,
-        access_token: config.accessToken,
-      });
+      const pages = await MetaAdsCoreService.getPages(organizationId);
+      const targetPage = pages.find((p: any) => p.id === pageId);
+      if (targetPage?.access_token) {
+        pageToken = targetPage.access_token;
+      }
+    } catch (e) {}
 
+    const thankYou = {
+      title: formData.thank_you_page?.title || formData.thankYouTitle || "Thank you for reaching out!",
+      body: formData.thank_you_page?.body || formData.thankYouBody || "Our team will contact you shortly.",
+      button_type: formData.thank_you_page?.button_type || formData.thankYouButtonType || "VIEW_WEBSITE",
+      button_text: formData.thank_you_page?.button_text || formData.thankYouButtonText || "Visit Website",
+      website_url: formData.thank_you_page?.website_url || formData.thankYouWebsiteUrl || formData.privacy_policy?.url || "https://jisnudigital.com",
+    };
+
+    const payload: any = {
+      name: formData.name || `Contact Form - ${new Date().toLocaleDateString()}`,
+      questions: formData.questions || [
+        { type: "FULL_NAME" },
+        { type: "PHONE" },
+        { type: "EMAIL" },
+        { type: "CITY" },
+      ],
+      privacy_policy: formData.privacy_policy || {
+        url: "https://jisnudigital.com/privacy",
+        link_text: "Privacy Policy",
+      },
+      thank_you_page: thankYou,
+      should_enforce_work_email: formData.should_enforce_work_email || false,
+      access_token: pageToken,
+    };
+
+    try {
+      const resp = await axios.post(`${META_GRAPH_BASE}/${pageId}/leadgen_forms`, payload);
       return resp.data;
     } catch (err: any) {
+      if (pageToken !== config.accessToken) {
+        try {
+          payload.access_token = config.accessToken;
+          const retryResp = await axios.post(`${META_GRAPH_BASE}/${pageId}/leadgen_forms`, payload);
+          return retryResp.data;
+        } catch (rErr: any) {
+          throw new Error(`Failed to create Instant Lead Form: ${rErr.response?.data?.error?.message || rErr.message}`);
+        }
+      }
       throw new Error(`Failed to create Instant Lead Form: ${err.response?.data?.error?.message || err.message}`);
     }
   }
