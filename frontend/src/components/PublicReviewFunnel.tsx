@@ -195,39 +195,38 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 font-sans select-none">
-      
-      {/* Background radial gradients for sleek aesthetic */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/10 via-slate-950 to-slate-950 pointer-events-none z-0" />
-      <div className="absolute top-1/4 left-1/4 h-72 w-72 bg-amber-500/5 rounded-full filter blur-3xl pointer-events-none z-0" />
+    <div className="min-h-screen bg-mesh-canvas flex flex-col items-center justify-center p-4 sm:p-6 font-sans select-none relative overflow-hidden">
+      {/* Background soft glow orbs */}
+      <div className="absolute top-12 left-1/2 -translate-x-1/2 w-96 h-96 bg-brand-blue/5 rounded-full blur-3xl pointer-events-none z-0" />
+      <div className="absolute bottom-10 right-10 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none z-0" />
 
       {/* Main Card Container */}
-      <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10">
+      <div className="w-full max-w-md bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 relative z-10">
         
         {/* Header with Business Identification */}
         <div className="flex flex-col items-center gap-3 mb-6 text-center">
-          <div className="h-14 w-14 rounded-2xl bg-amber-500/15 flex items-center justify-center border border-amber-500/30 shadow-lg text-amber-500">
+          <div className="h-14 w-14 rounded-2xl bg-amber-50 flex items-center justify-center border border-amber-200 shadow-sm text-amber-500">
             <Star className="h-7 w-7 fill-amber-500" />
           </div>
           
           <div className="space-y-1 mt-1">
             {loadingConfig ? (
               <div className="flex flex-col items-center gap-2 py-1">
-                <div className="h-5 w-40 bg-slate-800 animate-pulse rounded-md" />
-                <div className="h-3 w-56 bg-slate-800/60 animate-pulse rounded-md" />
+                <div className="h-5 w-40 bg-slate-100 animate-pulse rounded-md" />
+                <div className="h-3 w-56 bg-slate-100/70 animate-pulse rounded-md" />
               </div>
             ) : (
               <>
-                <h1 className="text-xl font-extrabold text-slate-100 tracking-tight">{businessName}</h1>
-                <p className="text-xs text-slate-400">Share your feedback to help us serve you better</p>
+                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">{businessName}</h1>
+                <p className="text-xs text-slate-500 font-medium">Share your feedback to help us serve you better</p>
               </>
             )}
           </div>
         </div>
 
         {configError && (
-          <div className="mb-4 bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs p-3 rounded-xl flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0" />
+          <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 text-xs p-3 rounded-xl flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
             <span>{configError}</span>
           </div>
         )}
@@ -238,7 +237,7 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
             
             {/* Rating Stars Picker */}
             <div className="flex flex-col items-center gap-2.5">
-              <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+              <label className="text-xs text-slate-500 font-bold uppercase tracking-wider">
                 How was your experience?
               </label>
 
@@ -259,8 +258,8 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
                       <Star 
                         className={`h-10 w-10 transition-colors ${
                           isActive 
-                            ? "text-amber-500 fill-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]" 
-                            : "text-slate-800 stroke-slate-700"
+                            ? "text-amber-400 fill-amber-400 drop-shadow-[0_2px_8px_rgba(251,191,36,0.35)]" 
+                            : "text-slate-200 stroke-slate-300"
                         }`} 
                       />
                     </button>
@@ -269,7 +268,7 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
               </div>
 
               {rating > 0 && (
-                <span className="text-xs bg-slate-850 px-3 py-1 rounded-full text-amber-400 font-bold border border-slate-800">
+                <span className="text-xs bg-amber-50 px-3.5 py-1 rounded-full text-amber-700 font-bold border border-amber-200/80 shadow-2xs">
                   {rating === 1 && "Terrible"}
                   {rating === 2 && "Could be better"}
                   {rating === 3 && "Good"}
@@ -281,12 +280,12 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
 
             {/* Positive Flow (Rating >= minRating, default 3 or 4) */}
             {rating >= minRating && (
-              <div className="space-y-4 border-t border-slate-800/80 pt-4">
+              <div className="space-y-4 border-t border-slate-100 pt-4">
                 <div className="text-center">
-                  <label className="text-xs text-slate-300 font-bold uppercase tracking-wider block mb-1">
+                  <label className="text-xs text-slate-800 font-bold uppercase tracking-wider block mb-1">
                     Select a quick review suggestion
                   </label>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-slate-500">
                     Click to copy instantly and share on Google Maps.
                   </p>
                 </div>
@@ -297,12 +296,12 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
                       key={idx}
                       type="button"
                       onClick={() => handleTemplateSelect(text)}
-                      className="w-full text-left bg-slate-950/60 hover:bg-amber-500/10 active:bg-amber-500/20 border border-slate-800 hover:border-amber-500/30 p-3 rounded-2xl transition-all flex items-start gap-2.5 group cursor-pointer text-xs"
+                      className="w-full text-left bg-slate-50 hover:bg-amber-50/60 active:bg-amber-100/50 border border-slate-200 hover:border-amber-300 p-3 rounded-2xl transition-all flex items-start gap-2.5 group cursor-pointer text-xs"
                     >
-                      <span className="h-5 w-5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0 group-hover:text-amber-400 group-hover:border-amber-500/30">
+                      <span className="h-5 w-5 rounded-lg bg-white border border-slate-200 text-slate-500 text-[10px] font-bold flex items-center justify-center shrink-0 group-hover:text-amber-600 group-hover:border-amber-300 shadow-2xs">
                         {idx + 1}
                       </span>
-                      <p className="text-slate-300 leading-relaxed group-hover:text-slate-100">
+                      <p className="text-slate-700 leading-relaxed group-hover:text-slate-900 font-normal">
                         "{text}"
                       </p>
                     </button>
@@ -310,23 +309,23 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
                 </div>
 
                 {copiedMessage && (
-                  <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-xl p-3 text-xs font-semibold text-center animate-pulse">
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl p-3 text-xs font-semibold text-center animate-pulse">
                     ✓ Review copied to clipboard! Opening Google Maps...
                   </div>
                 )}
 
                 <div className="relative flex py-2 items-center">
-                  <div className="flex-grow border-t border-slate-800"></div>
-                  <span className="flex-shrink mx-3 text-[10px] text-slate-500 uppercase tracking-widest font-bold">Or write your own</span>
-                  <div className="flex-grow border-t border-slate-800"></div>
+                  <div className="flex-grow border-t border-slate-200"></div>
+                  <span className="flex-shrink mx-3 text-[10px] text-slate-400 uppercase tracking-widest font-bold">Or write your own</span>
+                  <div className="flex-grow border-t border-slate-200"></div>
                 </div>
 
                 <button
                   type="button"
                   onClick={handleGoogleRedirect}
-                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-3.5 rounded-xl transition-all shadow-lg shadow-amber-500/15 flex items-center justify-center gap-2 cursor-pointer text-sm"
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm"
                 >
-                  <MapPin className="h-4 w-4" />
+                  <MapPin className="h-4 w-4 text-amber-400" />
                   Write Custom Review on Google Maps
                 </button>
               </div>
@@ -334,46 +333,46 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
 
             {/* Negative Flow (Rating < minRating: Buffering feedback privately) */}
             {rating > 0 && rating < minRating && (
-              <div className="space-y-4 border-t border-slate-800/80 pt-4">
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3 text-left">
-                  <p className="text-xs text-amber-300 font-semibold leading-relaxed">
+              <div className="space-y-4 border-t border-slate-100 pt-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-left">
+                  <p className="text-xs text-amber-900 font-medium leading-relaxed">
                     We're truly sorry your experience wasn't ideal. Please share your critique below so our leadership can resolve it immediately.
                   </p>
                 </div>
 
                 <div className="space-y-3.5">
                   <div className="flex flex-col gap-1 text-left">
-                    <label className="text-xs text-slate-300 font-semibold">Your Name *</label>
+                    <label className="text-xs text-slate-700 font-bold">Your Name *</label>
                     <input
                       type="text"
                       required
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                       placeholder="e.g. John Doe"
-                      className="bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 w-full"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 w-full transition-colors"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1 text-left">
-                    <label className="text-xs text-slate-300 font-semibold">Your Contact Number (Optional)</label>
+                    <label className="text-xs text-slate-700 font-bold">Your Contact Number (Optional)</label>
                     <input
                       type="tel"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       placeholder="For management follow-up"
-                      className="bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 w-full"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 w-full transition-colors"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1 text-left">
-                    <label className="text-xs text-slate-300 font-semibold">What went wrong? *</label>
+                    <label className="text-xs text-slate-700 font-bold">What went wrong? *</label>
                     <textarea
                       required
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       placeholder="Please describe your experience so we can improve..."
                       rows={3}
-                      className="bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 leading-relaxed w-full"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 leading-relaxed w-full transition-colors"
                     />
                   </div>
                 </div>
@@ -381,9 +380,9 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 font-bold py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm"
+                  className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm"
                 >
-                  <Send className="h-4 w-4 text-amber-500" />
+                  <Send className="h-4 w-4 text-amber-400" />
                   {submitting ? "Sending Feedback..." : "Submit Private Feedback"}
                 </button>
               </div>
@@ -392,44 +391,44 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
         ) : (
           /* Submission Completed View */
           <div className="flex flex-col items-center text-center py-4 space-y-6">
-            <CheckCircle2 className="h-16 w-16 text-emerald-400 stroke-1" />
+            <CheckCircle2 className="h-16 w-16 text-emerald-500 stroke-1" />
             
             <div className="space-y-2">
-              <h2 className="text-xl font-bold text-slate-100">Feedback Submitted!</h2>
+              <h2 className="text-xl font-bold text-slate-900">Feedback Submitted!</h2>
               {redirectUrl ? (
-                <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto animate-pulse">
+                <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto animate-pulse font-medium">
                   Thank you for the {rating}-star rating! Redirecting you to Google to publish your review...
                 </p>
               ) : (
-                <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
-                  Thank you, <strong>{customerName}</strong>. Your feedback has been received privately and forwarded directly to our management.
+                <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+                  Thank you, <strong className="text-slate-800">{customerName}</strong>. Your feedback has been received privately and forwarded directly to our management.
                 </p>
               )}
             </div>
 
             {/* Positive Review Google Action Card */}
             {redirectUrl ? (
-              <div className="w-full border border-slate-800 bg-slate-950/50 p-5 rounded-2xl space-y-3 mt-2 shadow-inner">
-                <span className="text-[10px] uppercase text-amber-400 font-bold tracking-wider block">
+              <div className="w-full border border-amber-200/80 bg-amber-50/50 p-5 rounded-2xl space-y-3 mt-2 shadow-sm">
+                <span className="text-[10px] uppercase text-amber-700 font-bold tracking-wider block">
                   Support {businessName} on Google
                 </span>
-                <p className="text-xs text-slate-400 leading-normal">
+                <p className="text-xs text-slate-600 leading-normal">
                   If you are not redirected automatically, click below to leave your review on Google Maps.
                 </p>
                 <a
                   href={redirectUrl}
-                  className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md"
+                  className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md"
                 >
-                  Post Review on Google <ExternalLink className="h-4 w-4" />
+                  Post Review on Google <ExternalLink className="h-4 w-4 text-amber-400" />
                 </a>
               </div>
             ) : (
               /* Negative Review Shield Card */
-              <div className="w-full border border-slate-800 bg-slate-900/40 p-4 rounded-2xl flex items-center gap-3 text-left mt-2">
-                <ShieldCheck className="h-8 w-8 text-amber-500 shrink-0 stroke-1" />
+              <div className="w-full border border-slate-200 bg-slate-50 p-4 rounded-2xl flex items-center gap-3 text-left mt-2">
+                <ShieldCheck className="h-8 w-8 text-amber-600 shrink-0 stroke-1" />
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-xs font-semibold text-slate-200">Management Customer Care</span>
-                  <span className="text-[11px] text-slate-400 leading-normal">
+                  <span className="text-xs font-bold text-slate-800">Management Customer Care</span>
+                  <span className="text-[11px] text-slate-500 leading-normal">
                     Your notes have been recorded in our priority queue. A supervisor will review your feedback.
                   </span>
                 </div>
@@ -440,8 +439,8 @@ export default function PublicReviewFunnel({ initialOrgId }: PublicReviewFunnelP
       </div>
 
       {/* Footer Branding */}
-      <footer className="mt-8 text-center text-[10px] text-slate-600 flex items-center gap-1.5 relative z-10 pointer-events-none">
-        <ShieldCheck className="h-3.5 w-3.5 text-amber-500/60" /> Smart Review Shield &amp; Reputation Funnel
+      <footer className="mt-8 text-center text-[10px] text-slate-400 flex items-center gap-1.5 relative z-10 pointer-events-none font-medium">
+        <ShieldCheck className="h-3.5 w-3.5 text-amber-500" /> Smart Review Shield &amp; Reputation Funnel
       </footer>
     </div>
   );
