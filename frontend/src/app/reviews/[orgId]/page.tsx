@@ -3,7 +3,7 @@
 import React, { Suspense } from "react";
 import PublicReviewFunnel from "@/components/PublicReviewFunnel";
 
-export default function PublicReviewSubmitPage() {
+export default function ReviewsByOrgPage() {
   return (
     <Suspense
       fallback={

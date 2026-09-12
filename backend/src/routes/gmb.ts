@@ -83,16 +83,26 @@ router.get("/config", async (req, res) => {
       return res.status(200).json(null);
     }
 
-    const org = await prisma.organization.findUnique({
+    let org = await prisma.organization.findUnique({
       where: { id: orgId }
     });
+
+    if (!org) {
+      try {
+        org = await prisma.organization.create({
+          data: { id: orgId, name: "Business Workspace" }
+        });
+      } catch (e) {
+        org = await prisma.organization.findUnique({ where: { id: orgId } });
+      }
+    }
 
     if (!org) {
       return res.status(200).json(null);
     }
 
     let accounts = await (prisma as any).googleBusinessConfig.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: orgId, isActive: true },
       orderBy: { createdAt: "desc" }
     });
 
@@ -118,6 +128,45 @@ router.get("/config", async (req, res) => {
     }
     if (!config) {
       config = accounts.find((a: any) => a.isDefault) || accounts[0];
+    }
+
+    // Auto-heal missing googleReviewUrl if refreshToken and locationId exist
+    if (config && (!config.googleReviewUrl || !config.googlePlaceId) && config.googleLocationId && config.googleRefreshToken) {
+      try {
+        const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
+        const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+        if (clientId && clientSecret) {
+          const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+          const locId = config.googleLocationId.split("/").pop();
+          const locRes = await axios.get(`https://mybusinessbusinessinformation.googleapis.com/v1/locations/${locId}?readMask=name,title,metadata`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const meta = locRes.data?.metadata;
+          const discoveredPlaceId = meta?.placeId || config.googlePlaceId;
+          const discoveredReviewUrl = meta?.newReviewUri || (discoveredPlaceId ? `https://search.google.com/local/writereview?placeid=${discoveredPlaceId}` : null);
+
+          if (discoveredPlaceId || discoveredReviewUrl) {
+            config = await (prisma as any).googleBusinessConfig.update({
+              where: { id: config.id },
+              data: {
+                googlePlaceId: discoveredPlaceId || config.googlePlaceId,
+                googleReviewUrl: discoveredReviewUrl || config.googleReviewUrl
+              }
+            });
+          }
+        }
+      } catch (autoErr: any) {
+        console.warn("[GMB Config] Could not auto-resolve placeId/reviewUri from Google API:", autoErr.message);
+      }
+    }
+
+    // Smart fallback if googleReviewUrl is still empty
+    if (config && !config.googleReviewUrl) {
+      if (config.googlePlaceId) {
+        config.googleReviewUrl = `https://search.google.com/local/writereview?placeid=${encodeURIComponent(config.googlePlaceId)}`;
+      } else if (config.locationName || config.accountName) {
+        config.googleReviewUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(config.locationName || config.accountName)}`;
+      }
     }
 
     return res.status(200).json({ ...(config || {}), config, accounts });
@@ -451,9 +500,19 @@ router.get("/oauth/callback", async (req, res) => {
 // 3. GET All Reviews
 router.get("/reviews", async (req, res) => {
   try {
-    const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.orgId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const accountId = req.query.accountId as string;
+
+    const whereClause: any = { organizationId: orgId };
+    if (accountId) {
+      whereClause.OR = [
+        { accountId },
+        { accountId: null }
+      ];
+    }
+
     const reviews = await prisma.googleReview.findMany({
-      where: { organizationId: orgId },
+      where: whereClause,
       orderBy: { createdAt: "desc" }
     });
     res.status(200).json(reviews);
@@ -521,26 +580,32 @@ router.post("/reviews/auto-reply-all", async (req, res) => {
 // 4. POST Submit Public Funnel Review
 router.post("/reviews/submit", async (req, res) => {
   try {
-    const { orgId = DEFAULT_ORG_ID, customerName, rating, comment } = req.body;
+    const { orgId = DEFAULT_ORG_ID, customerName, rating, comment, accountId } = req.body;
 
     if (!customerName || !rating) {
       return res.status(400).json({ error: "Customer Name and Rating are required" });
     }
 
     const reviewRating = Number(rating);
-    const isPositive = reviewRating >= 3;
 
-    // Fetch config to check Google review redirection URL
-    const config = await getGmbConfig(orgId, req.body.accountId as string);
+    // Fetch config to check Google review redirection URL and star threshold
+    const config = await getGmbConfig(orgId, accountId);
+    const minPositiveRating = config?.autoReplyMinRating || 3;
+    const isPositive = reviewRating >= minPositiveRating;
 
     if (isPositive) {
-      // For positive reviews, do NOT create a local database record.
-      // This avoids duplicate entries ("double-posting") when syncing Google reviews later.
-      // The positive review will enter the database from GMB once synced, utilizing the actual Google name and triggering GMB auto-reply.
+      // Build Google Review or Google Maps redirect URL with smart fallbacks
+      let redirectUrl = config?.googleReviewUrl;
+      if (!redirectUrl && config?.googlePlaceId) {
+        redirectUrl = `https://search.google.com/local/writereview?placeid=${encodeURIComponent(config.googlePlaceId)}`;
+      } else if (!redirectUrl && (config?.locationName || config?.accountName)) {
+        redirectUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(config.locationName || config.accountName)}`;
+      }
+
       return res.status(201).json({
         message: "Positive feedback redirecting to Google Maps",
         review: null,
-        redirect: config?.googleReviewUrl || null
+        redirect: redirectUrl || null
       });
     }
 
@@ -548,6 +613,7 @@ router.post("/reviews/submit", async (req, res) => {
     const review = await prisma.googleReview.create({
       data: {
         organizationId: orgId,
+        accountId: accountId || config?.id || null,
         customerName,
         rating: reviewRating,
         comment: comment || "",
@@ -558,6 +624,7 @@ router.post("/reviews/submit", async (req, res) => {
 
     // Broadcast update to GMB tab agents in real-time
     io.to(orgId).emit("new-review", review);
+    io.to(orgId).emit("review-created", review);
 
     res.status(201).json({
       message: "Feedback submitted successfully",

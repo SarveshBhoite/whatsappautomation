@@ -23,12 +23,14 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
-  Store
+  Store,
+  Copy
 } from "lucide-react";
 import Link from "next/link";
 import { io } from "socket.io-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AccountSwitcher, AccountOption } from "@/components/AccountSwitcher";
 
 interface Review {
   id: string;
@@ -69,11 +71,15 @@ export default function ReviewsPage() {
   const [config, setConfig] = useState<GmbConfig>({
     orgId: getOrgId(),
     placeId: "",
-    locationName: "Jisnu Digital Solutions Pvt.Ltd",
+    locationName: "",
     googleRating: 5.0,
     googleReviewCount: 0,
     minReviewRating: 3,
   });
+
+  const [gmbAccounts, setGmbAccounts] = useState<AccountOption[]>([]);
+  const [selectedGmbAccountId, setSelectedGmbAccountId] = useState<string>("");
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const [activeFilter, setActiveFilter] = useState<"ALL" | "GOOD" | "BAD">("ALL");
   const [loadingReviews, setLoadingReviews] = useState(true);
@@ -85,26 +91,37 @@ export default function ReviewsPage() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
 
   const currentOrg = orgId || getOrgId();
-  const publicFunnelUrl = `${FRONTEND_URL}/review/${currentOrg}`;
-  const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicFunnelUrl)}`;
+  const publicFunnelUrl = currentOrg
+    ? `${FRONTEND_URL}/review/${currentOrg}${selectedGmbAccountId ? `?accountId=${encodeURIComponent(selectedGmbAccountId)}` : ""}`
+    : "";
+  const qrCodeImageUrl = publicFunnelUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicFunnelUrl)}`
+    : "";
 
-  const fetchConfig = async (activeOrg = currentOrg) => {
+  const fetchConfig = async (activeOrg = currentOrg, accountId = selectedGmbAccountId) => {
     if (!activeOrg) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${encodeURIComponent(activeOrg)}`);
+      const query = new URLSearchParams({ orgId: activeOrg });
+      if (accountId) query.append("accountId", accountId);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?${query.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setConfig(data);
+        const targetCfg = data?.config || data;
+        if (targetCfg) {
+          setConfig(targetCfg);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch GMB config:", err);
     }
   };
 
-  const fetchReviews = async (activeOrg = currentOrg) => {
+  const fetchReviews = async (activeOrg = currentOrg, accountId = selectedGmbAccountId) => {
     if (!activeOrg) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews?orgId=${encodeURIComponent(activeOrg)}`);
+      const query = new URLSearchParams({ orgId: activeOrg });
+      if (accountId) query.append("accountId", accountId);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews?${query.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setReviews(data);
@@ -116,11 +133,49 @@ export default function ReviewsPage() {
     }
   };
 
+  const fetchGmbAccounts = async (activeOrg = orgId || getOrgId()) => {
+    if (!activeOrg) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/accounts?orgId=${encodeURIComponent(activeOrg)}`, {
+        headers: { "x-organization-id": activeOrg }
+      });
+      if (res.ok) {
+        const resData = await res.json();
+        const accList = resData?.accounts || [];
+        if (Array.isArray(accList) && accList.length > 0) {
+          const options: AccountOption[] = accList.map((a: any) => ({
+            id: a.id,
+            label: a.locationName || a.accountName || "Google Business Location",
+            sublabel: a.googleLocationId ? `${a.googleLocationId.split("/").pop()} • ${a.isDefault ? "Primary" : "Linked"}` : (a.isDefault ? "Primary Location" : "Linked Location"),
+            isDefault: a.isDefault,
+            type: "google",
+          }));
+          setGmbAccounts(options);
+          setSelectedGmbAccountId(prev => {
+            if (prev && options.some(o => o.id === prev)) return prev;
+            const defaultAcc = options.find((o) => o.isDefault) || options[0];
+            return defaultAcc?.id || "";
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch GMB accounts:", err);
+    }
+  };
+
+  const handleSwitchGmbAccount = (accountId: string) => {
+    setSelectedGmbAccountId(accountId);
+    const resolvedOrg = orgId || getOrgId();
+    fetchConfig(resolvedOrg, accountId);
+    fetchReviews(resolvedOrg, accountId);
+  };
+
   useEffect(() => {
     const resolvedOrg = getOrgId();
     setOrgId(resolvedOrg);
     if (!resolvedOrg) return;
 
+    fetchGmbAccounts(resolvedOrg);
     fetchConfig(resolvedOrg);
     fetchReviews(resolvedOrg);
 
@@ -247,19 +302,32 @@ export default function ReviewsPage() {
   };
 
   const downloadQrCode = async () => {
+    if (!qrCodeImageUrl) return;
     try {
       const response = await fetch(qrCodeImageUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Feedback_Funnel_QR_${config.locationName.replace(/\s+/g, "_") || "Jisnu"}.png`;
+      const safeLocName = (config.locationName || "Business").replace(/\s+/g, "_");
+      link.download = `Feedback_Funnel_QR_${safeLocName}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
       window.open(qrCodeImageUrl, "_blank");
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!publicFunnelUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicFunnelUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy link:", err);
     }
   };
 
@@ -300,6 +368,20 @@ export default function ReviewsPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {gmbAccounts.length > 0 && (
+              <AccountSwitcher
+                title="Select GMB Location"
+                theme="indigo"
+                accounts={gmbAccounts}
+                selectedAccountId={selectedGmbAccountId}
+                onSelectAccount={handleSwitchGmbAccount}
+                onToggleOpen={fetchGmbAccounts}
+                onAddNewAccount={() => {
+                  window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/reviews`;
+                }}
+              />
+            )}
+
             <Button
               variant="outline"
               size="sm"
@@ -422,7 +504,7 @@ export default function ReviewsPage() {
                   <Database className="h-4.5 w-4.5 text-amber-600" /> Review Funnel QR Code
                 </h3>
                 <p className="text-[11px] text-slate-500 leading-normal max-w-xs mx-auto">
-                  Scan this QR code or click download to print it. Display it on your properties to capture positive reviews directly onto maps while buffering negative reviews.
+                  {config.locationName ? `Linked to: ${config.locationName}.` : "Direct QR code for your business."} Scan or print to capture 4-5★ reviews directly onto Google Maps while buffering negative reviews.
                 </p>
               </div>
 
@@ -448,15 +530,34 @@ export default function ReviewsPage() {
                 >
                   <Download className="h-4 w-4 mr-1 text-amber-600" /> Download Print Quality QR
                 </Button>
-                
-                <a
-                  href={publicFunnelUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full text-slate-500 hover:text-amber-700 text-[10px] flex items-center justify-center gap-1 transition-all underline font-semibold"
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyLink}
+                  className="w-full border-slate-200 text-slate-700 hover:text-slate-900"
                 >
-                  Open Funnel Review Form <ExternalLink className="h-3 w-3" />
-                </a>
+                  {copiedLink ? (
+                    <>
+                      <Check className="h-4 w-4 mr-1 text-emerald-600" /> Copied to Clipboard!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 mr-1 text-slate-500" /> Copy Funnel Link
+                    </>
+                  )}
+                </Button>
+                
+                {publicFunnelUrl && (
+                  <a
+                    href={publicFunnelUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full text-slate-500 hover:text-amber-700 text-[11px] flex items-center justify-center gap-1 transition-all underline font-semibold pt-1"
+                  >
+                    Open Funnel Review Form <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
               </div>
             </div>
           </div>

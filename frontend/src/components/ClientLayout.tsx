@@ -12,7 +12,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const router = useRouter();
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  const isPublic = PUBLIC_ROUTES.some(r => pathname === r || pathname.startsWith("/reviews/submit"));
+  const isPublic = 
+    PUBLIC_ROUTES.some(r => pathname === r) || 
+    pathname.startsWith("/reviews/submit") ||
+    pathname.startsWith("/review/") ||
+    pathname === "/review" ||
+    (pathname.startsWith("/reviews/") && pathname !== "/reviews");
   const isFullScreen = isPublic || pathname.startsWith("/ads/campaigns/create");
 
   useEffect(() => {
