@@ -74,6 +74,30 @@ export class GoogleAdsImageGenService {
     const context = bizDesc ? `${bizDesc}. ` : "";
     const siteContext = website ? `Official website: ${website}. ` : "";
 
+    const logoStyles = [
+      "Modern clean minimalist vector emblem with sophisticated bold typography on a pristine solid background",
+      "Sleek 3D geometric corporate badge with vibrant modern gradient accents and clean premium finish",
+      "High-end tech company insignia, sharp vector lines, modern negative space aesthetic, solid neutral background",
+      "Elegant contemporary brand mark, centered emblem, luxury commercial branding aesthetic, clean and crisp"
+    ];
+    const selectedLogoStyle = logoStyles[Math.floor(Math.random() * logoStyles.length)];
+
+    const landscapeStyles = [
+      "Award-winning commercial advertising photography, hyper-realistic, dynamic studio lighting, vibrant colors, cinematic depth of field",
+      "Modern sleek commercial showcase, bright contemporary workspace/environment, authentic high-value interaction, 8k resolution",
+      "Premium advertising creative, elegant composition, crisp studio backlighting, striking commercial visual aesthetic",
+      "High-converting lifestyle commercial, modern architectural setting, vivid natural lighting, polished professional atmosphere"
+    ];
+    const selectedLandscapeStyle = landscapeStyles[Math.floor(Math.random() * landscapeStyles.length)];
+
+    const squareStyles = [
+      "High-converting square advertising creative, eye-catching commercial layout, ultra-sharp focus, vivid studio lighting",
+      "Sleek product and service showcase, bold focal point, vibrant contrasting palette, clean modern composition",
+      "Contemporary commercial hero visual, centered subject, luxurious studio reflections, crisp high-definition detail",
+      "Dynamic social-ready marketing graphic, modern aesthetic, bright engaging lighting, premium commercial feel"
+    ];
+    const selectedSquareStyle = squareStyles[Math.floor(Math.random() * squareStyles.length)];
+
     if (mode === "LOGO_ONLY") {
       return [
         {
@@ -81,7 +105,7 @@ export class GoogleAdsImageGenService {
           dimensions: { width: 1200, height: 1200 },
           fieldType: "LOGO" as const,
           suffix: "Logo (1:1)",
-          prompt: `Professional high-resolution vector brand logo for "${brand}". ${context}${siteContext}Minimalist, clean flat modern typography, vector icon badge on a pure solid clean background, symmetrical, premium tech/commercial branding, highly recognizable on mobile screens and Google Ads.`
+          prompt: `Professional high-resolution brand logo for "${brand}". ${context}${siteContext}${selectedLogoStyle}, square 1:1 format, centered, Google Ads compliant.`
         }
       ];
     }
@@ -93,14 +117,14 @@ export class GoogleAdsImageGenService {
           dimensions: { width: 1200, height: 628 },
           fieldType: "MARKETING_IMAGE" as const,
           suffix: "Landscape (1.91:1)",
-          prompt: `Award-winning commercial advertising photography for "${brand}". ${context}${siteContext}Landscape 1.91:1 aspect ratio. Hyper-realistic, professional studio lighting, showcasing premium products and services, vibrant commercial aesthetic, modern clean environment, authentic customer engagement, 8k resolution, cinematic depth of field, Google Ads compliant.`
+          prompt: `Commercial advertising photography for "${brand}". ${context}${siteContext}Landscape 1.91:1 aspect ratio. ${selectedLandscapeStyle}, showcasing premium services, Google Ads compliant.`
         },
         {
           aspectRatio: "1:1" as const,
           dimensions: { width: 1200, height: 1200 },
           fieldType: "SQUARE_MARKETING_IMAGE" as const,
           suffix: "Square (1:1)",
-          prompt: `High-converting square advertising creative for "${brand}". ${context}${siteContext}Square 1:1 aspect ratio. Eye-catching commercial product/service showcase, sleek modern layout, ultra-sharp focus, vivid studio lighting, luxurious aesthetic, Google Ads Performance Max and Display ready.`
+          prompt: `Commercial advertising creative for "${brand}". ${context}${siteContext}Square 1:1 aspect ratio. ${selectedSquareStyle}, Google Ads Performance Max and Display ready.`
         }
       ];
     }
@@ -111,21 +135,21 @@ export class GoogleAdsImageGenService {
         dimensions: { width: 1200, height: 628 },
         fieldType: "MARKETING_IMAGE" as const,
         suffix: "Landscape (1.91:1)",
-        prompt: `Award-winning commercial advertising photography for "${brand}". ${context}${siteContext}Landscape 1.91:1 aspect ratio. Hyper-realistic, professional studio lighting, showcasing premium products and services, vibrant commercial aesthetic, modern clean environment, authentic customer engagement, 8k resolution, cinematic depth of field, Google Ads compliant.`
+        prompt: `Commercial advertising photography for "${brand}". ${context}${siteContext}Landscape 1.91:1 aspect ratio. ${selectedLandscapeStyle}, showcasing premium services, Google Ads compliant.`
       },
       {
         aspectRatio: "1:1" as const,
         dimensions: { width: 1200, height: 1200 },
         fieldType: "SQUARE_MARKETING_IMAGE" as const,
         suffix: "Square (1:1)",
-        prompt: `High-converting square advertising creative for "${brand}". ${context}${siteContext}Square 1:1 aspect ratio. Eye-catching commercial product/service showcase, sleek modern layout, ultra-sharp focus, vivid studio lighting, luxurious aesthetic, Google Ads Performance Max and Display ready.`
+        prompt: `Commercial advertising creative for "${brand}". ${context}${siteContext}Square 1:1 aspect ratio. ${selectedSquareStyle}, Google Ads Performance Max and Display ready.`
       },
       {
         aspectRatio: "1:1" as const,
         dimensions: { width: 1200, height: 1200 },
         fieldType: "LOGO" as const,
         suffix: "Logo (1:1)",
-        prompt: `Modern clean vector company logo for "${brand}". ${context}Square 1:1 format, centered emblem with modern typeface on solid clean background, sharp vector edges, premium corporate branding for Google Ads display.`
+        prompt: `Professional brand logo for "${brand}". ${context}${siteContext}${selectedLogoStyle}, square 1:1 format, centered, Google Ads display ready.`
       }
     ];
   }
@@ -195,13 +219,13 @@ export class GoogleAdsImageGenService {
         }
       }
 
-      // 2. High-quality visual fallback rendering
+      // 2. High-quality visual fallback rendering with randomized seed for creative diversity
       if (!imageUrl) {
-        const sanitizedSeed = encodeURIComponent(bizName.toLowerCase().replace(/[^a-z0-9]/g, "") + "_" + (cfg.fieldType === "LOGO" ? "logo" : cfg.aspectRatio));
-        const encodedPrompt = encodeURIComponent(cfg.prompt.slice(0, 150));
+        const dynamicSeed = Math.floor(Math.random() * 90000000) + 10000000;
+        const encodedPrompt = encodeURIComponent(cfg.prompt.slice(0, 200));
         
-        // Use Pollinations.ai ultra-fast state-of-the-art Flux generator
-        imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${cfg.dimensions.width}&height=${cfg.dimensions.height}&seed=${sanitizedSeed}&nologo=true&enhance=true`;
+        // Use Pollinations.ai ultra-fast state-of-the-art Flux generator with unique dynamic seed
+        imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${cfg.dimensions.width}&height=${cfg.dimensions.height}&seed=${dynamicSeed}&nologo=true&enhance=true`;
       }
 
       // 3. Upload and persist to ImageKit if configured

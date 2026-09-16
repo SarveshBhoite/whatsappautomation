@@ -1,3 +1,5 @@
+import { GoogleAdsBaseService } from "./GoogleAdsBaseService";
+
 export interface ValidationError {
   field: string;
   message: string;
@@ -39,10 +41,20 @@ export class GoogleAdsCampaignValidator {
       addError("campaignName", "Campaign name is required.", "FIELD");
     }
 
-    // Daily Budget
+    // Budget Validation (Daily Budget vs Campaign Total Budget)
+    const budgetType = (state.budgetType || "DAILY").toUpperCase();
     const dailyBudgetNum = Number(state.dailyBudget);
-    if (!state.dailyBudget || isNaN(dailyBudgetNum) || dailyBudgetNum <= 0) {
-      addError("dailyBudget", "A valid positive daily budget greater than ₹0 is required.", "BUDGET");
+    const totalBudgetNum = Number(state.totalBudget || state.budget);
+
+    if (budgetType === "TOTAL") {
+      const effectiveTotal = !isNaN(totalBudgetNum) && totalBudgetNum > 0 ? totalBudgetNum : dailyBudgetNum;
+      if (isNaN(effectiveTotal) || effectiveTotal <= 0) {
+        addError("dailyBudget", "A valid positive Campaign Total Budget greater than ₹0 is required.", "BUDGET");
+      }
+    } else {
+      if (!state.dailyBudget || isNaN(dailyBudgetNum) || dailyBudgetNum <= 0) {
+        addError("dailyBudget", "A valid positive daily budget greater than ₹0 is required.", "BUDGET");
+      }
     }
 
     // Locations
@@ -63,6 +75,14 @@ export class GoogleAdsCampaignValidator {
         addError("startDate", `Start date cannot be in the past (${startStr}).`, "FIELD");
       }
     }
+
+    // End date is mandatory for Campaign Total Budget, and optional for Daily Budget
+    if (budgetType === "TOTAL") {
+      if (!state.endDate || !String(state.endDate).trim()) {
+        addError("endDate", "End date is required when using Campaign Total Budget.", "FIELD");
+      }
+    }
+
     if (state.endDate && state.startDate) {
       const startStr = String(state.startDate).split("T")[0];
       const endStr = String(state.endDate).split("T")[0];
@@ -103,7 +123,9 @@ export class GoogleAdsCampaignValidator {
         }
 
         // Headlines (at least 3 unique, <= 30 chars)
-        const validHeadlines = (state.headlines || []).filter((h: any) => typeof h === "string" && h.trim().length > 0);
+        const validHeadlines = (state.headlines || [])
+          .map((h: any) => GoogleAdsBaseService.cleanAdText(String(h || ""), 30))
+          .filter((h: string) => h.length > 0);
         if (validHeadlines.length < 3) {
           addError("headlines", `At least 3 headlines are required for Performance Max (currently have ${validHeadlines.length}).`, "FIELD");
         }
@@ -111,39 +133,25 @@ export class GoogleAdsCampaignValidator {
         if (uniqueHeadlines.length < validHeadlines.length) {
           addError("headlines", "All headlines must be unique.", "FIELD");
         }
-        for (const h of validHeadlines) {
-          if (h.length > 30) {
-            addError("headlines", `Headline "${h.slice(0, 20)}..." exceeds the 30-character limit.`, "FIELD");
-            break;
-          }
-        }
 
         // Long Headlines (at least 1 unique, <= 90 chars)
-        const validLongHeadlines = (state.longHeadlines || []).filter((lh: any) => typeof lh === "string" && lh.trim().length > 0);
+        const validLongHeadlines = (state.longHeadlines || [])
+          .map((lh: any) => GoogleAdsBaseService.cleanAdText(String(lh || ""), 90))
+          .filter((lh: string) => lh.length > 0);
         if (validLongHeadlines.length < 1) {
           addError("longHeadlines", "At least 1 long headline (up to 90 characters) is required for Performance Max.", "FIELD");
         }
-        for (const lh of validLongHeadlines) {
-          if (lh.length > 90) {
-            addError("longHeadlines", `Long headline "${lh.slice(0, 20)}..." exceeds the 90-character limit.`, "FIELD");
-            break;
-          }
-        }
 
         // Descriptions (at least 2 unique, <= 90 chars)
-        const validDescriptions = (state.descriptions || []).filter((d: any) => typeof d === "string" && d.trim().length > 0);
+        const validDescriptions = (state.descriptions || [])
+          .map((d: any) => GoogleAdsBaseService.cleanAdText(String(d || ""), 90))
+          .filter((d: string) => d.length > 0);
         if (validDescriptions.length < 2) {
           addError("descriptions", `At least 2 descriptions are required for Performance Max (currently have ${validDescriptions.length}).`, "FIELD");
         }
         const uniqueDescriptions = Array.from(new Set(validDescriptions.map((d: string) => d.trim().toLowerCase())));
         if (uniqueDescriptions.length < validDescriptions.length) {
           addError("descriptions", "All descriptions must be unique.", "FIELD");
-        }
-        for (const d of validDescriptions) {
-          if (d.length > 90) {
-            addError("descriptions", `Description "${d.slice(0, 20)}..." exceeds the 90-character limit.`, "FIELD");
-            break;
-          }
         }
 
         // ASSET REQUIREMENT: Landscape 1.91:1, Square 1:1, Logo 1:1
@@ -205,14 +213,18 @@ export class GoogleAdsCampaignValidator {
           if (raw) hasLogo = true;
         }
 
-        if (!hasLandscape) {
-          addError("landscapeMarketingImage", "At least 1 landscape marketing image (1.91:1) is required for Performance Max.", "ASSET");
-        }
-        if (!hasSquare) {
-          addError("squareMarketingImage", "At least 1 square marketing image (1:1) is required for Performance Max.", "ASSET");
-        }
-        if (!hasLogo) {
-          addError("logo", "At least 1 square brand logo (1:1) is required for Performance Max.", "ASSET");
+        const isAiGuidedFlow = Boolean((state as any).isAiGuided || (state as any).source === "AI_GUIDED");
+
+        if (!isAiGuidedFlow) {
+          if (!hasLandscape) {
+            addError("landscapeMarketingImage", "At least 1 landscape marketing image (1.91:1) is required for Performance Max.", "ASSET");
+          }
+          if (!hasSquare) {
+            addError("squareMarketingImage", "At least 1 square marketing image (1:1) is required for Performance Max.", "ASSET");
+          }
+          if (!hasLogo) {
+            addError("logo", "At least 1 square brand logo (1:1) is required for Performance Max.", "ASSET");
+          }
         }
         break;
       }
@@ -230,7 +242,9 @@ export class GoogleAdsCampaignValidator {
         }
 
         // Headlines (at least 3 unique, <= 30 chars)
-        const validHeadlines = (state.headlines || []).filter((h: any) => typeof h === "string" && h.trim().length > 0);
+        const validHeadlines = (state.headlines || [])
+          .map((h: any) => GoogleAdsBaseService.cleanAdText(String(h || ""), 30))
+          .filter((h: string) => h.length > 0);
         if (validHeadlines.length < 3) {
           addError("headlines", `Search ads require at least 3 unique headlines (currently have ${validHeadlines.length}).`, "FIELD");
         }
@@ -238,27 +252,17 @@ export class GoogleAdsCampaignValidator {
         if (uniqueHeadlines.length < validHeadlines.length) {
           addError("headlines", "All headlines must be unique.", "FIELD");
         }
-        for (const h of validHeadlines) {
-          if (h.length > 30) {
-            addError("headlines", `Headline "${h.slice(0, 20)}..." exceeds the 30-character limit.`, "FIELD");
-            break;
-          }
-        }
 
         // Descriptions (at least 2 unique, <= 90 chars)
-        const validDescriptions = (state.descriptions || []).filter((d: any) => typeof d === "string" && d.trim().length > 0);
+        const validDescriptions = (state.descriptions || [])
+          .map((d: any) => GoogleAdsBaseService.cleanAdText(String(d || ""), 90))
+          .filter((d: string) => d.length > 0);
         if (validDescriptions.length < 2) {
           addError("descriptions", `Search ads require at least 2 unique descriptions (currently have ${validDescriptions.length}).`, "FIELD");
         }
         const uniqueDescriptions = Array.from(new Set(validDescriptions.map((d: string) => d.trim().toLowerCase())));
         if (uniqueDescriptions.length < validDescriptions.length) {
           addError("descriptions", "All descriptions must be unique.", "FIELD");
-        }
-        for (const d of validDescriptions) {
-          if (d.length > 90) {
-            addError("descriptions", `Description "${d.slice(0, 20)}..." exceeds the 90-character limit.`, "FIELD");
-            break;
-          }
         }
 
         // Keywords (at least 1)
@@ -291,31 +295,91 @@ export class GoogleAdsCampaignValidator {
       case "DISPLAY": {
         // Business Name
         if (!state.businessName?.trim()) {
-          addError("businessName", "Business name is required.", "FIELD");
+          addError("businessName", "Business name is required for Display campaigns.", "FIELD");
+        } else if (state.businessName.trim().length > 25) {
+          addError("businessName", "Business name cannot exceed 25 characters.", "FIELD");
         }
 
         // Final URL
         const displayUrl = state.website || state.finalUrl || "";
         if (!displayUrl.trim() || (!displayUrl.startsWith("http://") && !displayUrl.startsWith("https://"))) {
           addError("website", "A valid landing page URL starting with http:// or https:// is required.", "FIELD");
+        } else {
+          try {
+            const parsed = new URL(displayUrl.trim());
+            const host = parsed.hostname.toLowerCase();
+            if (host === "example.com" || host.endsWith(".example.com") || host === "localhost" || host === "127.0.0.1") {
+              addError("website", `Final URL cannot use dummy or restricted domains (${host}).`, "FIELD");
+            }
+          } catch (e: any) {
+            addError("website", "Invalid website URL format.", "FIELD");
+          }
         }
 
-        // Headlines & Descriptions
+        // Headlines (at least 1, <= 30 chars)
         const validHeadlines = (state.headlines || []).filter((h: any) => typeof h === "string" && h.trim().length > 0);
         if (validHeadlines.length < 1) {
           addError("headlines", "At least 1 headline is required for Display campaigns.", "FIELD");
         }
+        for (const h of validHeadlines) {
+          if (h.length > 30) {
+            addError("headlines", `Headline "${h.slice(0, 20)}..." exceeds the 30-character limit for Display ads.`, "FIELD");
+            break;
+          }
+        }
 
+        // Long Headlines (at least 1, <= 90 chars)
+        const validLongHeadlines = (state.longHeadlines || []).filter((lh: any) => typeof lh === "string" && lh.trim().length > 0);
+        if (validLongHeadlines.length < 1 && validHeadlines.length < 1) {
+          addError("longHeadlines", "At least 1 long headline is required for Responsive Display ads.", "FIELD");
+        }
+        for (const lh of validLongHeadlines) {
+          if (lh.length > 90) {
+            addError("longHeadlines", `Long headline "${lh.slice(0, 20)}..." exceeds the 90-character limit.`, "FIELD");
+            break;
+          }
+        }
+
+        // Descriptions (at least 1, <= 90 chars)
         const validDescriptions = (state.descriptions || []).filter((d: any) => typeof d === "string" && d.trim().length > 0);
         if (validDescriptions.length < 1) {
           addError("descriptions", "At least 1 description is required for Display campaigns.", "FIELD");
         }
+        for (const d of validDescriptions) {
+          if (d.length > 90) {
+            addError("descriptions", `Description "${d.slice(0, 20)}..." exceeds the 90-character limit.`, "FIELD");
+            break;
+          }
+        }
 
         // Display requires at least 1 image
         const hasImages = (Array.isArray(state.images) && state.images.length > 0) ||
-                          (Array.isArray(state.uploadedImages) && state.uploadedImages.length > 0);
+                          (Array.isArray((state as any).uploadedImages) && (state as any).uploadedImages.length > 0);
         if (!hasImages) {
-          addError("images", "At least 1 marketing image is required for Display ads.", "ASSET");
+          addError("images", "At least 1 marketing image (1.91:1 or 1:1) is required for Display ads.", "ASSET");
+        }
+
+        // Display requires at least 1 logo
+        const allLogos = [
+          ...(Array.isArray(state.logos) ? state.logos : []),
+          ...(Array.isArray(state.brandLogos) ? state.brandLogos : [])
+        ].filter((l: any) => l && (typeof l === "string" ? l.trim() : l.url || l.data || l.asset));
+        if (allLogos.length < 1) {
+          addError("logos", "At least 1 square brand logo (1:1) is required for Display ads.", "ASSET");
+        }
+
+        // Bidding strategy validation
+        const dStrat = (state.biddingStrategy || "").trim().toLowerCase();
+        if (dStrat === "target cpa" || dStrat === "target_cpa") {
+          const cpaNum = Number(state.targetCpa);
+          if (state.targetCpa === undefined || state.targetCpa === null || isNaN(cpaNum) || cpaNum <= 0) {
+            addError("targetCpa", "A positive Target CPA amount is required when Target CPA bidding is selected.", "FIELD");
+          }
+        } else if (dStrat === "target roas" || dStrat === "target_roas") {
+          const roasNum = Number(state.targetRoas);
+          if (state.targetRoas === undefined || state.targetRoas === null || isNaN(roasNum) || roasNum <= 0) {
+            addError("targetRoas", "A positive Target ROAS is required when Target ROAS bidding is selected.", "FIELD");
+          }
         }
         break;
       }
@@ -417,39 +481,158 @@ export class GoogleAdsCampaignValidator {
       }
 
       case "VIDEO": {
+        if (!state.businessName?.trim()) {
+          addError("businessName", "Business name is required for Video campaigns.", "FIELD");
+        } else if (state.businessName.trim().length > 25) {
+          addError("businessName", "Business name cannot exceed 25 characters.", "FIELD");
+        }
+
         const videoUrl = state.website || state.finalUrl || "";
         if (!videoUrl.trim() || (!videoUrl.startsWith("http://") && !videoUrl.startsWith("https://"))) {
-          addError("website", "A valid final URL starting with http:// or https:// is required.", "FIELD");
+          addError("website", "A valid landing page / final URL starting with http:// or https:// is required.", "FIELD");
+        } else {
+          try {
+            const parsed = new URL(videoUrl.trim());
+            const host = parsed.hostname.toLowerCase();
+            if (host === "example.com" || host.endsWith(".example.com") || host === "localhost" || host === "127.0.0.1") {
+              addError("website", `Final URL cannot use dummy or restricted domains (${host}).`, "FIELD");
+            }
+          } catch (e: any) {
+            addError("website", "Invalid website URL format.", "FIELD");
+          }
         }
+
+        // Headlines validation (<= 30 chars for standard video ads)
         const validHeadlines = (state.headlines || []).filter((h: any) => typeof h === "string" && h.trim().length > 0);
         if (validHeadlines.length < 1) {
           addError("headlines", "At least 1 headline is required for Video campaigns.", "FIELD");
         }
+        for (const h of validHeadlines) {
+          if (h.length > 30) {
+            addError("headlines", `Headline "${h.slice(0, 20)}..." exceeds the 30-character limit for Video ads.`, "FIELD");
+            break;
+          }
+        }
+
+        // Long Headlines validation (<= 90 chars)
+        const validLongHeadlines = (state.longHeadlines || []).filter((lh: any) => typeof lh === "string" && lh.trim().length > 0);
+        for (const lh of validLongHeadlines) {
+          if (lh.length > 90) {
+            addError("longHeadlines", `Long headline "${lh.slice(0, 20)}..." exceeds the 90-character limit.`, "FIELD");
+            break;
+          }
+        }
+
+        // Descriptions validation (<= 90 chars)
         const validDescriptions = (state.descriptions || []).filter((d: any) => typeof d === "string" && d.trim().length > 0);
         if (validDescriptions.length < 1) {
           addError("descriptions", "At least 1 description is required for Video campaigns.", "FIELD");
+        }
+        for (const d of validDescriptions) {
+          if (d.length > 90) {
+            addError("descriptions", `Description "${d.slice(0, 20)}..." exceeds the 90-character limit.`, "FIELD");
+            break;
+          }
+        }
+
+        const format = (state.adFormat || "SINGLE_IMAGE").toUpperCase();
+        const allLogos = [
+          ...(Array.isArray(state.logos) ? state.logos : []),
+          ...(Array.isArray(state.brandLogos) ? state.brandLogos : [])
+        ].filter((l: any) => l && (typeof l === "string" ? l.trim() : l.url || l.data || l.asset));
+
+        if (allLogos.length < 1) {
+          addError("logos", "At least 1 brand logo is required for Video ads.", "ASSET");
+        }
+
+        if (format === "VIDEO") {
+          const allVideos = [
+            ...(Array.isArray(state.videos) ? state.videos : []),
+            ...(Array.isArray((state as any).youtubeVideos) ? (state as any).youtubeVideos : [])
+          ].filter((v: any) => v && (typeof v === "string" ? v.trim() : v.asset || v.videoId || v.url));
+          if (allVideos.length < 1) {
+            addError("videos", "At least 1 YouTube video URL/asset is required for Video ads.", "ASSET");
+          }
+          if (validLongHeadlines.length < 1) {
+            addError("longHeadlines", "At least 1 long headline is required for responsive Video ads.", "FIELD");
+          }
+        } else if (format === "CAROUSEL") {
+          const cards = Array.isArray(state.carouselCards) ? state.carouselCards : [];
+          const validCards = cards.filter((c: any) => c && c.image && c.headline);
+          if (validCards.length < 2) {
+            addError("carouselCards", `At least 2 carousel cards with an image and headline are required for Carousel Video ads (currently have ${validCards.length}).`, "ASSET");
+          }
+        } else {
+          // SINGLE_IMAGE format fallback
+          const allImages = [
+            ...(Array.isArray(state.images) ? state.images : []),
+            ...(Array.isArray((state as any).uploadedImages) ? (state as any).uploadedImages : [])
+          ].filter((img: any) => img && (typeof img === "string" ? img.trim() : img.url || img.data || img.asset));
+          if (allImages.length < 1) {
+            addError("images", "At least 1 marketing image is required for Single Image Video ads.", "ASSET");
+          }
+        }
+
+        // Bidding strategy validation
+        const vStrat = (state.biddingStrategy || "").trim().toLowerCase();
+        if (vStrat === "target cpa" || vStrat === "target_cpa") {
+          const cpaNum = Number(state.targetCpa);
+          if (state.targetCpa === undefined || state.targetCpa === null || isNaN(cpaNum) || cpaNum <= 0) {
+            addError("targetCpa", "A positive Target CPA amount is required when Target CPA bidding is selected.", "FIELD");
+          }
+        } else if (vStrat === "target roas" || vStrat === "target_roas") {
+          const roasNum = Number(state.targetRoas);
+          if (state.targetRoas === undefined || state.targetRoas === null || isNaN(roasNum) || roasNum <= 0) {
+            addError("targetRoas", "A positive Target ROAS is required when Target ROAS bidding is selected.", "FIELD");
+          }
         }
         break;
       }
 
       case "APP": {
-        if (!state.appId?.trim()) {
-          addError("appId", "Mobile App package name (Android) or bundle ID (iOS) is required (e.g. 'com.hubmate.app').", "FIELD");
+        const pForm = (state.platform || (state.appStore === "APPLE_APP_STORE" ? "IOS" : "ANDROID")).toUpperCase();
+        const trimmedAppId = (state.appId || "").trim();
+        if (!trimmedAppId) {
+          addError("appId", "Mobile App package name (Android) or numerical App Store ID (iOS) is required.", "FIELD");
+        } else if (pForm === "IOS" && !/^\d+$/.test(trimmedAppId) && !trimmedAppId.includes(".")) {
+          addError("appId", "iOS App ID must be a numeric Store ID (e.g. '123456789') or valid bundle ID.", "FIELD");
+        } else if (pForm === "ANDROID" && !trimmedAppId.includes(".")) {
+          addError("appId", "Android package name must follow standard dot notation (e.g. 'com.company.app').", "FIELD");
         }
+
         if (!state.businessName?.trim() && !state.business?.name?.trim()) {
           addError("businessName", "Business name is required for App promotion.", "FIELD");
+        } else if ((state.businessName || state.business?.name || "").trim().length > 25) {
+          addError("businessName", "Business name cannot exceed 25 characters.", "FIELD");
         }
+
         const targetCpaNum = Number(state.targetCpa);
         if (state.targetCpa === undefined || state.targetCpa === null || state.targetCpa === "" || isNaN(targetCpaNum) || targetCpaNum <= 0) {
-          addError("targetCpa", "A valid positive Target CPA is required for App install campaigns.", "FIELD");
+          addError("targetCpa", "A valid positive Target CPA is required for App install campaigns. Fallback or zero CPA is prohibited by Google Ads API.", "FIELD");
         }
+
+        // Headlines validation (<= 30 chars)
         const validHeadlines = (state.headlines || []).filter((h: any) => typeof h === "string" && h.trim().length > 0);
         if (validHeadlines.length < 1) {
           addError("headlines", "At least 1 headline is required for App promotion.", "FIELD");
         }
+        for (const h of validHeadlines) {
+          if (h.length > 30) {
+            addError("headlines", `Headline "${h.slice(0, 20)}..." exceeds the 30-character limit for App ads.`, "FIELD");
+            break;
+          }
+        }
+
+        // Descriptions validation (<= 90 chars)
         const validDescriptions = (state.descriptions || []).filter((d: any) => typeof d === "string" && d.trim().length > 0);
         if (validDescriptions.length < 1) {
           addError("descriptions", "At least 1 description is required for App promotion.", "FIELD");
+        }
+        for (const d of validDescriptions) {
+          if (d.length > 90) {
+            addError("descriptions", `Description "${d.slice(0, 20)}..." exceeds the 90-character limit.`, "FIELD");
+            break;
+          }
         }
         break;
       }

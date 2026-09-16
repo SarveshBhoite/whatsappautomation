@@ -64,7 +64,12 @@ import {
   Settings2,
   Paperclip,
   FolderArchive,
-  FolderOpen
+  FolderOpen,
+  Save,
+  Bot,
+  Cpu,
+  BrainCircuit,
+  Sparkle
 } from "lucide-react";
 
 export interface BusinessContext {
@@ -88,6 +93,7 @@ export interface CampaignState {
   campaignName?: string;
   businessName?: string;
   website?: string;
+  budgetType?: "DAILY" | "TOTAL" | string;
   dailyBudget?: number | null;
   locations?: string[];
   language?: string;
@@ -130,7 +136,6 @@ export interface CampaignState {
   merchantId?: string;
   salesCountry?: string;
   feedLabel?: string;
-  budgetType?: string;
   adGroupName?: string;
   adGroupBid?: number | string | null;
   assetGroupName?: string;
@@ -147,12 +152,33 @@ export interface CampaignState {
   displayPath1?: string;
   displayPath2?: string;
   mobileFinalUrl?: string;
+  searchThemes?: string[];
+  audienceSignals?: any[];
   adSchedule?: Array<{ day: string; start: string; end: string }>;
   devices?: { computers: boolean; mobile: boolean; tablets: boolean; tv: boolean };
   demographicExclusions?: { ages?: string[]; genders?: string[] };
   dataExclusions?: string[];
   callPhoneNumber?: string;
   euPolitical?: "YES" | "NO";
+  networkSearch?: boolean;
+  networkDisplay?: boolean;
+  locationOptionsPresence?: string;
+  locationOptionsExclude?: string;
+  adRotationMode?: string;
+  onlyBidNewCustomers?: boolean;
+  adjustLapsedCustomers?: boolean;
+  useSearchTermMatchingAdGroup?: boolean;
+  includeViewThrough?: boolean;
+  mainBrandColor?: string;
+  accentBrandColor?: string;
+  brandFont?: string;
+  optAdaptiveLayouts?: boolean;
+  optAnimatedImages?: boolean;
+  optGeneratedVideos?: boolean;
+  optShorterVideos?: boolean;
+  optResizedVideos?: boolean;
+  optLandingPagePreviews?: boolean;
+  adName?: string;
   // Extension Assets
   promotions?: Array<{
     promotionTarget: string;
@@ -592,7 +618,7 @@ export const reconcileCampaignStateWithManualFlow = (
     updated.locations = ["India"];
   }
   if (!updated.language || !updated.language.trim()) {
-    updated.language = "English";
+    updated.language = "All languages";
   }
 
   return updated;
@@ -613,6 +639,9 @@ interface Message {
   content: string;
   suggestions?: string[];
   campaignState?: CampaignState;
+  proposedCampaignState?: CampaignState;
+  isApplied?: boolean;
+  isDismissed?: boolean;
   generatedImages?: GeneratedCreativeItem[];
   readyForReview?: boolean;
   readyForPublish?: boolean;
@@ -651,9 +680,13 @@ export default function AiGuidedCampaignPage() {
     website: "",
     dailyBudget: null,
     locations: ["India"],
-    language: "English",
+    language: "All languages",
     startDate: undefined,
     endDate: undefined,
+    demographicExclusions: {
+      ages: ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"],
+      genders: ["Female", "Male"]
+    },
     keywords: [],
     headlines: [],
     descriptions: [],
@@ -673,8 +706,11 @@ export default function AiGuidedCampaignPage() {
   
   // Location selection mode and search in Cockpit ("ALL" | "INDIA" | "CUSTOM")
   const [locationMode, setLocationMode] = useState<"ALL" | "INDIA" | "CUSTOM">("CUSTOM");
+  const [locationTab, setLocationTab] = useState<"LOCATION" | "RADIUS">("LOCATION");
+  const [radiusValue, setRadiusValue] = useState<number>(20);
+  const [radiusUnit, setRadiusUnit] = useState<"km" | "mi">("km");
   const [locationSearchQuery, setLocationSearchQuery] = useState<string>("");
-  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ id?: string; name: string; canonicalName: string; targetType?: string }>>([]);
+  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ id?: string; name: string; canonicalName: string; targetType?: string; placeId?: string; lat?: number; lng?: number }>>([]);
   const [isSearchingLocation, setIsSearchingLocation] = useState<boolean>(false);
   const [selectedLocationsList, setSelectedLocationsList] = useState<string[]>(["India"]);
 
@@ -692,6 +728,43 @@ export default function AiGuidedCampaignPage() {
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState<boolean>(false);
   const [referencedCampaign, setReferencedCampaign] = useState<any | null>(null);
 
+  // AI Suggestions Review Modal Popup State (For Grok AI recommendations)
+  const [isAiSuggestionsModalOpen, setIsAiSuggestionsModalOpen] = useState<boolean>(false);
+  const [pendingAiSuggestions, setPendingAiSuggestions] = useState<{
+    proposedState: CampaignState;
+    messageId?: string;
+    aiExplanation?: string;
+    suggestedHeadlines?: string[];
+    suggestedDescriptions?: string[];
+    suggestedLongHeadlines?: string[];
+    suggestedKeywords?: string[];
+    suggestedBudget?: number | null;
+    suggestedLocations?: string[];
+    suggestedType?: string;
+    suggestedObjective?: string;
+    suggestedBidding?: string;
+  } | null>(null);
+
+  // Antigravity-style Floating Notification Message Banner for AI Suggestions
+  const [aiNotificationBanner, setAiNotificationBanner] = useState<{
+    title: string;
+    summary: string;
+    suggestionsData: {
+      proposedState: CampaignState;
+      messageId?: string;
+      aiExplanation?: string;
+      suggestedHeadlines?: string[];
+      suggestedDescriptions?: string[];
+      suggestedLongHeadlines?: string[];
+      suggestedKeywords?: string[];
+      suggestedBudget?: number | null;
+      suggestedLocations?: string[];
+      suggestedType?: string;
+      suggestedObjective?: string;
+      suggestedBidding?: string;
+    };
+  } | null>(null);
+
   // New Ad Copy Add Inputs in Cockpit
   const [newHeadlineInput, setNewHeadlineInput] = useState<string>("");
   const [isAddingHeadline, setIsAddingHeadline] = useState<boolean>(false);
@@ -703,8 +776,391 @@ export default function AiGuidedCampaignPage() {
   // Optional Parameters Accordion Toggle in Cockpit
   const [showOptionalParams, setShowOptionalParams] = useState<boolean>(false);
 
+  // Performance Max More Campaign Settings State
+  const [showPMaxMoreSettings, setShowPMaxMoreSettings] = useState<boolean>(false);
+
+  // Desktop Split Panel Resize State
+  const [cockpitWidth, setCockpitWidth] = useState<number>(440);
+  const [isResizingCockpit, setIsResizingCockpit] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isResizingCockpit) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Cockpit is anchored to the right side: width = total window width - mouse X position
+      const minW = 320;
+      const maxW = Math.max(minW, Math.min(850, window.innerWidth - 360));
+      const newWidth = Math.min(Math.max(window.innerWidth - e.clientX, minW), maxW);
+      setCockpitWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingCockpit(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizingCockpit]);
+  const [activePMaxMoreSetting, setActivePMaxMoreSetting] = useState<string | null>(null);
+  const [pmaxBrandInput, setPmaxBrandInput] = useState<string>("");
+  const [pmaxDataExclusionInput, setPmaxDataExclusionInput] = useState<string>("");
+  const [pmaxAgeExclusionsEnabled, setPmaxAgeExclusionsEnabled] = useState<boolean>(false);
+  const [pmaxGenderExclusionsEnabled, setPmaxGenderExclusionsEnabled] = useState<boolean>(false);
+
+  const pmaxTimeOptions = [
+    "00:00", "00:15", "00:30", "00:45", "01:00", "01:15", "01:30", "01:45",
+    "02:00", "02:15", "02:30", "02:45", "03:00", "03:15", "03:30", "03:45",
+    "04:00", "04:15", "04:30", "04:45", "05:00", "05:15", "05:30", "05:45",
+    "06:00", "06:15", "06:30", "06:45", "07:00", "07:15", "07:30", "07:45",
+    "08:00", "08:15", "08:30", "08:45", "09:00", "09:15", "09:30", "09:45",
+    "10:00", "10:15", "10:30", "10:45", "11:00", "11:15", "11:30", "11:45",
+    "12:00", "12:15", "12:30", "12:45", "13:00", "13:15", "13:30", "13:45",
+    "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30", "15:45",
+    "16:00", "16:15", "16:30", "16:45", "17:00", "17:15", "17:30", "17:45",
+    "18:00", "18:15", "18:30", "18:45", "19:00", "19:15", "19:30", "19:45",
+    "20:00", "20:15", "20:30", "20:45", "21:00", "21:15", "21:30", "21:45",
+    "22:00", "22:15", "22:30", "22:45", "23:00", "23:15", "23:30", "23:45", "24:00"
+  ];
+
+  const pmaxDayOptions = [
+    "All days", "Mondays - Fridays", "Saturdays - Sundays",
+    "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"
+  ];
+
   // Cockpit Direct AI Generation Animation State
   const [cockpitGeneratingTarget, setCockpitGeneratingTarget] = useState<string | null>(null);
+
+  // User Profile & CRM Login Context
+  const [userProfile, setUserProfile] = useState<{
+    userName?: string;
+    businessName?: string;
+    organizationName?: string;
+    locationName?: string;
+    accountName?: string;
+    customerId?: string;
+    currencyCode?: string;
+  } | null>(null);
+
+  // Fetch Logged-in User Profile & Auto-fill Campaign Cockpit + Chat Welcome Message
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+        const cid = customerId || "6587355041";
+        const storedUserName = typeof window !== "undefined" ? (localStorage.getItem("user_name") || localStorage.getItem("userName") || "") : "";
+        const storedOrgName = typeof window !== "undefined" ? (localStorage.getItem("org_name") || localStorage.getItem("organizationName") || "") : "";
+
+        const res = await fetch(`${BACKEND}/api/ads/ai-guided/user-profile?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`, {
+          headers: {
+            "x-organization-id": orgId
+          }
+        });
+
+        let profileData: any = {};
+        if (res.ok) {
+          profileData = await res.json();
+        }
+
+        const resolvedUserName = profileData.userName || storedUserName || "Marketer";
+        const resolvedBizName = profileData.businessName || profileData.accountName || storedOrgName || profileData.organizationName || "";
+        const resolvedOrgName = profileData.organizationName || storedOrgName || "";
+        const resolvedLocation = profileData.locationName || "India";
+
+        setUserProfile({
+          userName: resolvedUserName,
+          businessName: resolvedBizName,
+          organizationName: resolvedOrgName,
+          locationName: resolvedLocation,
+          accountName: profileData.accountName || "",
+          customerId: profileData.customerId || cid,
+          currencyCode: profileData.currencyCode || "INR"
+        });
+
+        // Pre-fill Right Side Campaign Cockpit with login details if fields are empty
+        setCampaignState(prev => {
+          const finalBiz = prev.businessName || resolvedBizName || "";
+          const defaultCampaignName = prev.campaignName
+            ? prev.campaignName
+            : (finalBiz ? generateCampaignName(finalBiz, prev.campaignType) : "");
+
+          return {
+            ...prev,
+            businessName: finalBiz,
+            campaignName: defaultCampaignName,
+            business: {
+              ...(prev.business || {}),
+              name: prev.business?.name || finalBiz,
+              description: prev.business?.description || ""
+            },
+            locations: (prev.locations && prev.locations.length > 0 && prev.locations[0] !== "") 
+              ? prev.locations 
+              : (resolvedLocation ? [resolvedLocation] : ["India"])
+          };
+        });
+
+        // Update Initial AI Welcome Message with personalized user & company greeting
+        const welcomeBizText = resolvedBizName || resolvedOrgName;
+        const greetingContent = `Hi ${resolvedUserName}! 👋 Welcome to your Google Ads AI Copilot${welcomeBizText ? ` for **${welcomeBizText}**` : ""}.\n\n` +
+          `I've loaded your connected Google Ads account (${cid ? `ID: \`${cid}\`` : "Active Account"}) and business details.\n\n` +
+          `Tell me about what you'd like to promote today, or choose a starting point below:`;
+
+        const welcomeMessage: Message = {
+          id: "msg-initial",
+          role: "assistant",
+          content: greetingContent,
+          suggestions: [
+            resolvedBizName ? `Generate complete campaign for ${resolvedBizName}` : "I want more leads & phone calls",
+            "I want to sell products online",
+            "I have a website URL to analyze",
+            "What campaign type do you recommend?"
+          ],
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        };
+
+        setMessages(prev => {
+          if (prev.length === 0 || (prev.length === 1 && prev[0].id === "msg-initial")) {
+            return [welcomeMessage];
+          }
+          return prev;
+        });
+        // Also load Google Places/Maps API key config for Map render
+        try {
+          const cfgRes = await fetch(`${BACKEND}/api/ads/places/config`);
+          if (cfgRes.ok) {
+            const cfgData = await cfgRes.json();
+            if (cfgData.apiKey) {
+              setGoogleMapsApiKey(cfgData.apiKey);
+            }
+          }
+        } catch (mErr) {
+          console.warn("[AI-GUIDED] Failed to load places config:", mErr);
+        }
+      } catch (e) {
+        console.warn("[AI-GUIDED] Error loading user profile:", e);
+      }
+    };
+
+    fetchUserProfile();
+  }, [customerId]);
+
+  // Saved Drafts List specifically for "Edit from Old Draft" (Strictly status === "DRAFT")
+  const [draftsList, setDraftsList] = useState<Array<any>>([]);
+  const [isLoadingDrafts, setIsLoadingDrafts] = useState<boolean>(false);
+  const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
+  const [draftSaveSuccess, setDraftSaveSuccess] = useState<string | null>(null);
+
+  // Unsaved Changes & Exit Dialog State
+  const [isExitPromptOpen, setIsExitPromptOpen] = useState<boolean>(false);
+  const [pendingExitAction, setPendingExitAction] = useState<"back" | "new_session" | null>(null);
+  const [isSaveDraftConfirmOpen, setIsSaveDraftConfirmOpen] = useState<boolean>(false);
+  const [saveDraftMode, setSaveDraftMode] = useState<"create" | "update_existing" | "save_as_new">("create");
+  // Loaded Draft Context (when user opens a draft from "Edit from Old Draft")
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
+  const [loadedDraftName, setLoadedDraftName] = useState<string | null>(null);
+  const [loadedDraftSnapshot, setLoadedDraftSnapshot] = useState<string | null>(null);
+
+  // Helper to serialize campaign state for comparison
+  const getDraftComparableString = (state: CampaignState): string => {
+    return JSON.stringify({
+      biz: state.businessName || state.business?.name || "",
+      obj: state.objective || "",
+      type: state.campaignType || "",
+      budget: state.dailyBudget || null,
+      locs: state.locations || [],
+      lang: state.language || "",
+      website: state.website || "",
+      headlines: state.headlines || [],
+      longHeadlines: state.longHeadlines || [],
+      descriptions: state.descriptions || [],
+      keywords: state.keywords || [],
+      images: (state.images || []).map((img: any) => (typeof img === "string" ? img : img.url)),
+      logos: (state.logos || []).map((img: any) => (typeof img === "string" ? img : img.url)),
+      videos: (state.videos || []).map((v: any) => (typeof v === "string" ? v : v.url)),
+      biddingStrategy: state.biddingStrategy || ""
+    });
+  };
+
+  // Check if active session is editing an old draft and whether modifications occurred
+  const hasLoadedDraftChanges = (): boolean => {
+    if (!loadedDraftSnapshot) return true;
+    return getDraftComparableString(campaignState) !== loadedDraftSnapshot;
+  };
+
+  // Helper to determine if the user has meaningful unsaved campaign data
+  const hasUnsavedProgress = (): boolean => {
+    const hasBiz = !!(campaignState.businessName?.trim() || campaignState.website?.trim());
+    const hasBudget = !!(campaignState.dailyBudget && campaignState.dailyBudget > 0);
+    const hasCopy = (campaignState.headlines?.length || 0) > 0 || (campaignState.descriptions?.length || 0) > 0 || (campaignState.keywords?.length || 0) > 0;
+    const hasAssets = (campaignState.images?.length || 0) > 0 || (campaignState.logos?.length || 0) > 0;
+    const hasChatMessages = messages.length > 1; // More than just initial greeting
+    return hasBiz || hasBudget || hasCopy || hasAssets || hasChatMessages;
+  };
+
+  // Helper to execute fresh session reset
+  const executeResetSession = () => {
+    setMessages([]);
+    setIsCustomCampaignName(false);
+    setLoadedDraftId(null);
+    setLoadedDraftName(null);
+    setLoadedDraftSnapshot(null);
+    setIsEditingCockpit(false);
+    setEditingField(null);
+    setReferencedCampaign(null);
+    setCampaignState({
+      business: {},
+      desiredOutcome: "",
+      campaignType: "",
+      objective: "",
+      conversionGoals: [],
+      campaignName: "",
+      businessName: "",
+      website: "",
+      dailyBudget: null,
+      locations: ["India"],
+      language: "All languages",
+      startDate: todayIso,
+      endDate: undefined,
+      keywords: [],
+      headlines: [],
+      descriptions: [],
+      images: [],
+      logos: [],
+      videos: [],
+      readyForReview: false,
+      readyForPublish: false,
+      stage: "collecting_business"
+    });
+  };
+
+  // Helper to execute Save Draft to database (updates existing draft or saves as new)
+  const handleSaveCampaignDraft = async (options?: { asNewDraft?: boolean; onSuccess?: () => void }) => {
+    setIsSavingDraft(true);
+    setDraftSaveSuccess(null);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "6587355041";
+
+      const cleanBiz = campaignState.businessName || campaignState.business?.name || "Draft Business";
+      const cType = campaignState.campaignType || "";
+      const isSavingExisting = !options?.asNewDraft && Boolean(loadedDraftId);
+      const cName = campaignState.campaignName || (cType ? generateCampaignName(cleanBiz, cType) : cleanBiz);
+
+      const payload = {
+        draftId: isSavingExisting ? loadedDraftId : undefined,
+        customerId: cid,
+        campaignName: cName,
+        campaignType: cType,
+        biddingStrategy: campaignState.biddingStrategy || "Maximize conversions",
+        budget: campaignState.dailyBudget || null,
+        startDate: campaignState.startDate || todayIso,
+        endDate: campaignState.endDate || null,
+        finalUrl: campaignState.website || "",
+        headlines: campaignState.headlines || [],
+        descriptions: campaignState.descriptions || [],
+        keywords: campaignState.keywords || [],
+        geoTargets: campaignState.locations || ["India"],
+        languages: campaignState.language ? [campaignState.language] : ["All languages"],
+        searchThemes: campaignState.searchThemes || [],
+        draftData: {
+          objective: campaignState.objective,
+          conversionGoals: campaignState.conversionGoals,
+          businessName: cleanBiz,
+          website: campaignState.website,
+          images: campaignState.images || [],
+          logos: campaignState.logos || [],
+          videos: campaignState.videos || [],
+          targetCpa: campaignState.targetCpa,
+          targetRoas: campaignState.targetRoas,
+          longHeadlines: campaignState.longHeadlines || []
+        }
+      };
+
+      const res = await fetch(`${BACKEND}/api/ads/campaign/draft`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const resJson = await res.json();
+        const savedDraft = resJson.draft;
+        if (savedDraft?.id) {
+          setLoadedDraftId(savedDraft.id);
+          setLoadedDraftName(savedDraft.name || cName);
+          setLoadedDraftSnapshot(getDraftComparableString(campaignState));
+        }
+
+        const successText = isSavingExisting
+          ? `💾 **Changes Saved:** Updated draft for **${cName}** has been saved to your drafts database.`
+          : `💾 **Draft Saved:** Campaign configuration for **${cName}** has been securely saved as a new draft in your drafts database.`;
+
+        setDraftSaveSuccess(`Draft "${cName}" saved to database.`);
+        fetchDraftCampaigns();
+        fetchExistingCampaigns();
+
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `msg-draft-saved-${Date.now()}`,
+            role: "assistant",
+            content: successText,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          }
+        ]);
+
+        if (options?.onSuccess) {
+          options.onSuccess();
+        }
+      } else {
+        const errData = await res.json();
+        console.warn("Save draft response warning:", errData);
+      }
+    } catch (e: any) {
+      console.error("[AI-GUIDED] Error saving campaign draft:", e);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  // Fetch only unpublished saved drafts (status === "DRAFT")
+  const fetchDraftCampaigns = async () => {
+    try {
+      setIsLoadingDrafts(true);
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "6587355041";
+      const res = await fetch(`${BACKEND}/api/ads/campaigns/drafts?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`, {
+        headers: { "x-organization-id": orgId }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDraftsList(data);
+        }
+      }
+    } catch (err) {
+      console.warn("[AI-GUIDED] Failed to load drafts:", err);
+    } finally {
+      setIsLoadingDrafts(false);
+    }
+  };
 
   // Fetch user's existing campaigns from database for Draft Picker and @ Reference
   const fetchExistingCampaigns = async () => {
@@ -729,6 +1185,7 @@ export default function AiGuidedCampaignPage() {
 
   useEffect(() => {
     fetchExistingCampaigns();
+    fetchDraftCampaigns();
   }, [customerId]);
 
   // Handle Loading an Old Draft or Previous Campaign directly into Right-side Cockpit
@@ -744,33 +1201,53 @@ export default function AiGuidedCampaignPage() {
       ? camp.locations
       : (Array.isArray(camp.geoTargets) && camp.geoTargets.length > 0 ? camp.geoTargets : (camp.location ? [camp.location] : ["India"]));
     
-    let extractedLang = "English";
+    let extractedLang = "All languages";
     if (camp.language) {
       extractedLang = camp.language;
     } else if (Array.isArray(camp.languages) && camp.languages.length > 0) {
       extractedLang = camp.languages.join(", ");
     }
 
-    const extractedHeadlines = Array.isArray(camp.headlines) && camp.headlines.length > 0 ? camp.headlines : [];
-    const extractedLongHeadlines = Array.isArray(camp.longHeadlines) && camp.longHeadlines.length > 0 ? camp.longHeadlines : [];
-    const extractedDescriptions = Array.isArray(camp.descriptions) && camp.descriptions.length > 0 ? camp.descriptions : [];
-    const extractedKeywords = Array.isArray(camp.keywords) && camp.keywords.length > 0 ? camp.keywords : [];
-    const extractedImages = Array.isArray(camp.images) && camp.images.length > 0 ? camp.images : [];
-    const extractedLogos = Array.isArray(camp.logos) && camp.logos.length > 0 ? camp.logos : [];
-    const extractedVideos = Array.isArray(camp.videos) && camp.videos.length > 0 ? camp.videos : [];
-
     // Parse draft extra metadata if stored in audienceSignal / draftData
-    const extraDraft = camp.audienceSignal && typeof camp.audienceSignal === "object" ? camp.audienceSignal : {};
+    const extraDraft = (camp.audienceSignal && typeof camp.audienceSignal === "object")
+      ? camp.audienceSignal
+      : (camp.draftData && typeof camp.draftData === "object" ? camp.draftData : {});
+
+    const extractedHeadlines = Array.isArray(camp.headlines) && camp.headlines.length > 0 ? camp.headlines : (Array.isArray(extraDraft.headlines) ? extraDraft.headlines : []);
+    const extractedLongHeadlines = Array.isArray(camp.longHeadlines) && camp.longHeadlines.length > 0 ? camp.longHeadlines : (Array.isArray(extraDraft.longHeadlines) ? extraDraft.longHeadlines : []);
+    const extractedDescriptions = Array.isArray(camp.descriptions) && camp.descriptions.length > 0 ? camp.descriptions : (Array.isArray(extraDraft.descriptions) ? extraDraft.descriptions : []);
+    const extractedKeywords = Array.isArray(camp.keywords) && camp.keywords.length > 0 ? camp.keywords : (Array.isArray(extraDraft.keywords) ? extraDraft.keywords : []);
+    const extractedImages = Array.isArray(camp.images) && camp.images.length > 0 ? camp.images : (Array.isArray(extraDraft.images) && extraDraft.images.length > 0 ? extraDraft.images : (Array.isArray(camp.marketingImages) ? camp.marketingImages : []));
+    const extractedLogos = Array.isArray(camp.logos) && camp.logos.length > 0 ? camp.logos : (Array.isArray(extraDraft.logos) && extraDraft.logos.length > 0 ? extraDraft.logos : (Array.isArray(camp.logoImages) ? camp.logoImages : []));
+    const extractedVideos = Array.isArray(camp.videos) && camp.videos.length > 0 ? camp.videos : (Array.isArray(extraDraft.videos) && extraDraft.videos.length > 0 ? extraDraft.videos : (Array.isArray(camp.youtubeVideos) ? camp.youtubeVideos : []));
+
+    // Resolve Objective reliably (from camp.objective, extraDraft.objective, or infer from campaignType/goal)
+    let extractedObjective = camp.objective || extraDraft.objective || "";
+    if (!extractedObjective) {
+      if (camp.campaignType === "APP") {
+        extractedObjective = "APP_PROMOTION";
+      } else if (camp.campaignType === "VIDEO") {
+        extractedObjective = "AWARENESS";
+      } else if (camp.campaignType === "DEMAND_GEN" || camp.campaignType === "SHOPPING" || camp.campaignType === "PERFORMANCE_MAX" || camp.campaignType === "SEARCH" || camp.campaignType === "DISPLAY") {
+        extractedObjective = "SALES";
+      }
+    }
+
+    // Generate new campaign name format: ABC_DEF-{campaignType}-{random number}
+    const resolvedType = camp.campaignType || campaignState.campaignType || "";
+    const newFormattedCampaignName = generateCampaignName(extractedBiz || camp.name, resolvedType);
 
     // Auto-fill all old draft data directly into the Live Campaign Cockpit
     setCampaignState(prev => {
       const merged: CampaignState = {
         ...prev,
         businessName: extractedBiz || prev.businessName,
-        campaignName: camp.name || prev.campaignName,
-        campaignType: camp.campaignType || prev.campaignType || "PERFORMANCE_MAX",
-        objective: camp.objective || extraDraft.objective || prev.objective,
-        conversionGoals: Array.isArray(camp.conversionGoals) ? camp.conversionGoals : (Array.isArray(extraDraft.conversionGoals) ? extraDraft.conversionGoals : prev.conversionGoals),
+        campaignName: newFormattedCampaignName || camp.name || prev.campaignName,
+        campaignType: camp.campaignType || prev.campaignType || "",
+        objective: extractedObjective,
+        conversionGoals: Array.isArray(camp.conversionGoals) && camp.conversionGoals.length > 0
+          ? camp.conversionGoals 
+          : (Array.isArray(extraDraft.conversionGoals) && extraDraft.conversionGoals.length > 0 ? extraDraft.conversionGoals : (extractedObjective === "APP_PROMOTION" ? ["installs"] : (extractedObjective === "AWARENESS" ? ["views"] : ["phone_leads"]))),
         website: extractedWebsite || prev.website,
         business: {
           ...(prev.business || {}),
@@ -781,8 +1258,17 @@ export default function AiGuidedCampaignPage() {
         dailyBudget: parsedBudget || prev.dailyBudget,
         locations: extractedLocs && extractedLocs.length > 0 ? extractedLocs : prev.locations,
         language: extractedLang || prev.language,
-        startDate: camp.startDate ? new Date(camp.startDate).toISOString().split("T")[0] : prev.startDate,
-        endDate: camp.endDate ? new Date(camp.endDate).toISOString().split("T")[0] : prev.endDate,
+        startDate: (() => {
+          if (!camp.startDate) return prev.startDate || todayIso;
+          const parsedStart = new Date(camp.startDate).toISOString().split("T")[0];
+          return parsedStart < todayIso ? todayIso : parsedStart;
+        })(),
+        endDate: (() => {
+          if (!camp.endDate) return prev.endDate;
+          const parsedEnd = new Date(camp.endDate).toISOString().split("T")[0];
+          const effectiveStart = camp.startDate ? (new Date(camp.startDate).toISOString().split("T")[0] < todayIso ? todayIso : new Date(camp.startDate).toISOString().split("T")[0]) : todayIso;
+          return parsedEnd <= effectiveStart ? undefined : parsedEnd;
+        })(),
         biddingStrategy: camp.biddingStrategy || extraDraft.biddingStrategy || prev.biddingStrategy || "Maximize conversions",
         targetCpa: camp.targetCpa !== undefined && camp.targetCpa !== null ? Number(camp.targetCpa) : (extraDraft.targetCpa !== undefined ? Number(extraDraft.targetCpa) : prev.targetCpa),
         targetRoas: camp.targetRoas !== undefined && camp.targetRoas !== null ? Number(camp.targetRoas) : (extraDraft.targetRoas !== undefined ? Number(extraDraft.targetRoas) : prev.targetRoas),
@@ -815,8 +1301,9 @@ export default function AiGuidedCampaignPage() {
         euPolitical: camp.euPolitical || extraDraft.euPolitical || prev.euPolitical
       };
 
-      merged.readyForPublish = checkIsCampaignReady(merged);
-      return merged;
+      const reconciled = reconcileCampaignStateWithManualFlow(merged);
+      reconciled.readyForPublish = checkIsCampaignReady(reconciled);
+      return reconciled;
     });
 
     if (extractedLocs && extractedLocs.length > 0) {
@@ -826,13 +1313,37 @@ export default function AiGuidedCampaignPage() {
       setSelectedLanguagesList(extractedLang.split(",").map(l => l.trim()).filter(Boolean));
     }
 
+    // Track active draft info and capture initial snapshot for modification checks
+    const targetDraftId = camp.id || camp.campaignId || null;
+    const targetDraftName = camp.name || "";
+    setLoadedDraftId(targetDraftId);
+    setLoadedDraftName(targetDraftName);
+    setLoadedDraftSnapshot(getDraftComparableString({
+      businessName: extractedBiz,
+      campaignName: newFormattedCampaignName || camp.name,
+      campaignType: camp.campaignType || "",
+      objective: extractedObjective,
+      dailyBudget: parsedBudget,
+      locations: extractedLocs,
+      language: extractedLang,
+      website: extractedWebsite,
+      headlines: extractedHeadlines,
+      longHeadlines: extractedLongHeadlines,
+      descriptions: extractedDescriptions,
+      keywords: extractedKeywords,
+      images: extractedImages,
+      logos: extractedLogos,
+      videos: extractedVideos,
+      biddingStrategy: camp.biddingStrategy || ""
+    } as any));
+
     // Add confirmation assistant message in chat
     setMessages(prev => [
       ...prev,
       {
         id: `msg-load-draft-${Date.now()}`,
         role: "assistant",
-        content: `📂 **Loaded Draft Campaign:** "${camp.name}".\n\nAll previous parameters, budget (₹${parsedBudget || 'same'}), target locations (${extractedLocs.join(", ")}), headlines, descriptions, keywords, and creative assets have been populated into the **Campaign Cockpit** on the right. You can now edit any values or click **Launch** when ready.`,
+        content: `📂 **Loaded Draft Campaign:** "${camp.name}".\n\nAll parameters, Objective (${extractedObjective}), Campaign Type (${resolvedType || 'Auto'}), Campaign Name (\`${newFormattedCampaignName}\`), budget (₹${parsedBudget || 'same'}), target locations (${extractedLocs.join(", ")}), headlines, descriptions, keywords, and creative assets have been populated into the **Campaign Cockpit** on the right.`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       }
     ]);
@@ -840,16 +1351,92 @@ export default function AiGuidedCampaignPage() {
     setIsDraftPickerModalOpen(false);
   };
 
-  // Handle selecting an existing campaign to reuse context
+  // Handle selecting an existing campaign or draft to reuse context and auto-fill all parameters
   const handleSelectReferenceCampaign = (camp: any) => {
-    handleLoadDraftCampaign(camp);
+    setReferencedCampaign(camp);
+    setIsCampaignDropdownOpen(false);
 
-    // Prefill prompt input with @ reference tag and instructions
-    const rawBudget = camp.budget ? Number(camp.budget) : (camp.amountMicros ? Number(camp.amountMicros) / 1_000_000 : null);
+    // 1. Extract and normalize all fields from referenced campaign/draft
+    const rawBudget = camp.budget ? Number(camp.budget) : (camp.amountMicros ? Number(camp.amountMicros) / 1_000_000 : (camp.dailyBudget ? Number(camp.dailyBudget) : null));
     const parsedBudget = rawBudget && rawBudget > 0 ? rawBudget : null;
-    const extractedBiz = camp.businessName || camp.name?.split(/[-–|]/)[0]?.trim() || "";
+    const extractedBiz = camp.businessName || camp.business?.name || camp.name?.split(/[-–|]/)[0]?.trim() || "";
+    const extractedWebsite = camp.finalUrl || camp.website || camp.business?.website || camp.targetUrl || "";
+    const extractedObjective = (camp.objective || "WEBSITE_TRAFFIC").toUpperCase();
+    const resolvedType = camp.campaignType || (extractedObjective === "SALES" ? "SEARCH" : "DEMAND_GEN");
+    
+    let extractedLocs: string[] = [];
+    if (Array.isArray(camp.locations)) extractedLocs = camp.locations;
+    else if (Array.isArray(camp.geoTargets)) extractedLocs = camp.geoTargets.map((g: any) => typeof g === "string" ? g : (g.name || g.locationName || String(g)));
+    else if (camp.location) extractedLocs = [String(camp.location)];
 
-    const promptMessage = `Use settings and context from @[${camp.name}] (Business: ${extractedBiz || camp.name}, Budget: ₹${parsedBudget || 'same'}, Type: ${camp.campaignType || 'Existing'}). Create a new campaign keeping these base details and advise what goal/changes I should make.`;
+    const extraDraft = (camp.audienceSignal && typeof camp.audienceSignal === "object")
+      ? camp.audienceSignal
+      : (camp.draftData && typeof camp.draftData === "object" ? camp.draftData : {});
+
+    let extractedHeadlines: string[] = Array.isArray(camp.headlines) && camp.headlines.length > 0 ? camp.headlines : (Array.isArray(extraDraft.headlines) ? extraDraft.headlines : []);
+    let extractedDescriptions: string[] = Array.isArray(camp.descriptions) && camp.descriptions.length > 0 ? camp.descriptions : (Array.isArray(extraDraft.descriptions) ? extraDraft.descriptions : []);
+    let extractedLongHeadlines: string[] = Array.isArray(camp.longHeadlines) && camp.longHeadlines.length > 0 ? camp.longHeadlines : (Array.isArray(extraDraft.longHeadlines) ? extraDraft.longHeadlines : []);
+    let extractedKeywords: string[] = Array.isArray(camp.keywords) && camp.keywords.length > 0 ? camp.keywords : (Array.isArray(extraDraft.keywords) ? extraDraft.keywords : []);
+    let extractedImages: any[] = Array.isArray(camp.images) && camp.images.length > 0 ? camp.images : (Array.isArray(extraDraft.images) && extraDraft.images.length > 0 ? extraDraft.images : (Array.isArray(camp.marketingImages) ? camp.marketingImages : []));
+    let extractedLogos: any[] = Array.isArray(camp.logos) && camp.logos.length > 0 ? camp.logos : (Array.isArray(extraDraft.logos) && extraDraft.logos.length > 0 ? extraDraft.logos : (Array.isArray(camp.logoImages) ? camp.logoImages : []));
+    let extractedVideos: any[] = Array.isArray(camp.videos) && camp.videos.length > 0 ? camp.videos : (Array.isArray(extraDraft.videos) && extraDraft.videos.length > 0 ? extraDraft.videos : (Array.isArray(camp.youtubeVideos) ? camp.youtubeVideos : []));
+
+    // 2. Prepare proposed settings for user confirmation (Do NOT overwrite Cockpit until user clicks Apply)
+    const proposedMergedState: CampaignState = {
+      ...campaignState,
+      businessName: extractedBiz || campaignState.businessName,
+      campaignName: camp.name || campaignState.campaignName,
+      campaignType: resolvedType,
+      objective: extractedObjective as any,
+      budgetType: camp.budgetType || campaignState.budgetType || "DAILY",
+      dailyBudget: parsedBudget || campaignState.dailyBudget,
+      website: extractedWebsite || campaignState.website,
+      business: {
+        ...(campaignState.business || {}),
+        name: extractedBiz || campaignState.business?.name,
+        website: extractedWebsite || campaignState.business?.website,
+        description: camp.description || campaignState.business?.description || ""
+      },
+      locations: extractedLocs.length > 0 ? extractedLocs : campaignState.locations,
+      language: camp.language || campaignState.language,
+      biddingStrategy: camp.biddingStrategy || campaignState.biddingStrategy || "Maximize conversions",
+      targetCpa: camp.targetCpa ? Number(camp.targetCpa) : campaignState.targetCpa,
+      targetRoas: camp.targetRoas ? Number(camp.targetRoas) : campaignState.targetRoas,
+      headlines: extractedHeadlines.length > 0 ? extractedHeadlines : campaignState.headlines,
+      longHeadlines: extractedLongHeadlines.length > 0 ? extractedLongHeadlines : campaignState.longHeadlines,
+      descriptions: extractedDescriptions.length > 0 ? extractedDescriptions : campaignState.descriptions,
+      keywords: extractedKeywords.length > 0 ? extractedKeywords : campaignState.keywords,
+      images: extractedImages.length > 0 ? extractedImages : campaignState.images,
+      logos: extractedLogos.length > 0 ? extractedLogos : campaignState.logos,
+      videos: extractedVideos.length > 0 ? extractedVideos : campaignState.videos
+    };
+
+    const reconciled = reconcileCampaignStateWithManualFlow(proposedMergedState);
+    reconciled.readyForPublish = checkIsCampaignReady(reconciled);
+
+    const suggestionsPayload = {
+      proposedState: reconciled,
+      messageId: `ref-${Date.now()}`,
+      aiExplanation: `Loaded reference settings from @[${camp.name}]. Click "Apply to Cockpit" to update your right-side campaign settings.`,
+      suggestedHeadlines: extractedHeadlines,
+      suggestedDescriptions: extractedDescriptions,
+      suggestedLongHeadlines: extractedLongHeadlines,
+      suggestedKeywords: extractedKeywords,
+      suggestedBudget: parsedBudget,
+      suggestedLocations: extractedLocs,
+      suggestedType: resolvedType,
+      suggestedObjective: extractedObjective,
+      suggestedBidding: camp.biddingStrategy || ""
+    };
+
+    setPendingAiSuggestions(suggestionsPayload);
+    setAiNotificationBanner({
+      title: `Apply Settings from @[${camp.name}]?`,
+      summary: `Business: ${extractedBiz || camp.name} • Objective: ${extractedObjective} • Budget: ₹${parsedBudget || 'Current'}`,
+      suggestionsData: suggestionsPayload
+    });
+
+    const promptMessage = `Use settings and context from @[${camp.name}] (Business: ${extractedBiz || camp.name}, Budget: ₹${parsedBudget || 'same'}, Type: ${camp.campaignType || 'Existing'}).`;
     
     setInputVal(promptMessage);
     if (inputRef.current) {
@@ -860,6 +1447,23 @@ export default function AiGuidedCampaignPage() {
   // Multi-Channel Preview Tab & Device State on Left Side
   const [pmaxPreviewChannel, setPmaxPreviewChannel] = useState<"all" | "youtube" | "display" | "search" | "discover" | "gmail" | "maps">("all");
   const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
+  const [isReloadingPreview, setIsReloadingPreview] = useState<boolean>(false);
+  const [previewHeadlineIdx, setPreviewHeadlineIdx] = useState<number>(0);
+  const [previewDescIdx, setPreviewDescIdx] = useState<number>(0);
+
+  // Tracks whether copy was filled by AI/Grok vs manually entered by user
+  const [isHeadlinesAiSourced, setIsHeadlinesAiSourced] = useState<boolean>(false);
+  const [isLongHeadlinesAiSourced, setIsLongHeadlinesAiSourced] = useState<boolean>(false);
+  const [isDescriptionsAiSourced, setIsDescriptionsAiSourced] = useState<boolean>(false);
+
+  const handleReloadPreview = () => {
+    setIsReloadingPreview(true);
+    setPreviewHeadlineIdx(prev => prev + 1);
+    setPreviewDescIdx(prev => prev + 1);
+    setTimeout(() => {
+      setIsReloadingPreview(false);
+    }, 450);
+  };
 
   const getPreviewChannelsConfig = () => {
     const cType = campaignState.campaignType || "PERFORMANCE_MAX";
@@ -948,6 +1552,10 @@ export default function AiGuidedCampaignPage() {
   // Search Keywords input state in Cockpit
   const [newKeywordInput, setNewKeywordInput] = useState<string>("");
 
+  // Google Maps & Places API Key state for interactive maps
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>("");
+  const [showLocationMapPreview, setShowLocationMapPreview] = useState<boolean>(true);
+
   const [tempEditValues, setTempEditValues] = useState<{
     businessName?: string;
     campaignName?: string;
@@ -955,6 +1563,7 @@ export default function AiGuidedCampaignPage() {
     conversionGoal?: string;
     campaignType?: string;
     website?: string;
+    budgetType?: "TOTAL" | "DAILY";
     dailyBudget?: string | number;
     biddingStrategy?: string;
     targetCpa?: string | number;
@@ -989,9 +1598,17 @@ export default function AiGuidedCampaignPage() {
     appId?: string;
     appName?: string;
     platform?: string;
+    headlines?: string[];
+    descriptions?: string[];
+    longHeadlines?: string[];
+    callToAction?: string;
+    images?: Array<any>;
+    logos?: Array<any>;
+    videos?: Array<any>;
+    [key: string]: any;
   }>({});
 
-  // Live Location Search Effect for Cockpit
+  // Live Location Search Effect for Cockpit (Supports both standard Location and Radius mode)
   useEffect(() => {
     if (editingField === "locations" && locationMode === "CUSTOM" && locationSearchQuery.trim().length >= 2) {
       setIsSearchingLocation(true);
@@ -1001,32 +1618,117 @@ export default function AiGuidedCampaignPage() {
 
       const timer = setTimeout(async () => {
         try {
-          const res = await fetch(`${BACKEND}/api/ads/geo-targets/search?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}&q=${encodeURIComponent(locationSearchQuery.trim())}`);
-          if (res.ok) {
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : (data.results || data.data || []);
-            const formatted = list.map((item: any) => ({
-              id: item.id || item.geoTargetConstant?.id || item.resourceName?.split("/").pop(),
-              name: item.name || item.geoTargetConstant?.name || item.canonicalName || item.geoTargetConstant?.canonicalName,
-              canonicalName: item.canonicalName || item.geoTargetConstant?.canonicalName || item.name,
-              targetType: item.targetType || item.geoTargetConstant?.targetType || "Location"
-            }));
-            if (formatted.length > 0) {
-              setLocationSearchResults(formatted);
-            } else {
-              const localFallback = GOOGLE_ADS_LOCATION_PRESETS
-                .filter(loc => loc.name.toLowerCase().includes(locationSearchQuery.toLowerCase()) || loc.canonicalName.toLowerCase().includes(locationSearchQuery.toLowerCase()));
-              setLocationSearchResults(localFallback);
+          const queryTrimmed = locationSearchQuery.trim();
+          const isPin = /^\d{3,10}$/.test(queryTrimmed.replace(/\s+/g, ""));
+
+          if (locationTab === "RADIUS") {
+            // Radius mode: search places autocomplete to obtain point of interest / city / coordinates
+            try {
+              const res = await fetch(`${BACKEND}/api/ads/places/autocomplete?input=${encodeURIComponent(queryTrimmed)}&mode=radius`);
+              if (res.ok) {
+                const data = await res.json();
+                const predictions = (data.predictions || []).map((p: any) => ({
+                  id: p.placeId || `rad_${Math.random().toString(36).slice(2, 8)}`,
+                  placeId: p.placeId,
+                  name: p.mainText || p.name || p.description?.split(",")[0],
+                  canonicalName: p.description || p.canonicalName || p.mainText,
+                  targetType: `Radius (${radiusValue} ${radiusUnit})`,
+                  lat: p.lat,
+                  lng: p.lng
+                }));
+                setLocationSearchResults(predictions);
+              } else {
+                setLocationSearchResults([]);
+              }
+            } catch (rErr) {
+              console.warn("Radius autocomplete fetch warning:", rErr);
+              setLocationSearchResults([]);
             }
           } else {
-            const localFallback = GOOGLE_ADS_LOCATION_PRESETS
-              .filter(loc => loc.name.toLowerCase().includes(locationSearchQuery.toLowerCase()) || loc.canonicalName.toLowerCase().includes(locationSearchQuery.toLowerCase()));
-            setLocationSearchResults(localFallback);
+            // Location mode: query Places Autocomplete and Geo-Targets search safely
+            const safePlacesPromise = fetch(`${BACKEND}/api/ads/places/autocomplete?input=${encodeURIComponent(queryTrimmed)}&mode=location`).catch(err => {
+              console.warn("Places autocomplete error:", err);
+              return null;
+            });
+            const safeGeoPromise = isPin ? Promise.resolve(null) : fetch(`${BACKEND}/api/ads/geo-targets/search?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}&q=${encodeURIComponent(queryTrimmed)}`).catch(err => {
+              console.warn("Geo targets search error:", err);
+              return null;
+            });
+
+            const [placesRes, geoRes] = await Promise.all([safePlacesPromise, safeGeoPromise]);
+
+            const merged: Array<{ id?: string; name: string; canonicalName: string; targetType?: string; placeId?: string; lat?: number; lng?: number }> = [];
+            const seenIds = new Set<string>();
+
+            if (placesRes && placesRes.ok) {
+              try {
+                const pData = await placesRes.json();
+                const pList = pData.predictions || [];
+                for (const p of pList) {
+                  const id = p.placeId || p.id;
+                  if (!seenIds.has(id)) {
+                    seenIds.add(id);
+                    merged.push({
+                      id,
+                      placeId: p.placeId,
+                      name: p.mainText || p.name || p.description?.split(",")[0],
+                      canonicalName: p.description || p.canonicalName || p.mainText,
+                      targetType: p.types?.includes("postal_code")
+                        ? "Postal Code"
+                        : p.types?.includes("country")
+                          ? "Country"
+                          : p.types?.includes("administrative_area_level_1")
+                            ? "State / Region"
+                            : p.types?.includes("locality")
+                              ? "City"
+                              : "Location",
+                      lat: p.lat,
+                      lng: p.lng
+                    });
+                  }
+                }
+              } catch (e) {
+                console.warn("Places json parsing error:", e);
+              }
+            }
+
+            if (geoRes && geoRes.ok) {
+              try {
+                const gData = await geoRes.json();
+                const gList = Array.isArray(gData) ? gData : (gData.results || gData.data || []);
+                for (const item of gList) {
+                  const id = item.id || item.geoTargetConstant?.id || item.resourceName?.split("/").pop();
+                  const name = item.name || item.geoTargetConstant?.name || item.canonicalName;
+                  const canonicalName = item.canonicalName || item.geoTargetConstant?.canonicalName || name;
+                  if (!seenIds.has(id)) {
+                    seenIds.add(id);
+                    merged.push({
+                      id,
+                      name,
+                      canonicalName,
+                      targetType: item.targetType || item.geoTargetConstant?.targetType || "Location"
+                    });
+                  }
+                }
+              } catch (e) {
+                console.warn("Geo targets json parsing error:", e);
+              }
+            }
+
+            if (merged.length > 0) {
+              setLocationSearchResults(merged);
+            } else {
+              const localFallback = GOOGLE_ADS_LOCATION_PRESETS
+                .filter(loc => loc.name.toLowerCase().includes(queryTrimmed.toLowerCase()) || loc.canonicalName.toLowerCase().includes(queryTrimmed.toLowerCase()))
+                .map(loc => ({ ...loc, targetType: "Location" }));
+              setLocationSearchResults(localFallback);
+            }
           }
         } catch (err) {
           console.error("Cockpit location search error:", err);
           const localFallback = GOOGLE_ADS_LOCATION_PRESETS
-            .filter(loc => loc.name.toLowerCase().includes(locationSearchQuery.toLowerCase()) || loc.canonicalName.toLowerCase().includes(locationSearchQuery.toLowerCase()));
+            .filter(loc => loc.name.toLowerCase().includes(locationSearchQuery.toLowerCase()) || loc.canonicalName.toLowerCase().includes(locationSearchQuery.toLowerCase()))
+            .map(loc => ({ ...loc, targetType: "Location" }));
           setLocationSearchResults(localFallback);
         } finally {
           setIsSearchingLocation(false);
@@ -1035,9 +1737,9 @@ export default function AiGuidedCampaignPage() {
 
       return () => clearTimeout(timer);
     } else if (editingField === "locations" && locationMode === "CUSTOM" && locationSearchQuery.trim().length === 0) {
-      setLocationSearchResults(GOOGLE_ADS_LOCATION_PRESETS.slice(0, 6));
+      setLocationSearchResults(GOOGLE_ADS_LOCATION_PRESETS.slice(0, 6).map(loc => ({ ...loc, targetType: "Location" })));
     }
-  }, [editingField, locationMode, locationSearchQuery, customerId]);
+  }, [editingField, locationMode, locationTab, radiusValue, radiusUnit, locationSearchQuery, customerId]);
 
   // Real-time URL Validator
   const validateWebsiteUrl = (val?: string): string | null => {
@@ -1059,10 +1761,12 @@ export default function AiGuidedCampaignPage() {
     return null;
   };
 
-  // Real-time Budget Validator
-  const validateDailyBudget = (val?: string | number, targetCampaignType?: string): string | null => {
+  // Real-time Budget Validator (Daily Budget vs Campaign Total Budget)
+  const validateDailyBudget = (val?: string | number, targetCampaignType?: string, currentBudgetType?: string): string | null => {
+    const isTotal = (currentBudgetType || tempEditValues.budgetType || campaignState.budgetType) === "TOTAL";
+    const label = isTotal ? "Campaign total budget" : "Daily budget";
     if (val === undefined || val === null || String(val).trim() === "") {
-      return "Daily budget is required.";
+      return `${label} is required.`;
     }
     const str = String(val).trim();
     const num = Number(str);
@@ -1070,13 +1774,13 @@ export default function AiGuidedCampaignPage() {
       return "Please enter a valid numeric budget.";
     }
     if (num < 0) {
-      return "Daily budget cannot be negative.";
+      return `${label} cannot be negative.`;
     }
     if (num === 0) {
-      return "Daily budget must be greater than 0.";
+      return `${label} must be greater than 0.`;
     }
     const effectiveType = targetCampaignType || campaignState.campaignType;
-    if (effectiveType === "DEMAND_GEN" && num < 416) {
+    if (effectiveType === "DEMAND_GEN" && !isTotal && num < 416) {
       return "Demand Gen daily budget must be at least ₹416/day.";
     }
     return null;
@@ -1093,9 +1797,15 @@ export default function AiGuidedCampaignPage() {
     return null;
   };
 
-  // Real-time End Date Validator (Google Ads requires End Date to be strictly after Start Date)
-  const validateEndDate = (endVal?: string, startVal?: string): string | null => {
-    if (!endVal || !endVal.trim()) return null; // End date is optional
+  // Real-time End Date Validator (Google Ads requires End Date to be strictly after Start Date; mandatory for Total Budget, optional for Daily Budget)
+  const validateEndDate = (endVal?: string, startVal?: string, currentBudgetType?: string): string | null => {
+    const isTotal = (currentBudgetType || tempEditValues.budgetType || campaignState.budgetType) === "TOTAL";
+    if (!endVal || !endVal.trim()) {
+      if (isTotal) {
+        return "End date is required when using Campaign Total Budget.";
+      }
+      return null; // End date is optional for Daily Budget
+    }
     const effectiveStart = startVal || todayIso;
     if (endVal <= effectiveStart) {
       return `End date (${endVal}) must be after start date (${effectiveStart}).`;
@@ -1150,16 +1860,39 @@ export default function AiGuidedCampaignPage() {
     return raw;
   };
 
-  // Helper to generate canonical campaign name based on business name and optional confirmed campaign type
-  // Helper to generate canonical campaign name based on business name and optional confirmed campaign type
+  // Helper to generate canonical campaign name based on business name, optional campaign type, and random number check against existing campaigns in database
   const generateCampaignName = (businessName?: string, campaignType?: string) => {
     if (!businessName || !businessName.trim()) return "";
-    const cleanBiz = businessName.trim().replace(/\s+/g, "_");
-    if (campaignType) {
-      const typeDisplay = formatCampaignTypeDisplay(campaignType);
-      return `${cleanBiz} - ${typeDisplay}`;
-    }
-    return cleanBiz;
+    
+    // Replace whitespace and special separator characters with underscore
+    const cleanBiz = businessName
+      .trim()
+      .replace(/[|│┃/\\•●▪◆★►▶✔✓~^_*<>{}[\]#@+=,.:;!?'"`-]+/g, " ")
+      .trim()
+      .replace(/\s+/g, "_");
+
+    // Format campaign type for slug if available (e.g. PERFORMANCE_MAX -> PerformanceMax, SEARCH -> Search)
+    const typeLabel = campaignType ? campaignType.replace(/_/g, "") : "";
+    
+    // Extract existing campaign names from database to guarantee no duplicates
+    const existingNames = new Set(
+      (existingCampaignsList || []).map((c: any) => (c.name || c.campaignName || "").trim().toLowerCase())
+    );
+
+    let candidateName = "";
+    let attempts = 0;
+    
+    do {
+      const randNum = Math.floor(1000 + Math.random() * 9000); // 4-digit unique random number
+      if (typeLabel) {
+        candidateName = `${cleanBiz}-${typeLabel}-${randNum}`;
+      } else {
+        candidateName = `${cleanBiz}-${randNum}`;
+      }
+      attempts++;
+    } while (existingNames.has(candidateName.toLowerCase()) && attempts < 20);
+
+    return candidateName;
   };
 
   // Helper to check if campaign state satisfies all Google Ads publishing requirements
@@ -1239,7 +1972,7 @@ export default function AiGuidedCampaignPage() {
         hasSq = true;
       }
 
-      const hasBiz = !!(state.businessName?.trim() && state.businessName.trim().length <= 25);
+      const hasBiz = !!(state.businessName?.trim() || state.business?.name?.trim());
       const hasUrl = !!(state.website && (state.website.startsWith("http://") || state.website.startsWith("https://")));
       const bStrat = (state.biddingStrategy || "").toLowerCase();
       let isBiddingValid = true;
@@ -1255,8 +1988,10 @@ export default function AiGuidedCampaignPage() {
     }
 
     if (cType === "DISPLAY") {
+      const hasBiz = !!(state.businessName?.trim() || state.business?.name?.trim());
+      const hasUrl = !!(state.website && (state.website.startsWith("http://") || state.website.startsWith("https://")));
       const hasLongHl = validLongHeadlines.length >= 1 || validHeadlines.length >= 1;
-      return hasImages && hasLogos && validHeadlines.length >= 1 && hasLongHl && validDescriptions.length >= 1;
+      return hasBiz && hasUrl && hasImages && hasLogos && validHeadlines.length >= 1 && hasLongHl && validDescriptions.length >= 1;
     }
 
     if (cType === "DEMAND_GEN" || cType === "VIDEO") {
@@ -1516,6 +2251,38 @@ export default function AiGuidedCampaignPage() {
           });
         }
       }
+    } else if (cType === "DISPLAY") {
+      const allLogos = (state.logos || []).filter(l => l && (typeof l === "string" ? l.trim() : (l as any).url || (l as any).data || (l as any).asset));
+      const allImages = (state.images || []).filter(img => img && (typeof img === "string" ? img.trim() : (img as any).url || (img as any).data || (img as any).asset));
+
+      if (validHeadlines.length < 1) {
+        missing.push({
+          label: "At least 1 Headline is required for Display (up to 30 characters)",
+          field: "headlines",
+          fixAction: () => handleTriggerAiAssetGeneration("HEADLINES")
+        });
+      }
+      if (validDescriptions.length < 1) {
+        missing.push({
+          label: "At least 1 Description is required for Display (up to 90 characters)",
+          field: "descriptions",
+          fixAction: () => handleTriggerAiAssetGeneration("DESCRIPTIONS")
+        });
+      }
+      if (allImages.length < 1) {
+        missing.push({
+          label: "At least 1 Landscape (1.91:1) and 1 Square (1:1) Marketing Image required for Display",
+          field: "images",
+          fixAction: () => handleTriggerAiAssetGeneration("IMAGE")
+        });
+      }
+      if (allLogos.length < 1) {
+        missing.push({
+          label: "At least 1 Brand Logo (1:1) is required for Display",
+          field: "logos",
+          fixAction: () => handleTriggerAiAssetGeneration("LOGO")
+        });
+      }
     } else if (cType === "SHOPPING") {
       const mId = (state.merchantCenterId || (state as any).merchantId || "").trim();
       if (!/^\d+$/.test(mId)) {
@@ -1590,6 +2357,7 @@ export default function AiGuidedCampaignPage() {
       conversionGoal: rawGoal,
       campaignType: campaignState.campaignType || "",
       website: campaignState.website || "",
+      budgetType: (campaignState.budgetType as "TOTAL" | "DAILY") || "DAILY",
       dailyBudget: campaignState.dailyBudget !== null && campaignState.dailyBudget !== undefined ? campaignState.dailyBudget : "",
       biddingStrategy: campaignState.biddingStrategy || "",
       targetCpa: campaignState.targetCpa !== null && campaignState.targetCpa !== undefined ? campaignState.targetCpa : "",
@@ -1708,6 +2476,135 @@ export default function AiGuidedCampaignPage() {
 
     setFieldError(null);
 
+    if (editingField === "website" && tempEditValues.website !== undefined) {
+      let cleanUrl = tempEditValues.website.trim().replace(/^["'(\[<\s]+/, "").replace(/[\s"'\(\)\[\]<>\.,;:?]+$/, "").trim();
+      if (cleanUrl && !cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+        cleanUrl = `https://${cleanUrl}`;
+      }
+
+      if (cleanUrl && cleanUrl !== campaignState.website) {
+        if (cleanUrl.includes(".")) {
+          const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+          setIsAnalyzingUrl(true);
+
+          // 1. Immediately inform user in chat about website URL update
+          const startMsgId = `msg-url-updated-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          setMessages(prev => [
+            ...prev,
+            {
+              id: startMsgId,
+              role: "assistant",
+              content: `🌐 **Website Updated:** I noticed you configured **${cleanUrl}** in the Campaign Cockpit.\n\nAnalyzing your website content to extract business highlights, keywords, and high-converting ad copy...`,
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            }
+          ]);
+
+          fetch(`${BACKEND}/api/ads/ai-guided/analyze-url`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: cleanUrl })
+          })
+            .then(r => r.json())
+            .then(data => {
+              if (data && data.success) {
+                setCampaignState(prevState => {
+                  const extractedBizName = data.derivedBusinessName || data.title?.split(/[-|:]/)[0]?.trim() || prevState.businessName || "";
+                  return {
+                    ...prevState,
+                    website: cleanUrl,
+                    businessName: prevState.businessName || extractedBizName,
+                    business: {
+                      ...(prevState.business || {}),
+                      name: prevState.business?.name || extractedBizName,
+                      website: cleanUrl,
+                      description: prevState.business?.description || data.description || ""
+                    },
+                    locations: (data.locations && data.locations.length > 0 && (!prevState.locations || prevState.locations.length === 0 || prevState.locations[0] === "India"))
+                      ? data.locations
+                      : prevState.locations,
+                    language: (data.language && (!prevState.language || prevState.language === "All languages"))
+                      ? (data.language === "en" ? "English" : data.language)
+                      : prevState.language,
+                    headlines: (data.headlines && data.headlines.length > 0)
+                      ? Array.from(new Set([...(prevState.headlines || []), ...data.headlines]))
+                      : prevState.headlines,
+                    longHeadlines: (data.longHeadlines && data.longHeadlines.length > 0)
+                      ? Array.from(new Set([...(prevState.longHeadlines || []), ...data.longHeadlines]))
+                      : prevState.longHeadlines,
+                    descriptions: (data.descriptions && data.descriptions.length > 0)
+                      ? Array.from(new Set([...(prevState.descriptions || []), ...data.descriptions]))
+                      : prevState.descriptions,
+                    keywords: (data.keywords && data.keywords.length > 0)
+                      ? Array.from(new Set([...(prevState.keywords || []), ...data.keywords]))
+                      : prevState.keywords
+                  };
+                });
+
+                // 2. Post detailed analysis summary to left chat
+                const headlinesCount = (data.headlines || []).length;
+                const keywordsCount = (data.keywords || []).length;
+                const descriptionsCount = (data.descriptions || []).length;
+                const doneMsgId = `msg-url-analyzed-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    id: doneMsgId,
+                    role: "assistant",
+                    content: `✨ **Website Analysis Complete for ${cleanUrl}**:\n\n` +
+                      (data.description ? `📝 **Summary:** ${data.description.slice(0, 160)}...\n\n` : "") +
+                      `🎯 **Extracted Assets:**\n` +
+                      `• **${headlinesCount} Headlines** generated\n` +
+                      `• **${descriptionsCount} Descriptions** crafted\n` +
+                      `• **${keywordsCount} Target Keywords** extracted\n\n` +
+                      `All assets have been auto-synced into your **Campaign Cockpit** on the right.`,
+                    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  }
+                ]);
+              } else {
+                const setMsgId = `msg-url-set-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    id: setMsgId,
+                    role: "assistant",
+                    content: `🌐 **Website Configured:** Target URL has been set to **${cleanUrl}** in your Campaign Cockpit.`,
+                    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  }
+                ]);
+              }
+            })
+            .catch(err => {
+              console.warn("[AI-GUIDED] Cockpit website analysis fetch error:", err.message);
+              const errMsgId = `msg-url-fallback-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+              setMessages(prev => [
+                ...prev,
+                {
+                  id: errMsgId,
+                  role: "assistant",
+                  content: `🌐 **Website Configured:** Target URL set to **${cleanUrl}**.`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                }
+              ]);
+            })
+            .finally(() => {
+              setIsAnalyzingUrl(false);
+            });
+        } else {
+          const simpleMsgId = `msg-url-simple-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          setMessages(prev => [
+            ...prev,
+            {
+              id: simpleMsgId,
+              role: "assistant",
+              content: `🌐 **Website Updated:** Set target URL to **${cleanUrl}**.`,
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            }
+          ]);
+        }
+      }
+    }
+
     setCampaignState((prev) => {
       let updated: CampaignState = { ...prev };
       let newBizName = prev.businessName || prev.business?.name || "";
@@ -1765,59 +2662,15 @@ export default function AiGuidedCampaignPage() {
         }
         updated.website = cleanUrl;
         if (updated.business) updated.business.website = cleanUrl;
+      }
 
-        // Trigger AI Guided Website Analysis on URL commit
-        if (cleanUrl && cleanUrl.includes(".")) {
-          const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-          setIsAnalyzingUrl(true);
-          fetch(`${BACKEND}/api/ads/ai-guided/analyze-url`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: cleanUrl })
-          })
-            .then(r => r.json())
-            .then(data => {
-              if (data && data.success) {
-                setCampaignState(prevState => {
-                  const extractedBizName = data.derivedBusinessName || data.title?.split(/[-|:]/)[0]?.trim() || prevState.businessName || "";
-                  return {
-                    ...prevState,
-                    website: cleanUrl,
-                    businessName: prevState.businessName || extractedBizName,
-                    business: {
-                      ...(prevState.business || {}),
-                      name: prevState.business?.name || extractedBizName,
-                      website: cleanUrl,
-                      description: prevState.business?.description || data.description || ""
-                    },
-                    locations: (data.locations && data.locations.length > 0 && (!prevState.locations || prevState.locations.length === 0 || prevState.locations[0] === "India"))
-                      ? data.locations
-                      : prevState.locations,
-                    language: (data.language && (!prevState.language || prevState.language === "All languages"))
-                      ? (data.language === "en" ? "English" : data.language)
-                      : prevState.language,
-                    headlines: (data.headlines && data.headlines.length > 0)
-                      ? Array.from(new Set([...(prevState.headlines || []), ...data.headlines]))
-                      : prevState.headlines,
-                    longHeadlines: (data.longHeadlines && data.longHeadlines.length > 0)
-                      ? Array.from(new Set([...(prevState.longHeadlines || []), ...data.longHeadlines]))
-                      : prevState.longHeadlines,
-                    descriptions: (data.descriptions && data.descriptions.length > 0)
-                      ? Array.from(new Set([...(prevState.descriptions || []), ...data.descriptions]))
-                      : prevState.descriptions,
-                    keywords: (data.keywords && data.keywords.length > 0)
-                      ? Array.from(new Set([...(prevState.keywords || []), ...data.keywords]))
-                      : prevState.keywords
-                  };
-                });
-              }
-            })
-            .catch(err => {
-              console.warn("[AI-GUIDED] Cockpit website analysis fetch error:", err.message);
-            })
-            .finally(() => {
-              setIsAnalyzingUrl(false);
-            });
+      if (editingField === "budgetType" && tempEditValues.budgetType !== undefined) {
+        updated.budgetType = tempEditValues.budgetType;
+        if (tempEditValues.budgetType === "TOTAL" && (!updated.endDate || !String(updated.endDate).trim())) {
+          const baseStart = updated.startDate || todayIso;
+          const d = new Date(baseStart);
+          d.setDate(d.getDate() + 30);
+          updated.endDate = d.toISOString().split("T")[0];
         }
       }
 
@@ -2092,12 +2945,19 @@ export default function AiGuidedCampaignPage() {
 
   useEffect(() => {
     if (messages.length === 0) {
+      const userName = userProfile?.userName || (typeof window !== "undefined" ? localStorage.getItem("user_name") : "") || "Marketer";
+      const bizName = userProfile?.businessName || userProfile?.organizationName || "";
+      const cid = customerId || userProfile?.customerId || "";
+
+      const welcomeBizText = bizName ? ` for **${bizName}**` : "";
       const initialMessage: Message = {
         id: "msg-initial",
         role: "assistant",
-        content: `Hi! I'm your Google Ads AI Copilot. I'll help you create and configure the optimal campaign for your business.\n\nTell me about what your business offers and what outcome you want to achieve (e.g. *getting leads & phone calls*, *selling products online*, *bringing people to your store*, or *promoting your app*). You can also share your website URL.`,
+        content: `Hi ${userName}! 👋 Welcome to your Google Ads AI Copilot${welcomeBizText}.\n\n` +
+          `I've loaded your connected Google Ads account (${cid ? `ID: \`${cid}\`` : "Active Account"}) and business details.\n\n` +
+          `Tell me about what you'd like to promote today, or choose a starting point below:`,
         suggestions: [
-          "I want more leads & phone calls",
+          bizName ? `Generate complete campaign for ${bizName}` : "I want more leads & phone calls",
           "I want to sell products online",
           "I have a website URL to analyze",
           "What campaign type do you recommend?"
@@ -2106,7 +2966,7 @@ export default function AiGuidedCampaignPage() {
       };
       setMessages([initialMessage]);
     }
-  }, [messages.length]);
+  }, [messages.length, userProfile, customerId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -2158,6 +3018,70 @@ export default function AiGuidedCampaignPage() {
     }
   };
 
+  // Explicit user confirmation to apply AI generated campaign state
+  const applyProposedCampaignState = (proposed: CampaignState, messageId?: string) => {
+    if (!proposed) return;
+    setCampaignState(prev => {
+      const resolvedBizName = proposed.businessName || prev.businessName || prev.business?.name || "";
+      const resolvedCampaignType = proposed.campaignType || prev.campaignType || "";
+      
+      let resolvedCampaignName = prev.campaignName;
+      if (isCustomCampaignName) {
+        resolvedCampaignName = prev.campaignName;
+      } else if (resolvedBizName && resolvedCampaignType) {
+        resolvedCampaignName = generateCampaignName(resolvedBizName, resolvedCampaignType);
+      } else if (resolvedBizName) {
+        resolvedCampaignName = generateCampaignName(resolvedBizName);
+      } else if (proposed.campaignName) {
+        resolvedCampaignName = proposed.campaignName;
+      }
+
+      const resolvedObjective = proposed.objective || prev.objective || "";
+      
+      const rawMerged = {
+        ...prev,
+        ...proposed,
+        businessName: resolvedBizName,
+        campaignName: resolvedCampaignName,
+        objective: resolvedObjective,
+        campaignType: (resolvedCampaignType as any) || proposed.campaignType,
+        website: proposed.website || prev.website,
+        business: {
+          ...(prev.business || {}),
+          ...(proposed.business || {}),
+          name: resolvedBizName,
+          website: proposed.website || prev.website
+        },
+        budgetType: proposed.budgetType || prev.budgetType || "DAILY",
+        startDate: proposed.startDate || prev.startDate || todayIso,
+        endDate: proposed.endDate || prev.endDate,
+        images: (proposed.images && proposed.images.length > 0) ? proposed.images : prev.images,
+        logos: (proposed.logos && proposed.logos.length > 0) ? proposed.logos : prev.logos,
+        videos: (proposed.videos && proposed.videos.length > 0) ? proposed.videos : prev.videos
+      };
+
+      const reconciled = reconcileCampaignStateWithManualFlow(rawMerged);
+      if (!isCustomCampaignName && reconciled.businessName && reconciled.campaignType) {
+        if (!prev.campaignName || !prev.campaignType || prev.campaignType !== reconciled.campaignType) {
+          reconciled.campaignName = generateCampaignName(reconciled.businessName, reconciled.campaignType);
+        }
+      }
+      return reconciled;
+    });
+
+    if (proposed.headlines && proposed.headlines.length > 0) setIsHeadlinesAiSourced(true);
+    if (proposed.longHeadlines && proposed.longHeadlines.length > 0) setIsLongHeadlinesAiSourced(true);
+    if (proposed.descriptions && proposed.descriptions.length > 0) setIsDescriptionsAiSourced(true);
+
+    if (messageId) {
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isApplied: true, isDismissed: false } : m));
+    }
+  };
+
+  const dismissProposedCampaignState = (messageId: string) => {
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isDismissed: true } : m));
+  };
+
   // Helper to open the Image Editor Cropper Modal
   const triggerImageEditor = (
     imageSrc: string,
@@ -2200,8 +3124,19 @@ export default function AiGuidedCampaignPage() {
   };
 
   // Direct Cockpit AI Auto-Generator (Checks website/business data, preserves existing filled info, & directly generates assets without creating chat prompts)
-  const handleCockpitDirectAiGeneration = async (targetType: "IMAGE" | "LOGO" | "HEADLINES" | "LONG_HEADLINES" | "DESCRIPTIONS" | "ALL", isRegenerate: boolean = false) => {
-    let activeBizName = (campaignState.businessName || campaignState.business?.name || "").trim();
+  const handleCockpitDirectAiGeneration = async (
+    targetType: "IMAGE" | "LOGO" | "HEADLINES" | "LONG_HEADLINES" | "DESCRIPTIONS" | "KEYWORDS" | "HEADLINE_SINGLE" | "LONG_HEADLINE_SINGLE" | "DESCRIPTION_SINGLE" | "KEYWORD_SINGLE" | "ALL",
+    isRegenerate: boolean = false,
+    customHint?: string
+  ) => {
+    let activeBizName = (
+      campaignState.businessName ||
+      campaignState.business?.name ||
+      userProfile?.businessName ||
+      userProfile?.organizationName ||
+      (campaignState.campaignName ? campaignState.campaignName.split(/[-–|_]/)[0] : "") ||
+      ""
+    ).trim();
     let activeWebsite = (campaignState.website || "").trim();
     let activeBizDesc = (campaignState.business?.description || (campaignState as any).productOverview || "").trim();
     const effectiveCampType = campaignState.campaignType ? formatCampaignTypeDisplay(campaignState.campaignType) : "";
@@ -2244,11 +3179,9 @@ export default function AiGuidedCampaignPage() {
       }
     }
 
-    // 2. Verification: If business name AND website are missing, notify user to fill information first!
+    // 2. Safe Fallback: Default to "Our Business" if no name provided so AI generation never blocks
     if (!activeBizName && !activeWebsite) {
-      alert("⚠️ Missing Information: Please enter your Business Name or Website URL first in the Cockpit settings or Chat before AI can auto-generate assets.");
-      startFieldEdit("businessName");
-      return;
+      activeBizName = "Our Business";
     }
 
     // 3. Directly trigger generation via Grok/Groq AI pipeline
@@ -2265,12 +3198,38 @@ export default function AiGuidedCampaignPage() {
         intentMessage = isRegenerate
           ? `Re-generate a fresh set of Google Ads campaign assets for "${bizContext}"${typeContext}${descContext}${siteContext}. Please provide new: 1) 5 Headlines (≤ 30 chars), 2) 3 Long Headlines (≤ 90 chars), 3) 4 Descriptions (≤ 90 chars) with strong CTAs, 4) Top 15 high-intent Keywords, and 5) Visual creatives concepts.`
           : `Generate a complete end-to-end Google Ads campaign package for "${bizContext}"${typeContext}${descContext}${siteContext}. Please provide: 1) 5 high-CTR Headlines (≤ 30 chars), 2) 3 Long Headlines (≤ 90 chars), 3) 4 Descriptions (≤ 90 chars) with strong CTAs, 4) Top 15 high-intent Keywords, and 5) Creative visual direction for Landscape (1.91:1), Square (1:1) marketing images and Brand Logo.`;
+      } else if (targetType === "HEADLINE_SINGLE") {
+        intentMessage = customHint
+          ? `Generate 1 unique, high-converting Google Ads headline (strictly ≤ 30 characters) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 1 unique, high-converting Google Ads headline (strictly ≤ 30 characters) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+      } else if (targetType === "LONG_HEADLINE_SINGLE") {
+        intentMessage = customHint
+          ? `Generate 1 unique, compelling Google Ads long headline (strictly ≤ 90 characters) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 1 unique, compelling Google Ads long headline (strictly ≤ 90 characters) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+      } else if (targetType === "DESCRIPTION_SINGLE") {
+        intentMessage = customHint
+          ? `Generate 1 unique, engaging Google Ads description (strictly ≤ 90 characters with a strong CTA) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 1 unique, engaging Google Ads description (strictly ≤ 90 characters with a strong CTA) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
       } else if (targetType === "HEADLINES") {
-        intentMessage = `Generate 5 high-converting Google Ads compliant headlines (strictly ≤ 30 characters each) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+        intentMessage = customHint
+          ? `Generate 5 high-converting Google Ads compliant headlines (strictly ≤ 30 characters each) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 5 high-converting Google Ads compliant headlines (strictly ≤ 30 characters each) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
       } else if (targetType === "LONG_HEADLINES") {
-        intentMessage = `Generate 3 compelling Google Ads long headlines (strictly ≤ 90 characters each) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+        intentMessage = customHint
+          ? `Generate 3 compelling Google Ads long headlines (strictly ≤ 90 characters each) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 3 compelling Google Ads long headlines (strictly ≤ 90 characters each) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
       } else if (targetType === "DESCRIPTIONS") {
-        intentMessage = `Generate 4 engaging Google Ads descriptions (strictly ≤ 90 characters each) with strong CTAs for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+        intentMessage = customHint
+          ? `Generate 4 engaging Google Ads descriptions (strictly ≤ 90 characters each with strong CTAs) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 4 engaging Google Ads descriptions (strictly ≤ 90 characters each with strong CTAs) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+      } else if (targetType === "KEYWORDS") {
+        intentMessage = customHint
+          ? `Generate 15 high-converting Google Ads search keywords (mix of exact [keyword], phrase "keyword", and broad keyword) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 15 high-converting Google Ads search keywords (mix of exact [keyword], phrase "keyword", and broad keyword) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+      } else if (targetType === "KEYWORD_SINGLE") {
+        intentMessage = customHint
+          ? `Generate 1 high-intent Google Ads search keyword related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 1 high-intent Google Ads search keyword for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
       } else if (targetType === "IMAGE") {
         intentMessage = `Generate high-converting marketing creative images for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Landscape (1.91:1) and Square (1:1) ad creative concepts.`;
       } else if (targetType === "LOGO") {
@@ -2310,61 +3269,166 @@ export default function AiGuidedCampaignPage() {
 
       const data = await res.json();
 
-      if (data.campaignState) {
+      if (data.campaignState || (data as any).headlines || (data as any).descriptions || (data as any).keywords || data.message) {
+        let cs = data.campaignState || data;
+
+        // If backend returned keywords in text message or top-level array, extract them
+        if ((!cs.keywords || cs.keywords.length === 0) && data.message && typeof data.message === "string") {
+          const kwMatches: string[] = [];
+          const lines = data.message.split("\n");
+          for (const line of lines) {
+            const trimmed = line.trim();
+            const bulletMatch = trimmed.match(/^[-*•\d\.]+\s*([\["']?[a-zA-Z0-9\s\-_+&]+[\]"']?)$/);
+            if (bulletMatch && bulletMatch[1]) {
+              const cleaned = bulletMatch[1].trim();
+              if (cleaned.length >= 2 && cleaned.length <= 80 && !cleaned.toLowerCase().includes("keyword")) {
+                kwMatches.push(cleaned);
+              }
+            }
+          }
+          if (kwMatches.length > 0) {
+            cs = { ...cs, keywords: kwMatches };
+          }
+        }
+
         setCampaignState(prev => {
+          // Handle Single-Row Target Types: append ONLY 1 single new item and leave other fields completely untouched
+          if (targetType === "HEADLINE_SINGLE") {
+            const returnedHls = cs.headlines && cs.headlines.length > 0 ? cs.headlines : [];
+            // Find first generated headline that isn't already in the list
+            let newHl = returnedHls.find((h: string) => h && !(prev.headlines || []).some(existing => existing.trim().toLowerCase() === h.trim().toLowerCase()));
+            if (!newHl && returnedHls.length > 0) {
+              newHl = returnedHls[0];
+            }
+            if (!newHl && activeBizName) {
+              newHl = `${activeBizName} - Official`;
+            }
+            if (newHl) {
+              const cleanedHl = newHl.trim().slice(0, 30);
+              const exists = (prev.headlines || []).some(existing => existing.trim().toLowerCase() === cleanedHl.toLowerCase());
+              const finalHl = exists ? `${cleanedHl.slice(0, 26)} Deals`.slice(0, 30) : cleanedHl;
+              return {
+                ...prev,
+                headlines: [...(prev.headlines || []), finalHl]
+              };
+            }
+            return prev;
+          }
+
+          if (targetType === "LONG_HEADLINE_SINGLE") {
+            const returnedLhls = cs.longHeadlines && cs.longHeadlines.length > 0 ? cs.longHeadlines : [];
+            let newLhl = returnedLhls.find((lh: string) => lh && !(prev.longHeadlines || []).some(existing => existing.trim().toLowerCase() === lh.trim().toLowerCase()));
+            if (!newLhl && returnedLhls.length > 0) {
+              newLhl = returnedLhls[0];
+            }
+            if (!newLhl && activeBizName) {
+              newLhl = `Discover Premium Solutions and Unmatched Quality with ${activeBizName}`;
+            }
+            if (newLhl) {
+              const cleanedLhl = newLhl.trim().slice(0, 90);
+              const exists = (prev.longHeadlines || []).some(existing => existing.trim().toLowerCase() === cleanedLhl.toLowerCase());
+              const finalLhl = exists ? `${cleanedLhl.slice(0, 75)} - Explore Today`.slice(0, 90) : cleanedLhl;
+              return {
+                ...prev,
+                longHeadlines: [...(prev.longHeadlines || []), finalLhl]
+              };
+            }
+            return prev;
+          }
+
+          if (targetType === "DESCRIPTION_SINGLE") {
+            const returnedDescs = cs.descriptions && cs.descriptions.length > 0 ? cs.descriptions : [];
+            let newDesc = returnedDescs.find((d: string) => d && !(prev.descriptions || []).some(existing => existing.trim().toLowerCase() === d.trim().toLowerCase()));
+            if (!newDesc && returnedDescs.length > 0) {
+              newDesc = returnedDescs[0];
+            }
+            if (!newDesc && activeBizName) {
+              newDesc = `Get exclusive offers and top-tier services at ${activeBizName}. Connect with us today!`;
+            }
+            if (newDesc) {
+              const cleanedDesc = newDesc.trim().slice(0, 90);
+              const exists = (prev.descriptions || []).some(existing => existing.trim().toLowerCase() === cleanedDesc.toLowerCase());
+              const finalDesc = exists ? `${cleanedDesc.slice(0, 75)} - Order Now`.slice(0, 90) : cleanedDesc;
+              return {
+                ...prev,
+                descriptions: [...(prev.descriptions || []), finalDesc]
+              };
+            }
+            return prev;
+          }
+
+          if (targetType === "KEYWORD_SINGLE") {
+            const returnedKws = cs.keywords && cs.keywords.length > 0 ? cs.keywords : [];
+            let newKw = returnedKws.find((k: string) => k && !(prev.keywords || []).some(existing => existing.trim().toLowerCase() === k.trim().toLowerCase()));
+            if (!newKw && returnedKws.length > 0) {
+              newKw = returnedKws[0];
+            }
+            if (!newKw && activeBizName) {
+              newKw = `"${activeBizName.toLowerCase()} services"`;
+            }
+            if (newKw) {
+              const cleanedKw = newKw.trim();
+              return {
+                ...prev,
+                keywords: [...(prev.keywords || []), cleanedKw]
+              };
+            }
+            return prev;
+          }
+
           const merged: CampaignState = {
             ...prev,
             // Preserve existing core settings & parameters if already set by user
-            dailyBudget: prev.dailyBudget !== null && prev.dailyBudget !== undefined ? prev.dailyBudget : (data.campaignState.dailyBudget || null),
-            campaignName: prev.campaignName || data.campaignState.campaignName,
-            businessName: prev.businessName || data.campaignState.businessName,
-            website: prev.website || data.campaignState.website,
-            locations: (prev.locations && prev.locations.length > 0) ? prev.locations : (data.campaignState.locations || ["India"]),
-            language: prev.language || data.campaignState.language || "English",
-            startDate: prev.startDate || data.campaignState.startDate,
-            endDate: prev.endDate || data.campaignState.endDate,
-            biddingStrategy: prev.biddingStrategy || data.campaignState.biddingStrategy,
-            merchantCenterId: prev.merchantCenterId || data.campaignState.merchantCenterId,
-            salesCountry: prev.salesCountry || data.campaignState.salesCountry,
-            feedLabel: prev.feedLabel || data.campaignState.feedLabel,
-            appId: prev.appId || data.campaignState.appId,
-            appName: prev.appName || data.campaignState.appName,
+            dailyBudget: prev.dailyBudget !== null && prev.dailyBudget !== undefined ? prev.dailyBudget : (cs.dailyBudget || null),
+            campaignName: prev.campaignName || cs.campaignName,
+            businessName: prev.businessName || cs.businessName || activeBizName,
+            website: prev.website || cs.website,
+            locations: (prev.locations && prev.locations.length > 0) ? prev.locations : (cs.locations || ["India"]),
+            language: prev.language || cs.language || "All languages",
+            startDate: prev.startDate || cs.startDate,
+            endDate: prev.endDate || cs.endDate,
+            biddingStrategy: prev.biddingStrategy || cs.biddingStrategy,
+            merchantCenterId: prev.merchantCenterId || cs.merchantCenterId,
+            salesCountry: prev.salesCountry || cs.salesCountry,
+            feedLabel: prev.feedLabel || cs.feedLabel,
+            appId: prev.appId || cs.appId,
+            appName: prev.appName || cs.appName,
             business: {
               ...(prev.business || {}),
-              ...(data.campaignState.business || {}),
-              name: prev.businessName || prev.business?.name || data.campaignState.businessName,
-              website: prev.website || prev.business?.website || data.campaignState.website
+              ...(cs.business || {}),
+              name: prev.businessName || prev.business?.name || cs.businessName || activeBizName,
+              website: prev.website || prev.business?.website || cs.website
             },
             // If isRegenerate is true, replace; otherwise safely append new items while preserving existing old data
-            headlines: isRegenerate && data.campaignState.headlines && data.campaignState.headlines.length > 0
-              ? data.campaignState.headlines
-              : (data.campaignState.headlines && data.campaignState.headlines.length > 0)
-              ? Array.from(new Set([...(prev.headlines || []), ...data.campaignState.headlines]))
+            headlines: isRegenerate && cs.headlines && cs.headlines.length > 0
+              ? cs.headlines
+              : (cs.headlines && cs.headlines.length > 0)
+              ? Array.from(new Set([...(prev.headlines || []), ...cs.headlines]))
               : prev.headlines,
-            longHeadlines: isRegenerate && data.campaignState.longHeadlines && data.campaignState.longHeadlines.length > 0
-              ? data.campaignState.longHeadlines
-              : (data.campaignState.longHeadlines && data.campaignState.longHeadlines.length > 0)
-              ? Array.from(new Set([...(prev.longHeadlines || []), ...data.campaignState.longHeadlines]))
+            longHeadlines: isRegenerate && cs.longHeadlines && cs.longHeadlines.length > 0
+              ? cs.longHeadlines
+              : (cs.longHeadlines && cs.longHeadlines.length > 0)
+              ? Array.from(new Set([...(prev.longHeadlines || []), ...cs.longHeadlines]))
               : prev.longHeadlines,
-            descriptions: isRegenerate && data.campaignState.descriptions && data.campaignState.descriptions.length > 0
-              ? data.campaignState.descriptions
-              : (data.campaignState.descriptions && data.campaignState.descriptions.length > 0)
-              ? Array.from(new Set([...(prev.descriptions || []), ...data.campaignState.descriptions]))
+            descriptions: isRegenerate && cs.descriptions && cs.descriptions.length > 0
+              ? cs.descriptions
+              : (cs.descriptions && cs.descriptions.length > 0)
+              ? Array.from(new Set([...(prev.descriptions || []), ...cs.descriptions]))
               : prev.descriptions,
-            keywords: isRegenerate && data.campaignState.keywords && data.campaignState.keywords.length > 0
-              ? data.campaignState.keywords
-              : (data.campaignState.keywords && data.campaignState.keywords.length > 0)
-              ? Array.from(new Set([...(prev.keywords || []), ...data.campaignState.keywords]))
+            keywords: isRegenerate && cs.keywords && cs.keywords.length > 0
+              ? cs.keywords
+              : (cs.keywords && cs.keywords.length > 0)
+              ? Array.from(new Set([...(prev.keywords || []), ...cs.keywords]))
               : prev.keywords,
-            images: isRegenerate && data.campaignState.images && data.campaignState.images.length > 0
-              ? data.campaignState.images
-              : (data.campaignState.images && data.campaignState.images.length > 0)
-              ? Array.from(new Set([...(prev.images || []), ...data.campaignState.images]))
+            images: isRegenerate && cs.images && cs.images.length > 0
+              ? cs.images
+              : (cs.images && cs.images.length > 0)
+              ? Array.from(new Set([...(prev.images || []), ...cs.images]))
               : prev.images,
-            logos: isRegenerate && data.campaignState.logos && data.campaignState.logos.length > 0
-              ? data.campaignState.logos
-              : (data.campaignState.logos && data.campaignState.logos.length > 0)
-              ? Array.from(new Set([...(prev.logos || []), ...data.campaignState.logos]))
+            logos: isRegenerate && cs.logos && cs.logos.length > 0
+              ? cs.logos
+              : (cs.logos && cs.logos.length > 0)
+              ? Array.from(new Set([...(prev.logos || []), ...cs.logos]))
               : prev.logos
           };
 
@@ -2374,6 +3438,10 @@ export default function AiGuidedCampaignPage() {
           merged.readyForPublish = !!(hasBud && merged.campaignName && validH.length >= 3 && validD.length >= 2);
           return merged;
         });
+
+        if (targetType === "HEADLINES" || targetType === "ALL") setIsHeadlinesAiSourced(true);
+        if (targetType === "LONG_HEADLINES" || targetType === "ALL") setIsLongHeadlinesAiSourced(true);
+        if (targetType === "DESCRIPTIONS" || targetType === "ALL") setIsDescriptionsAiSourced(true);
       }
 
       if (data.message) {
@@ -2572,7 +3640,11 @@ export default function AiGuidedCampaignPage() {
             } else {
               logos.push(itemObj);
             }
-            return { ...prev, logos };
+            const updated = { ...prev, logos };
+            if (typeof window !== "undefined") {
+              try { localStorage.setItem("gads_ai_campaign_draft", JSON.stringify(updated)); } catch (e) {}
+            }
+            return updated;
           });
         } else {
           setCampaignState(prev => {
@@ -2589,7 +3661,11 @@ export default function AiGuidedCampaignPage() {
             } else {
               images.push(itemObj);
             }
-            return { ...prev, images };
+            const updated = { ...prev, images };
+            if (typeof window !== "undefined") {
+              try { localStorage.setItem("gads_ai_campaign_draft", JSON.stringify(updated)); } catch (e) {}
+            }
+            return updated;
           });
         }
         return true;
@@ -2994,15 +4070,20 @@ export default function AiGuidedCampaignPage() {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
 
-    // Step 1: Detect URL and execute analyze-url FIRST
+    // Step 1: Extract User Manual Inputs from prompt & Auto-Apply directly to Cockpit
     let activeState = { ...campaignState };
+    let didUserProvideManualValues = false;
+
+    // A. Manual URL Detection
     const urlMatch = text.match(/https?:\/\/[^\s]+/i) || text.match(/(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?/i);
-    
     if (urlMatch && urlMatch[0]) {
       let detectedUrl = urlMatch[0];
       if (!detectedUrl.startsWith("http")) {
         detectedUrl = "https://" + detectedUrl;
       }
+      activeState.website = detectedUrl;
+      if (activeState.business) activeState.business.website = detectedUrl;
+      didUserProvideManualValues = true;
 
       setIsAnalyzingUrl(true);
       try {
@@ -3014,7 +4095,6 @@ export default function AiGuidedCampaignPage() {
         });
         const analysisData = await res.json();
         
-        // Helper to clean and strictly clamp text
         const cleanCopyFrontend = (str: any, maxLen: number) => {
           if (!str || typeof str !== "string") return "";
           let c = str
@@ -3034,7 +4114,6 @@ export default function AiGuidedCampaignPage() {
           return c;
         };
 
-        // Immediate state update with comprehensive verified website data
         const rawBizName = analysisData.derivedBusinessName || analysisData.title?.split(/[-|:]/)[0]?.trim() || activeState.businessName || "";
         const extractedBizName = cleanCopyFrontend(rawBizName, 25);
 
@@ -3077,28 +4156,50 @@ export default function AiGuidedCampaignPage() {
             ? Array.from(new Set([...(activeState.keywords || []), ...analysisData.keywords]))
             : activeState.keywords
         };
-        // Update Live Campaign Cockpit right away
-        setCampaignState(activeState);
-        console.log("[AI-GUIDED] Updated campaignState with website analysis:", {
-          website: activeState.website,
-          businessName: activeState.businessName,
-          headlinesCount: activeState.headlines?.length || 0
-        });
       } catch (err: any) {
         console.warn("[AI-GUIDED] analyze-url error (continuing with URL set):", err.message);
-        activeState = {
-          ...activeState,
-          website: detectedUrl,
-          business: {
-            ...(activeState.business || {}),
-            website: detectedUrl
-          }
-        };
-        setCampaignState(activeState);
       } finally {
         setIsAnalyzingUrl(false);
       }
     }
+
+    // B. Manual Budget Detection (e.g., "budget 1000", "₹500 / day", "daily budget 2000", "5000 budget")
+    const budgetMatch = text.match(/(?:budget|spend|cost)?\s*(?:of|is|to|=|:)?\s*(?:₹|rs\.?|inr|\$)?\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?)\s*(?:₹|rs\.?|inr|\$|\/day|per day|daily)?/i);
+    const explicitBudgetMatch = text.match(/(?:budget|spend|cost)\s*(?:is|of|to|=|:)?\s*(?:₹|rs\.?|inr|\$)?\s*([0-9]+(?:,[0-9]+)*)/i) ||
+                                text.match(/(?:₹|rs\.?|inr|\$)\s*([0-9]+(?:,[0-9]+)*)/i) ||
+                                text.match(/([0-9]+(?:,[0-9]+)*)\s*(?:₹|rs\.?|inr|\$|\/day|per day|daily budget)/i);
+    if (explicitBudgetMatch && explicitBudgetMatch[1]) {
+      const parsedBudget = parseFloat(explicitBudgetMatch[1].replace(/,/g, ""));
+      if (!isNaN(parsedBudget) && parsedBudget > 0) {
+        activeState.dailyBudget = parsedBudget;
+        didUserProvideManualValues = true;
+      }
+    }
+
+    // C. Manual Business Name (e.g. "business name is X", "company name is X", "business: X")
+    const bizMatch = text.match(/(?:business(?:\s+name)?|company(?:\s+name)?|brand(?:\s+name)?|shop(?:\s+name)?)\s*(?:is|=|:)\s*([a-zA-Z0-9\s&'-]{2,30})/i);
+    if (bizMatch && bizMatch[1]) {
+      const explicitBiz = bizMatch[1].trim();
+      if (explicitBiz && !explicitBiz.toLowerCase().includes("budget") && !explicitBiz.toLowerCase().includes("website")) {
+        activeState.businessName = explicitBiz;
+        activeState.business = { ...(activeState.business || {}), name: explicitBiz };
+        didUserProvideManualValues = true;
+      }
+    }
+
+    // D. Manual Locations (e.g. "location is Mumbai", "target India", "locations: Delhi, Mumbai")
+    const locMatch = text.match(/(?:location|locations|target location|city|country)\s*(?:is|are|=|:)\s*([a-zA-Z0-9\s,.-]+)/i);
+    if (locMatch && locMatch[1]) {
+      const rawLocs = locMatch[1].split(/,|and/).map(s => s.trim()).filter(s => s.length > 1 && !s.toLowerCase().includes("budget") && !s.toLowerCase().includes("website"));
+      if (rawLocs.length > 0) {
+        activeState.locations = rawLocs;
+        setSelectedLocationsList(rawLocs);
+        didUserProvideManualValues = true;
+      }
+    }
+
+    // Immediately update Live Campaign Cockpit with user manual inputs
+    setCampaignState(activeState);
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -3139,62 +4240,67 @@ export default function AiGuidedCampaignPage() {
       }
 
       const data = await res.json();
+      const aiMsgId = `ai-${Date.now()}`;
 
-      if (data.campaignState) {
-        // Deep preserve existing website & business data
-        setCampaignState(prev => {
-          const resolvedBizName = data.campaignState.businessName || activeState.businessName || prev.businessName || prev.business?.name || "";
-          const resolvedCampaignType = data.campaignState.campaignType || activeState.campaignType || prev.campaignType || "";
-          
-          let resolvedCampaignName = prev.campaignName;
-          if (isCustomCampaignName) {
-            resolvedCampaignName = prev.campaignName;
-          } else if (resolvedBizName && resolvedCampaignType) {
-            resolvedCampaignName = generateCampaignName(resolvedBizName, resolvedCampaignType);
-          } else if (resolvedBizName) {
-            resolvedCampaignName = generateCampaignName(resolvedBizName);
-          } else if (data.campaignState.campaignName) {
-            resolvedCampaignName = data.campaignState.campaignName;
-          }
+      // Check if AI suggested new campaign data
+      const returnedCs = data.campaignState;
+      const hasAiSuggestions = returnedCs && (
+        (returnedCs.headlines && returnedCs.headlines.length > 0) ||
+        (returnedCs.descriptions && returnedCs.descriptions.length > 0) ||
+        (returnedCs.keywords && returnedCs.keywords.length > 0) ||
+        (returnedCs.campaignType && returnedCs.campaignType !== activeState.campaignType) ||
+        (returnedCs.dailyBudget && returnedCs.dailyBudget !== activeState.dailyBudget && !didUserProvideManualValues)
+      );
 
-          const resolvedObjective = data.campaignState.objective || activeState.objective || prev.objective || "";
-          
-          const rawMerged = {
+      // Immediately update Live Cockpit with full, accurate campaign data
+      if (returnedCs) {
+        setCampaignState((prev) => {
+          const mergedImages = (returnedCs.images && returnedCs.images.length > 0) ? returnedCs.images : prev.images;
+          const mergedLogos = (returnedCs.logos && returnedCs.logos.length > 0) ? returnedCs.logos : prev.logos;
+          const nextState: CampaignState = {
             ...prev,
-            ...data.campaignState,
-            businessName: resolvedBizName,
-            campaignName: resolvedCampaignName,
-            objective: resolvedObjective,
-            campaignType: (resolvedCampaignType as any) || data.campaignState.campaignType,
-            website: data.campaignState.website || activeState.website || prev.website,
+            ...returnedCs,
             business: {
               ...(prev.business || {}),
-              ...(activeState.business || {}),
-              ...(data.campaignState.business || {}),
-              name: resolvedBizName,
-              website: data.campaignState.website || activeState.website || prev.website
+              ...(returnedCs.business || {})
             },
-            startDate: data.campaignState.startDate || prev.startDate || todayIso,
-            endDate: data.campaignState.endDate || prev.endDate,
-            images: (data.campaignState.images && data.campaignState.images.length > 0) ? data.campaignState.images : prev.images,
-            logos: (data.campaignState.logos && data.campaignState.logos.length > 0) ? data.campaignState.logos : prev.logos,
-            videos: (data.campaignState.videos && data.campaignState.videos.length > 0) ? data.campaignState.videos : prev.videos
+            businessName: returnedCs.businessName || returnedCs.business?.name || prev.businessName,
+            website: returnedCs.website || returnedCs.business?.website || prev.website,
+            objective: returnedCs.objective || prev.objective,
+            campaignType: returnedCs.campaignType || prev.campaignType,
+            budgetType: returnedCs.budgetType || prev.budgetType,
+            dailyBudget: returnedCs.dailyBudget !== undefined ? returnedCs.dailyBudget : prev.dailyBudget,
+            biddingStrategy: returnedCs.biddingStrategy || prev.biddingStrategy,
+            locations: (returnedCs.locations && returnedCs.locations.length > 0) ? returnedCs.locations : prev.locations,
+            headlines: (returnedCs.headlines && returnedCs.headlines.length > 0) ? returnedCs.headlines : prev.headlines,
+            descriptions: (returnedCs.descriptions && returnedCs.descriptions.length > 0) ? returnedCs.descriptions : prev.descriptions,
+            longHeadlines: (returnedCs.longHeadlines && returnedCs.longHeadlines.length > 0) ? returnedCs.longHeadlines : prev.longHeadlines,
+            keywords: (returnedCs.keywords && returnedCs.keywords.length > 0) ? returnedCs.keywords : prev.keywords,
+            images: mergedImages,
+            logos: mergedLogos
           };
-
-          const reconciled = reconcileCampaignStateWithManualFlow(rawMerged);
-          if (!isCustomCampaignName && reconciled.businessName && reconciled.campaignType) {
-            reconciled.campaignName = generateCampaignName(reconciled.businessName, reconciled.campaignType);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("gads_ai_campaign_draft", JSON.stringify(nextState));
+            } catch (e) {}
           }
-          return reconciled;
+          return nextState;
         });
+
+        if (returnedCs.locations && Array.isArray(returnedCs.locations) && returnedCs.locations.length > 0) {
+          setSelectedLocationsList(returnedCs.locations);
+        }
       }
 
       const assistantMessage: Message = {
-        id: `ai-${Date.now()}`,
+        id: aiMsgId,
         role: "assistant",
-        content: data.message || "I've updated the campaign setup based on your input.",
+        content: data.message || "I've analyzed your instructions and formulated recommendations.",
         suggestions: data.suggestions || [],
         campaignState: data.campaignState,
+        proposedCampaignState: undefined,
+        isApplied: true,
+        isDismissed: false,
         generatedImages: data.generatedImages || [],
         readyForReview: data.readyForReview,
         readyForPublish: data.readyForPublish,
@@ -3202,12 +4308,54 @@ export default function AiGuidedCampaignPage() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // If Grok AI generated suggestions or copy, trigger Antigravity-style notification banner with 3 options
+      if (hasAiSuggestions && returnedCs) {
+        const isGenerationRequest = /generate|create headlines|create descriptions|write copy|suggest|recommend|ideas|keywords|all required/i.test(text);
+        
+        const suggestionsPayload = {
+          proposedState: returnedCs,
+          messageId: aiMsgId,
+          aiExplanation: data.message,
+          suggestedHeadlines: returnedCs.headlines || [],
+          suggestedDescriptions: returnedCs.descriptions || [],
+          suggestedLongHeadlines: returnedCs.longHeadlines || [],
+          suggestedKeywords: returnedCs.keywords || [],
+          suggestedBudget: returnedCs.dailyBudget || null,
+          suggestedLocations: returnedCs.locations || [],
+          suggestedType: returnedCs.campaignType || "",
+          suggestedObjective: returnedCs.objective || "",
+          suggestedBidding: returnedCs.biddingStrategy || ""
+        };
+
+        setPendingAiSuggestions(suggestionsPayload);
+
+        // Display floating notification banner in Antigravity style
+        const numHeadlines = (returnedCs.headlines || []).length;
+        const numDescs = (returnedCs.descriptions || []).length;
+        const numKeywords = (returnedCs.keywords || []).length;
+        
+        let summaryText = "";
+        if (numHeadlines > 0 || numDescs > 0) {
+          summaryText = `${numHeadlines} Headlines, ${numDescs} Descriptions${numKeywords > 0 ? `, ${numKeywords} Keywords` : ""} ready for review`;
+        } else if (returnedCs.campaignType) {
+          summaryText = `Recommended ${formatCampaignTypeDisplay(returnedCs.campaignType)} strategy`;
+        } else {
+          summaryText = "AI generated campaign recommendations ready";
+        }
+
+        setAiNotificationBanner({
+          title: isGenerationRequest ? "Grok AI Generated Ad Creatives" : "Grok AI Strategy Recommendations",
+          summary: summaryText,
+          suggestionsData: suggestionsPayload
+        });
+      }
     } catch (err: any) {
       console.error("[AI Chat Error]:", err);
       const errorMessage: Message = {
         id: `ai-err-${Date.now()}`,
         role: "assistant",
-        content: `⚠️ **Connection Notice:** I could not reach the AI reasoning engine right now (${err.message}). Your business & website have been saved in the cockpit! You can continue providing instructions.`,
+        content: `⚠️ **Notice:** Could not reach the AI reasoning engine right now (${err.message}). Your inputs were saved in the cockpit.`,
         suggestions: ["Use Recommended Settings", "I want more leads", "I want more sales", "Set Daily Budget to ₹1,000"],
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       };
@@ -3237,45 +4385,54 @@ export default function AiGuidedCampaignPage() {
       const cleanBizName = String(rawBizName).replace(/[|│┃]/g, " - ").replace(/[•●▪◆★►▶✔✓\/~^_*<>{}[\]\\#@+=]/g, " ").replace(/\s*[-–—]+\s*/g, " - ").replace(/^[\s,.\-!?;:_~@#$%^&*+=<>]+/, "").replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "").replace(/\s+/g, " ").trim().slice(0, 25);
       effectiveState.businessName = cleanBizName;
 
-      // 2. Daily Budget Validation (Must be positive number > 0)
+      // 2. Budget Validation (Daily Budget vs Campaign Total Budget)
       const budgetNum = Number(effectiveState.dailyBudget);
+      const isTotalBudget = effectiveState.budgetType === "TOTAL";
       if (!effectiveState.dailyBudget || isNaN(budgetNum) || budgetNum <= 0) {
         startFieldEdit("dailyBudget");
-        throw new Error("Daily Budget is required and must be greater than ₹0. Please set a daily budget in chat or the Live Cockpit.");
+        throw new Error(`${isTotalBudget ? "Campaign Total Budget" : "Daily Budget"} is required and must be greater than ₹0. Please set a budget in chat or the Live Cockpit.`);
       }
 
       // 3. Campaign Name Validation (Must not be empty)
       if (!effectiveState.campaignName || !effectiveState.campaignName.trim()) {
-        effectiveState.campaignName = generateCampaignName(cleanBizName, effectiveState.campaignType || "PERFORMANCE_MAX");
+        effectiveState.campaignName = generateCampaignName(cleanBizName, effectiveState.campaignType);
       }
 
       // 4. Final URL Validation
-      if (effectiveState.website) {
-        let cleanUrl = effectiveState.website.trim().replace(/^["'(\[<\s]+/, "").replace(/[\s"'\(\)\[\]<>\.,;:?]+$/, "").trim();
+      const rawUrl = effectiveState.website || (effectiveState as any).finalUrl || (effectiveState as any).targetUrl || (effectiveState as any).landingPage || (effectiveState as any).url || effectiveState.business?.website;
+      if (rawUrl && String(rawUrl).trim()) {
+        let cleanUrl = String(rawUrl).trim().replace(/^["'(\[<\s]+/, "").replace(/[\s"'\(\)\[\]<>\.,;:?]+$/, "").trim();
         if (cleanUrl && !cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
           cleanUrl = `https://${cleanUrl}`;
         }
         effectiveState.website = cleanUrl;
       } else if (effectiveState.campaignType !== "APP") {
         startFieldEdit("website");
-        throw new Error("Final URL (website) is missing. Please provide a valid landing page URL.");
+        throw new Error("Final URL (website) is missing. Please enter your website or landing page URL in the Live Cockpit or tell AI in the chat.");
       }
 
       // Helper for clean copy text
       const sanitizeCopy = (t: any, maxLen: number) => {
         if (!t || typeof t !== "string") return "";
         let c = t
+          .replace(/[\u{1F000}-\u{1FFFF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{200D}\u{FE0F}]/gu, " ")
+          .replace(/[→←↑↓↔↕↖↗↘↙⇒⇐⇑⇓⇔➜➔➤►▶◀◄▲▼●•▪◆★☆✓✔✕✖✗]/g, " - ")
+          .replace(/[“”„‟«»]/g, '"')
+          .replace(/[‘’‚‛`]/g, "'")
+          .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, " ")
           .replace(/[|│┃]/g, " - ")
-          .replace(/[•●▪◆★►▶✔✓]/g, " ")
           .replace(/[\/~^_*<>{}[\]\\#@+=]/g, " ")
-          .replace(/\s*[-–—]+\s*/g, " - ")
-          .replace(/^[\s,.\-!?;:_~@#$%^&*+=<>]+/, "")
-          .replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "")
+          .replace(/\s*[-–—―]+\s*/g, " - ")
+          .replace(/^[\s,.\-!?;:_~@#$%^&*+=<>'"\/]+/, "")
+          .replace(/[\s,:\-;_~@#$%^&*+=<>'"\/]+$/, "")
           .replace(/([,.!?;:])\1+/g, "$1")
           .replace(/([,.!?;:])([a-zA-Z0-9])/g, "$1 $2")
           .replace(/\s+/g, " ")
           .trim();
-        return c.slice(0, maxLen).replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "").trim();
+        if (c.length > maxLen) {
+          c = c.slice(0, maxLen).replace(/[\s,:\-;_~@#$%^&*+=<>'"\/]+$/, "").trim();
+        }
+        return c;
       };
 
       // 5. Locations Validation & Auto-Resolution (Frontend Level)
@@ -3292,31 +4449,89 @@ export default function AiGuidedCampaignPage() {
 
       // 6. Language Auto-Resolution
       if (!effectiveState.language || !effectiveState.language.trim()) {
-        effectiveState.language = "English";
-        setCampaignState(p => ({ ...p, language: "English" }));
+        effectiveState.language = "All languages";
+        setCampaignState(p => ({ ...p, language: "All languages" }));
       }
 
-      // 6b. Start Date and End Date Sanitization (Google Ads requires End Date > Start Date)
+      // 6b. Start Date and End Date Sanitization (Google Ads requires End Date > Start Date >= Today)
       const todayStr = new Date().toISOString().split("T")[0];
-      if (!effectiveState.startDate || !String(effectiveState.startDate).trim()) {
+      if (!effectiveState.startDate || !String(effectiveState.startDate).trim() || String(effectiveState.startDate).trim() < todayStr) {
         effectiveState.startDate = todayStr;
+        setCampaignState(p => ({ ...p, startDate: todayStr }));
       }
+      // Helper to calculate default end date (+30 days from start date)
+      const computeDefaultEndDate = (start: string) => {
+        const d = new Date(start || todayStr);
+        d.setDate(d.getDate() + 30);
+        return d.toISOString().split("T")[0];
+      };
+
+      // Check End Date requirement based on Budget Type
+      if (effectiveState.budgetType === "TOTAL") {
+        if (!effectiveState.endDate || !String(effectiveState.endDate).trim()) {
+          const autoEnd = computeDefaultEndDate(effectiveState.startDate);
+          effectiveState.endDate = autoEnd;
+          setCampaignState(p => ({ ...p, endDate: autoEnd }));
+          console.info(`[AI-GUIDED] Auto-assigned 30-day End Date (${autoEnd}) for Campaign Total Budget.`);
+        }
+      }
+
       if (effectiveState.endDate) {
         const rawEndDate = String(effectiveState.endDate).trim();
         if (!rawEndDate) {
-          delete effectiveState.endDate;
+          if (effectiveState.budgetType === "TOTAL") {
+            const autoEnd = computeDefaultEndDate(effectiveState.startDate);
+            effectiveState.endDate = autoEnd;
+            setCampaignState(p => ({ ...p, endDate: autoEnd }));
+          } else {
+            delete effectiveState.endDate;
+          }
         } else {
           const startMs = new Date(effectiveState.startDate).getTime();
           const endMs = new Date(rawEndDate).getTime();
           if (isNaN(endMs) || endMs <= startMs) {
-            // End date must strictly be after start date; if same-day or past, remove end date so campaign runs continuously without throwing error
-            console.warn(`[AI-GUIDED] Removing invalid same-day/past end date (${rawEndDate}) <= start date (${effectiveState.startDate}) to prevent Google Ads validation error.`);
-            delete effectiveState.endDate;
-            setCampaignState(p => ({ ...p, endDate: undefined }));
+            if (effectiveState.budgetType === "TOTAL") {
+              // Auto-correct invalid end date to 30 days ahead of start date
+              const autoEnd = computeDefaultEndDate(effectiveState.startDate);
+              effectiveState.endDate = autoEnd;
+              setCampaignState(p => ({ ...p, endDate: autoEnd }));
+              console.warn(`[AI-GUIDED] Auto-corrected invalid End Date (${rawEndDate}) to (${autoEnd}) for Total Budget.`);
+            } else {
+              // End date must strictly be after start date; for optional daily budget, remove invalid same-day or past end date so campaign runs continuously
+              console.warn(`[AI-GUIDED] Removing invalid same-day/past end date (${rawEndDate}) <= start date (${effectiveState.startDate}) to prevent Google Ads validation error.`);
+              delete effectiveState.endDate;
+              setCampaignState(p => ({ ...p, endDate: undefined }));
+            }
           } else {
             effectiveState.endDate = rawEndDate;
           }
         }
+      }
+
+      // 6c. Tracking Template and Custom Parameters Sanitization
+      if (effectiveState.trackingTemplate) {
+        let tt = String(effectiveState.trackingTemplate).trim();
+        if (tt && !tt.startsWith("http://") && !tt.startsWith("https://") && !tt.startsWith("{lpurl}") && !tt.startsWith("{unescapedlpurl}")) {
+          if (tt.includes(".") || tt.includes("/") || tt.includes("{")) {
+            tt = `https://${tt}`;
+            effectiveState.trackingTemplate = tt;
+          } else {
+            delete effectiveState.trackingTemplate;
+            setCampaignState(p => ({ ...p, trackingTemplate: undefined }));
+          }
+        }
+      }
+      if (Array.isArray((effectiveState as any).customParameters)) {
+        (effectiveState as any).customParameters = (effectiveState as any).customParameters
+          .map((cp: any) => {
+            const rawKey = cp && (cp.key || cp.name);
+            const rawVal = cp && (cp.value !== undefined ? cp.value : "");
+            if (!rawKey || typeof rawKey !== "string") return null;
+            const cleanKey = rawKey.trim().replace(/[^a-zA-Z0-9_]/g, "").slice(0, 16);
+            if (!cleanKey) return null;
+            return { key: cleanKey, value: String(rawVal).trim().slice(0, 250) };
+          })
+          .filter((p: any) => p !== null && p.key.length > 0);
       }
 
       // 7. Campaign Type Specific Client-Side Pre-Flight Checks & Sanitization
@@ -3330,6 +4545,23 @@ export default function AiGuidedCampaignPage() {
       effectiveState.longHeadlines = validLH;
       effectiveState.descriptions = validD;
       effectiveState.keywords = validK;
+      if (effectiveState.businessName) {
+        effectiveState.businessName = sanitizeCopy(String(effectiveState.businessName), 25);
+      }
+      if (effectiveState.campaignName) {
+        effectiveState.campaignName = sanitizeCopy(String(effectiveState.campaignName), 100);
+      }
+
+      if (effectiveState.adSchedule && Array.isArray(effectiveState.adSchedule)) {
+        const seen = new Set<string>();
+        effectiveState.adSchedule = effectiveState.adSchedule.filter((s: any) => {
+          if (!s || !s.day || !s.start || !s.end) return false;
+          const key = `${s.day}_${s.start}_${s.end}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
 
       if (cType === "PERFORMANCE_MAX") {
         if (validH.length < 3) {
@@ -3341,6 +4573,75 @@ export default function AiGuidedCampaignPage() {
         if (validD.length < 2) {
           throw new Error(`Performance Max requires at least 2 Descriptions (${validD.length}/2 added). Please add descriptions in the Live Cockpit or ask AI to generate them.`);
         }
+        const DEFAULT_PMAX_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+        const DEFAULT_PMAX_LOGO = "https://ik.imagekit.io/automationjds/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+        if (!effectiveState.images || !Array.isArray(effectiveState.images) || effectiveState.images.length === 0) {
+          const autoImages = [
+            { url: DEFAULT_PMAX_IMAGE, fieldType: "MARKETING_IMAGE", name: "Default_Landscape_Marketing_Image", aspectRatio: "1.91:1" },
+            { url: DEFAULT_PMAX_IMAGE, fieldType: "SQUARE_MARKETING_IMAGE", name: "Default_Square_Marketing_Image", aspectRatio: "1:1" }
+          ];
+          effectiveState.images = autoImages;
+          setCampaignState(p => ({ ...p, images: autoImages }));
+        }
+        if (!effectiveState.logos || !Array.isArray(effectiveState.logos) || effectiveState.logos.length === 0) {
+          const autoLogos = [
+            { url: DEFAULT_PMAX_LOGO, fieldType: "LOGO", name: "Default_Brand_Logo", aspectRatio: "1:1" }
+          ];
+          effectiveState.logos = autoLogos;
+          setCampaignState(p => ({ ...p, logos: autoLogos }));
+        }
+      } else if (cType === "DISPLAY") {
+        if (validH.length < 1) {
+          throw new Error("Display campaigns require at least 1 Headline (up to 30 chars). Please add a headline in the Live Cockpit or ask AI to generate it.");
+        }
+        if (validLH.length < 1 && validH.length > 0) {
+          effectiveState.longHeadlines = [validH[0]];
+        }
+        if (validD.length < 1) {
+          throw new Error("Display campaigns require at least 1 Description (up to 90 chars). Please add a description in the Live Cockpit or ask AI to generate it.");
+        }
+        const DEFAULT_DISP_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+        const DEFAULT_DISP_LOGO = "https://ik.imagekit.io/automationjds/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+        
+        let currentImages: any[] = Array.isArray(effectiveState.images) ? [...effectiveState.images] : [];
+        if (currentImages.length === 0) {
+          currentImages = [
+            { url: DEFAULT_DISP_IMAGE, fieldType: "MARKETING_IMAGE", name: "Default_Landscape_Marketing_Image", aspectRatio: "1.91:1" },
+            { url: DEFAULT_DISP_IMAGE, fieldType: "SQUARE_MARKETING_IMAGE", name: "Default_Square_Marketing_Image", aspectRatio: "1:1" }
+          ];
+        } else {
+          // Verify both landscape and square exist, or add appropriate transforms
+          const hasLandscape = currentImages.some((img: any) => (img?.fieldType === "MARKETING_IMAGE" || img?.aspectRatio === "1.91:1"));
+          const hasSquare = currentImages.some((img: any) => (img?.fieldType === "SQUARE_MARKETING_IMAGE" || img?.aspectRatio === "1:1"));
+          
+          if (!hasLandscape && currentImages.length > 0) {
+            const firstImg = currentImages[0];
+            const raw = typeof firstImg === "string" ? firstImg : firstImg?.url || firstImg?.data || DEFAULT_DISP_IMAGE;
+            currentImages.push({ url: raw, fieldType: "MARKETING_IMAGE", name: "Landscape_Marketing_Image", aspectRatio: "1.91:1" });
+          }
+          if (!hasSquare && currentImages.length > 0) {
+            const firstImg = currentImages[0];
+            const raw = typeof firstImg === "string" ? firstImg : firstImg?.url || firstImg?.data || DEFAULT_DISP_IMAGE;
+            currentImages.push({ url: raw, fieldType: "SQUARE_MARKETING_IMAGE", name: "Square_Marketing_Image", aspectRatio: "1:1" });
+          }
+        }
+        effectiveState.images = currentImages;
+        setCampaignState(p => ({ ...p, images: currentImages }));
+
+        let currentLogos: any[] = Array.isArray(effectiveState.logos) ? [...effectiveState.logos] : [];
+        // Filter out existing customer asset strings (e.g., customers/.../assets/...) that might have non-1:1 aspect ratios from other campaign types
+        currentLogos = currentLogos.filter((l: any) => {
+          const raw = typeof l === "string" ? l : l?.url || l?.data || "";
+          return raw && !raw.startsWith("customers/");
+        });
+
+        if (currentLogos.length === 0) {
+          currentLogos = [
+            { url: DEFAULT_DISP_LOGO, fieldType: "LOGO", name: "Default_Brand_Logo", aspectRatio: "1:1" }
+          ];
+        }
+        effectiveState.logos = currentLogos;
+        setCampaignState(p => ({ ...p, logos: currentLogos }));
       } else if (cType === "SEARCH") {
         if (validH.length < 3) {
           throw new Error(`Search campaigns require at least 3 Headlines (${validH.length}/3 added).`);
@@ -3351,26 +4652,42 @@ export default function AiGuidedCampaignPage() {
         if (validK.length < 1) {
           throw new Error("Search campaigns require at least 1 keyword.");
         }
+        effectiveState.headlines = validH.slice(0, 15);
+        effectiveState.descriptions = validD.slice(0, 4);
       } else if (cType === "DEMAND_GEN") {
         const dgFormat = (effectiveState.adFormat || "SINGLE_IMAGE").toUpperCase();
         if (validH.length < 1) {
+          startFieldEdit("headlines");
           throw new Error("Demand Gen requires at least 1 Headline (up to 40 chars). Please add a headline in the Live Cockpit or ask AI to generate it.");
         }
         if (validD.length < 1) {
+          startFieldEdit("descriptions");
           throw new Error("Demand Gen requires at least 1 Description (up to 90 chars). Please add a description in the Live Cockpit or ask AI to generate it.");
-        }
-        const dgLogos = (effectiveState.logos || []).filter((l: any) => l && (typeof l === "string" ? l.trim() : l.url || l.data || l.asset));
-        if (dgLogos.length < 1) {
-          throw new Error("Demand Gen requires at least 1 Brand Logo (1:1). Please upload a logo in the Live Cockpit or ask AI to generate one.");
         }
         if (budgetNum < 416) {
           startFieldEdit("dailyBudget");
           throw new Error(`Demand Gen campaigns require a minimum Daily Budget of ₹416/day (currently ₹${budgetNum}/day).`);
         }
+        const DEFAULT_DG_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+        const DEFAULT_DG_LOGO = "https://ik.imagekit.io/automationjds/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+
+        const dgLogos = (effectiveState.logos || []).filter((l: any) => l && (typeof l === "string" ? l.trim() : l.url || l.data || l.asset));
+        if (dgLogos.length < 1) {
+          const autoLogos = [
+            { url: DEFAULT_DG_LOGO, fieldType: "LOGO", name: "Default_Brand_Logo", aspectRatio: "1:1" }
+          ];
+          effectiveState.logos = autoLogos;
+          setCampaignState(p => ({ ...p, logos: autoLogos }));
+        }
         if (dgFormat === "SINGLE_IMAGE") {
           const dgImages = (effectiveState.images || []).filter((im: any) => im && (typeof im === "string" ? im.trim() : im.url || im.data || im.asset));
           if (dgImages.length < 1) {
-            throw new Error("Demand Gen Single Image format requires at least 1 marketing image (1.91:1 landscape or 1:1 square).");
+            const autoImages = [
+              { url: DEFAULT_DG_IMAGE, fieldType: "MARKETING_IMAGE", name: "Default_Landscape_Marketing_Image", aspectRatio: "1.91:1" },
+              { url: DEFAULT_DG_IMAGE, fieldType: "SQUARE_MARKETING_IMAGE", name: "Default_Square_Marketing_Image", aspectRatio: "1:1" }
+            ];
+            effectiveState.images = autoImages;
+            setCampaignState(p => ({ ...p, images: autoImages }));
           }
         } else if (dgFormat === "VIDEO") {
           const dgVideos = (effectiveState.videos || []).filter((v: any) => v && (typeof v === "string" ? v.trim() : v.asset || v.videoId || v.url));
@@ -3433,7 +4750,22 @@ export default function AiGuidedCampaignPage() {
       console.error("[Publish Error]:", err);
       const rawMsg = err.message || "Failed to publish campaign to Google Ads.";
       
-      if (rawMsg.includes("DESTINATION_NOT_WORKING") || rawMsg.includes("Landing page URL is unreachable")) {
+      if (rawMsg.includes("operations.create.ad.responsive_display_ad.logo_images") || rawMsg.includes("logo_images") || (rawMsg.includes("dimensions of the image are not allowed") && rawMsg.includes("logo"))) {
+        const friendlyMsg = `Google Ads Image Specification Notice: The attached business logo does not match the required 1:1 square aspect ratio or minimum 128x128 pixel dimensions for Responsive Display Ads. Please click the crop icon on your logo in the Cockpit to crop it to a 1:1 square (1200x1200px recommended), or click below to adjust it.`;
+        setPublishError(friendlyMsg);
+        
+        // Automatically open the Image Editor / Cropper for the offending logo if available
+        if (campaignState.logos && campaignState.logos.length > 0) {
+          handleEditExistingAsset("LOGO", 0);
+        }
+      } else if (rawMsg.includes("operations.create.ad.responsive_display_ad.marketing_images") || rawMsg.includes("square_marketing_images") || (rawMsg.includes("dimensions of the image are not allowed") && rawMsg.includes("marketing_images"))) {
+        const friendlyMsg = `Google Ads Image Specification Notice: One of your marketing images does not meet Google Ads aspect ratio standards (Landscape 1.91:1 or Square 1:1). Please crop or replace the image in the Cockpit before launching.`;
+        setPublishError(friendlyMsg);
+
+        if (campaignState.images && campaignState.images.length > 0) {
+          handleEditExistingAsset("IMAGE", 0);
+        }
+      } else if (rawMsg.includes("DESTINATION_NOT_WORKING") || rawMsg.includes("Landing page URL is unreachable")) {
         setPublishError(`Landing page URL (${campaignState.website}) is unreachable or returning an error (DESTINATION_NOT_WORKING). Please update to a live, working URL before launching.`);
       } else {
         setPublishError(rawMsg);
@@ -3766,7 +5098,14 @@ export default function AiGuidedCampaignPage() {
       <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 z-50">
         <div className="flex items-center gap-2 sm:gap-4">
           <button
-            onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
+            onClick={() => {
+              if (hasUnsavedProgress()) {
+                setPendingExitAction("back");
+                setIsExitPromptOpen(true);
+              } else {
+                router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
+              }
+            }}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer"
             title="Back to Manual Creation"
           >
@@ -3789,7 +5128,14 @@ export default function AiGuidedCampaignPage() {
         {/* Creation Mode Toggle (Switch between Manual and AI Guided) */}
         <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
           <button
-            onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
+            onClick={() => {
+              if (hasUnsavedProgress()) {
+                setPendingExitAction("back");
+                setIsExitPromptOpen(true);
+              } else {
+                router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
+              }
+            }}
             className="px-3 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
           >
             Manual Creation
@@ -3819,37 +5165,14 @@ export default function AiGuidedCampaignPage() {
 
           <button
             onClick={() => {
-              setMessages([]);
-              setIsCustomCampaignName(false);
-              setIsEditingCockpit(false);
-              setEditingField(null);
-              setReferencedCampaign(null);
-              setCampaignState({
-                business: {},
-                desiredOutcome: "",
-                campaignType: "",
-                objective: "",
-                conversionGoals: [],
-                campaignName: "",
-                businessName: "",
-                website: "",
-                dailyBudget: null,
-                locations: ["India"],
-                language: "English",
-                startDate: todayIso,
-                endDate: undefined,
-                keywords: [],
-                headlines: [],
-                descriptions: [],
-                images: [],
-                logos: [],
-                videos: [],
-                readyForReview: false,
-                readyForPublish: false,
-                stage: "collecting_business"
-              });
+              if (hasUnsavedProgress()) {
+                setPendingExitAction("new_session");
+                setIsExitPromptOpen(true);
+              } else {
+                executeResetSession();
+              }
             }}
-            title="Reset conversation"
+            title="Reset conversation and start fresh"
             className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -3898,14 +5221,41 @@ export default function AiGuidedCampaignPage() {
       {/* ── Main Content Split View (Light Theme) ── */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden bg-slate-100">
         
-        {/* LEFT: AI Interactive Chat Column */}
+        {/* LEFT: AI Interactive Chat Column with Live Preview */}
         <div className={`flex-1 flex-col min-w-0 min-h-0 bg-white border-r border-slate-200 shadow-xs ${
           mobileActiveTab === "chat" ? "flex" : "hidden lg:flex"
         }`}>
+          {/* Top Live Preview Sync Header */}
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="text-xs font-bold text-slate-800 tracking-tight truncate">
+                AI Campaign Chat & Live Previews
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200/60 hidden sm:inline-block shrink-0">
+                Live Auto-Sync
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleReloadPreview}
+                className="text-[10px] font-bold text-blue-700 hover:text-blue-900 bg-white hover:bg-blue-50 border border-blue-200 px-2 py-1 rounded-md flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
+                title="Reload & sync previews with right-side cockpit changes"
+              >
+                <RefreshCw className={`h-2.5 w-2.5 text-blue-600 ${isReloadingPreview ? "animate-spin" : ""}`} />
+                <span>Reload Previews</span>
+              </button>
+              <div className="text-[11px] text-slate-500 hidden md:flex items-center gap-1">
+                <Eye className="h-3.5 w-3.5 text-blue-600" />
+                <span className="hidden lg:inline">Previews update live with cockpit</span>
+              </div>
+            </div>
+          </div>
           
           {/* Messages Scroll Area */}
           <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
-            {messages.map((msg) => (
+            {messages.map((msg, index) => (
               <div
                 key={msg.id}
                 className={`flex flex-col gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300 ${
@@ -3916,7 +5266,7 @@ export default function AiGuidedCampaignPage() {
                   className={`flex gap-3 ${
                     msg.role === "user"
                       ? "flex-row-reverse max-w-[92%] sm:max-w-[85%]"
-                      : (msg.readyForReview || msg.campaignState?.readyForReview || campaignState.readyForReview)
+                      : (Boolean(campaignState.objective && campaignState.campaignType) && (msg.readyForReview || msg.campaignState?.readyForReview || campaignState.readyForReview || (index === messages.length - 1 && (campaignState.headlines?.some(h => h && h.trim()) || campaignState.businessName || (campaignState.images && campaignState.images.length > 0)))))
                         ? "flex-row w-full max-w-full"
                         : "flex-row max-w-[92%] sm:max-w-[85%]"
                   }`}
@@ -3953,6 +5303,209 @@ export default function AiGuidedCampaignPage() {
                     ) : (
                       <div className="space-y-2.5">
                         {renderFormattedMarkdown(msg.content)}
+                      </div>
+                    )}
+
+                    {/* Notification message & single Apply button in chat bubble when preview is NOT open */}
+                    {msg.role === "assistant" && !Boolean(campaignState.objective && campaignState.campaignType) && pendingAiSuggestions && pendingAiSuggestions.messageId === msg.id && (
+                      <div className="mt-3 pt-3 border-t border-blue-100 rounded-xl bg-gradient-to-r from-blue-50/90 to-indigo-50/70 p-3 flex items-center justify-between gap-3 shadow-2xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-lg bg-white border border-blue-200 p-0.5 shadow-xs shrink-0 flex items-center justify-center">
+                            <img src="/icon.jpeg" alt="AI Suggestion" className="w-full h-full object-contain rounded-md" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-slate-900 truncate">
+                              AI Suggestion Ready
+                            </p>
+                            <p className="text-[10px] text-slate-600 truncate">
+                              {pendingAiSuggestions.suggestedType ? `Recommended ${formatCampaignTypeDisplay(pendingAiSuggestions.suggestedType)} strategy` : "Click apply to update your cockpit"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (pendingAiSuggestions.proposedState) {
+                              applyProposedCampaignState(pendingAiSuggestions.proposedState, pendingAiSuggestions.messageId);
+                            }
+                            setPendingAiSuggestions(null);
+                            setAiNotificationBanner(null);
+                          }}
+                          className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Apply</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* AI Proposed Campaign Changes Confirmation Box */}
+                    {msg.role === "assistant" && msg.proposedCampaignState && (
+                      <div className={`mt-3.5 pt-3 border-t rounded-xl p-3.5 transition-all ${
+                        msg.isApplied
+                          ? "bg-emerald-50/80 border border-emerald-200 shadow-2xs"
+                          : msg.isDismissed
+                          ? "bg-slate-100/80 border border-slate-200"
+                          : "bg-gradient-to-br from-blue-50/90 to-indigo-50/60 border border-blue-200 shadow-xs"
+                      }`}>
+                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs shadow-xs ${
+                              msg.isApplied
+                                ? "bg-emerald-600 text-white"
+                                : msg.isDismissed
+                                ? "bg-slate-500 text-white"
+                                : "bg-blue-600 text-white"
+                            }`}>
+                              {msg.isApplied ? <Check className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-xs text-slate-900">
+                                {msg.isApplied 
+                                  ? "Campaign Setup Applied"
+                                  : msg.isDismissed
+                                  ? "Suggested Updates Skipped"
+                                  : "Review AI Generated Campaign Data"}
+                              </h4>
+                              <p className="text-[10px] text-slate-500">
+                                {msg.isApplied
+                                  ? "These settings have been loaded into your Campaign Cockpit."
+                                  : msg.isDismissed
+                                  ? "Existing campaign configuration remains unchanged."
+                                  : "Please confirm before updating your active campaign form."}
+                              </p>
+                            </div>
+                          </div>
+
+                          {msg.isApplied ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                              <CheckCircle2 className="h-3 w-3" /> Confirmed & Applied
+                            </span>
+                          ) : msg.isDismissed ? (
+                            <button
+                              type="button"
+                              onClick={() => applyProposedCampaignState(msg.proposedCampaignState!, msg.id)}
+                              className="text-[10px] font-bold text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                            >
+                              Apply anyway
+                            </button>
+                          ) : null}
+                        </div>
+
+                        {/* Summary Grid of Generated Details */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] mb-3">
+                          {/* Dates */}
+                          {(msg.proposedCampaignState.startDate || msg.proposedCampaignState.endDate) && (
+                            <div className="flex items-start gap-2 bg-white/95 p-2 rounded-lg border border-slate-200/80 shadow-2xs">
+                              <Calendar className="h-3.5 w-3.5 text-blue-600 shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Dates</span>
+                                <span className="font-semibold text-slate-800 truncate block">
+                                  {msg.proposedCampaignState.startDate || "Immediate"} → {msg.proposedCampaignState.endDate || "Ongoing"}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Campaign Type & Objective */}
+                          {(msg.proposedCampaignState.campaignType || msg.proposedCampaignState.objective) && (
+                            <div className="flex items-start gap-2 bg-white/95 p-2 rounded-lg border border-slate-200/80 shadow-2xs">
+                              <Target className="h-3.5 w-3.5 text-indigo-600 shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Objective & Type</span>
+                                <span className="font-semibold text-slate-800 truncate block">
+                                  {[msg.proposedCampaignState.objective, msg.proposedCampaignState.campaignType].filter(Boolean).join(" • ")}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Budget & Bidding */}
+                          {(msg.proposedCampaignState.dailyBudget || msg.proposedCampaignState.biddingStrategy) && (
+                            <div className="flex items-start gap-2 bg-white/95 p-2 rounded-lg border border-slate-200/80 shadow-2xs">
+                              <DollarSign className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
+                                  {msg.proposedCampaignState.budgetType === "TOTAL" ? "Campaign Total Budget" : "Average Daily Budget"}
+                                </span>
+                                <span className="font-semibold text-slate-800 truncate block">
+                                  {msg.proposedCampaignState.dailyBudget ? `₹${msg.proposedCampaignState.dailyBudget.toLocaleString("en-IN")}` : ""} 
+                                  {msg.proposedCampaignState.budgetType === "TOTAL" ? " (Total Lifetime)" : " / day"}
+                                  {msg.proposedCampaignState.biddingStrategy ? ` • ${msg.proposedCampaignState.biddingStrategy}` : ""}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Locations */}
+                          {msg.proposedCampaignState.locations && msg.proposedCampaignState.locations.length > 0 && (
+                            <div className="flex items-start gap-2 bg-white/95 p-2 rounded-lg border border-slate-200/80 shadow-2xs">
+                              <MapPin className="h-3.5 w-3.5 text-rose-600 shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Locations</span>
+                                <span className="font-semibold text-slate-800 truncate block">
+                                  {msg.proposedCampaignState.locations.join(", ")}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Ad Copy (Headlines & Descriptions) */}
+                          {((msg.proposedCampaignState.headlines && msg.proposedCampaignState.headlines.length > 0) || 
+                            (msg.proposedCampaignState.descriptions && msg.proposedCampaignState.descriptions.length > 0)) && (
+                            <div className="flex items-start gap-2 bg-white/95 p-2 rounded-lg border border-slate-200/80 shadow-2xs sm:col-span-2">
+                              <FileText className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Ad Copy</span>
+                                <span className="font-semibold text-slate-800 block">
+                                  {msg.proposedCampaignState.headlines?.length || 0} Headlines, {msg.proposedCampaignState.descriptions?.length || 0} Descriptions
+                                </span>
+                                {msg.proposedCampaignState.headlines && msg.proposedCampaignState.headlines[0] && (
+                                  <p className="text-[10px] text-slate-500 italic mt-0.5 truncate">
+                                    &ldquo;{msg.proposedCampaignState.headlines[0]}&rdquo;
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Keywords */}
+                          {msg.proposedCampaignState.keywords && msg.proposedCampaignState.keywords.length > 0 && (
+                            <div className="flex items-start gap-2 bg-white/95 p-2 rounded-lg border border-slate-200/80 shadow-2xs sm:col-span-2">
+                              <Tag className="h-3.5 w-3.5 text-blue-600 shrink-0 mt-0.5" />
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Keywords ({msg.proposedCampaignState.keywords.length})</span>
+                                <span className="text-[10px] text-slate-700 block truncate">
+                                  {msg.proposedCampaignState.keywords.slice(0, 5).join(", ")}
+                                  {msg.proposedCampaignState.keywords.length > 5 ? ` +${msg.proposedCampaignState.keywords.length - 5} more` : ""}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Confirmation Action Buttons */}
+                        {!msg.isApplied && !msg.isDismissed && (
+                          <div className="flex items-center gap-2 pt-1 border-t border-blue-100">
+                            <button
+                              type="button"
+                              onClick={() => applyProposedCampaignState(msg.proposedCampaignState!, msg.id)}
+                              className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              <span>Confirm & Update Campaign</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => dismissProposedCampaignState(msg.id)}
+                              className="py-2 px-3 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl border border-slate-300 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                              <span>Dismiss</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -4073,12 +5626,14 @@ export default function AiGuidedCampaignPage() {
                     )}
 
                     {/* Dynamic Multi-Channel Campaign Preview in Chat */}
-                    {msg.role === "assistant" && (msg.readyForReview || msg.campaignState?.readyForReview || campaignState.readyForReview) && (() => {
+                    {msg.role === "assistant" && Boolean(campaignState.objective && campaignState.campaignType) && (msg.readyForReview || msg.campaignState?.readyForReview || campaignState.readyForReview || (index === messages.length - 1 && (campaignState.headlines?.some(h => h && h.trim()) || campaignState.businessName || (campaignState.images && campaignState.images.length > 0) || tempEditValues.businessName || tempEditValues.website))) && (() => {
                       const allImages = [
-                        ...(Array.isArray(campaignState.images) ? campaignState.images : [])
+                        ...(Array.isArray(campaignState.images) && campaignState.images.length > 0 ? campaignState.images : []),
+                        ...(Array.isArray(tempEditValues.images) ? tempEditValues.images : [])
                       ];
                       const allLogos = [
-                        ...(Array.isArray(campaignState.logos) ? campaignState.logos : [])
+                        ...(Array.isArray(campaignState.logos) && campaignState.logos.length > 0 ? campaignState.logos : []),
+                        ...(Array.isArray(tempEditValues.logos) ? tempEditValues.logos : [])
                       ];
 
                       const { allowedChannels, previewTitle, previewBadge } = getPreviewChannelsConfig();
@@ -4090,12 +5645,39 @@ export default function AiGuidedCampaignPage() {
                         return pmaxPreviewChannel === chId;
                       };
 
-                      const previewHeadline = campaignState.headlines?.[0] || campaignState.longHeadlines?.[0] || campaignState.businessName || "Exclusive Deals & Premium Services";
-                      const previewDesc = campaignState.descriptions?.[0] || "Discover high-quality solutions tailored for your needs. Connect with us today and explore best offers!";
-                      const previewBiz = campaignState.businessName || campaignState.business?.name || "Your Business";
-                      const previewUrl = campaignState.website || "www.example.com";
+                      const activeHeadlines = (Array.isArray(campaignState.headlines) && campaignState.headlines.filter(h => h && h.trim()).length > 0)
+                        ? campaignState.headlines.filter(h => h && h.trim())
+                        : (Array.isArray(tempEditValues.headlines) && tempEditValues.headlines.filter(h => h && h.trim()).length > 0
+                            ? tempEditValues.headlines.filter(h => h && h.trim())
+                            : []);
+
+                      const activeLongHeadlines = (Array.isArray(campaignState.longHeadlines) && campaignState.longHeadlines.filter(h => h && h.trim()).length > 0)
+                        ? campaignState.longHeadlines.filter(h => h && h.trim())
+                        : (Array.isArray(tempEditValues.longHeadlines) && tempEditValues.longHeadlines.filter(h => h && h.trim()).length > 0
+                            ? tempEditValues.longHeadlines.filter(h => h && h.trim())
+                            : []);
+
+                      const activeDescriptions = (Array.isArray(campaignState.descriptions) && campaignState.descriptions.filter(d => d && d.trim()).length > 0)
+                        ? campaignState.descriptions.filter(d => d && d.trim())
+                        : (Array.isArray(tempEditValues.descriptions) && tempEditValues.descriptions.filter(d => d && d.trim()).length > 0
+                            ? tempEditValues.descriptions.filter(d => d && d.trim())
+                            : []);
+
+                      const previewHeadline = (activeHeadlines.length > 0 ? activeHeadlines[previewHeadlineIdx % activeHeadlines.length] : null)
+                        || (activeLongHeadlines.length > 0 ? activeLongHeadlines[0] : null)
+                        || campaignState.businessName 
+                        || tempEditValues.businessName 
+                        || "Exclusive Deals & Premium Services";
+
+                      const previewLongHeadline = (activeLongHeadlines.length > 0 ? activeLongHeadlines[previewHeadlineIdx % activeLongHeadlines.length] : null) || previewHeadline;
+
+                      const previewDesc = (activeDescriptions.length > 0 ? activeDescriptions[previewDescIdx % activeDescriptions.length] : null)
+                        || "Discover high-quality solutions tailored for your needs. Connect with us today and explore best offers!";
+
+                      const previewBiz = campaignState.businessName || campaignState.business?.name || tempEditValues.businessName || "Your Business";
+                      const previewUrl = campaignState.website || tempEditValues.website || "www.example.com";
                       const displayDomain = previewUrl.replace(/^https?:\/\//, '').split('/')[0] || "example.com";
-                      const previewCta = campaignState.callToAction || "Learn More";
+                      const previewCta = campaignState.callToAction || tempEditValues.callToAction || "Learn More";
 
                       const imgObj = allImages[0];
                       const heroImg = typeof imgObj === "string" ? imgObj : imgObj?.url || imgObj?.data || "";
@@ -4116,8 +5698,18 @@ export default function AiGuidedCampaignPage() {
                               </span>
                             </div>
 
-                            {/* Mobile / Desktop Toggle */}
+                            {/* Reload Button & Mobile / Desktop Toggle */}
                             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                              <button
+                                type="button"
+                                onClick={handleReloadPreview}
+                                className="px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 shadow-2xs active:scale-95"
+                                title="Reload & sync preview with right side changes (headlines, long headlines, descriptions, images)"
+                              >
+                                <RefreshCw className={`h-3 w-3 text-blue-600 ${isReloadingPreview ? "animate-spin" : ""}`} />
+                                <span>Reload Preview</span>
+                              </button>
+
                               <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shadow-2xs">
                                 <button
                                   type="button"
@@ -4425,7 +6017,7 @@ export default function AiGuidedCampaignPage() {
                                                 <span className="truncate max-w-[60px]">{displayDomain}</span>
                                               </div>
 
-                                              <div className="aspect-[1.91/1] w-full rounded bg-slate-100 overflow-hidden relative mb-1">
+                                              <div className={`${(imgObj?.aspectRatio === "1:1" || imgObj?.fieldType === "SQUARE_MARKETING_IMAGE") ? "aspect-square max-h-[140px]" : "aspect-[1.91/1]"} w-full rounded bg-slate-100 overflow-hidden relative mb-1`}>
                                                 {heroImg ? (
                                                   <img src={heroImg} alt="Display Ad" className="w-full h-full object-cover" />
                                                 ) : (
@@ -4474,7 +6066,7 @@ export default function AiGuidedCampaignPage() {
                                             <span className="truncate max-w-[90px]">{displayDomain}</span>
                                           </div>
 
-                                          <div className="aspect-[1.91/1] w-full rounded-lg bg-slate-100 overflow-hidden relative">
+                                          <div className={`${(imgObj?.aspectRatio === "1:1" || imgObj?.fieldType === "SQUARE_MARKETING_IMAGE") ? "aspect-square max-h-[180px]" : "aspect-[1.91/1]"} w-full rounded-lg bg-slate-100 overflow-hidden relative`}>
                                             {heroImg ? (
                                               <img src={heroImg} alt="Display" className="w-full h-full object-cover" />
                                             ) : (
@@ -5185,7 +6777,15 @@ export default function AiGuidedCampaignPage() {
                               const sLower = s.toLowerCase();
                               if (sLower.includes("upload")) {
                                 fileInputRef.current?.click();
-                              } else if (sLower === "set daily budget" || sLower === "change budget" || sLower === "set budget") {
+                              } else if (sLower === "set daily budget" || sLower === "daily budget") {
+                                setMobileActiveTab("cockpit");
+                                setTempEditValues(prev => ({ ...prev, budgetType: "DAILY" }));
+                                startFieldEdit("dailyBudget");
+                              } else if (sLower === "set campaign budget" || sLower === "campaign budget" || sLower === "total budget" || sLower === "set total budget") {
+                                setMobileActiveTab("cockpit");
+                                setTempEditValues(prev => ({ ...prev, budgetType: "TOTAL" }));
+                                startFieldEdit("dailyBudget");
+                              } else if (sLower === "change budget" || sLower === "set budget") {
                                 setMobileActiveTab("cockpit");
                                 startFieldEdit("dailyBudget");
                               } else if (sLower === "provide website url" || sLower === "change website" || sLower === "set website url") {
@@ -5294,28 +6894,50 @@ export default function AiGuidedCampaignPage() {
           <div className="p-4 bg-slate-50 border-t border-slate-200 shrink-0 space-y-2.5">
             {/* Active Reference Campaign Chip Banner */}
             {referencedCampaign && (
-              <div className="flex items-center justify-between px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 animate-in fade-in slide-in-from-bottom-1">
-                <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center justify-between px-3 py-2 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 animate-in fade-in slide-in-from-bottom-1 gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <div className="w-5 h-5 rounded-md bg-purple-600 text-white flex items-center justify-center shrink-0">
                     <AtSign className="h-3 w-3" />
                   </div>
                   <div className="min-w-0">
-                    <span className="font-bold text-[11px] truncate block text-purple-950">
-                      Context Referenced: @{referencedCampaign.name}
-                    </span>
-                    <span className="text-[9px] text-purple-600 block">
-                      Reusing: {referencedCampaign.businessName || "Business"}, {referencedCampaign.campaignType || "Search"}, Budget, Locations & Creative Assets
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-[11px] truncate text-purple-950">
+                        Referenced: @{referencedCampaign.name}
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-purple-200/80 text-purple-900 font-semibold">
+                        Read-Only Context
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-purple-600 block truncate">
+                      AI is using this campaign for context & comparisons without modifying your cockpit.
                     </span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setReferencedCampaign(null)}
-                  className="text-purple-400 hover:text-purple-700 p-1 rounded transition-colors cursor-pointer shrink-0 ml-2"
-                  title="Remove reference"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Load "${referencedCampaign.name}" into your campaign cockpit? This will populate the form on the right with this campaign's settings.`)) {
+                        handleLoadDraftCampaign(referencedCampaign);
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-bold text-[10px] shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
+                    title="Explicitly load this referenced campaign into the cockpit"
+                  >
+                    <Check className="h-3 w-3" />
+                    <span>Apply / Load into Cockpit</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReferencedCampaign(null)}
+                    className="text-purple-400 hover:text-purple-700 p-1 rounded-lg hover:bg-purple-100 transition-colors cursor-pointer"
+                    title="Remove reference"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -5694,11 +7316,13 @@ export default function AiGuidedCampaignPage() {
                     }
                   }}
                   placeholder={
-                    isLoading
+                    aiNotificationBanner
+                      ? "⚠️ Please apply, view, or cancel the pending AI suggestions above first..."
+                      : isLoading
                       ? "AI Copilot is formulating recommendations..."
                       : "Describe your goal, business, paste URL, budget, or type @ to reference a campaign..."
                   }
-                  disabled={isLoading || isPublishing}
+                  disabled={Boolean(aiNotificationBanner) || isLoading || isPublishing}
                   className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all disabled:opacity-60 shadow-xs resize-none min-h-[42px] max-h-[140px] leading-relaxed scrollbar-thin overflow-y-auto block"
                 />
                 {isAnalyzingUrl ? (
@@ -5717,7 +7341,7 @@ export default function AiGuidedCampaignPage() {
 
               <button
                 type="submit"
-                disabled={!inputVal.trim() || isLoading || isPublishing}
+                disabled={Boolean(aiNotificationBanner) || !inputVal.trim() || isLoading || isPublishing}
                 className="px-5 py-2.5 h-[42px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs disabled:opacity-40 transition-all shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-1.5 shrink-0"
               >
                 <span>Send</span>
@@ -5727,10 +7351,59 @@ export default function AiGuidedCampaignPage() {
           </div>
         </div>
 
+        {/* DRAGGABLE VERTICAL SPLIT DIVIDER (Desktop / Laptop View) */}
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizingCockpit(true);
+          }}
+          className={`hidden lg:flex items-center justify-center w-1.5 hover:w-2 -mx-0.5 z-20 cursor-col-resize transition-all duration-150 select-none group shrink-0 ${
+            isResizingCockpit
+              ? "bg-blue-600 ring-2 ring-blue-400/50 w-2"
+              : "bg-slate-200/80 hover:bg-blue-500"
+          }`}
+          title="Drag left or right to resize panels"
+        >
+          {/* Subtle center grip pill */}
+          <div
+            className={`w-1 h-8 rounded-full transition-colors flex flex-col items-center justify-center gap-0.5 ${
+              isResizingCockpit ? "bg-white" : "bg-slate-400/70 group-hover:bg-white"
+            }`}
+          >
+            <span className="w-0.5 h-0.5 rounded-full bg-slate-600 group-hover:bg-blue-600" />
+            <span className="w-0.5 h-0.5 rounded-full bg-slate-600 group-hover:bg-blue-600" />
+            <span className="w-0.5 h-0.5 rounded-full bg-slate-600 group-hover:bg-blue-600" />
+          </div>
+        </div>
+
         {/* RIGHT: Live Campaign Cockpit Panel (Light Theme) */}
-        <div className={`w-full lg:w-[420px] h-full min-h-0 bg-white border-t lg:border-t-0 lg:border-l border-slate-200 flex-col shrink-0 shadow-xs ${
-          mobileActiveTab === "cockpit" ? "flex flex-1 lg:flex-none" : "hidden lg:flex"
-        }`}>
+        <div
+          style={{ width: `${cockpitWidth}px` }}
+          className={`relative w-full max-w-full lg:max-w-none h-full min-h-0 bg-white border-t lg:border-t-0 lg:border-l border-slate-200 flex-col shrink-0 shadow-xs transition-opacity duration-200 ${
+            mobileActiveTab === "cockpit" ? "flex flex-1 lg:flex-none !w-full" : "hidden lg:flex"
+          } ${aiNotificationBanner ? "pointer-events-none opacity-60 select-none" : ""}`}
+        >
+          {/* Backdrop lock when notification banner is active */}
+          {aiNotificationBanner && (
+            <div className="absolute inset-0 z-30 bg-slate-100/40 backdrop-blur-[1px] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200 pointer-events-auto">
+              <div className="p-4 rounded-2xl bg-white/95 border border-blue-200 shadow-xl max-w-xs space-y-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">
+                  <Sparkles className="h-4 w-4 animate-pulse text-blue-600" />
+                </div>
+                <h5 className="text-xs font-bold text-slate-900">Cockpit Paused</h5>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Please respond to the AI Notification (Apply, View, or Cancel) to unlock the Cockpit.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setAiNotificationBanner(null)}
+                  className="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition-colors cursor-pointer"
+                >
+                  Dismiss & Unlock
+                </button>
+              </div>
+            </div>
+          )}
           
           {/* Cockpit Header (Sticky top inside right panel) */}
           <div className="p-5 pb-3 border-b border-slate-200 shrink-0 flex items-center justify-between">
@@ -5750,6 +7423,81 @@ export default function AiGuidedCampaignPage() {
 
           {/* Cockpit Scrollable Content Area */}
           <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+            {/* Publish Error Notification Banner with Crop / Edit CTA */}
+            {publishError && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 shadow-sm space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5 min-w-0">
+                      <h4 className="font-bold text-xs text-rose-950">Campaign Launch Issue</h4>
+                      <p className="text-[11px] text-rose-800 leading-relaxed break-words">{publishError}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPublishError(null)}
+                    className="text-rose-400 hover:text-rose-700 p-0.5 rounded transition-colors shrink-0"
+                    title="Dismiss alert"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {/* Quick Interactive Actions based on Error Type */}
+                <div className="flex items-center gap-2 pt-1 border-t border-rose-200/70 flex-wrap">
+                  {publishError.includes("logo") && (campaignState.logos?.length || 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleEditExistingAsset("LOGO", 0)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] shadow-xs flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Crop className="h-3 w-3" />
+                      <span>Crop Logo to 1:1 Square</span>
+                    </button>
+                  )}
+                  {publishError.includes("marketing image") && (campaignState.images?.length || 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleEditExistingAsset("IMAGE", 0)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] shadow-xs flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Crop className="h-3 w-3" />
+                      <span>Crop Marketing Image</span>
+                    </button>
+                  )}
+                  {publishError.includes("website") || publishError.includes("Landing page") ? (
+                    <button
+                      type="button"
+                      onClick={() => startFieldEdit("website")}
+                      className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] shadow-xs flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Edit3 className="h-3 w-3" />
+                      <span>Edit Website URL</span>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setPublishError(null)}
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-100 text-rose-700 font-semibold text-[10px] border border-rose-200 transition-colors cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Publish Success Banner */}
+            {publishSuccess && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 shadow-sm flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-bold text-xs text-emerald-950">Published Successfully</h4>
+                  <p className="text-[11px] text-emerald-800">{publishSuccess}</p>
+                </div>
+              </div>
+            )}
+
             {/* Live Website Fetching & Extraction Animation Banner */}
             {isAnalyzingUrl && (
               <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 border border-blue-300 animate-pulse text-xs text-blue-900 shadow-xs space-y-2">
@@ -6373,16 +8121,66 @@ export default function AiGuidedCampaignPage() {
                   )}
                 </div>
 
-                {/* Field 7: Daily Budget */}
+                {/* Field 7a: Budget Type (Daily Budget vs Campaign Total Budget) */}
                 <div className="py-1 border-b border-slate-200 group">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-1 text-slate-500">
-                      <span>Daily Budget:</span>
+                      <span>Budget Type:</span>
+                      <button
+                        type="button"
+                        onClick={() => (editingField === "budgetType" ? cancelFieldEdit() : startFieldEdit("budgetType"))}
+                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                        title="Edit Budget Type"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                      </button>
+                    </div>
+                    {editingField === "budgetType" ? (
+                      <div className="flex items-center gap-1.5 flex-1 max-w-[240px] justify-end">
+                        <select
+                          value={tempEditValues.budgetType || "DAILY"}
+                          onChange={(e) => setTempEditValues({ ...tempEditValues, budgetType: e.target.value as "TOTAL" | "DAILY" })}
+                          className="bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                          autoFocus
+                        >
+                          <option value="DAILY">Daily Budget (Per Day)</option>
+                          <option value="TOTAL">Campaign Total Budget (Total Spend)</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={saveFieldEdit}
+                          className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                          title="Save"
+                        >
+                          <Check className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelFieldEdit}
+                          className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                          title="Cancel"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="font-medium text-slate-800">
+                        {campaignState.budgetType === "TOTAL" ? "Campaign Total Budget" : "Daily Budget"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Field 7b: Budget Amount */}
+                <div className="py-1 border-b border-slate-200 group">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1 text-slate-500">
+                      <span>{campaignState.budgetType === "TOTAL" ? "Campaign Total Budget:" : "Daily Budget:"}</span>
                       <button
                         type="button"
                         onClick={() => (editingField === "dailyBudget" ? cancelFieldEdit() : startFieldEdit("dailyBudget"))}
                         className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                        title="Edit Daily Budget"
+                        title="Edit Budget"
                       >
                         <Edit3 className="h-3 w-3" />
                       </button>
@@ -6404,7 +8202,7 @@ export default function AiGuidedCampaignPage() {
                               }
                             }}
                             onKeyDown={handleKeyDownSave}
-                            placeholder="1000"
+                            placeholder={tempEditValues.budgetType === "TOTAL" || campaignState.budgetType === "TOTAL" ? "50000" : "1000"}
                             className={`w-full bg-white border ${fieldError ? "border-rose-500 focus:ring-rose-500" : "border-blue-500"} rounded pl-4 pr-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none`}
                             autoFocus
                           />
@@ -6427,9 +8225,26 @@ export default function AiGuidedCampaignPage() {
                         </button>
                       </div>
                     ) : (
-                      <span className="font-mono font-bold text-emerald-600">
+                      <span className="font-mono font-bold text-emerald-600 text-right">
                         {campaignState.dailyBudget && campaignState.dailyBudget > 0 ? (
-                          `₹${campaignState.dailyBudget.toLocaleString()}/day ✓`
+                          campaignState.budgetType === "TOTAL" ? (
+                            <span>
+                              ₹{campaignState.dailyBudget.toLocaleString("en-IN")} total ✓
+                              {campaignState.startDate && campaignState.endDate && (() => {
+                                const start = new Date(campaignState.startDate).getTime();
+                                const end = new Date(campaignState.endDate).getTime();
+                                const days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+                                const avgDaily = Math.round(Number(campaignState.dailyBudget) / days);
+                                return (
+                                  <span className="block text-[9px] font-normal text-slate-500">
+                                    ≈ ₹{avgDaily.toLocaleString("en-IN")}/day ({days} days)
+                                  </span>
+                                );
+                              })()}
+                            </span>
+                          ) : (
+                            `₹${campaignState.dailyBudget.toLocaleString("en-IN")}/day ✓`
+                          )
                         ) : (
                           <span className="text-slate-400 font-normal italic">Not set</span>
                         )}
@@ -6514,20 +8329,85 @@ export default function AiGuidedCampaignPage() {
                       </div>
 
                       {locationMode === "CUSTOM" && (
-                        <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                        <div className="space-y-2 pt-1 border-t border-slate-100">
+                          {/* Sub Tabs: Location vs Radius */}
+                          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-[10px] font-semibold">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLocationTab("LOCATION");
+                                setLocationSearchResults(GOOGLE_ADS_LOCATION_PRESETS.slice(0, 6).map(loc => ({ ...loc, targetType: "Location" })));
+                              }}
+                              className={`flex-1 py-1 px-2 rounded-md transition-all text-center flex items-center justify-center gap-1 ${
+                                locationTab === "LOCATION" ? "bg-white text-blue-700 shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
+                              }`}
+                            >
+                              <Globe className="h-3 w-3" />
+                              <span>Location</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLocationTab("RADIUS");
+                                setLocationSearchResults([]);
+                              }}
+                              className={`flex-1 py-1 px-2 rounded-md transition-all text-center flex items-center justify-center gap-1 ${
+                                locationTab === "RADIUS" ? "bg-white text-blue-700 shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
+                              }`}
+                            >
+                              <Navigation className="h-3 w-3" />
+                              <span>Radius Targeting</span>
+                            </button>
+                          </div>
+
+                          {/* Radius Controls (Only in Radius mode) */}
+                          {locationTab === "RADIUS" && (
+                            <div className="flex items-center gap-1.5 bg-slate-100/80 p-1.5 rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-slate-700 font-semibold shrink-0">Radius:</span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={500}
+                                value={radiusValue}
+                                onChange={(e) => setRadiusValue(Math.max(1, Number(e.target.value) || 1))}
+                                className="w-14 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                              />
+                              <div className="flex items-center rounded border border-slate-300 overflow-hidden bg-white shrink-0 text-[10px]">
+                                <button
+                                  type="button"
+                                  onClick={() => setRadiusUnit("km")}
+                                  className={`px-2 py-0.5 font-bold transition-colors ${
+                                    radiusUnit === "km" ? "bg-slate-900 text-white" : "bg-transparent text-slate-600 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  km
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setRadiusUnit("mi")}
+                                  className={`px-2 py-0.5 font-bold transition-colors ${
+                                    radiusUnit === "mi" ? "bg-slate-900 text-white" : "bg-transparent text-slate-600 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  mi
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
                           {/* Selected Location Badges */}
                           {selectedLocationsList.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {selectedLocationsList.map((loc) => (
                                 <span
                                   key={loc}
-                                  className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] flex items-center gap-1 font-medium"
+                                  className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] flex items-center gap-1 font-medium max-w-full"
                                 >
-                                  <span>{loc}</span>
+                                  <span className="truncate">{loc}</span>
                                   <button
                                     type="button"
                                     onClick={() => setSelectedLocationsList(selectedLocationsList.filter(l => l !== loc))}
-                                    className="hover:text-blue-900"
+                                    className="hover:text-blue-900 shrink-0"
                                   >
                                     <X className="h-2.5 w-2.5" />
                                   </button>
@@ -6536,7 +8416,7 @@ export default function AiGuidedCampaignPage() {
                             </div>
                           )}
 
-                          {/* Location Search Input */}
+                          {/* Location / Radius Search Input */}
                           <div className="relative">
                             <input
                               type="text"
@@ -6545,7 +8425,11 @@ export default function AiGuidedCampaignPage() {
                                 setLocationSearchQuery(e.target.value);
                                 setFieldError(null);
                               }}
-                              placeholder="Search country, state, city..."
+                              placeholder={
+                                locationTab === "RADIUS"
+                                  ? `Search city, town, address, landmark...`
+                                  : `Search country, state, city, PIN code...`
+                              }
                               className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-900 focus:outline-none focus:bg-white focus:border-blue-500"
                               autoFocus
                             />
@@ -6558,17 +8442,19 @@ export default function AiGuidedCampaignPage() {
                           <div className="max-h-28 overflow-y-auto border border-slate-200 rounded bg-white divide-y divide-slate-100 text-[10px]">
                             {locationSearchResults.length > 0 ? (
                               locationSearchResults.map((item, idx) => {
-                                const isSelected = selectedLocationsList.includes(item.canonicalName || item.name);
+                                const targetLabel = locationTab === "RADIUS"
+                                  ? `${radiusValue} ${radiusUnit} around ${item.name || item.canonicalName}`
+                                  : (item.canonicalName || item.name);
+                                const isSelected = selectedLocationsList.includes(targetLabel) || selectedLocationsList.includes(item.name) || selectedLocationsList.includes(item.canonicalName);
                                 return (
                                   <button
                                     key={`${item.id || item.name}-${idx}`}
                                     type="button"
                                     onClick={() => {
-                                      const locName = item.canonicalName || item.name;
                                       if (!isSelected) {
-                                        setSelectedLocationsList([...selectedLocationsList, locName]);
+                                        setSelectedLocationsList([...selectedLocationsList, targetLabel]);
                                       } else {
-                                        setSelectedLocationsList(selectedLocationsList.filter(l => l !== locName));
+                                        setSelectedLocationsList(selectedLocationsList.filter(l => l !== targetLabel && l !== item.name && l !== item.canonicalName));
                                       }
                                       setFieldError(null);
                                     }}
@@ -6577,7 +8463,7 @@ export default function AiGuidedCampaignPage() {
                                     }`}
                                   >
                                     <div className="truncate pr-2">
-                                      <span>{item.canonicalName || item.name}</span>
+                                      <span>{locationTab === "RADIUS" ? `${radiusValue} ${radiusUnit} around ${item.name}` : (item.canonicalName || item.name)}</span>
                                       {item.targetType && (
                                         <span className="text-[9px] text-slate-400 ml-1">({item.targetType})</span>
                                       )}
@@ -6590,7 +8476,49 @@ export default function AiGuidedCampaignPage() {
                               })
                             ) : (
                               <div className="p-2 text-center text-slate-400">
-                                No matching Google Ads locations found
+                                {locationSearchQuery.trim().length >= 2 ? "No matching locations found" : "Type 2+ characters to search Google Places & Geo-Targets"}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* ── Interactive Google Maps Visual Location Preview ── */}
+                          <div className="mt-2 rounded-xl overflow-hidden border border-slate-200 shadow-2xs bg-slate-100">
+                            <div className="p-1.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-[10px]">
+                              <div className="flex items-center gap-1 font-bold text-slate-800">
+                                <MapPin className="h-3 w-3 text-red-500" />
+                                <span>Google Maps Live Coverage Preview</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setShowLocationMapPreview(!showLocationMapPreview)}
+                                className="text-[9px] text-blue-600 font-semibold hover:underline"
+                              >
+                                {showLocationMapPreview ? "Hide Map" : "Show Map"}
+                              </button>
+                            </div>
+
+                            {showLocationMapPreview && (
+                              <div className="relative w-full h-48 bg-slate-200">
+                                {(() => {
+                                  const primaryTarget = selectedLocationsList[0] || (locationSearchQuery.trim() || "India");
+                                  const encodedLoc = encodeURIComponent(primaryTarget);
+                                  // Universal Google Maps search embed URL - works 100% reliably without requiring separate "Maps Embed API" activation on Cloud Console
+                                  const zoomLevel = locationTab === "RADIUS" ? 12 : 8;
+                                  const mapUrl = `https://maps.google.com/maps?q=${encodedLoc}&t=&z=${zoomLevel}&ie=UTF8&iwloc=&output=embed`;
+                                  return (
+                                    <iframe
+                                      title="Google Maps Location Target"
+                                      src={mapUrl}
+                                      className="w-full h-full border-0"
+                                      loading="lazy"
+                                      referrerPolicy="no-referrer-when-downgrade"
+                                    />
+                                  );
+                                })()}
+                                <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-md bg-slate-900/80 backdrop-blur-xs text-white text-[9px] font-mono flex items-center gap-1 shadow-sm">
+                                  <Globe className="h-2.5 w-2.5 text-cyan-400" />
+                                  <span>{selectedLocationsList.length > 0 ? `${selectedLocationsList.length} Active Target(s)` : "Previewing: India"}</span>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -6806,11 +8734,20 @@ export default function AiGuidedCampaignPage() {
                   )}
                 </div>
 
-                {/* Field 11: End Date */}
+                {/* Field 11: End Date (Optional for Daily Budget, Mandatory for Total Budget) */}
                 <div className="py-1 group">
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1 text-slate-500">
+                    <div className="flex items-center gap-1.5 text-slate-500">
                       <span>End Date:</span>
+                      {campaignState.budgetType === "TOTAL" ? (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
+                          Required
+                        </span>
+                      ) : (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-500 font-medium">
+                          Optional
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={() => (editingField === "endDate" ? cancelFieldEdit() : startFieldEdit("endDate"))}
@@ -6830,7 +8767,7 @@ export default function AiGuidedCampaignPage() {
                             const val = e.target.value;
                             setTempEditValues({ ...tempEditValues, endDate: val });
                             const effectiveStart = tempEditValues.startDate || campaignState.startDate || todayIso;
-                            setFieldError(validateEndDate(val, effectiveStart));
+                            setFieldError(validateEndDate(val, effectiveStart, tempEditValues.budgetType || campaignState.budgetType));
                           }}
                           onKeyDown={handleKeyDownSave}
                           className={`w-full bg-white border ${fieldError ? "border-rose-500" : "border-blue-500"} rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none`}
@@ -6854,7 +8791,13 @@ export default function AiGuidedCampaignPage() {
                         </button>
                       </div>
                     ) : (
-                      <span className="text-slate-800 font-medium font-mono">{campaignState.endDate || "Not set"}</span>
+                      campaignState.endDate ? (
+                        <span className="text-slate-800 font-medium font-mono">{campaignState.endDate}</span>
+                      ) : campaignState.budgetType === "TOTAL" ? (
+                        <span className="text-amber-600 font-medium text-[11px] italic">Required for Total Budget</span>
+                      ) : (
+                        <span className="text-slate-400 font-normal text-[11px]">No end date (Indefinite)</span>
+                      )
                     )}
                   </div>
                   {editingField === "endDate" && fieldError && (
@@ -7005,13 +8948,17 @@ export default function AiGuidedCampaignPage() {
                           </div>
                         )}
 
-                        {/* Optional Param 4: Customer Acquisition Mode (Sales / Leads PMax) */}
+                        {/* Optional Param 4: Customer Acquisition Mode (Sales / Leads PMax & Search) */}
                         {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SEARCH") && (
                           <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
                             <span className="text-slate-500">Customer Acquisition:</span>
                             <select
                               value={campaignState.customerAcquisitionMode || "EQUAL"}
-                              onChange={(e) => setCampaignState(prev => ({ ...prev, customerAcquisitionMode: e.target.value }))}
+                              onChange={(e) => setCampaignState(prev => ({
+                                ...prev,
+                                customerAcquisitionMode: e.target.value,
+                                onlyBidNewCustomers: e.target.value === "ONLY_NEW"
+                              }))}
                               className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:border-blue-500 max-w-[160px]"
                             >
                               <option value="EQUAL">Bid equally (New & Existing)</option>
@@ -7019,6 +8966,284 @@ export default function AiGuidedCampaignPage() {
                               <option value="ONLY_NEW">Only bid for new customers</option>
                             </select>
                           </div>
+                        )}
+
+                        {/* Search Campaign Specific Network & Rotation Controls */}
+                        {campaignState.campaignType === "SEARCH" && (
+                          <>
+                            {/* Search Partners Network Toggle */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Google Search Partners:</span>
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, networkSearch: prev.networkSearch === false ? true : false }))}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                  campaignState.networkSearch !== false
+                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {campaignState.networkSearch !== false ? "Included" : "Excluded"}
+                              </button>
+                            </div>
+
+                            {/* Display Network Expansion Toggle */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Google Display Network:</span>
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, networkDisplay: prev.networkDisplay === false ? true : false }))}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                  campaignState.networkDisplay !== false
+                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {campaignState.networkDisplay !== false ? "Included" : "Excluded"}
+                              </button>
+                            </div>
+
+                            {/* Location Targeting Mode */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Location Targeting:</span>
+                              <select
+                                value={campaignState.locationOptionsPresence || "PRESENCE_INTEREST"}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, locationOptionsPresence: e.target.value }))}
+                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:border-blue-500 max-w-[170px]"
+                              >
+                                <option value="PRESENCE_INTEREST">Presence or Interest</option>
+                                <option value="PRESENCE">Presence only (In location)</option>
+                              </select>
+                            </div>
+
+                            {/* Ad Rotation Mode */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Ad Rotation:</span>
+                              <select
+                                value={campaignState.adRotationMode || "OPTIMIZE"}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, adRotationMode: e.target.value }))}
+                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:border-blue-500 max-w-[170px]"
+                              >
+                                <option value="OPTIMIZE">Optimize (Prefer best ads)</option>
+                                <option value="DO_NOT_OPTIMIZE">Do not optimize (Rotate evenly)</option>
+                              </select>
+                            </div>
+
+                            {/* Search Term Matching (Broad Match AI Expansion) */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Search Term Matching:</span>
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, useSearchTermMatchingAdGroup: prev.useSearchTermMatchingAdGroup === false ? true : false }))}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                  campaignState.useSearchTermMatchingAdGroup !== false
+                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {campaignState.useSearchTermMatchingAdGroup !== false ? "Enabled (Broad Match)" : "Keywords Only"}
+                              </button>
+                            </div>
+
+                            {/* AI Text Customization Toggle */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Text Customization:</span>
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, enableTextCustomization: prev.enableTextCustomization === false ? true : false }))}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                  campaignState.enableTextCustomization !== false
+                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {campaignState.enableTextCustomization !== false ? "Auto-Customized" : "Static Ads"}
+                              </button>
+                            </div>
+                          </>
+                        )}
+
+                        {/* Demand Gen Specific Settings */}
+                        {campaignState.campaignType === "DEMAND_GEN" && (
+                          <>
+                            {/* Ad Format Selector */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Ad Format:</span>
+                              <select
+                                value={campaignState.adFormat || "SINGLE_IMAGE"}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, adFormat: e.target.value as any }))}
+                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-bold focus:outline-none focus:border-blue-500 max-w-[150px]"
+                              >
+                                <option value="SINGLE_IMAGE">Single Image Ad</option>
+                                <option value="VIDEO">Video Ad (YouTube)</option>
+                                <option value="CAROUSEL">Multi-Card Carousel</option>
+                              </select>
+                            </div>
+
+                            {/* Call to Action Button */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Call to Action:</span>
+                              <select
+                                value={campaignState.callToAction || "Automated"}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, callToAction: e.target.value }))}
+                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:border-blue-500 max-w-[150px]"
+                              >
+                                <option value="Automated">Automated</option>
+                                <option value="Learn more">Learn more</option>
+                                <option value="Shop now">Shop now</option>
+                                <option value="Sign up">Sign up</option>
+                                <option value="Contact us">Contact us</option>
+                                <option value="Get quote">Get quote</option>
+                                <option value="Download">Download</option>
+                                <option value="Book now">Book now</option>
+                                <option value="Apply now">Apply now</option>
+                              </select>
+                            </div>
+
+                            {/* Channel Placements Targeting */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Channel Placements:</span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, channelTargeting: "ALL" }))}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                    (campaignState.channelTargeting || "ALL") === "ALL"
+                                      ? "bg-purple-600 text-white shadow-2xs"
+                                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  All Channels
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, channelTargeting: "CHOOSE" }))}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                    campaignState.channelTargeting === "CHOOSE"
+                                      ? "bg-purple-600 text-white shadow-2xs"
+                                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  Custom
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* View-Through Conversions Toggle */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">View-Through Conversions:</span>
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, includeViewThrough: !prev.includeViewThrough }))}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                  campaignState.includeViewThrough
+                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {campaignState.includeViewThrough ? "Included" : "Excluded"}
+                              </button>
+                            </div>
+
+                            {/* Brand Colors (Hex Code Inputs) */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Brand Colors:</span>
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1">
+                                  <span className="w-3 h-3 rounded-full border border-slate-300" style={{ backgroundColor: campaignState.mainBrandColor || "#2563EB" }} />
+                                  <input
+                                    type="text"
+                                    maxLength={7}
+                                    value={campaignState.mainBrandColor || "#2563EB"}
+                                    onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
+                                    placeholder="#2563EB"
+                                    className="w-16 bg-white border border-slate-200 rounded px-1 py-0.5 text-[10px] font-mono text-slate-800"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="w-3 h-3 rounded-full border border-slate-300" style={{ backgroundColor: campaignState.accentBrandColor || "#F59E0B" }} />
+                                  <input
+                                    type="text"
+                                    maxLength={7}
+                                    value={campaignState.accentBrandColor || "#F59E0B"}
+                                    onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
+                                    placeholder="#F59E0B"
+                                    className="w-16 bg-white border border-slate-200 rounded px-1 py-0.5 text-[10px] font-mono text-slate-800"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 6 Google AI Creative Enhancements Switches */}
+                            <div className="py-1 border-b border-slate-200/70 space-y-1">
+                              <div className="text-[10px] font-bold text-slate-700 flex items-center gap-1">
+                                <Sparkles className="h-3 w-3 text-purple-600" />
+                                <span>Google AI Creative Enhancements:</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, optAdaptiveLayouts: prev.optAdaptiveLayouts === false ? true : false }))}
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                    campaignState.optAdaptiveLayouts !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
+                                  }`}
+                                >
+                                  <span>Adaptive Layouts</span>
+                                  <span>{campaignState.optAdaptiveLayouts !== false ? "✓" : "✕"}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, optAnimatedImages: prev.optAnimatedImages === false ? true : false }))}
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                    campaignState.optAnimatedImages !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
+                                  }`}
+                                >
+                                  <span>Animated Images</span>
+                                  <span>{campaignState.optAnimatedImages !== false ? "✓" : "✕"}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, optGeneratedVideos: prev.optGeneratedVideos === false ? true : false }))}
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                    campaignState.optGeneratedVideos !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
+                                  }`}
+                                >
+                                  <span>Generated Videos</span>
+                                  <span>{campaignState.optGeneratedVideos !== false ? "✓" : "✕"}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, optShorterVideos: prev.optShorterVideos === false ? true : false }))}
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                    campaignState.optShorterVideos !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
+                                  }`}
+                                >
+                                  <span>Shorter 6s Videos</span>
+                                  <span>{campaignState.optShorterVideos !== false ? "✓" : "✕"}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, optResizedVideos: prev.optResizedVideos === false ? true : false }))}
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                    campaignState.optResizedVideos !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
+                                  }`}
+                                >
+                                  <span>Resized 9:16 Shorts</span>
+                                  <span>{campaignState.optResizedVideos !== false ? "✓" : "✕"}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, optLandingPagePreviews: prev.optLandingPagePreviews === false ? true : false }))}
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                    campaignState.optLandingPagePreviews !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
+                                  }`}
+                                >
+                                  <span>Page Previews</span>
+                                  <span>{campaignState.optLandingPagePreviews !== false ? "✓" : "✕"}</span>
+                                </button>
+                              </div>
+                            </div>
+                          </>
                         )}
 
                         {/* Optional Param 5: Tracking Template */}
@@ -7409,8 +9634,23 @@ export default function AiGuidedCampaignPage() {
               </div>
             </div>
 
+            {/* Guidance Banner when Objective or Campaign Type is not selected yet */}
+            {!Boolean(campaignState.objective && campaignState.campaignType) && (
+              <div className="bg-gradient-to-br from-indigo-50/80 via-purple-50/40 to-blue-50/80 border border-indigo-200/80 rounded-2xl p-5 text-center space-y-2.5 shadow-2xs animate-in fade-in duration-200">
+                <div className="w-10 h-10 rounded-2xl bg-white border border-indigo-100 shadow-2xs mx-auto flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-indigo-600 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-slate-900">Select Objective & Campaign Type</h4>
+                  <p className="text-[11px] text-slate-500 max-w-xs mx-auto leading-relaxed">
+                    Set your Campaign Objective and Type in the Strategy card above or chat with the AI Assistant. Creative assets, targeting parameters, and ad copy will display automatically once selected.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* 2. SEARCH ONLY: AI MAX SETTINGS CARD */}
-            {campaignState.campaignType === "SEARCH" && (
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SEARCH" && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -7478,7 +9718,7 @@ export default function AiGuidedCampaignPage() {
             )}
 
             {/* 2b. DEMAND GEN CONTROLS: AD FORMAT & CHANNEL TARGETING CARD */}
-            {campaignState.campaignType === "DEMAND_GEN" && (
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "DEMAND_GEN" && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -7624,42 +9864,813 @@ export default function AiGuidedCampaignPage() {
               </div>
             )}
 
-            {/* 2c. DEDICATED SHOPPING SETTINGS & READINESS CARD (When CampaignType = SHOPPING) */}
-            {campaignState.campaignType === "SHOPPING" && (
-              <div className="bg-slate-50 border border-blue-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            {/* 2b-Display. DISPLAY CAMPAIGN CONTROLS: BRANDING, OPTIMIZATIONS & CREATIVE SETTINGS CARD */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "DISPLAY" && (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <ShoppingBag className="h-4 w-4 text-primary" />
-                    <span className="font-bold text-xs text-slate-900">Google Shopping Settings</span>
+                    <ImageIcon className="h-4 w-4 text-blue-600" />
+                    <span className="font-bold text-xs text-slate-900">Display Campaign Controls</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    Display Config
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-[11px]">
+                  {/* Call To Action Selector */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex justify-between items-center">
+                    <span className="font-semibold text-slate-800">Call to action:</span>
+                    <select
+                      value={campaignState.callToAction || "Automated"}
+                      onChange={(e) => setCampaignState(prev => ({ ...prev, callToAction: e.target.value }))}
+                      className="bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-[10px] font-semibold text-slate-800 focus:outline-none"
+                    >
+                      {["Automated", "Shop Now", "Learn More", "Sign Up", "Contact Us", "Apply Now", "Book Now", "Download", "Get Quote", "Visit Site"].map((cta) => (
+                        <option key={cta} value={cta}>{cta}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Brand Guidelines: Colors & View-Through */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-800">Custom Colors & Conversion Tracking:</span>
+                      <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(campaignState.includeViewThrough)}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, includeViewThrough: e.target.checked }))}
+                          className="rounded text-blue-600 focus:ring-blue-500 h-3 w-3"
+                        />
+                        <span>View-Through Conversions</span>
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div>
+                        <span className="text-slate-400 block mb-0.5">Main Brand Color:</span>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={campaignState.mainBrandColor || "#1A73E8"}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
+                            className="w-5 h-5 rounded cursor-pointer border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={campaignState.mainBrandColor || "#1A73E8"}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
+                            placeholder="#1A73E8"
+                            className="w-20 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block mb-0.5">Accent Color:</span>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={campaignState.accentBrandColor || "#34A853"}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
+                            className="w-5 h-5 rounded cursor-pointer border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={campaignState.accentBrandColor || "#34A853"}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
+                            placeholder="#34A853"
+                            className="w-20 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Responsive Display Smart Optimizations */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <span className="font-semibold text-slate-800 block">Responsive Display Optimizations:</span>
+                    <div className="space-y-1.5 text-[10px]">
+                      <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={campaignState.useAssetEnhancements !== false}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, useAssetEnhancements: e.target.checked }))}
+                          className="rounded text-blue-600 focus:ring-blue-500 h-3 w-3"
+                        />
+                        <div>
+                          <span className="font-semibold block">Asset Enhancements</span>
+                          <span className="text-slate-400 text-[9px]">Google AI visually optimizes images and colors for different screen sizes</span>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={campaignState.useAutoGeneratedVideo !== false}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, useAutoGeneratedVideo: e.target.checked }))}
+                          className="rounded text-blue-600 focus:ring-blue-500 h-3 w-3"
+                        />
+                        <div>
+                          <span className="font-semibold block">Auto-Generated Videos</span>
+                          <span className="text-slate-400 text-[9px]">Create animated video variations from your marketing images and copy</span>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={campaignState.useNativeFormats !== false}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, useNativeFormats: e.target.checked }))}
+                          className="rounded text-blue-600 focus:ring-blue-500 h-3 w-3"
+                        />
+                        <div>
+                          <span className="font-semibold block">Native Formats</span>
+                          <span className="text-slate-400 text-[9px]">Render ads blending natively into publisher content layouts</span>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(campaignState.useDynamicFeed)}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, useDynamicFeed: e.target.checked }))}
+                          className="rounded text-blue-600 focus:ring-blue-500 h-3 w-3"
+                        />
+                        <div>
+                          <span className="font-semibold block">Dynamic Feed (Remarketing)</span>
+                          <span className="text-slate-400 text-[9px]">Bind product/service feed for personalized dynamic remarketing</span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2b-Video. VIDEO CAMPAIGN CONTROLS: AD FORMAT, BRANDING & CREATIVE ENHANCEMENTS CARD */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "VIDEO" && (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Video className="h-4 w-4 text-red-600" />
+                    <span className="font-bold text-xs text-slate-900">Video Campaign Controls</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+                    Video Config
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-[11px]">
+                  {/* Ad Format Selector */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-800">Ad Format:</span>
+                      <span className="text-[10px] text-red-700 font-bold uppercase">
+                        {(campaignState.adFormat || "VIDEO").replace("_", " ")}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {(["VIDEO", "SINGLE_IMAGE", "CAROUSEL"] as const).map((fmt) => {
+                        const isSelected = (campaignState.adFormat || "VIDEO") === fmt;
+                        const label = fmt === "VIDEO" ? "Video (YouTube)" : fmt === "SINGLE_IMAGE" ? "Single Image" : "Carousel";
+                        return (
+                          <button
+                            key={fmt}
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => {
+                                const nextState = { ...prev, adFormat: fmt };
+                                const vFormat = fmt;
+                                const isBudgetValid = nextState.dailyBudget && nextState.dailyBudget >= 416;
+                                const hasLogo = (nextState.logos?.length || 0) >= 1;
+                                const hasImages = (nextState.images?.length || 0) >= 1;
+                                const hasVideos = (nextState.videos?.length || 0) >= 1;
+                                const cards = nextState.carouselCards || [];
+                                const validCards = cards.filter(c => c && c.image?.trim() && c.headline?.trim());
+                                const hasHeadlines = (nextState.headlines?.length || 0) >= 1;
+                                const hasLongHeadlines = (nextState.longHeadlines?.length || 0) >= 1;
+                                const hasDescriptions = (nextState.descriptions?.length || 0) >= 1;
+                                let isReady = false;
+                                if (isBudgetValid && nextState.campaignName) {
+                                  if (vFormat === "VIDEO") {
+                                    isReady = Boolean(hasVideos && hasLogo && hasHeadlines && hasLongHeadlines && hasDescriptions);
+                                  } else if (vFormat === "CAROUSEL") {
+                                    isReady = Boolean(validCards.length >= 2 && hasLogo && hasHeadlines && hasDescriptions);
+                                  } else {
+                                    isReady = Boolean(hasImages && hasLogo && hasHeadlines && hasDescriptions);
+                                  }
+                                }
+                                nextState.readyForPublish = isReady;
+                                return nextState;
+                              });
+                            }}
+                            className={`py-1 px-1.5 rounded-lg border text-center font-semibold text-[10px] transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-red-600 text-white border-red-600 shadow-xs"
+                                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Call To Action Selector */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex justify-between items-center">
+                    <span className="font-semibold text-slate-800">Call to action:</span>
+                    <select
+                      value={campaignState.callToAction || "Automated"}
+                      onChange={(e) => setCampaignState(prev => ({ ...prev, callToAction: e.target.value }))}
+                      className="bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-[10px] font-semibold text-slate-800 focus:outline-none"
+                    >
+                      {["Automated", "Watch Now", "Shop Now", "Learn More", "Sign Up", "Contact Us", "Apply Now", "Book Now", "Download", "Get Quote"].map((cta) => (
+                        <option key={cta} value={cta}>{cta}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Brand Guidelines: Colors & Font */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-800">Brand Identity & Overlays:</span>
+                      <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(campaignState.includeViewThrough)}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, includeViewThrough: e.target.checked }))}
+                          className="rounded text-red-600 focus:ring-red-500 h-3 w-3"
+                        />
+                        <span>View-Through Conversions</span>
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div>
+                        <span className="text-slate-400 block mb-0.5">Main Brand Color:</span>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={campaignState.mainBrandColor || "#1A73E8"}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
+                            className="w-5 h-5 rounded cursor-pointer border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={campaignState.mainBrandColor || "#1A73E8"}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
+                            placeholder="#1A73E8"
+                            className="w-20 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block mb-0.5">Accent Color:</span>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={campaignState.accentBrandColor || "#EA4335"}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
+                            className="w-5 h-5 rounded cursor-pointer border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={campaignState.accentBrandColor || "#EA4335"}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
+                            placeholder="#EA4335"
+                            className="w-20 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Google AI Creative Enhancements */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-800">Google AI Creative Enhancements:</span>
+                      <span className="text-[9px] font-mono text-slate-400">All 6 Active</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-[10px]">
+                      {[
+                        { key: "optAdaptiveLayouts", label: "Adaptive Layouts" },
+                        { key: "optAnimatedImages", label: "Animated Images" },
+                        { key: "optGeneratedVideos", label: "Generated Videos" },
+                        { key: "optShorterVideos", label: "Shorter Videos (6s)" },
+                        { key: "optResizedVideos", label: "Resized Videos (9:16)" },
+                        { key: "optLandingPagePreviews", label: "Page Previews" }
+                      ].map((enh) => {
+                        const isChecked = campaignState[enh.key] !== false;
+                        return (
+                          <label key={enh.key} className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => setCampaignState(prev => ({ ...prev, [enh.key]: e.target.checked }))}
+                              className="rounded text-red-600 focus:ring-red-500 h-3 w-3"
+                            />
+                            <span className="truncate">{enh.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Channel Targeting: ALL vs CHOOSE */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-800">Placements & Inventory:</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setCampaignState(prev => ({ ...prev, channelTargeting: "ALL" }))}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                            (campaignState.channelTargeting || "ALL") === "ALL"
+                              ? "bg-red-600 text-white"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          ALL
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCampaignState(prev => ({
+                            ...prev,
+                            channelTargeting: "CHOOSE",
+                            channels: prev.channels && prev.channels.length > 0 ? prev.channels : [
+                              "YouTube Shorts", "YouTube in-feed", "YouTube in-stream", "Discover", "Gmail"
+                            ]
+                          }))}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                            campaignState.channelTargeting === "CHOOSE"
+                              ? "bg-red-600 text-white"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          CHOOSE
+                        </button>
+                      </div>
+                    </div>
+
+                    {campaignState.channelTargeting === "CHOOSE" && (
+                      <div className="space-y-1 pt-1 border-t border-slate-100">
+                        <span className="text-[10px] text-slate-400 block">Selected Video Inventory:</span>
+                        <div className="grid grid-cols-2 gap-1 text-[10px]">
+                          {[
+                            "YouTube in-stream",
+                            "YouTube in-feed",
+                            "YouTube Shorts",
+                            "Discover",
+                            "Gmail",
+                            "Google Display Network"
+                          ].map((ch) => {
+                            const curChannels = campaignState.channels || ["YouTube Shorts", "YouTube in-feed", "YouTube in-stream"];
+                            const isChSelected = curChannels.includes(ch);
+                            return (
+                              <label key={ch} className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={isChSelected}
+                                  onChange={(e) => {
+                                    const nextCh = e.target.checked
+                                      ? [...curChannels, ch]
+                                      : curChannels.filter(c => c !== ch);
+                                    setCampaignState(prev => ({ ...prev, channels: nextCh }));
+                                  }}
+                                  className="rounded text-red-600 focus:ring-red-500 h-3 w-3"
+                                />
+                                <span className="truncate">{ch}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2b-2. PERFORMANCE MAX CONTROLS: MORE CAMPAIGN SETTINGS */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "PERFORMANCE_MAX" && (
+              <div className="bg-slate-50 border border-purple-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between border-b border-purple-100 pb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-purple-600" />
+                    <span className="font-bold text-xs text-slate-900">Performance Max Controls</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                    PMax Controls
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-[11px]">
+                  {/* More Campaign Settings Collapsible Section */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPMaxMoreSettings(!showPMaxMoreSettings)}
+                      className="w-full flex items-center justify-between p-2 rounded-xl bg-white hover:bg-purple-50/60 border border-purple-200 transition-colors cursor-pointer text-left group"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Settings2 className="h-3.5 w-3.5 text-purple-600" />
+                        <span className="font-semibold text-slate-800 group-hover:text-purple-700">More campaign settings</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded font-mono">
+                          Schedule • URL Options • Devices • Demographic Exclusions
+                        </span>
+                        <ChevronDown className={`h-3.5 w-3.5 text-purple-400 transition-transform ${showPMaxMoreSettings ? "rotate-180" : ""}`} />
+                      </div>
+                    </button>
+
+                    {showPMaxMoreSettings && (
+                      <div className="mt-2 space-y-2 pt-1 animate-in fade-in duration-150">
+                        {/* 1. Ad Schedule (Duplicate Prevention) */}
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1 text-slate-800 font-semibold">
+                              <Clock className="h-3 w-3 text-purple-600" />
+                              <span>Ad Schedule</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400">
+                              {(campaignState.adSchedule || []).length || 1} schedule(s)
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-1.5">
+                            {(campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "00:00" }]).map((sched, idx) => (
+                              <div key={idx} className="flex flex-wrap items-center gap-1.5 bg-slate-50 p-1.5 rounded-lg border border-slate-200 text-[10px]">
+                                <select
+                                  value={sched.day}
+                                  onChange={(e) => {
+                                    const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                    const updatedSched = { ...currentList[idx], day: e.target.value };
+                                    const isDup = currentList.some((s, i) => i !== idx && s.day === updatedSched.day && s.start === updatedSched.start && s.end === updatedSched.end);
+                                    if (isDup) {
+                                      alert("This ad schedule already exists. Duplicate schedules are not saved.");
+                                      return;
+                                    }
+                                    currentList[idx] = updatedSched;
+                                    setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
+                                  }}
+                                  className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-medium focus:outline-none"
+                                >
+                                  {pmaxDayOptions.map((d, i) => (
+                                    <option key={i} value={d}>{d}</option>
+                                  ))}
+                                </select>
+
+                                <select
+                                  value={sched.start}
+                                  onChange={(e) => {
+                                    const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                    const updatedSched = { ...currentList[idx], start: e.target.value };
+                                    const isDup = currentList.some((s, i) => i !== idx && s.day === updatedSched.day && s.start === updatedSched.start && s.end === updatedSched.end);
+                                    if (isDup) {
+                                      alert("This ad schedule already exists. Duplicate schedules are not saved.");
+                                      return;
+                                    }
+                                    currentList[idx] = updatedSched;
+                                    setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
+                                  }}
+                                  className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-mono focus:outline-none"
+                                >
+                                  {pmaxTimeOptions.map((t, i) => (
+                                    <option key={i} value={t}>{t}</option>
+                                  ))}
+                                </select>
+
+                                <span className="text-slate-400">to</span>
+
+                                <select
+                                  value={sched.end}
+                                  onChange={(e) => {
+                                    const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                    const updatedSched = { ...currentList[idx], end: e.target.value };
+                                    const isDup = currentList.some((s, i) => i !== idx && s.day === updatedSched.day && s.start === updatedSched.start && s.end === updatedSched.end);
+                                    if (isDup) {
+                                      alert("This ad schedule already exists. Duplicate schedules are not saved.");
+                                      return;
+                                    }
+                                    currentList[idx] = updatedSched;
+                                    setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
+                                  }}
+                                  className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-mono focus:outline-none"
+                                >
+                                  {pmaxTimeOptions.map((t, i) => (
+                                    <option key={i} value={t}>{t}</option>
+                                  ))}
+                                </select>
+
+                                {(campaignState.adSchedule || []).length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const currentList = [...(campaignState.adSchedule || [])];
+                                      currentList.splice(idx, 1);
+                                      setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-rose-600 ml-auto cursor-pointer"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                const defaultRow = { day: "Monday", start: "09:00", end: "18:00" };
+                                const isDup = currentList.some(s => s.day === defaultRow.day && s.start === defaultRow.start && s.end === defaultRow.end);
+                                if (isDup) {
+                                  // Pick the first available day that isn't already scheduled
+                                  const availableDay = pmaxDayOptions.find(d => !currentList.some(s => s.day === d && s.start === "09:00" && s.end === "18:00")) || "All days";
+                                  setCampaignState(prev => ({ ...prev, adSchedule: [...currentList, { day: availableDay, start: "09:00", end: "18:00" }] }));
+                                } else {
+                                  setCampaignState(prev => ({ ...prev, adSchedule: [...currentList, defaultRow] }));
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
+                            >
+                              <Plus className="h-3 w-3" /> Add schedule row
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 2. Campaign URL Options */}
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                          <div className="flex items-center gap-1 text-slate-800 font-semibold">
+                            <Globe className="h-3 w-3 text-purple-600" />
+                            <span>Campaign URL Options & Custom Parameters</span>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Tracking Template:</span>
+                              <input
+                                type="text"
+                                value={campaignState.trackingTemplate || ""}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, trackingTemplate: e.target.value }))}
+                                placeholder="{lpurl}?utm_source=google&utm_medium=cpc"
+                                className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                              />
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Final URL Suffix:</span>
+                              <input
+                                type="text"
+                                value={campaignState.finalUrlSuffix || ""}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, finalUrlSuffix: e.target.value }))}
+                                placeholder="src=google_pmax&campaign_id=123"
+                                className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                              />
+                            </div>
+
+                            <div className="pt-1 space-y-1">
+                              <span className="text-[10px] text-slate-400 block">Custom Parameters:</span>
+                              {(campaignState.customParameters || []).map((cp, cpIdx) => (
+                                <div key={cpIdx} className="flex items-center gap-1">
+                                  <span className="text-[10px] font-mono text-slate-400">{`{_`}</span>
+                                  <input
+                                    type="text"
+                                    value={cp.name}
+                                    placeholder="param"
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.customParameters || [])];
+                                      cur[cpIdx] = { ...cur[cpIdx], name: e.target.value };
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="w-24 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none"
+                                  />
+                                  <span className="text-[10px] font-mono text-slate-400">{`} =`}</span>
+                                  <input
+                                    type="text"
+                                    value={cp.value}
+                                    placeholder="value"
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.customParameters || [])];
+                                      cur[cpIdx] = { ...cur[cpIdx], value: e.target.value };
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="flex-1 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const cur = (campaignState.customParameters || []).filter((_, i) => i !== cpIdx);
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-rose-600"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    customParameters: [...(prev.customParameters || []), { id: Date.now().toString(), name: "", value: "" }]
+                                  }));
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
+                              >
+                                <Plus className="h-3 w-3" /> Add URL parameter
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3. Devices */}
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1 text-slate-800 font-semibold">
+                              <Monitor className="h-3 w-3 text-purple-600" />
+                              <span>Devices</span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-slate-400">Choose the devices where your Performance Max ads can appear:</p>
+                          <div className="grid grid-cols-2 gap-1 pt-0.5">
+                            {[
+                              { key: "computers" as const, label: "Computers" },
+                              { key: "mobile" as const, label: "Mobile phones" },
+                              { key: "tablets" as const, label: "Tablets" },
+                              { key: "tv" as const, label: "TV screens" }
+                            ].map((d) => {
+                              const curDevices = campaignState.devices || { computers: true, mobile: true, tablets: true, tv: true };
+                              const isChecked = curDevices[d.key] !== false;
+                              return (
+                                <label key={d.key} className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        devices: {
+                                          ...(prev.devices || { computers: true, mobile: true, tablets: true, tv: true }),
+                                          [d.key]: e.target.checked
+                                        }
+                                      }));
+                                    }}
+                                    className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
+                                  />
+                                  <span>{d.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* 4. Demographic Exclusions */}
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                          <span className="font-semibold text-slate-800 block">Demographic Exclusions:</span>
+                          
+                          {/* Age Exclusions */}
+                          <div className="space-y-1">
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={pmaxAgeExclusionsEnabled}
+                                onChange={(e) => setPmaxAgeExclusionsEnabled(e.target.checked)}
+                                className="rounded text-purple-600 h-3 w-3"
+                              />
+                              <span className="text-[10px] font-medium text-slate-700">Turn on age exclusions</span>
+                            </label>
+                            {pmaxAgeExclusionsEnabled && (
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-3 gap-1 text-[10px]">
+                                {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map((age) => {
+                                  const curExcluded = campaignState.demographicExclusions?.ages !== undefined
+                                    ? campaignState.demographicExclusions.ages
+                                    : ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
+                                  const isExcluded = curExcluded.includes(age);
+                                  return (
+                                    <label key={age} className="flex items-center gap-1 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={isExcluded}
+                                        onChange={(e) => {
+                                          const nextAges = e.target.checked
+                                            ? [...curExcluded, age]
+                                            : curExcluded.filter(a => a !== age);
+                                          setCampaignState(prev => ({
+                                            ...prev,
+                                            demographicExclusions: {
+                                              ...(prev.demographicExclusions || {}),
+                                              ages: nextAges
+                                            }
+                                          }));
+                                        }}
+                                        className="rounded text-rose-600 h-3 w-3"
+                                      />
+                                      <span>{age}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Gender Exclusions */}
+                          <div className="space-y-1 pt-1 border-t border-slate-100">
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={pmaxGenderExclusionsEnabled}
+                                onChange={(e) => setPmaxGenderExclusionsEnabled(e.target.checked)}
+                                className="rounded text-purple-600 h-3 w-3"
+                              />
+                              <span className="text-[10px] font-medium text-slate-700">Turn on gender exclusions</span>
+                            </label>
+                            {pmaxGenderExclusionsEnabled && (
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 flex gap-4 text-[10px]">
+                                {["Female", "Male", "Unknown"].map((gender) => {
+                                  const curExcluded = campaignState.demographicExclusions?.genders !== undefined
+                                    ? campaignState.demographicExclusions.genders
+                                    : ["Female", "Male"];
+                                  const isExcluded = curExcluded.includes(gender);
+                                  return (
+                                    <label key={gender} className="flex items-center gap-1 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={isExcluded}
+                                        onChange={(e) => {
+                                          const nextGenders = e.target.checked
+                                            ? [...curExcluded, gender]
+                                            : curExcluded.filter(g => g !== gender);
+                                          setCampaignState(prev => ({
+                                            ...prev,
+                                            demographicExclusions: {
+                                              ...(prev.demographicExclusions || {}),
+                                              genders: nextGenders
+                                            }
+                                          }));
+                                        }}
+                                        className="rounded text-rose-600 h-3 w-3"
+                                      />
+                                      <span>{gender}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* 2c. DEDICATED SHOPPING SETTINGS & READINESS CARD (When CampaignType = SHOPPING) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SHOPPING" && (
+              <div className="bg-slate-50 border border-amber-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                  <div className="flex items-center gap-1.5">
+                    <ShoppingBag className="h-4 w-4 text-amber-600" />
+                    <span className="font-bold text-xs text-slate-900">Google Shopping Controls & Merchant Center</span>
                   </div>
                   <span className={campaignState.readyForPublish ? "text-[10px] text-emerald-600 font-bold" : "text-[10px] text-amber-600 font-semibold"}>
                     {campaignState.readyForPublish ? "Publish Ready ✓" : "Required items missing"}
                   </span>
                 </div>
 
-                <div className="space-y-2 text-[11px]">
+                <div className="space-y-2.5 text-[11px]">
                   {/* Merchant Center ID */}
-                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                    <div className="flex items-center gap-1 text-slate-500">
-                      <span>Merchant Center ID:</span>
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-800">Merchant Center ID:</span>
                       <button
                         type="button"
                         onClick={() => (editingField === "merchantCenterId" ? cancelFieldEdit() : startFieldEdit("merchantCenterId"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                        className="p-0.5 text-slate-400 hover:text-amber-600 rounded transition-colors cursor-pointer"
                         title="Edit Merchant Center ID"
                       >
                         <Edit3 className="h-3 w-3" />
                       </button>
                     </div>
                     {editingField === "merchantCenterId" ? (
-                      <div className="flex items-center gap-1 max-w-[200px]">
+                      <div className="flex items-center gap-1">
                         <input
                           type="text"
                           value={tempEditValues.merchantCenterId || ""}
                           onChange={(e) => setTempEditValues({ ...tempEditValues, merchantCenterId: e.target.value })}
                           onKeyDown={handleKeyDownSave}
                           placeholder="e.g. 5840531233"
-                          className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
+                          className="w-full bg-white border border-amber-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
                           autoFocus
                         />
                         <button type="button" onClick={saveFieldEdit} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">
@@ -7675,94 +10686,127 @@ export default function AiGuidedCampaignPage() {
                           <span className="text-emerald-700 font-bold">✓ {campaignState.merchantCenterId}</span>
                         ) : (
                           <span className="text-rose-500 font-semibold flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" /> Required
+                            <AlertCircle className="h-3 w-3" /> Numeric ID Required
                           </span>
                         )}
                       </span>
                     )}
                   </div>
-                  {editingField === "merchantCenterId" && fieldError && (
-                    <div className="text-[10px] text-rose-600 font-medium flex items-center gap-1">
-                      <AlertCircle className="h-2.5 w-2.5 shrink-0" />
-                      <span>{fieldError}</span>
-                    </div>
-                  )}
 
-                  {/* Feed / Sales Country */}
-                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                    <span className="text-slate-500">Sales Country:</span>
-                    <span className="font-semibold text-slate-800">
-                      {campaignState.salesCountry || "IN"} ({campaignState.feedLabel || campaignState.salesCountry || "IN"})
-                    </span>
+                  {/* Feed / Sales Country & Feed Label */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">Sales Country:</span>
+                      <input
+                        type="text"
+                        value={campaignState.salesCountry || "IN"}
+                        onChange={(e) => setCampaignState(prev => ({ ...prev, salesCountry: e.target.value.toUpperCase() }))}
+                        placeholder="IN"
+                        maxLength={2}
+                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] font-mono font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">Feed Label:</span>
+                      <input
+                        type="text"
+                        value={campaignState.feedLabel || campaignState.salesCountry || "IN"}
+                        onChange={(e) => setCampaignState(prev => ({ ...prev, feedLabel: e.target.value.toUpperCase() }))}
+                        placeholder="IN"
+                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] font-mono font-bold text-slate-800"
+                      />
+                    </div>
                   </div>
 
-                  {/* Ad Group Name */}
-                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                    <div className="flex items-center gap-1 text-slate-500">
-                      <span>Ad Group Name:</span>
-                      <button
-                        type="button"
-                        onClick={() => (editingField === "adGroupName" ? cancelFieldEdit() : startFieldEdit("adGroupName"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                        title="Edit Ad Group Name"
-                      >
-                        <Edit3 className="h-3 w-3" />
-                      </button>
-                    </div>
-                    {editingField === "adGroupName" ? (
-                      <div className="flex items-center gap-1 max-w-[200px]">
-                        <input
-                          type="text"
-                          value={tempEditValues.adGroupName || ""}
-                          onChange={(e) => setTempEditValues({ ...tempEditValues, adGroupName: e.target.value })}
-                          onKeyDown={handleKeyDownSave}
-                          placeholder="Ad group 1"
-                          className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                          autoFocus
-                        />
-                        <button type="button" onClick={saveFieldEdit} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">
-                          <Check className="h-3 w-3" />
-                        </button>
-                        <button type="button" onClick={cancelFieldEdit} className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="font-semibold text-slate-800">
-                        {campaignState.adGroupName || "Ad group 1"}
+                  {/* Campaign Priority Tier */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-800">Campaign Priority:</span>
+                      <span className="text-[10px] text-amber-700 font-bold uppercase">
+                        {campaignState.campaignPriority || "LOW"}
                       </span>
-                    )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {(["LOW", "MEDIUM", "HIGH"] as const).map((prio) => {
+                        const isSelected = (campaignState.campaignPriority || "LOW") === prio;
+                        return (
+                          <button
+                            key={prio}
+                            type="button"
+                            onClick={() => setCampaignState(prev => ({ ...prev, campaignPriority: prio }))}
+                            className={`py-1 px-1.5 rounded-lg border text-center font-semibold text-[10px] transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            {prio === "LOW" ? "Low (Default)" : prio === "MEDIUM" ? "Medium" : "High"}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {/* Product Groups Targeting */}
-                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                    <span className="text-slate-500">Product Groups:</span>
-                    <span className="font-semibold text-slate-800">
-                      {campaignState.productGroupFilter || "All products"}
-                    </span>
+                  {/* Product Groups & Local Inventory */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-800">Inventory & Products:</span>
+                      <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(campaignState.localProducts)}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, localProducts: e.target.checked }))}
+                          className="rounded text-amber-600 focus:ring-amber-500 h-3 w-3"
+                        />
+                        <span>Local Products (In-Store)</span>
+                      </label>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-100">
+                      <span className="text-slate-500">Product Partition:</span>
+                      <select
+                        value={campaignState.productGroupFilter || "Use all products"}
+                        onChange={(e) => setCampaignState(prev => ({ ...prev, productGroupFilter: e.target.value }))}
+                        className="bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-[10px] font-semibold text-slate-800 focus:outline-none"
+                      >
+                        <option value="Use all products">All products (Default)</option>
+                        <option value="Category">Filter by Category</option>
+                        <option value="Brand">Filter by Brand</option>
+                        <option value="Custom Label">Filter by Custom Label</option>
+                      </select>
+                    </div>
                   </div>
 
-                  {/* Local Products Inventory */}
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-500">Local Products:</span>
-                    <span className="text-[10px] font-semibold text-slate-700">
-                      {campaignState.localProducts ? "Enabled" : "Disabled (Online only)"}
-                    </span>
+                  {/* Ad Group CPC Bid (when Manual CPC is selected) */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex justify-between items-center">
+                    <span className="font-semibold text-slate-800">Default Ad Group Bid:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-slate-400 font-mono text-[10px]">₹</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="0.5"
+                        value={campaignState.adGroupBid || "10"}
+                        onChange={(e) => setCampaignState(prev => ({ ...prev, adGroupBid: e.target.value }))}
+                        placeholder="10"
+                        className="w-16 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 {/* Missing Merchant ID alert */}
                 {!campaignState.merchantCenterId && (
-                  <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-800 flex items-start gap-1.5">
-                    <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
-                    <span>Merchant Center ID is required before this Shopping campaign can be published.</span>
+                  <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg text-[10px] text-rose-800 flex items-start gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0 mt-0.5" />
+                    <span>A numeric Google Merchant Center Account ID is required before this Shopping campaign can be published.</span>
                   </div>
                 )}
               </div>
             )}
 
             {/* 2d. DEDICATED APP PROMOTION SETTINGS & READINESS CARD (When CampaignType = APP) */}
-            {campaignState.campaignType === "APP" && (
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "APP" && (
               <div className="bg-slate-50 border border-indigo-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-1.5">
@@ -7891,13 +10935,18 @@ export default function AiGuidedCampaignPage() {
               </div>
             )}
 
-            {/* 3. DYNAMIC CAMPAIGN ASSETS & THUMBNAILS CARD (PMax & Optional Media) */}
-            {campaignState.campaignType !== "SEARCH" && campaignState.campaignType !== "SHOPPING" && (
+            {/* 3. DYNAMIC CAMPAIGN ASSETS & THUMBNAILS CARD (PMax, Search Image/Logo Assets & Media) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "SHOPPING" && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <ImageIcon className="h-4 w-4 text-blue-600" />
                     <span className="font-bold text-xs text-slate-900">Campaign Creatives & Assets</span>
+                    {campaignState.campaignType === "SEARCH" && (
+                      <span className="text-[9px] bg-blue-100 text-blue-800 font-semibold px-1.5 py-0.5 rounded">
+                        Optional for Search (Boosts CTR)
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5">
                     {(() => {
@@ -7967,6 +11016,8 @@ export default function AiGuidedCampaignPage() {
                                 ? "AI Formulating High-CTR Headlines..."
                                 : cockpitGeneratingTarget === "LONG_HEADLINES"
                                 ? "AI Crafting Compelling Long Headlines..."
+                                : cockpitGeneratingTarget === "KEYWORDS" || cockpitGeneratingTarget === "KEYWORD_SINGLE"
+                                ? "AI Mining High-Intent Search Keywords..."
                                 : "AI Generating Engaging Descriptions..."}
                             </span>
                           </p>
@@ -7990,6 +11041,69 @@ export default function AiGuidedCampaignPage() {
                 )}
 
 
+
+                {/* Live Search Ad Requirements Checklist when type is SEARCH */}
+                {(campaignState.campaignType as string) === "SEARCH" && (
+                  <div className="p-2.5 rounded-xl bg-white border border-sky-200 shadow-2xs space-y-1.5 text-[10px]">
+                    <div className="flex items-center justify-between font-bold text-slate-800">
+                      <span className="flex items-center gap-1 text-sky-700">
+                        <Search className="h-3 w-3 text-sky-600" />
+                        Search Responsive Ad Readiness
+                      </span>
+                      <span className={Boolean(
+                        (campaignState.headlines?.length || 0) >= 3 &&
+                        (campaignState.descriptions?.length || 0) >= 2 &&
+                        (campaignState.website || campaignState.websiteVisitsUrl || campaignState.finalUrl) &&
+                        (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                      ) ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
+                        {Boolean(
+                          (campaignState.headlines?.length || 0) >= 3 &&
+                          (campaignState.descriptions?.length || 0) >= 2 &&
+                          (campaignState.website || campaignState.websiteVisitsUrl || campaignState.finalUrl) &&
+                          (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                        ) ? "Ready ✓" : "Required items missing"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-slate-600">
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>Final URL:</span>
+                        <span className={(campaignState.website || campaignState.websiteVisitsUrl || campaignState.finalUrl) ? "text-emerald-600 font-bold truncate max-w-[180px]" : "text-rose-500 font-medium"}>
+                          {String(campaignState.website || campaignState.websiteVisitsUrl || campaignState.finalUrl || "Missing")}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Headlines:</span>
+                        <span className={(campaignState.headlines?.length || 0) >= 3 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {campaignState.headlines?.length || 0}/3 (min 3, max 15)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Descriptions:</span>
+                        <span className={(campaignState.descriptions?.length || 0) >= 2 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {campaignState.descriptions?.length || 0}/2 (min 2, max 4)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Image Assets:</span>
+                        <span className={(campaignState.images?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-slate-400 font-medium"}>
+                          {(campaignState.images?.length || 0) > 0 ? `✓ ${(campaignState.images?.length || 0)} attached` : "Optional (+CTR)"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Business Logo:</span>
+                        <span className={(campaignState.logos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-slate-400 font-medium"}>
+                          {(campaignState.logos?.length || 0) > 0 ? `✓ ${(campaignState.logos?.length || 0)} attached` : "Optional"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>Daily Budget (≥ ₹416):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Live Performance Max Asset Requirements Checklist when type is PERFORMANCE_MAX */}
                 {campaignState.campaignType === "PERFORMANCE_MAX" && (() => {
@@ -8052,8 +11166,8 @@ export default function AiGuidedCampaignPage() {
                           <Sparkles className="h-3 w-3" />
                           Performance Max Asset Readiness
                         </span>
-                        <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
-                          {campaignState.readyForPublish ? "Ready to Publish ✓" : "Required items missing"}
+                        <span className={isPMaxReady ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
+                          {isPMaxReady ? "Ready to Publish ✓" : "Required items missing"}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-1 text-slate-600">
@@ -8078,19 +11192,19 @@ export default function AiGuidedCampaignPage() {
                         <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
                           <span>Headlines:</span>
                           <span className={(campaignState.headlines?.length || 0) >= 3 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {campaignState.headlines?.length || 0}/5 (min 3)
+                            {campaignState.headlines?.length || 0} (min 3, max 15)
                           </span>
                         </div>
                         <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
                           <span>Long Headlines:</span>
                           <span className={(campaignState.longHeadlines?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {campaignState.longHeadlines?.length || 0}/5 (min 1)
+                            {campaignState.longHeadlines?.length || 0} (min 1, max 5)
                           </span>
                         </div>
                         <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
                           <span>Descriptions:</span>
                           <span className={(campaignState.descriptions?.length || 0) >= 2 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {campaignState.descriptions?.length || 0}/5 (min 2)
+                            {campaignState.descriptions?.length || 0} (min 2, max 5)
                           </span>
                         </div>
                       </div>
@@ -8100,25 +11214,62 @@ export default function AiGuidedCampaignPage() {
 
                 {/* Live Display Asset Requirements Checklist when type is DISPLAY */}
                 {campaignState.campaignType === "DISPLAY" && (
-                  <div className="p-2.5 rounded-xl bg-white border border-blue-200 shadow-2xs space-y-1.5 text-[10px]">
-                    <div className="flex items-center justify-between font-bold text-slate-800">
-                      <span className="flex items-center gap-1 text-blue-700">
-                        <ImageIcon className="h-3 w-3" />
-                        Display Responsive Ad Readiness
+                  <div className="p-3 rounded-xl bg-white border border-blue-200 shadow-2xs space-y-2 text-[10px]">
+                    <div className="flex items-center justify-between font-bold text-slate-800 border-b border-blue-100 pb-1.5">
+                      <span className="flex items-center gap-1.5 text-blue-700">
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        <span>Display Responsive Ad Readiness</span>
                       </span>
                       <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
                         {campaignState.readyForPublish ? "Complete ✓" : "Required items missing"}
                       </span>
                     </div>
+
+                    {/* Image Guidelines (Google Ads Display Best Practices) */}
+                    <div className="p-2 bg-blue-50/70 border border-blue-100 rounded-lg space-y-1 text-slate-700">
+                      <div className="flex items-center justify-between font-bold text-blue-900">
+                        <span>Image Guidelines (Display Ad Creative Specs)</span>
+                        <a
+                          href="https://support.google.com/google-ads/answer/9823397"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[9px] text-blue-600 hover:text-blue-800 underline flex items-center gap-0.5"
+                        >
+                          <span>Best Practices Guide</span>
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 pt-0.5 text-[9px]">
+                        <div className="bg-white/80 p-1 rounded border border-blue-100">
+                          <span className="font-bold text-slate-900 block">Landscape (1.91:1)</span>
+                          <span className="text-slate-500 block">Rec: 1200 x 628</span>
+                          <span className="text-slate-400 block">Min: 600 x 314</span>
+                        </div>
+                        <div className="bg-white/80 p-1 rounded border border-blue-100">
+                          <span className="font-bold text-slate-900 block">Square (1:1)</span>
+                          <span className="text-slate-500 block">Rec: 1200 x 1200</span>
+                          <span className="text-slate-400 block">Min: 300 x 300</span>
+                        </div>
+                        <div className="bg-white/80 p-1 rounded border border-blue-100">
+                          <span className="font-bold text-slate-900 block">Portrait (9:16)</span>
+                          <span className="text-slate-500 block">Rec: 900 x 1600</span>
+                          <span className="text-slate-400 block">Min: 600 x 1067</span>
+                        </div>
+                      </div>
+                      <p className="text-[8.5px] text-slate-500 italic pt-0.5">
+                        * Maximum file size: 5120 KB (5 MB). Selected images are auto-cropped to specification and can be edited anytime.
+                      </p>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-1 text-slate-600">
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                        <span>Marketing Images (1.91:1):</span>
+                        <span>Marketing Images (1.91:1 & 1:1):</span>
                         <span className={(campaignState.images?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.images?.length || 0) > 0 ? "✓ Uploaded" : "Missing"}
+                          {(campaignState.images?.length || 0) > 0 ? `✓ ${campaignState.images?.length} Uploaded` : "Missing"}
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                        <span>Logo (1:1):</span>
+                        <span>Logo (1:1 Square):</span>
                         <span className={(campaignState.logos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
                           {(campaignState.logos?.length || 0) > 0 ? "✓ Uploaded" : "Missing"}
                         </span>
@@ -8126,7 +11277,7 @@ export default function AiGuidedCampaignPage() {
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
                         <span>Headlines:</span>
                         <span className={(campaignState.headlines?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {campaignState.headlines?.length || 0}/5 (min 1)
+                          {campaignState.headlines?.length || 0} (min 1, max 5)
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
@@ -8138,7 +11289,13 @@ export default function AiGuidedCampaignPage() {
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
                         <span>Descriptions:</span>
                         <span className={(campaignState.descriptions?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {campaignState.descriptions?.length || 0}/5 (min 1)
+                          {campaignState.descriptions?.length || 0} (min 1, max 5)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>Daily Budget (≥ ₹416):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
                         </span>
                       </div>
                     </div>
@@ -8191,7 +11348,7 @@ export default function AiGuidedCampaignPage() {
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
                         <span>Headlines:</span>
                         <span className={(campaignState.headlines?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {campaignState.headlines?.length || 0}/5 (min 1)
+                          {campaignState.headlines?.length || 0} (min 1, max 5)
                         </span>
                       </div>
                       {(campaignState.adFormat || "SINGLE_IMAGE") === "VIDEO" ? (
@@ -8205,10 +11362,16 @@ export default function AiGuidedCampaignPage() {
                         <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
                           <span>Descriptions:</span>
                           <span className={(campaignState.descriptions?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {campaignState.descriptions?.length || 0}/5 (min 1)
+                            {campaignState.descriptions?.length || 0} (min 1, max 5)
                           </span>
                         </div>
                       )}
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>Daily Budget (≥ ₹416):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -8259,13 +11422,117 @@ export default function AiGuidedCampaignPage() {
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
                         <span>Headlines:</span>
                         <span className={(campaignState.headlines?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {campaignState.headlines?.length || 0}/5 (min 1)
+                          {campaignState.headlines?.length || 0} (min 1, max 5)
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
                         <span>Descriptions:</span>
                         <span className={(campaignState.descriptions?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {campaignState.descriptions?.length || 0}/5 (min 1)
+                          {campaignState.descriptions?.length || 0} (min 1, max 5)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>Daily Budget (≥ ₹416):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Live App Promotion Asset Requirements Checklist when type is APP */}
+                {campaignState.campaignType === "APP" && (
+                  <div className="p-2.5 rounded-xl bg-white border border-emerald-200 shadow-2xs space-y-1.5 text-[10px]">
+                    <div className="flex items-center justify-between font-bold text-slate-800">
+                      <span className="flex items-center gap-1 text-emerald-700">
+                        <Smartphone className="h-3 w-3 text-emerald-600" />
+                        App Promotion Readiness ({campaignState.platform === "IOS" ? "Apple App Store" : "Google Play"})
+                      </span>
+                      <span className={Boolean(
+                        campaignState.appId?.trim() &&
+                        (campaignState.targetCpa && Number(campaignState.targetCpa) > 0) &&
+                        (campaignState.headlines?.length || 0) >= 1 &&
+                        (campaignState.descriptions?.length || 0) >= 1 &&
+                        (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                      ) ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
+                        {Boolean(
+                          campaignState.appId?.trim() &&
+                          (campaignState.targetCpa && Number(campaignState.targetCpa) > 0) &&
+                          (campaignState.headlines?.length || 0) >= 1 &&
+                          (campaignState.descriptions?.length || 0) >= 1 &&
+                          (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                        ) ? "Complete ✓" : "Required items missing"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-slate-600">
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>App Package ID / Store ID:</span>
+                        <span className={campaignState.appId?.trim() ? "text-emerald-600 font-bold font-mono truncate max-w-[160px]" : "text-rose-500 font-medium"}>
+                          {campaignState.appId?.trim() || "Missing"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Headlines:</span>
+                        <span className={(campaignState.headlines?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {campaignState.headlines?.length || 0} (min 1, max 5)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Descriptions:</span>
+                        <span className={(campaignState.descriptions?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {campaignState.descriptions?.length || 0} (min 1, max 5)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Target CPA (&gt; ₹0):</span>
+                        <span className={(campaignState.targetCpa && Number(campaignState.targetCpa) > 0) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.targetCpa && Number(campaignState.targetCpa) > 0) ? `₹${campaignState.targetCpa} ✓` : "Missing / ≤0"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Daily Budget (≥ ₹416):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Live Standard Shopping Requirements Checklist when type is SHOPPING */}
+                {(campaignState.campaignType as string) === "SHOPPING" && (
+                  <div className="p-2.5 rounded-xl bg-white border border-amber-200 shadow-2xs space-y-1.5 text-[10px]">
+                    <div className="flex items-center justify-between font-bold text-slate-800">
+                      <span className="flex items-center gap-1 text-amber-700">
+                        <ShoppingBag className="h-3 w-3 text-amber-600" />
+                        Standard Shopping Readiness
+                      </span>
+                      <span className={Boolean(
+                        (campaignState.merchantCenterId || (campaignState as any).merchantId) &&
+                        (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                      ) ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
+                        {Boolean(
+                          (campaignState.merchantCenterId || (campaignState as any).merchantId) &&
+                          (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                        ) ? "Ready ✓" : "Required items missing"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-slate-600">
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>Merchant Center ID:</span>
+                        <span className={(campaignState.merchantCenterId || (campaignState as any).merchantId) ? "text-emerald-600 font-bold font-mono" : "text-rose-500 font-medium"}>
+                          {(campaignState.merchantCenterId || (campaignState as any).merchantId) ? `✓ ${campaignState.merchantCenterId || (campaignState as any).merchantId}` : "Missing (Numeric ID required)"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Target Country:</span>
+                        <span className="text-slate-700 font-semibold">
+                          {(campaignState as any).salesCountry || "IN (India)"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Priority Tier:</span>
+                        <span className="text-slate-700 font-semibold uppercase">
+                          {(campaignState as any).campaignPriority || "LOW"}
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
@@ -8375,6 +11642,26 @@ export default function AiGuidedCampaignPage() {
                             <History className="h-2.5 w-2.5 text-slate-500" />
                             <span>Past Files</span>
                           </button>
+                          {/* Clear All Visual Assets Button */}
+                          {(campaignState.images && campaignState.images.length > 0 || campaignState.logos && campaignState.logos.length > 0) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCampaignState(prev => {
+                                  const updated = { ...prev, images: [], logos: [] };
+                                  if (typeof window !== "undefined") {
+                                    try { localStorage.setItem("gads_ai_campaign_draft", JSON.stringify(updated)); } catch (e) {}
+                                  }
+                                  return updated;
+                                });
+                              }}
+                              className="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold text-[9px] transition-colors cursor-pointer flex items-center gap-1 border border-rose-200"
+                              title="Delete all images and logos"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                              <span>Clear All</span>
+                            </button>
+                          )}
                         </div>
 
                         {/* AI Generation Quick Triggers */}
@@ -8404,13 +11691,35 @@ export default function AiGuidedCampaignPage() {
                     {/* Images Preview Grid */}
                     {campaignState.images && campaignState.images.length > 0 && (
                       <div className="space-y-1">
-                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Marketing Images:</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                            Marketing Images ({campaignState.images.length}):
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => {
+                                const updated = { ...prev, images: [] };
+                                if (typeof window !== "undefined") {
+                                  try { localStorage.setItem("gads_ai_campaign_draft", JSON.stringify(updated)); } catch (e) {}
+                                }
+                                return updated;
+                              });
+                            }}
+                            className="px-1.5 py-0.5 rounded text-[9px] font-medium text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 transition-all flex items-center gap-0.5 cursor-pointer"
+                            title="Delete all marketing images"
+                          >
+                            <Trash2 className="h-2.5 w-2.5" />
+                            <span>Delete All Images</span>
+                          </button>
+                        </div>
                         <div className="grid grid-cols-2 gap-2">
                           {campaignState.images.map((img, idx) => {
                             const url = typeof img === "string" ? img : img?.url || "";
                             const name = typeof img === "object" ? img?.name : `Image ${idx + 1}`;
+                            const isSquare = typeof img === "object" && ((img as any)?.aspectRatio === "1:1" || (img as any)?.fieldType === "SQUARE_MARKETING_IMAGE");
                             return (
-                              <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-900 aspect-video flex items-center justify-center">
+                              <div key={idx} className={`relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-900 ${isSquare ? "aspect-square" : "aspect-video"} flex items-center justify-center`}>
                                 {url ? (
                                   <img src={url} alt={name || "Creative"} className="w-full h-full object-cover" />
                                 ) : (
@@ -8463,7 +11772,28 @@ export default function AiGuidedCampaignPage() {
                     {/* Logos Preview */}
                     {campaignState.logos && campaignState.logos.length > 0 && (
                       <div className="space-y-1 pt-1.5 border-t border-slate-200">
-                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Logos:</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                            Logos ({campaignState.logos.length}):
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => {
+                                const updated = { ...prev, logos: [] };
+                                if (typeof window !== "undefined") {
+                                  try { localStorage.setItem("gads_ai_campaign_draft", JSON.stringify(updated)); } catch (e) {}
+                                }
+                                return updated;
+                              });
+                            }}
+                            className="px-1.5 py-0.5 rounded text-[9px] font-medium text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 transition-all flex items-center gap-0.5 cursor-pointer"
+                            title="Delete all logos"
+                          >
+                            <Trash2 className="h-2.5 w-2.5" />
+                            <span>Delete All Logos</span>
+                          </button>
+                        </div>
                         <div className="flex flex-wrap gap-2">
                           {campaignState.logos.map((logo, idx) => {
                             const url = typeof logo === "string" ? logo : logo?.url || "";
@@ -8540,20 +11870,31 @@ export default function AiGuidedCampaignPage() {
             )}
 
             {/* 4. SEARCH KEYWORDS MANAGER (Dedicated Card for Search Campaigns) */}
-            {campaignState.campaignType === "SEARCH" && (
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SEARCH" && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Key className="h-4 w-4 text-blue-600" />
                     <span className="font-bold text-xs text-slate-900">Search Keywords</span>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                    (campaignState.keywords?.length || 0) >= 1
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : "bg-rose-50 text-rose-700 border-rose-200"
-                  }`}>
-                    {campaignState.keywords?.length || 0} Keywords (Min 1)
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      (campaignState.keywords?.length || 0) >= 1
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-rose-50 text-rose-700 border-rose-200"
+                    }`}>
+                      {campaignState.keywords?.length || 0} Keywords (Min 1)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCockpitDirectAiGeneration("KEYWORDS")}
+                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-all shadow-2xs group"
+                      title="Generate high-intent search keywords using Grok AI"
+                    >
+                      <Sparkles className="h-3 w-3 text-purple-600 group-hover:rotate-12 transition-transform" />
+                      <span>✨ Generate with Grok AI</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -8642,8 +11983,16 @@ export default function AiGuidedCampaignPage() {
                       })}
                     </div>
                   ) : (
-                    <div className="p-3 bg-white rounded-xl border border-dashed border-slate-300 text-center text-slate-400 text-[11px]">
-                      No keywords configured yet. Enter a keyword above or provide a website URL for AI extraction.
+                    <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center space-y-2">
+                      <p className="text-[11px] text-slate-500">No keywords configured yet. Enter a keyword above or use Grok AI to automatically generate a targeted keyword list.</p>
+                      <button
+                        type="button"
+                        onClick={() => handleCockpitDirectAiGeneration("KEYWORDS")}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-[11px] font-bold shadow-xs cursor-pointer transition-all"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-white animate-pulse" />
+                        <span>✨ Generate Keywords with Grok AI</span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -8651,7 +12000,8 @@ export default function AiGuidedCampaignPage() {
             )}
 
             {/* 5. GENERATED AD COPY CARD (Headlines, Long Headlines & Descriptions with Vertical Scrollbar & Add Buttons) */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "SHOPPING" && (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
               <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                 <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-blue-600" />
@@ -8688,21 +12038,25 @@ export default function AiGuidedCampaignPage() {
                     <span className={`text-[10px] font-bold ${
                       (campaignState.headlines?.length || 0) >= 3 ? "text-emerald-600" : "text-rose-600"
                     }`}>
-                      {campaignState.headlines?.length || 0} (min 3)
+                      {campaignState.headlines?.length || 0} (min 3, max 15)
                     </span>
                     <button
                       type="button"
                       onClick={() => handleCockpitDirectAiGeneration("HEADLINES")}
-                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-colors shadow-2xs"
+                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-all shadow-2xs group"
                       title="AI Generate Headlines (max 30 chars each)"
                     >
-                      <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                      <Sparkles className="h-2.5 w-2.5 text-purple-600 group-hover:rotate-12 transition-transform" />
                       <span>Generate Headlines</span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => setIsAddingHeadline(!isAddingHeadline)}
+                      onClick={() => {
+                        setIsAddingHeadline(!isAddingHeadline);
+                        setNewHeadlineInput("");
+                      }}
                       className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200 transition-colors"
+                      title="Add headline"
                     >
                       <Plus className="h-2.5 w-2.5" />
                       <span>Add</span>
@@ -8730,6 +12084,7 @@ export default function AiGuidedCampaignPage() {
                               ...prev,
                               headlines: [...(prev.headlines || []), val]
                             }));
+                            setIsHeadlinesAiSourced(false);
                             setNewHeadlineInput("");
                             setIsAddingHeadline(false);
                           }
@@ -8755,12 +12110,28 @@ export default function AiGuidedCampaignPage() {
                             ...prev,
                             headlines: [...(prev.headlines || []), val]
                           }));
+                          setIsHeadlinesAiSourced(false);
                           setNewHeadlineInput("");
                           setIsAddingHeadline(false);
                         }}
                         className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
                       >
                         Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const hint = newHeadlineInput.trim();
+                          setIsAddingHeadline(false);
+                          setNewHeadlineInput("");
+                          handleCockpitDirectAiGeneration("HEADLINE_SINGLE", false, hint || undefined);
+                        }}
+                        className="px-2.5 py-1 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-bold text-xs rounded-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs hover:shadow-purple-400/50 group relative overflow-hidden"
+                        title="Auto-generate 1 headline with Grok AI"
+                      >
+                        <span className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
+                        <BrainCircuit className="h-3.5 w-3.5 text-cyan-300 animate-pulse group-hover:rotate-180 transition-transform duration-500" />
+                        <span className="tracking-wide text-[11px]">AI</span>
                       </button>
                       <button
                         type="button"
@@ -8789,7 +12160,7 @@ export default function AiGuidedCampaignPage() {
 
                 {/* Vertical Scrollbar Container for ALL Headlines */}
                 {campaignState.headlines && campaignState.headlines.length > 0 ? (
-                  <div className="space-y-1 max-h-44 overflow-y-auto pr-1 scrollbar-thin">
+                  <div className="space-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
                     {campaignState.headlines.map((hl, idx) => (
                       <div key={idx} className="p-1.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-800 shadow-2xs flex justify-between items-center group hover:border-blue-300 transition-colors">
                         <span className="truncate flex-1 mr-2 text-slate-800">{hl}</span>
@@ -8816,7 +12187,7 @@ export default function AiGuidedCampaignPage() {
                   </div>
                 ) : (
                   <div className="p-2 bg-white rounded-lg border border-dashed border-slate-200 text-center text-[10px] text-slate-400">
-                    No headlines yet. Click "+ Add" to create.
+                    No headlines. Click "+ Add" to create.
                   </div>
                 )}
               </div>
@@ -8829,23 +12200,27 @@ export default function AiGuidedCampaignPage() {
                   </span>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold text-slate-600">
-                      {campaignState.longHeadlines?.length || 0}
+                      {campaignState.longHeadlines?.length || 0} (min 1, max 5)
                     </span>
                     {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "DISPLAY" || campaignState.campaignType === "DEMAND_GEN" || !campaignState.campaignType) && (
                       <button
                         type="button"
                         onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINES")}
-                        className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-colors shadow-2xs"
+                        className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-all shadow-2xs group"
                         title="AI Generate Long Headlines (max 90 chars each)"
                       >
-                        <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                        <Sparkles className="h-2.5 w-2.5 text-purple-600 group-hover:rotate-12 transition-transform" />
                         <span>Generate Long Headlines</span>
                       </button>
                     )}
                     <button
                       type="button"
-                      onClick={() => setIsAddingLongHeadline(!isAddingLongHeadline)}
+                      onClick={() => {
+                        setIsAddingLongHeadline(!isAddingLongHeadline);
+                        setNewLongHeadlineInput("");
+                      }}
                       className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200 transition-colors"
+                      title="Add long headline"
                     >
                       <Plus className="h-2.5 w-2.5" />
                       <span>Add</span>
@@ -8873,6 +12248,7 @@ export default function AiGuidedCampaignPage() {
                               ...prev,
                               longHeadlines: [...(prev.longHeadlines || []), val]
                             }));
+                            setIsLongHeadlinesAiSourced(false);
                             setNewLongHeadlineInput("");
                             setIsAddingLongHeadline(false);
                           }
@@ -8898,12 +12274,28 @@ export default function AiGuidedCampaignPage() {
                             ...prev,
                             longHeadlines: [...(prev.longHeadlines || []), val]
                           }));
+                          setIsLongHeadlinesAiSourced(false);
                           setNewLongHeadlineInput("");
                           setIsAddingLongHeadline(false);
                         }}
                         className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
                       >
                         Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const hint = newLongHeadlineInput.trim();
+                          setIsAddingLongHeadline(false);
+                          setNewLongHeadlineInput("");
+                          handleCockpitDirectAiGeneration("LONG_HEADLINE_SINGLE", false, hint || undefined);
+                        }}
+                        className="px-2.5 py-1 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-bold text-xs rounded-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs hover:shadow-purple-400/50 group relative overflow-hidden"
+                        title="Auto-generate 1 long headline with Grok AI"
+                      >
+                        <span className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
+                        <BrainCircuit className="h-3.5 w-3.5 text-cyan-300 animate-pulse group-hover:rotate-180 transition-transform duration-500" />
+                        <span className="tracking-wide text-[11px]">AI</span>
                       </button>
                       <button
                         type="button"
@@ -8974,21 +12366,25 @@ export default function AiGuidedCampaignPage() {
                     <span className={`text-[10px] font-bold ${
                       (campaignState.descriptions?.length || 0) >= 2 ? "text-emerald-600" : "text-rose-600"
                     }`}>
-                      {campaignState.descriptions?.length || 0} (min 2)
+                      {campaignState.descriptions?.length || 0} (min 2, max 5)
                     </span>
                     <button
                       type="button"
                       onClick={() => handleCockpitDirectAiGeneration("DESCRIPTIONS")}
-                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-colors shadow-2xs"
+                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-all shadow-2xs group"
                       title="AI Generate Descriptions (max 90 chars each)"
                     >
-                      <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                      <Sparkles className="h-2.5 w-2.5 text-purple-600 group-hover:rotate-12 transition-transform" />
                       <span>Generate Descriptions</span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => setIsAddingDescription(!isAddingDescription)}
+                      onClick={() => {
+                        setIsAddingDescription(!isAddingDescription);
+                        setNewDescriptionInput("");
+                      }}
                       className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200 transition-colors"
+                      title="Add description"
                     >
                       <Plus className="h-2.5 w-2.5" />
                       <span>Add</span>
@@ -9016,6 +12412,7 @@ export default function AiGuidedCampaignPage() {
                               ...prev,
                               descriptions: [...(prev.descriptions || []), val]
                             }));
+                            setIsDescriptionsAiSourced(false);
                             setNewDescriptionInput("");
                             setIsAddingDescription(false);
                           }
@@ -9041,12 +12438,28 @@ export default function AiGuidedCampaignPage() {
                             ...prev,
                             descriptions: [...(prev.descriptions || []), val]
                           }));
+                          setIsDescriptionsAiSourced(false);
                           setNewDescriptionInput("");
                           setIsAddingDescription(false);
                         }}
                         className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
                       >
                         Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const hint = newDescriptionInput.trim();
+                          setIsAddingDescription(false);
+                          setNewDescriptionInput("");
+                          handleCockpitDirectAiGeneration("DESCRIPTION_SINGLE", false, hint || undefined);
+                        }}
+                        className="px-2.5 py-1 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-bold text-xs rounded-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs hover:shadow-purple-400/50 group relative overflow-hidden"
+                        title="Auto-generate 1 description with Grok AI"
+                      >
+                        <span className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
+                        <BrainCircuit className="h-3.5 w-3.5 text-cyan-300 animate-pulse group-hover:rotate-180 transition-transform duration-500" />
+                        <span className="tracking-wide text-[11px]">AI</span>
                       </button>
                       <button
                         type="button"
@@ -9109,94 +12522,139 @@ export default function AiGuidedCampaignPage() {
                 )}
               </div>
             </div>
+            )}
           </div>
 
           {/* Launch Action Footer inside Cockpit (Fixed / Sticky at bottom) */}
-          <div className="p-4 border-t border-slate-200 bg-white shrink-0 space-y-2.5 shadow-lg">
-            <div className="flex items-center justify-between text-[11px] text-slate-500">
-              <span>Status:</span>
-              {campaignState.readyForPublish ? (
-                <span className="text-emerald-600 font-bold flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Ready to deploy</span>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowMissingParamsModal(true)}
-                  className="text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
-                  title="Click to view all missing required fields"
-                >
-                  <AlertCircle className="h-3 w-3 text-amber-600" />
-                  <span>Required fields pending</span>
-                  <ChevronRight className="h-3 w-3 text-amber-500" />
-                </button>
-              )}
-            </div>
+          {(() => {
+            const isCurrentCampaignReady = checkIsCampaignReady(campaignState);
 
-            {/* Edit Actions Grid */}
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  if (editingField) {
-                    saveFieldEdit();
-                  } else {
-                    startFieldEdit("businessName");
-                  }
-                }}
-                className={`px-2.5 py-2 text-[11px] font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  editingField
-                    ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300"
-                    : "text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200"
-                }`}
-                title={editingField ? "Save current inline edit" : "Edit fields inline"}
-              >
-                {editingField ? <Check className="h-3 w-3 text-emerald-600" /> : <Edit3 className="h-3 w-3" />}
-                <span className="truncate">{editingField ? "Done" : "Inline Edit"}</span>
-              </button>
+            return (
+              <div className="p-4 border-t border-slate-200 bg-white shrink-0 space-y-2.5 shadow-lg">
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Status:</span>
+                  {isCurrentCampaignReady ? (
+                    <span className="text-emerald-600 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>Ready to deploy</span>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowMissingParamsModal(true)}
+                      className="text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                      title="Click to view all missing required fields"
+                    >
+                      <AlertCircle className="h-3 w-3 text-amber-600" />
+                      <span>Required fields pending</span>
+                      <ChevronRight className="h-3 w-3 text-amber-500" />
+                    </button>
+                  )}
+                </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  fetchExistingCampaigns();
-                  setIsDraftPickerModalOpen(true);
-                }}
-                className="px-2.5 py-2 text-[11px] font-semibold rounded-xl text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
-                title="Edit from old draft / Load previous campaign parameters from database"
-              >
-                <FolderOpen className="h-3.5 w-3.5 text-indigo-600" />
-                <span className="truncate">Edit from Old Draft</span>
-              </button>
-            </div>
+                {/* Edit Actions Grid */}
+                {(() => {
+                  const hasAssetParameters = Boolean(
+                    (campaignState.headlines && campaignState.headlines.length > 0) ||
+                    (campaignState.descriptions && campaignState.descriptions.length > 0) ||
+                    (campaignState.longHeadlines && campaignState.longHeadlines.length > 0) ||
+                    (campaignState.keywords && campaignState.keywords.length > 0) ||
+                    (campaignState.images && campaignState.images.length > 0) ||
+                    (campaignState.logos && campaignState.logos.length > 0) ||
+                    (campaignState.videos && campaignState.videos.length > 0)
+                  );
 
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={handleEditDetailsInForm}
-                className="px-2.5 py-2 text-[11px] font-semibold rounded-xl text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer flex items-center justify-center gap-1"
-                title="Navigate to manual campaign creation page"
-              >
-                <SlidersHorizontal className="h-3 w-3 text-purple-600" />
-                <span className="truncate">Edit Form</span>
-              </button>
+                  // Draft save is only available after user has selected Objective, Campaign Type, AND provided asset parameters
+                  const isEligibleToSaveDraft = Boolean(
+                    campaignState.objective &&
+                    campaignState.campaignType &&
+                    hasAssetParameters
+                  );
 
-              <button
-                type="button"
-                onClick={handleCreateCampaign}
-                disabled={!campaignState.readyForPublish || isPublishing}
-                className={`px-2.5 py-2 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                  campaignState.readyForPublish
-                    ? "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20"
-                    : "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200"
-                }`}
-                title={campaignState.readyForPublish ? "Launch campaign to Google Ads" : "Complete required fields & assets to launch"}
-              >
-                {isPublishing ? <Loader2 className="h-3 w-3 animate-spin"/> : <Target className="h-3 w-3"/>}
-                <span className="truncate">Launch</span>
-              </button>
-            </div>
-          </div>
+                  return (
+                    <div className={`grid ${isEligibleToSaveDraft ? "grid-cols-3" : "grid-cols-2"} gap-1.5`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editingField) {
+                            saveFieldEdit();
+                          } else {
+                            startFieldEdit("businessName");
+                          }
+                        }}
+                        className={`px-2 py-2 text-[11px] font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                          editingField
+                            ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300"
+                            : "text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200"
+                        }`}
+                        title={editingField ? "Save current inline edit" : "Edit fields inline"}
+                      >
+                        {editingField ? <Check className="h-3 w-3 text-emerald-600" /> : <Edit3 className="h-3 w-3" />}
+                        <span className="truncate">{editingField ? "Done" : "Inline"}</span>
+                      </button>
+
+                      {isEligibleToSaveDraft && (
+                        <button
+                          type="button"
+                          onClick={() => setIsSaveDraftConfirmOpen(true)}
+                          disabled={isSavingDraft || (Boolean(loadedDraftId) && !hasLoadedDraftChanges())}
+                          className={`px-2 py-2 text-[11px] font-semibold rounded-xl border transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs animate-in fade-in zoom-in-95 duration-150 ${
+                            Boolean(loadedDraftId) && !hasLoadedDraftChanges()
+                              ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-75"
+                              : "text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border-emerald-200"
+                          }`}
+                          title={
+                            Boolean(loadedDraftId) && !hasLoadedDraftChanges()
+                              ? "No changes made to the loaded draft yet"
+                              : loadedDraftId
+                              ? "Save changes to this draft or save as a new draft"
+                              : "Save current progress as a draft to database"
+                          }
+                        >
+                          {isSavingDraft ? (
+                            <Loader2 className="h-3 w-3 animate-spin text-emerald-600" />
+                          ) : (
+                            <Save className={`h-3 w-3 ${Boolean(loadedDraftId) && !hasLoadedDraftChanges() ? "text-slate-400" : "text-emerald-600"}`} />
+                          )}
+                          <span className="truncate">{loadedDraftId ? (hasLoadedDraftChanges() ? "Save Changes" : "Draft Up-to-date") : "Save Draft"}</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fetchDraftCampaigns();
+                          setIsDraftPickerModalOpen(true);
+                        }}
+                        className="px-2 py-2 text-[11px] font-semibold rounded-xl text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                        title="Load unpublished saved drafts from database"
+                      >
+                        <FolderOpen className="h-3.5 w-3.5 text-indigo-600" />
+                        <span className="truncate">Old Drafts</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleCreateCampaign}
+                    disabled={!isCurrentCampaignReady || isPublishing}
+                    className={`w-full px-3 py-2 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      isCurrentCampaignReady
+                        ? "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20"
+                        : "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200"
+                    }`}
+                    title={isCurrentCampaignReady ? "Launch campaign to Google Ads" : "Complete required fields & assets to launch"}
+                  >
+                    {isPublishing ? <Loader2 className="h-3 w-3 animate-spin"/> : <Target className="h-3 w-3"/>}
+                    <span className="truncate">Launch Campaign</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -9535,13 +12993,13 @@ export default function AiGuidedCampaignPage() {
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
-                    <span>Edit from Old Draft Campaigns</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold font-mono">
-                      {existingCampaignsList.length} Available
+                    <span>Saved Draft Campaigns</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold font-mono">
+                      {draftsList.length} Drafts
                     </span>
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Select any previous draft or campaign from database to auto-fill its parameters, assets, and settings into the Cockpit
+                    Unpublished drafts saved from previous sessions. Select any draft to resume editing in the Cockpit.
                   </p>
                 </div>
               </div>
@@ -9562,59 +13020,55 @@ export default function AiGuidedCampaignPage() {
                   type="text"
                   value={campaignSearchQuery}
                   onChange={(e) => setCampaignSearchQuery(e.target.value)}
-                  placeholder="Search draft campaigns by name, business, type, or budget..."
+                  placeholder="Search saved drafts by business or campaign name..."
                   className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 transition-all shadow-2xs"
                   autoFocus
                 />
               </div>
               <button
                 type="button"
-                onClick={() => fetchExistingCampaigns()}
-                disabled={isLoadingCampaigns}
+                onClick={() => fetchDraftCampaigns()}
+                disabled={isLoadingDrafts}
                 className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs shrink-0"
-                title="Refresh campaigns list from database"
+                title="Refresh drafts list from database"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${isLoadingCampaigns ? "animate-spin text-indigo-600" : "text-slate-500"}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoadingDrafts ? "animate-spin text-indigo-600" : "text-slate-500"}`} />
                 <span className="hidden sm:inline">Refresh</span>
               </button>
             </div>
 
             {/* Drafts List Container */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 min-h-0">
-              {isLoadingCampaigns ? (
+              {isLoadingDrafts ? (
                 <div className="py-16 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
                   <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
-                  <span>Loading draft campaigns from database...</span>
+                  <span>Loading saved drafts from database...</span>
                 </div>
-              ) : existingCampaignsList.length === 0 ? (
+              ) : (draftsList.length === 0 && existingCampaignsList.filter(c => (c.status || "").toUpperCase() === "DRAFT").length === 0) ? (
                 <div className="py-16 text-center text-xs text-slate-400 space-y-2">
                   <FolderArchive className="h-10 w-10 text-slate-200 mx-auto" />
-                  <p className="font-bold text-sm text-slate-700">No draft campaigns found in database</p>
+                  <p className="font-bold text-sm text-slate-700">No saved drafts found</p>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    Any campaigns or drafts you create in Google Ads Studio will automatically appear here for one-click editing and restoration.
+                    You can save your current campaign work as a draft at any time using the <strong>"Save Draft"</strong> button below.
                   </p>
                 </div>
               ) : (
-                existingCampaignsList
+                (draftsList.length > 0 ? draftsList : existingCampaignsList.filter(c => (c.status || "").toUpperCase() === "DRAFT"))
                   .filter((c) =>
                     !campaignSearchQuery ||
                     (c.name || "").toLowerCase().includes(campaignSearchQuery.toLowerCase()) ||
                     (c.campaignType || "").toLowerCase().includes(campaignSearchQuery.toLowerCase()) ||
-                    (c.status || "").toLowerCase().includes(campaignSearchQuery.toLowerCase()) ||
                     (c.businessName || "").toLowerCase().includes(campaignSearchQuery.toLowerCase())
                   )
                   .map((camp) => {
                     const budget = camp.budget ? Number(camp.budget) : (camp.amountMicros ? Number(camp.amountMicros) / 1_000_000 : null);
-                    const isDraftStatus = (camp.status || "").toUpperCase() === "DRAFT";
-                    const isPublished = Boolean(camp.googleAdsCampaignId || camp.status === "ENABLED" || camp.status === "PAUSED");
-
                     const headlinesCount = Array.isArray(camp.headlines) ? camp.headlines.length : 0;
                     const descriptionsCount = Array.isArray(camp.descriptions) ? camp.descriptions.length : 0;
                     const keywordsCount = Array.isArray(camp.keywords) ? camp.keywords.length : 0;
 
                     return (
                       <div
-                        key={camp.id || camp.googleAdsCampaignId || Math.random()}
+                        key={camp.id || camp.campaignId || Math.random()}
                         className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all space-y-2.5 group"
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -9623,23 +13077,14 @@ export default function AiGuidedCampaignPage() {
                               <span className="font-bold text-xs sm:text-sm text-slate-900 truncate">
                                 {camp.name}
                               </span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                {camp.campaignType || "PERFORMANCE_MAX"}
+                              {camp.campaignType ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  {camp.campaignType}
+                                </span>
+                              ) : null}
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                Unpublished Draft
                               </span>
-                              {isDraftStatus ? (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                                  Saved Draft
-                                </span>
-                              ) : isPublished ? (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                                  <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
-                                  <span>Published</span>
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                                  {camp.status || "Configured"}
-                                </span>
-                              )}
                             </div>
 
                             {/* Details Row */}
@@ -9664,10 +13109,10 @@ export default function AiGuidedCampaignPage() {
                                   {keywordsCount} Keywords
                                 </span>
                               )}
-                              {camp.startDate && (
+                              {camp.updatedAt && (
                                 <span className="text-slate-400 text-[10px] flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
-                                  <span>{new Date(camp.startDate).toLocaleDateString()}</span>
+                                  <span>Saved {new Date(camp.updatedAt).toLocaleDateString()}</span>
                                 </span>
                               )}
                             </div>
@@ -9681,7 +13126,7 @@ export default function AiGuidedCampaignPage() {
                             title="Auto-fill this draft into Cockpit"
                           >
                             <FolderOpen className="h-3.5 w-3.5" />
-                            <span>Load & Edit</span>
+                            <span>Resume Draft</span>
                           </button>
                         </div>
                       </div>
@@ -9693,7 +13138,7 @@ export default function AiGuidedCampaignPage() {
             {/* Modal Footer */}
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
               <span className="text-xs text-slate-500">
-                Click <strong>"Load & Edit"</strong> to auto-fill all parameters and assets into the right-side Campaign Cockpit.
+                Click <strong>"Resume Draft"</strong> to restore all parameters and assets into the Campaign Cockpit.
               </span>
               <button
                 type="button"
@@ -10227,6 +13672,544 @@ export default function AiGuidedCampaignPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 2: SAVE DRAFT & EXIT CONFIRMATION DIALOG                */}
+      {/* ------------------------------------------------------------- */}
+      {isExitPromptOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col scale-in-95 duration-150">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-2xl bg-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">
+                    Unsaved Campaign Progress
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Would you like to save your work before leaving?</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsExitPromptOpen(false);
+                  setPendingExitAction(null);
+                }}
+                className="p-1.5 rounded-full hover:bg-slate-200/70 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-3 text-xs text-slate-600">
+              <p>
+                You have active campaign parameters and generated copy ({campaignState.businessName || "Current Setup"}).
+              </p>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1 text-[11px]">
+                <div className="flex justify-between text-slate-700">
+                  <span>Business:</span>
+                  <strong className="text-slate-900">{campaignState.businessName || "Not set"}</strong>
+                </div>
+                <div className="flex justify-between text-slate-700">
+                  <span>Campaign Type:</span>
+                  <strong className="text-slate-900">{campaignState.campaignType || "Auto"}</strong>
+                </div>
+                <div className="flex justify-between text-slate-700">
+                  <span>Daily Budget:</span>
+                  <strong className="text-slate-900">{campaignState.dailyBudget ? `₹${campaignState.dailyBudget}/day` : "Not set"}</strong>
+                </div>
+                <div className="flex justify-between text-slate-700">
+                  <span>Assets & Copy:</span>
+                  <strong className="text-slate-900">{(campaignState.headlines?.length || 0)} Headlines · {(campaignState.images?.length || 0)} Images</strong>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Saving as draft lets you return and resume at any time from <strong>"Edit from Old Draft"</strong>.
+              </p>
+            </div>
+
+            {/* Actions Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsExitPromptOpen(false);
+                  setPendingExitAction(null);
+                }}
+                className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsExitPromptOpen(false);
+                  const action = pendingExitAction;
+                  setPendingExitAction(null);
+                  if (action === "back") {
+                    router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
+                  } else if (action === "new_session") {
+                    executeResetSession();
+                  }
+                }}
+                className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-semibold text-xs cursor-pointer"
+              >
+                Discard & Exit
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const action = pendingExitAction;
+                  handleSaveCampaignDraft({
+                    asNewDraft: false,
+                    onSuccess: () => {
+                      setIsExitPromptOpen(false);
+                      setPendingExitAction(null);
+                      if (action === "back") {
+                        router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
+                      } else if (action === "new_session") {
+                        executeResetSession();
+                      }
+                    }
+                  });
+                }}
+                disabled={isSavingDraft}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {isSavingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                <span>Save as Draft</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Save Draft Confirmation Dialog ── */}
+      {isSaveDraftConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50/80 via-indigo-50/40 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                  <Save className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">
+                    {loadedDraftId ? "Save Changes or New Draft?" : "Save Campaign Draft?"}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {loadedDraftId
+                      ? `Editing draft: ${loadedDraftName || campaignState.campaignName || "Current Draft"}`
+                      : "Securely store your campaign setup to drafts"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSaveDraftConfirmOpen(false)}
+                className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Content Summary */}
+            <div className="p-5 space-y-3 text-xs text-slate-600">
+              {loadedDraftId ? (
+                <p>
+                  You are editing an existing draft. Choose whether to <strong>update this draft</strong> or <strong>save as a new draft</strong> in your drafts database.
+                </p>
+              ) : (
+                <p>
+                  Would you like to save your current configuration for <strong>{campaignState.businessName || "Campaign"}</strong> to your drafts database?
+                </p>
+              )}
+              
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1.5 text-[11px]">
+                <div className="flex justify-between text-slate-700">
+                  <span>Objective:</span>
+                  <strong className="text-slate-900 font-semibold">{campaignState.objective || "Not Set"}</strong>
+                </div>
+                <div className="flex justify-between text-slate-700">
+                  <span>Campaign Type:</span>
+                  <strong className="text-slate-900 font-semibold">{campaignState.campaignType || "Not Set"}</strong>
+                </div>
+                {campaignState.dailyBudget && (
+                  <div className="flex justify-between text-slate-700">
+                    <span>Daily Budget:</span>
+                    <strong className="text-emerald-700 font-bold font-mono">₹{campaignState.dailyBudget}/day</strong>
+                  </div>
+                )}
+                <div className="flex justify-between text-slate-700">
+                  <span>Assets:</span>
+                  <strong className="text-slate-900 font-semibold">
+                    {(campaignState.headlines?.length || 0)} Headlines · {(campaignState.descriptions?.length || 0)} Descriptions · {(campaignState.images?.length || 0)} Images
+                  </strong>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-500">
+                You can resume your drafts at any time by clicking <strong>"Old Drafts"</strong>.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsSaveDraftConfirmOpen(false)}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+
+              {loadedDraftId ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSaveCampaignDraft({
+                        asNewDraft: true,
+                        onSuccess: () => setIsSaveDraftConfirmOpen(false)
+                      });
+                    }}
+                    disabled={isSavingDraft}
+                    className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="Keep old draft intact and save this as a separate new draft"
+                  >
+                    {isSavingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    <span>Save as New Draft</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSaveCampaignDraft({
+                        asNewDraft: false,
+                        onSuccess: () => setIsSaveDraftConfirmOpen(false)
+                      });
+                    }}
+                    disabled={isSavingDraft}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="Update and overwrite the loaded draft with current changes"
+                  >
+                    {isSavingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    <span>Save Changes</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSaveCampaignDraft({
+                      asNewDraft: false,
+                      onSuccess: () => setIsSaveDraftConfirmOpen(false)
+                    });
+                  }}
+                  disabled={isSavingDraft}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {isSavingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                  <span>Save Draft</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Grok AI Suggestions & Generated Copy Review Popup Modal ── */}
+      {isAiSuggestionsModalOpen && pendingAiSuggestions && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3.5">
+                <div className="relative w-11 h-11 rounded-2xl bg-white p-1 flex items-center justify-center shadow-lg shrink-0 ring-2 ring-white/30 overflow-hidden">
+                  <img
+                    src="/icon.jpeg"
+                    alt="JDS Copilot"
+                    className="w-full h-full object-contain rounded-xl animate-pulse"
+                  />
+                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white animate-ping" />
+                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base tracking-tight flex items-center gap-2">
+                    <span>Grok AI Generated Recommendations</span>
+                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                      Review & Apply
+                    </span>
+                  </h3>
+                  <p className="text-xs text-blue-100/90">
+                    Review Grok AI's suggested ad copy, keywords & configuration before updating your Live Cockpit.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAiSuggestionsModalOpen(false);
+                  setPendingAiSuggestions(null);
+                }}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer border border-white/10"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
+              {/* AI Thought / Explanation with Bold Markdown Rendering */}
+              {pendingAiSuggestions.aiExplanation && (
+                <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200/80 text-xs text-slate-800 leading-relaxed space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-blue-900 text-[11px]">
+                    <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+                    <span>AI Reasoning & Strategic Advice</span>
+                  </div>
+                  <div className="text-slate-700 text-xs leading-relaxed space-y-1">
+                    {renderFormattedMarkdown(pendingAiSuggestions.aiExplanation)}
+                  </div>
+                </div>
+              )}
+
+              {/* Suggestions Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Proposed Campaign Type & Objective */}
+                {(pendingAiSuggestions.suggestedType || pendingAiSuggestions.suggestedObjective) && (
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Strategy</span>
+                    <p className="text-xs font-bold text-slate-900">
+                      {[pendingAiSuggestions.suggestedObjective, pendingAiSuggestions.suggestedType].filter(Boolean).join(" • ")}
+                    </p>
+                  </div>
+                )}
+
+                {/* Proposed Budget */}
+                {pendingAiSuggestions.suggestedBudget && (
+                  <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-1">
+                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Recommended Budget</span>
+                    <p className="text-xs font-bold text-emerald-900 font-mono">
+                      ₹{pendingAiSuggestions.suggestedBudget.toLocaleString("en-IN")} / day
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Headlines Section */}
+              {pendingAiSuggestions.suggestedHeadlines && pendingAiSuggestions.suggestedHeadlines.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-blue-600" />
+                      Suggested Headlines ({pendingAiSuggestions.suggestedHeadlines.length})
+                    </span>
+                    <span className="text-[10px] text-slate-400">&le; 30 chars</span>
+                  </div>
+                  <div className="space-y-1 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                    {pendingAiSuggestions.suggestedHeadlines.map((h, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80">
+                        <span className="font-semibold text-slate-800">{h}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{h.length}/30</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Long Headlines Section */}
+              {pendingAiSuggestions.suggestedLongHeadlines && pendingAiSuggestions.suggestedLongHeadlines.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-indigo-600" />
+                      Suggested Long Headlines ({pendingAiSuggestions.suggestedLongHeadlines.length})
+                    </span>
+                    <span className="text-[10px] text-slate-400">&le; 90 chars</span>
+                  </div>
+                  <div className="space-y-1 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                    {pendingAiSuggestions.suggestedLongHeadlines.map((lh, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80">
+                        <span className="font-semibold text-slate-800">{lh}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{lh.length}/90</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Descriptions Section */}
+              {pendingAiSuggestions.suggestedDescriptions && pendingAiSuggestions.suggestedDescriptions.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <MessageSquare className="h-3.5 w-3.5 text-purple-600" />
+                      Suggested Descriptions ({pendingAiSuggestions.suggestedDescriptions.length})
+                    </span>
+                    <span className="text-[10px] text-slate-400">&le; 90 chars</span>
+                  </div>
+                  <div className="space-y-1 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                    {pendingAiSuggestions.suggestedDescriptions.map((d, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80">
+                        <span className="font-semibold text-slate-800">{d}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{d.length}/90</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Keywords Section */}
+              {pendingAiSuggestions.suggestedKeywords && pendingAiSuggestions.suggestedKeywords.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5 text-blue-600" />
+                    Suggested High-Intent Keywords ({pendingAiSuggestions.suggestedKeywords.length})
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                    {pendingAiSuggestions.suggestedKeywords.map((k, i) => (
+                      <span key={i} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-medium text-slate-800">
+                        {k}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              <span className="text-[11px] text-slate-500 text-center sm:text-left">
+                Applying will populate your Live Campaign Cockpit.
+              </span>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAiSuggestionsModalOpen(false);
+                    setPendingAiSuggestions(null);
+                  }}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                >
+                  Dismiss
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (pendingAiSuggestions.proposedState) {
+                      applyProposedCampaignState(pendingAiSuggestions.proposedState, pendingAiSuggestions.messageId);
+                    }
+                    setIsAiSuggestionsModalOpen(false);
+                    setPendingAiSuggestions(null);
+                  }}
+                  className="flex-1 sm:flex-none px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Apply to Cockpit</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Antigravity-Style Floating Notification Banner (Light Mode with icon.jpeg & Animations) - ONLY when preview is open ── */}
+      {aiNotificationBanner && Boolean(campaignState.objective && campaignState.campaignType) && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-md w-full sm:w-[440px] bg-white/98 backdrop-blur-lg text-slate-900 rounded-3xl shadow-2xl border-2 border-blue-500/30 p-5 animate-in slide-in-from-bottom-6 zoom-in-95 fade-in duration-300 ring-8 ring-blue-500/10 space-y-3.5">
+          <div className="flex items-start gap-3.5">
+            {/* Custom Logo / Icon Badge with Shimmer & Pulse Animation */}
+            <div className="relative w-12 h-12 rounded-2xl bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-lg ring-2 ring-blue-500/30 overflow-hidden group">
+              <img
+                src="/icon.jpeg"
+                alt="JDS AI Copilot"
+                className="w-full h-full object-contain rounded-xl animate-pulse"
+              />
+              <span className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-blue-500/15 via-indigo-500/10 to-transparent pointer-events-none" />
+              {/* Radiating notification glow */}
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white animate-ping" />
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white" />
+            </div>
+
+            {/* Notification Header & Body */}
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h4 className="text-xs font-bold text-slate-900 tracking-tight truncate">
+                    {aiNotificationBanner.title}
+                  </h4>
+                  <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200/80 shrink-0 animate-pulse">
+                    AI Ready
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAiNotificationBanner(null)}
+                  className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                  title="Close notification"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-600 leading-snug">
+                {renderFormattedMarkdown(aiNotificationBanner.summary)}
+              </div>
+            </div>
+          </div>
+
+          {/* 3 Antigravity Action Buttons in Light Mode */}
+          <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+            {/* 1. Apply Suggestion */}
+            <button
+              type="button"
+              onClick={() => {
+                if (aiNotificationBanner.suggestionsData?.proposedState) {
+                  applyProposedCampaignState(
+                    aiNotificationBanner.suggestionsData.proposedState,
+                    aiNotificationBanner.suggestionsData.messageId
+                  );
+                }
+                setAiNotificationBanner(null);
+              }}
+              className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <Check className="h-3.5 w-3.5" />
+              <span>Apply Suggestion</span>
+            </button>
+
+            {/* 2. View Suggestion */}
+            <button
+              type="button"
+              onClick={() => {
+                const targetData = aiNotificationBanner.suggestionsData;
+                setAiNotificationBanner(null); // remove notification box immediately
+                setPendingAiSuggestions(targetData);
+                setIsAiSuggestionsModalOpen(true);
+              }}
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-semibold text-xs border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <Eye className="h-3.5 w-3.5 text-blue-600" />
+              <span>View Suggestion</span>
+            </button>
+
+            {/* 3. Cancel */}
+            <button
+              type="button"
+              onClick={() => setAiNotificationBanner(null)}
+              className="px-3 py-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 font-medium text-xs transition-colors cursor-pointer ml-auto"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

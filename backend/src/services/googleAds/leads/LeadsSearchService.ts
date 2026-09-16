@@ -223,6 +223,15 @@ export class LeadsSearchService extends GoogleAdsBaseService {
       keywords = [],
       headlines = [],
       descriptions = [],
+      images = [],
+      logos = [],
+      sitelinks = [],
+      callouts = [],
+      structuredSnippets = [],
+      callAsset,
+      promotions = [],
+      prices = [],
+      leadForms = [],
       dailyBudget = isAiGuided ? 0 : 1000,
       budget,
       startDate,
@@ -389,6 +398,13 @@ export class LeadsSearchService extends GoogleAdsBaseService {
 
       // ── 8. CREATE RESPONSIVE SEARCH AD (AdGroupAd) ──
       if (validHeadlines.length > 0 && validDescriptions.length > 0) {
+        const cleanedHeadlines = validHeadlines
+          .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 30))
+          .filter((text: string) => text.length > 0);
+        const cleanedDescriptions = validDescriptions
+          .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 90))
+          .filter((text: string) => text.length > 0);
+
         const adGroupAdPayload = {
           operations: [{
             create: {
@@ -397,8 +413,8 @@ export class LeadsSearchService extends GoogleAdsBaseService {
               ad: {
                 finalUrls: [finalUrl],
                 responsiveSearchAd: {
-                  headlines: validHeadlines.map((text: string) => ({ text: text.trim() })),
-                  descriptions: validDescriptions.map((text: string) => ({ text: text.trim() }))
+                  headlines: cleanedHeadlines.slice(0, 15).map((text: string) => ({ text })),
+                  descriptions: cleanedDescriptions.slice(0, 4).map((text: string) => ({ text }))
                 }
               }
             }
@@ -416,6 +432,197 @@ export class LeadsSearchService extends GoogleAdsBaseService {
         { locations, languages, headers }
       );
       apiResult.criteriaResourceNames = (criteriaRes || []).map((r: any) => r.resourceName);
+
+      // ── 10. CREATE SEARCH EXTENSIONS & VISUAL ASSETS (Images, Logos, Sitelinks, Callouts, Lead Forms) ──
+      const campaignAssetOperations: any[] = [];
+      const createdAssetResources: string[] = [];
+
+      // A. Visual Image Assets (Optional for Search ads)
+      const inputImages = Array.isArray(images) ? images : [];
+      for (const img of inputImages) {
+        const rawUrl = typeof img === "string" ? img : img?.url || img?.data || "";
+        if (rawUrl && (rawUrl.startsWith("http") || rawUrl.startsWith("data:image/"))) {
+          try {
+            const isSquare = (typeof img === "object" && (img.fieldType === "SQUARE_MARKETING_IMAGE" || img.aspectRatio === "1:1")) || false;
+            const assetRef = await GoogleAdsBaseService.uploadImageAsset(
+              organizationId,
+              customerId,
+              rawUrl,
+              `Search Image ${Date.now()}`
+            );
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: isSquare ? "SQUARE_MARKETING_IMAGE" : "MARKETING_IMAGE",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (imgErr: any) {
+            console.warn("[LeadsSearchService] Image asset upload skipped / non-fatal:", imgErr?.message || imgErr);
+          }
+        }
+      }
+
+      // B. Visual Logo Assets (Optional for Search ads)
+      const inputLogos = Array.isArray(logos) ? logos : [];
+      for (const lg of inputLogos) {
+        const rawUrl = typeof lg === "string" ? lg : lg?.url || lg?.data || "";
+        if (rawUrl && (rawUrl.startsWith("http") || rawUrl.startsWith("data:image/"))) {
+          try {
+            const assetRef = await GoogleAdsBaseService.uploadImageAsset(
+              organizationId,
+              customerId,
+              rawUrl,
+              `Search Logo ${Date.now()}`
+            );
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "LOGO",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (lgErr: any) {
+            console.warn("[LeadsSearchService] Logo asset upload skipped / non-fatal:", lgErr?.message || lgErr);
+          }
+        }
+      }
+
+      // C. Sitelinks (SitelinkAsset)
+      const inputSitelinks = Array.isArray(sitelinks) ? sitelinks : [];
+      for (const sl of inputSitelinks) {
+        const linkText = (sl.text || sl.linkText || "").trim();
+        const slUrl = (sl.url || sl.finalUrl || "").trim();
+        if (linkText && slUrl) {
+          try {
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [{
+                create: {
+                  name: `Sitelink - ${linkText.slice(0, 20)} - ${Date.now()}`,
+                  sitelinkAsset: {
+                    linkText,
+                    ...(sl.desc1 || sl.description1 ? { description1: (sl.desc1 || sl.description1).trim().slice(0, 35) } : {}),
+                    ...(sl.desc2 || sl.description2 ? { description2: (sl.desc2 || sl.description2).trim().slice(0, 35) } : {})
+                  },
+                  finalUrls: [slUrl]
+                }
+              }]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "SITELINK",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (slErr: any) {
+            console.warn("[LeadsSearchService] Sitelink creation skipped:", slErr?.message || slErr);
+          }
+        }
+      }
+
+      // D. Callouts (CalloutAsset)
+      const inputCallouts = Array.isArray(callouts) ? callouts : [];
+      for (const co of inputCallouts) {
+        const calloutText = (typeof co === "string" ? co : co?.text || co?.calloutText || "").trim();
+        if (calloutText) {
+          try {
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [{
+                create: {
+                  name: `Callout - ${calloutText.slice(0, 20)} - ${Date.now()}`,
+                  calloutAsset: {
+                    calloutText: calloutText.slice(0, 25)
+                  }
+                }
+              }]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "CALLOUT",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (coErr: any) {
+            console.warn("[LeadsSearchService] Callout creation skipped:", coErr?.message || coErr);
+          }
+        }
+      }
+
+      // E. Lead Form Assets (LeadFormAsset)
+      const inputLeadForms = Array.isArray(leadForms) ? leadForms : [];
+      for (const lf of inputLeadForms) {
+        if (lf.businessName && lf.headline && lf.description && lf.privacyPolicyUrl) {
+          try {
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [{
+                create: {
+                  name: `LeadForm - ${lf.businessName.slice(0, 20)} - ${Date.now()}`,
+                  leadFormAsset: {
+                    businessName: lf.businessName.slice(0, 25),
+                    headline: lf.headline.slice(0, 30),
+                    description: lf.description.slice(0, 200),
+                    privacyPolicyUrl: lf.privacyPolicyUrl,
+                    callToActionType: lf.callToActionType || "LEARN_MORE",
+                    callToActionDescription: (lf.callToActionDescription || "Apply today").slice(0, 30),
+                    postSubmitHeadline: (lf.postSubmitHeadline || "Thank you").slice(0, 30),
+                    postSubmitDescription: (lf.postSubmitDescription || "We will contact you shortly").slice(0, 200),
+                    fields: Array.isArray(lf.fields) && lf.fields.length > 0 ? lf.fields : [
+                      { inputType: "FULL_NAME" },
+                      { inputType: "EMAIL" }
+                    ]
+                  }
+                }
+              }]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "LEAD_FORM",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (lfErr: any) {
+            console.warn("[LeadsSearchService] Lead Form creation skipped:", lfErr?.message || lfErr);
+          }
+        }
+      }
+
+      // Link all created assets to the Search campaign via campaignAssets:mutate
+      if (campaignAssetOperations.length > 0) {
+        try {
+          const caRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaignAssets:mutate`, {
+            operations: campaignAssetOperations
+          }, { headers });
+          apiResult.campaignAssetResourceNames = (caRes.data?.results || []).map((r: any) => r.resourceName);
+        } catch (caErr: any) {
+          console.warn("[LeadsSearchService] campaignAssets:mutate linking warning:", caErr?.message || caErr);
+        }
+      }
 
     } catch (apiErr: any) {
       // ── ATOMIC ROLLBACK / CLEANUP ──

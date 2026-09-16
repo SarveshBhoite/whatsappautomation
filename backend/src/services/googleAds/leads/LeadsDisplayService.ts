@@ -220,10 +220,14 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
     const trimmed = languageNameOrId.trim();
     if (!trimmed) return null;
 
+    const lower = trimmed.toLowerCase();
+    if (lower === "all languages" || lower === "all" || lower === "any" || lower === "all_languages") {
+      return null;
+    }
+
     if (/^\d+$/.test(trimmed)) return trimmed;
     if (trimmed.startsWith("languageConstants/")) return trimmed.replace("languageConstants/", "");
 
-    const lower = trimmed.toLowerCase();
     if (this.LANGUAGE_CONSTANT_MAP[lower]) {
       return this.LANGUAGE_CONSTANT_MAP[lower];
     }
@@ -509,10 +513,6 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
         campaignPayloadCreate.endDateTime = `${endStr} 23:59:59`;
       }
 
-      // Ad Rotation
-      const rot = (adRotation || adRotationOption || "OPTIMIZE").toUpperCase();
-      campaignPayloadCreate.adServingOptimizationStatus = rot === "DO_NOT_OPTIMIZE" ? "ROTATE_INDEFINITELY" : "OPTIMIZE";
-
       // URL options
       if (trackingTemplate) campaignPayloadCreate.trackingUrlTemplate = trackingTemplate;
       if (finalUrlSuffix) campaignPayloadCreate.finalUrlSuffix = finalUrlSuffix;
@@ -547,10 +547,43 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
 
-      // ── 6. ATTACH CAMPAIGN-LEVEL CRITERIA (AD SCHEDULE, DEVICES, IP BLOCK, CONTENT LABELS) ──
+      // ── 6. ATTACH CAMPAIGN-LEVEL CRITERIA (LOCATIONS, LANGUAGES, AD SCHEDULE, DEVICES, IP BLOCK, CONTENT LABELS) ──
       const campaignCriterionOps: any[] = [];
 
-      // A. Ad Schedule Criteria
+      // A. Location Criteria (Campaign Level)
+      const rawLocs = Array.isArray(locations) ? locations : [locations];
+      for (const loc of rawLocs) {
+        if (!loc || loc === "ALL" || loc === "All countries and territories") continue;
+        const geoId = await this.resolveGeoTargetConstant(loc, headers, isAiGuided);
+        if (geoId) {
+          campaignCriterionOps.push({
+            create: {
+              campaign: campaignRef,
+              location: {
+                geoTargetConstant: `geoTargetConstants/${geoId}`
+              }
+            }
+          });
+        }
+      }
+
+      // B. Language Criteria (Campaign Level)
+      const rawLangs = Array.isArray(languages) ? languages : [languages];
+      for (const lang of rawLangs) {
+        const langId = this.resolveLanguageConstant(lang, isAiGuided);
+        if (langId) {
+          campaignCriterionOps.push({
+            create: {
+              campaign: campaignRef,
+              language: {
+                languageConstant: `languageConstants/${langId}`
+              }
+            }
+          });
+        }
+      }
+
+      // C. Ad Schedule Criteria
       if (Array.isArray(adSchedule) && adSchedule.length > 0) {
         const scheduleCriteria = LeadsDisplayService.buildAdScheduleCriteria(adSchedule);
         for (const sched of scheduleCriteria) {
@@ -563,7 +596,7 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
         }
       }
 
-      // B. Device Targeting Criteria
+      // D. Device Targeting Criteria
       const isSpecificDevices = (deviceTargeting === "SPECIFIC" || payload.deviceOption === "SPECIFIC") && Array.isArray(devices) && devices.length > 0;
       if (isSpecificDevices) {
         const deviceMap: Record<string, string> = {
@@ -680,43 +713,10 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
       }
       apiResult.adGroupResourceName = adGroupRef;
 
-      // ── 8. ATTACH AD GROUP TARGETING CRITERIA (LOCATIONS, LANGUAGES, DEMOGRAPHICS, TOPICS, PLACEMENTS, KEYWORDS) ──
+      // ── 8. ATTACH AD GROUP TARGETING CRITERIA (DEMOGRAPHICS, TOPICS, PLACEMENTS, KEYWORDS, AUDIENCES) ──
       const adGroupCriterionOps: any[] = [];
 
-      // A. Location Criteria
-      const rawLocs = Array.isArray(locations) ? locations : [locations];
-      for (const loc of rawLocs) {
-        if (!loc || loc === "ALL" || loc === "All countries and territories") continue;
-        const geoId = await this.resolveGeoTargetConstant(loc, headers, isAiGuided);
-        if (geoId) {
-          adGroupCriterionOps.push({
-            create: {
-              adGroup: adGroupRef,
-              location: {
-                geoTargetConstant: `geoTargetConstants/${geoId}`
-              }
-            }
-          });
-        }
-      }
-
-      // B. Language Criteria
-      const rawLangs = Array.isArray(languages) ? languages : [languages];
-      for (const lang of rawLangs) {
-        const langId = this.resolveLanguageConstant(lang, isAiGuided);
-        if (langId) {
-          adGroupCriterionOps.push({
-            create: {
-              adGroup: adGroupRef,
-              language: {
-                languageConstant: `languageConstants/${langId}`
-              }
-            }
-          });
-        }
-      }
-
-      // C. Demographics (Gender, Age, Parental Status, Household Income)
+      // A. Demographics (Gender, Age, Parental Status, Household Income)
       const genderSettings = demographicsGender || demographics?.gender;
       if (genderSettings && typeof genderSettings === "object") {
         for (const [genderKey, isIncluded] of Object.entries(genderSettings)) {
@@ -1155,49 +1155,119 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
         return url;
       };
 
+      const toPollinationsTransform = (url: string, width: number, height: number): string => {
+        if (typeof url === "string" && url.includes("image.pollinations.ai")) {
+          return url.replace(/width=\d+/, `width=${width}`).replace(/height=\d+/, `height=${height}`);
+        }
+        return url;
+      };
+
       // Upload marketing images (landscape & square)
       for (const img of rawImages) {
         const raw = typeof img === "string" ? img : img?.url || img?.data || img?.asset || "";
         if (!raw) continue;
         if (raw.startsWith("customers/") && raw.includes("/assets/")) {
-          createdAssets.marketingImages.push(raw);
+          if (!createdAssets.marketingImages.includes(raw)) createdAssets.marketingImages.push(raw);
           continue;
         }
 
-        const landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
-        const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Land_${Date.now()}`, landscapeUrl);
-        if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
-          createdAssets.marketingImages.push(landscapeRef);
-        }
+        const fieldType = typeof img === "object" && img?.fieldType ? img.fieldType : null;
+        const aspectRatio = typeof img === "object" && img?.aspectRatio ? img.aspectRatio : null;
 
-        const squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
-        const squareRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Sq_${Date.now()}`, squareUrl);
-        if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
-          createdAssets.squareMarketingImages.push(squareRef);
+        if (fieldType === "MARKETING_IMAGE" || aspectRatio === "1.91:1") {
+          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,fo-auto");
+          landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
+          const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Land_${Date.now()}`, landscapeUrl);
+          if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
+            createdAssets.marketingImages.push(landscapeRef);
+          }
+        } else if (fieldType === "SQUARE_MARKETING_IMAGE" || aspectRatio === "1:1") {
+          let squareUrl = aspectRatio === "1:1" ? raw : toImageKitTransform(raw, "tr:w-1200,h-1200,fo-auto");
+          squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
+          const squareRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Sq_${Date.now()}`, squareUrl);
+          if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
+            createdAssets.squareMarketingImages.push(squareRef);
+          }
+        } else if (fieldType === "LOGO") {
+          let logoUrl = aspectRatio === "1:1" ? raw : toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
+          logoUrl = toPollinationsTransform(logoUrl, 500, 500);
+          if (!raw.startsWith("customers/")) {
+            const logoRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Logo_${Date.now()}`, logoUrl);
+            if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
+              createdAssets.logoImages.push(logoRef);
+            }
+          }
+        } else {
+          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,fo-auto");
+          landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
+          const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Land_${Date.now()}`, landscapeUrl);
+          if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
+            createdAssets.marketingImages.push(landscapeRef);
+          }
+
+          let squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,fo-auto");
+          squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
+          const squareRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Sq_${Date.now()}`, squareUrl);
+          if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
+            createdAssets.squareMarketingImages.push(squareRef);
+          }
         }
       }
 
-      // Upload logos
+      // Upload logos (Strict 1:1 Square: min 128x128, recommended 500x500 or 1200x1200)
       for (const logo of rawLogos) {
-        const raw = typeof logo === "string" ? logo : logo?.url || logo?.data || logo?.asset || "";
+        const raw = typeof logo === "string" ? logo : logo?.url || logo?.data || "";
         if (!raw) continue;
         if (raw.startsWith("customers/") && raw.includes("/assets/")) {
-          createdAssets.logoImages.push(raw);
           continue;
         }
 
-        const logoUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+        const isAlreadySquare = typeof logo === "object" && (logo?.aspectRatio === "1:1" || logo?.fieldType === "LOGO");
+        let logoUrl = isAlreadySquare ? raw : toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
+        logoUrl = toPollinationsTransform(logoUrl, 500, 500);
         const logoRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Logo_${Date.now()}`, logoUrl);
         if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
           createdAssets.logoImages.push(logoRef);
         }
       }
 
-      if (createdAssets.marketingImages.length === 0 || createdAssets.squareMarketingImages.length === 0) {
-        throw new Error("At least 1 landscape marketing image and 1 square marketing image are required for Responsive Display ads.");
+      // If no valid marketing images or square marketing images, upload default clean marketing images
+      const DEFAULT_DISP_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+      if (createdAssets.marketingImages.length === 0) {
+        let landscapeUrl = toImageKitTransform(DEFAULT_DISP_IMAGE, "tr:w-1200,h-628,fo-auto");
+        landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
+        const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Land_${Date.now()}`, landscapeUrl);
+        if (landscapeRef) {
+          createdAssets.marketingImages.push(landscapeRef);
+        }
       }
+      if (createdAssets.squareMarketingImages.length === 0) {
+        let squareUrl = toImageKitTransform(DEFAULT_DISP_IMAGE, "tr:w-1200,h-1200,fo-auto");
+        squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
+        const squareRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Sq_${Date.now()}`, squareUrl);
+        if (squareRef) {
+          createdAssets.squareMarketingImages.push(squareRef);
+        }
+      }
+
+      // If no valid logo image was created, upload guaranteed 1:1 fallback logo
       if (createdAssets.logoImages.length === 0) {
-        throw new Error("At least 1 logo asset is required for Responsive Display ads.");
+        const DEFAULT_DISP_LOGO = "https://ik.imagekit.io/automationjds/tr:w-500,h-500,fo-auto/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+        const fallbackLogoRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Logo_${Date.now()}`, DEFAULT_DISP_LOGO);
+        if (fallbackLogoRef) {
+          createdAssets.logoImages.push(fallbackLogoRef);
+        }
+      }
+
+      const uniqueMarketingImages = Array.from(new Set(createdAssets.marketingImages));
+      const uniqueSquareImages = Array.from(new Set(createdAssets.squareMarketingImages));
+      const uniqueLogoImages = Array.from(new Set(createdAssets.logoImages));
+
+      if (uniqueMarketingImages.length === 0 || uniqueSquareImages.length === 0) {
+        throw new Error("At least 1 landscape marketing image (1.91:1) and 1 square marketing image (1:1) are required for Responsive Display ads.");
+      }
+      if (uniqueLogoImages.length === 0) {
+        throw new Error("At least 1 logo asset (1:1) is required for Responsive Display ads.");
       }
 
       const safeHeadlines = rawHeadlines
@@ -1295,10 +1365,10 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
       finalUrl,
-      mobileFinalUrl: resolvedMobileFinalUrl,
       headlines: rawHeadlines,
       descriptions: rawDescriptions,
       geoTargets: {
+        mobileFinalUrl: resolvedMobileFinalUrl,
         locations,
         languages,
         deviceTargeting,

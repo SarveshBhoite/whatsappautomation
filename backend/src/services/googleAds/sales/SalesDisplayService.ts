@@ -118,6 +118,18 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
 
+      // Attach Campaign-level Location & Language Criteria
+      try {
+        await GoogleAdsBaseService.mutateCampaignGeoAndLanguageCriteria(
+          organizationId,
+          customerId,
+          campaignRef,
+          { locations, languages, headers }
+        );
+      } catch (critErr: any) {
+        console.warn("[SalesDisplayService] mutateCampaignGeoAndLanguageCriteria warning:", critErr?.message || critErr);
+      }
+
       // 3. Create Standard Display Ad Group
       const adGroupPayload = {
         operations: [
@@ -171,65 +183,104 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       ];
 
       // Upload marketing images and square images
+      const toPollinationsTransform = (url: string, width: number, height: number): string => {
+        if (typeof url === "string" && url.includes("image.pollinations.ai")) {
+          return url.replace(/width=\d+/, `width=${width}`).replace(/height=\d+/, `height=${height}`);
+        }
+        return url;
+      };
+
       for (const img of rawImages) {
         const raw = typeof img === "string" ? img : img?.url || img?.data || "";
         if (!raw) continue;
-        const fieldType = typeof img === "object" && img?.fieldType ? img.fieldType : null;
 
-        if (fieldType === "MARKETING_IMAGE") {
+        const fieldType = typeof img === "object" && img?.fieldType ? img.fieldType : null;
+        const aspectRatio = typeof img === "object" && img?.aspectRatio ? img.aspectRatio : null;
+
+        if (fieldType === "MARKETING_IMAGE" || aspectRatio === "1.91:1") {
           // 1.91:1 Landscape (min 600x314, recommend 1200x628)
-          const landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,fo-auto");
+          landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
           const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Land_${Date.now()}`, landscapeUrl);
           if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
             createdAssets.marketingImages.push(landscapeRef);
           }
-        } else if (fieldType === "SQUARE_MARKETING_IMAGE") {
+        } else if (fieldType === "SQUARE_MARKETING_IMAGE" || aspectRatio === "1:1") {
           // 1:1 Square (min 300x300, recommend 1200x1200)
-          const squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          let squareUrl = aspectRatio === "1:1" ? raw : toImageKitTransform(raw, "tr:w-1200,h-1200,fo-auto");
+          squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
           const squareRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Sq_${Date.now()}`, squareUrl);
           if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
             createdAssets.squareMarketingImages.push(squareRef);
           }
         } else if (fieldType === "LOGO") {
-          // 1:1 Logo (min 128x128, recommend 1200x1200)
-          const logoUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
-          const logoRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Logo_${Date.now()}`, logoUrl);
-          if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
-            createdAssets.logoImages.push(logoRef);
+          // 1:1 Logo (min 128x128, recommend 500x500)
+          let logoUrl = aspectRatio === "1:1" ? raw : toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
+          logoUrl = toPollinationsTransform(logoUrl, 500, 500);
+          if (!raw.startsWith("customers/")) {
+            const logoRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Logo_${Date.now()}`, logoUrl);
+            if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
+              createdAssets.logoImages.push(logoRef);
+            }
           }
         } else {
-          // Unclassified image: if it's ImageKit CDN URL, transform to both landscape and square
-          if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
-            const landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
-            const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Land_${Date.now()}`, landscapeUrl);
-            if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
-              createdAssets.marketingImages.push(landscapeRef);
-            }
+          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,fo-auto");
+          landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
+          const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Land_${Date.now()}`, landscapeUrl);
+          if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
+            createdAssets.marketingImages.push(landscapeRef);
+          }
 
-            const squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
-            const squareRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Sq_${Date.now()}`, squareUrl);
-            if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
-              createdAssets.squareMarketingImages.push(squareRef);
-            }
-          } else {
-            // Default base64 image without fieldType: upload as square marketing image
-            const ref = await this.uploadImageAsset(organizationId, customerId, `Disp_Sq_${Date.now()}`, raw);
-            if (ref && !createdAssets.squareMarketingImages.includes(ref)) {
-              createdAssets.squareMarketingImages.push(ref);
-            }
+          let squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,fo-auto");
+          squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
+          const squareRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Sq_${Date.now()}`, squareUrl);
+          if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
+            createdAssets.squareMarketingImages.push(squareRef);
           }
         }
       }
 
-      // Upload logos (1:1 square - min 128x128, recommend 1200x1200)
+      // Upload logos (1:1 square - min 128x128, recommend 500x500)
       for (const logo of rawLogos) {
         const raw = typeof logo === "string" ? logo : logo?.url || logo?.data || "";
         if (!raw) continue;
+        if (raw.startsWith("customers/") && raw.includes("/assets/")) {
+          continue;
+        }
 
-        const logoUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+        const isAlreadySquare = typeof logo === "object" && (logo?.aspectRatio === "1:1" || logo?.fieldType === "LOGO");
+        let logoUrl = isAlreadySquare ? raw : toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
+        logoUrl = toPollinationsTransform(logoUrl, 500, 500);
         const logoRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Logo_${Date.now()}`, logoUrl);
         if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
           createdAssets.logoImages.push(logoRef);
+        }
+      }
+
+      // If no valid marketing images or square marketing images, upload default clean marketing images
+      const DEFAULT_DISP_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+      if (createdAssets.marketingImages.length === 0) {
+        let landscapeUrl = toImageKitTransform(DEFAULT_DISP_IMAGE, "tr:w-1200,h-628,fo-auto");
+        landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
+        const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Land_${Date.now()}`, landscapeUrl);
+        if (landscapeRef) {
+          createdAssets.marketingImages.push(landscapeRef);
+        }
+      }
+      if (createdAssets.squareMarketingImages.length === 0) {
+        let squareUrl = toImageKitTransform(DEFAULT_DISP_IMAGE, "tr:w-1200,h-1200,fo-auto");
+        squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
+        const squareRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Sq_${Date.now()}`, squareUrl);
+        if (squareRef) {
+          createdAssets.squareMarketingImages.push(squareRef);
+        }
+      }
+
+      if (createdAssets.logoImages.length === 0) {
+        const DEFAULT_DISP_LOGO = "https://ik.imagekit.io/automationjds/tr:w-500,h-500,fo-auto/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+        const fallbackLogoRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Logo_${Date.now()}`, DEFAULT_DISP_LOGO);
+        if (fallbackLogoRef) {
+          createdAssets.logoImages.push(fallbackLogoRef);
         }
       }
 

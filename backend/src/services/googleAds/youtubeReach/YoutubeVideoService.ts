@@ -36,58 +36,21 @@ export class YoutubeVideoService extends GoogleAdsBaseService {
         biddingConfig = { maximizeConversions: { targetCpaMicros: String(targetCpaMicros) } };
     }
 
-    let apiResult: any = { campaignId: `yt-video-${Date.now()}` };
-    try {
-      const budgetRef = await this.createBudget(organizationId, customerId, {
-        name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: amountMicros / 1_000_000
-      });
-      apiResult.budgetResourceName = budgetRef;
-
-      const { headers } = await this.getAdsHeaders(organizationId, customerId);
-      const campaignPayload = {
-        operations: [{
-          create: {
-            name: campaignName,
-            status: "PAUSED",
-            advertisingChannelType: "VIDEO",
-            advertisingChannelSubType: mappedSubtype,
-            campaignBudget: budgetRef,
-            ...biddingConfig
-          }
-        }]
-      };
-
-      const ADS_BASE = "https://googleads.googleapis.com/v24";
-      const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-yt-video-${Date.now()}`;
-      apiResult.campaignResourceName = campaignRef;
-      apiResult.campaignId = campaignRef.split("/").pop();
-      
-      try {
-        const adGroupRef = await this.createAdGroup(organizationId, customerId, {
-          name: `${campaignName} Ad Group 1`,
-          campaignResourceName: campaignRef,
-          type: "VIDEO_RESPONSIVE",
-          status: "ENABLED"
-        });
-        apiResult.adGroupResourceName = adGroupRef;
-      } catch (err: any) {
-         console.warn("[Google Ads API fallback for YouTube Video Ad Group]:", err.message);
-      }
-    } catch (apiErr: any) {
-      console.warn("[Google Ads API fallback for YouTube Video]:", apiErr.message);
-    }
+    let apiResult: any = { 
+      campaignId: `crm-video-${Date.now()}`,
+      isCrmPlanningOnly: true,
+      notice: "Video campaigns in Google Ads API are currently supported for reporting and CRM planning. To publish video ads directly via the API, use Demand Gen Video."
+    };
 
     const localCampaign = await this.saveCampaignToDatabase({
       organizationId,
       customerId,
-      googleAdsCampaignId: apiResult.campaignId || `yt-video-${Date.now()}`,
+      googleAdsCampaignId: apiResult.campaignId,
       name: campaignName,
       campaignType: "VIDEO",
       biddingStrategy: biddingFocus === "Target CPA" ? "TARGET_CPA" : "MAXIMIZE_CONVERSIONS",
       budget: Number(dailyBudget),
-      budgetResourceName: apiResult.budgetResourceName || null,
+      budgetResourceName: null,
       status: "PAUSED",
       finalUrl,
       headlines,
@@ -101,7 +64,7 @@ export class YoutubeVideoService extends GoogleAdsBaseService {
     });
 
     return {
-      message: "YouTube Video Campaign created successfully (Paused)",
+      message: "YouTube Video Campaign saved to CRM planning (API publishing is supported via Demand Gen Video)",
       campaign: { ...localCampaign, amountMicros: Number(localCampaign.amountMicros), costMicros: Number(localCampaign.costMicros), impressions: Number(localCampaign.impressions), clicks: Number(localCampaign.clicks) },
       apiResult
     };

@@ -87,7 +87,28 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       euPolitical = "NO",
       businessName,
       logos = [],
-      brandGuidelinesEnabled = false
+      brandGuidelinesEnabled = false,
+      merchantCenterId,
+      merchantId,
+      feedLabel,
+      salesCountry,
+      positiveGeoTargetType,
+      negativeGeoTargetType,
+      trackingTemplate,
+      finalUrlSuffix,
+      customParameters,
+      customerAcquisitionMode,
+      displayPath1,
+      displayPath2,
+      mobileFinalUrl,
+      searchThemes = [],
+      audienceSignals = [],
+      sitelinks = [],
+      callouts = [],
+      promotions = [],
+      prices = [],
+      callAsset,
+      structuredSnippets = []
     } = payload;
 
     // Final URL Validation
@@ -208,6 +229,41 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       }
     }
 
+    // URL Custom Parameters
+    const validCustomParameters = Array.isArray(customParameters)
+      ? customParameters
+          .filter((cp: any) => cp && cp.name && String(cp.name).trim())
+          .map((cp: any) => ({ key: String(cp.name).trim(), value: String(cp.value || "").trim() }))
+      : [];
+
+    // Optional Merchant Center Shopping Setting
+    const effectiveMerchantId = merchantCenterId || merchantId;
+    let shoppingSetting: any = undefined;
+    if (effectiveMerchantId && String(effectiveMerchantId).trim()) {
+      shoppingSetting = {
+        merchantId: String(effectiveMerchantId).trim(),
+        ...(feedLabel ? { feedLabel: String(feedLabel).trim() } : salesCountry ? { feedLabel: String(salesCountry).trim() } : {})
+      };
+    }
+
+    // Customer Acquisition Setting
+    let customerAcquisitionSetting: any = undefined;
+    if (customerAcquisitionMode) {
+      const normAcq = String(customerAcquisitionMode).toUpperCase();
+      if (normAcq === "BID_ONLY_FOR_NEW_CUSTOMERS" || normAcq === "BID_HIGHER_FOR_NEW_CUSTOMERS" || normAcq === "TARGET_ALL_EQUALLY") {
+        customerAcquisitionSetting = { optimizationMode: normAcq };
+      }
+    }
+
+    // Geo Target Type Setting
+    let geoTargetTypeSetting: any = undefined;
+    if (positiveGeoTargetType || negativeGeoTargetType) {
+      geoTargetTypeSetting = {
+        ...(positiveGeoTargetType ? { positiveGeoTargetType } : { positiveGeoTargetType: "PRESENCE_OR_INTEREST" }),
+        ...(negativeGeoTargetType ? { negativeGeoTargetType } : { negativeGeoTargetType: "PRESENCE" })
+      };
+    }
+
     let apiResult: any = { campaignId: `noguidance-pmax-${Date.now()}` };
     const ADS_BASE = "https://googleads.googleapis.com/v24";
 
@@ -221,48 +277,39 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
 
       const { headers } = await this.getAdsHeaders(organizationId, customerId);
 
-      // 2. Create Campaign (with duplicate name auto-retry)
-      let effectiveCampaignName = campaignName;
-      let campaignRes;
-      try {
+      const buildCampaignPayload = (campName: string) => {
         const createOp: any = {
-          name: effectiveCampaignName,
+          name: campName,
           status: "PAUSED",
           advertisingChannelType: "PERFORMANCE_MAX",
           campaignBudget: budgetRef,
           containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-          brandGuidelinesEnabled: false,
+          brandGuidelinesEnabled: Boolean(brandGuidelinesEnabled),
           ...biddingConfig
         };
         if (formattedStartDate) createOp.startDateTime = `${formattedStartDate} 00:00:00`;
         if (formattedEndDate) createOp.endDateTime = `${formattedEndDate} 23:59:59`;
+        if (shoppingSetting) createOp.shoppingSetting = shoppingSetting;
+        if (customerAcquisitionSetting) createOp.customerAcquisitionSetting = customerAcquisitionSetting;
+        if (geoTargetTypeSetting) createOp.geoTargetTypeSetting = geoTargetTypeSetting;
+        if (trackingTemplate && String(trackingTemplate).trim()) createOp.trackingUrlTemplate = String(trackingTemplate).trim();
+        if (finalUrlSuffix && String(finalUrlSuffix).trim()) createOp.finalUrlSuffix = String(finalUrlSuffix).trim();
+        if (validCustomParameters.length > 0) createOp.urlCustomParameters = validCustomParameters;
 
-        const campaignPayload = {
-          operations: [{ create: createOp }]
-        };
+        return { operations: [{ create: createOp }] };
+      };
 
-        campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+      // 2. Create Campaign (with duplicate name auto-retry)
+      let effectiveCampaignName = campaignName;
+      let campaignRes;
+      try {
+        campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, buildCampaignPayload(effectiveCampaignName), { headers });
       } catch (campErr: any) {
         const errMsg = campErr?.response?.data?.error?.message || campErr?.message || "";
         const errDetails = JSON.stringify(campErr?.response?.data || "");
         if (errMsg.includes("already assigned") || errDetails.includes("DUPLICATE_CAMPAIGN_NAME") || errDetails.includes("DUPLICATE_NAME") || errDetails.includes("already assigned")) {
           effectiveCampaignName = `${campaignName} ${Date.now().toString().slice(-4)}`;
-          const retryOp: any = {
-            name: effectiveCampaignName,
-            status: "PAUSED",
-            advertisingChannelType: "PERFORMANCE_MAX",
-            campaignBudget: budgetRef,
-            containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-            brandGuidelinesEnabled: false,
-            ...biddingConfig
-          };
-          if (formattedStartDate) retryOp.startDateTime = `${formattedStartDate} 00:00:00`;
-          if (formattedEndDate) retryOp.endDateTime = `${formattedEndDate} 23:59:59`;
-
-          const retryPayload = {
-            operations: [{ create: retryOp }]
-          };
-          campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, retryPayload, { headers });
+          campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, buildCampaignPayload(effectiveCampaignName), { headers });
         } else {
           throw campErr;
         }
@@ -388,35 +435,38 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
         if (logoRef && !logoRefs.includes(logoRef)) logoRefs.push(logoRef);
       }
 
-      // Safe Aspect-Ratio-Preserving Fallbacks (MANUAL FLOW ONLY):
-      // In AI Guided, strict explicit asset types are required - no cross-asset borrowing!
-      if (!isAiGuided) {
-        // 1. Logo fallback from Square Marketing Image (Both are 1:1 Square)
-        if (logoRefs.length === 0 && squareImageRefs.length > 0) {
-          logoRefs.push(squareImageRefs[0]);
-        }
-        // 2. Square Marketing Image fallback from Logo (Both are 1:1 Square)
-        if (squareImageRefs.length === 0 && logoRefs.length > 0) {
-          squareImageRefs.push(logoRefs[0]);
-        }
-        // 3. Marketing Image (Landscape 1.91:1) fallback via ImageKit URL transformation
-        if (marketingImageRefs.length === 0 && fallbackImageKitUrl) {
-          const landUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
-          const landRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Land_${Date.now()}`, landUrl);
-          if (landRef && !marketingImageRefs.includes(landRef)) marketingImageRefs.push(landRef);
-        }
-        // 4. Square Image fallback via ImageKit URL transformation
-        if (squareImageRefs.length === 0 && fallbackImageKitUrl) {
-          const sqUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
-          const sqRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Sq_${Date.now()}`, sqUrl);
-          if (sqRef && !squareImageRefs.includes(sqRef)) squareImageRefs.push(sqRef);
-        }
-        // 5. Logo fallback via ImageKit URL transformation
-        if (logoRefs.length === 0 && fallbackImageKitUrl) {
-          const logoUrl = toImageKitTransform(fallbackImageKitUrl, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
-          const logoRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Logo_${Date.now()}`, logoUrl);
-          if (logoRef && !logoRefs.includes(logoRef)) logoRefs.push(logoRef);
-        }
+      // Safe Aspect-Ratio-Preserving Fallbacks:
+      const DEFAULT_PMAX_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+      const DEFAULT_PMAX_LOGO = "https://ik.imagekit.io/automationjds/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+
+      // 1. Logo fallback from Square Marketing Image (Both are 1:1 Square)
+      if (logoRefs.length === 0 && squareImageRefs.length > 0) {
+        logoRefs.push(squareImageRefs[0]);
+      }
+      // 2. Square Marketing Image fallback from Logo (Both are 1:1 Square)
+      if (squareImageRefs.length === 0 && logoRefs.length > 0) {
+        squareImageRefs.push(logoRefs[0]);
+      }
+      // 3. Marketing Image (Landscape 1.91:1) fallback via ImageKit URL transformation
+      if (marketingImageRefs.length === 0) {
+        const fallbackUrl = fallbackImageKitUrl || DEFAULT_PMAX_IMAGE;
+        const landUrl = toImageKitTransform(fallbackUrl, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+        const landRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Land_${Date.now()}`, landUrl);
+        if (landRef && !marketingImageRefs.includes(landRef)) marketingImageRefs.push(landRef);
+      }
+      // 4. Square Image fallback via ImageKit URL transformation
+      if (squareImageRefs.length === 0) {
+        const fallbackUrl = fallbackImageKitUrl || DEFAULT_PMAX_IMAGE;
+        const sqUrl = toImageKitTransform(fallbackUrl, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+        const sqRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Sq_${Date.now()}`, sqUrl);
+        if (sqRef && !squareImageRefs.includes(sqRef)) squareImageRefs.push(sqRef);
+      }
+      // 5. Logo fallback via ImageKit URL transformation
+      if (logoRefs.length === 0) {
+        const fallbackUrl = fallbackImageKitUrl || DEFAULT_PMAX_LOGO;
+        const logoUrl = toImageKitTransform(fallbackUrl, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+        const logoRef = await this.uploadImageAsset(organizationId, customerId, `PMax_Logo_${Date.now()}`, logoUrl);
+        if (logoRef && !logoRefs.includes(logoRef)) logoRefs.push(logoRef);
       }
 
       if (marketingImageRefs.length === 0 || squareImageRefs.length === 0 || logoRefs.length === 0) {
@@ -425,16 +475,22 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
 
       // 6. Mutate Asset Group and AssetGroupAssets
       const tempAssetGroupResourceName = `customers/${cid}/assetGroups/-1`;
+      const assetGroupCreate: any = {
+        resourceName: tempAssetGroupResourceName,
+        campaign: campaignRef,
+        name: assetGroupName || `${campaignName} Asset Group 1`,
+        status: "ENABLED",
+        finalUrls: [safeFinalUrl]
+      };
+
+      if (displayPath1 && String(displayPath1).trim()) assetGroupCreate.path1 = String(displayPath1).trim().slice(0, 15);
+      if (displayPath2 && String(displayPath2).trim()) assetGroupCreate.path2 = String(displayPath2).trim().slice(0, 15);
+      if (mobileFinalUrl && String(mobileFinalUrl).trim()) assetGroupCreate.finalMobileUrls = [String(mobileFinalUrl).trim()];
+
       const mutateOperations: any[] = [
         {
           assetGroupOperation: {
-            create: {
-              resourceName: tempAssetGroupResourceName,
-              campaign: campaignRef,
-              name: assetGroupName || `${campaignName} Asset Group 1`,
-              status: "ENABLED",
-              finalUrls: [safeFinalUrl]
-            }
+            create: assetGroupCreate
           }
         },
         {
@@ -527,6 +583,36 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
         });
       });
 
+      // Asset Group Signals (Search Themes and Audience Signals)
+      const validSearchThemes = Array.isArray(searchThemes)
+        ? searchThemes.map(t => String(t).trim()).filter(Boolean)
+        : [];
+      validSearchThemes.forEach((theme: string) => {
+        mutateOperations.push({
+          assetGroupSignalOperation: {
+            create: {
+              assetGroup: tempAssetGroupResourceName,
+              searchTheme: { text: theme }
+            }
+          }
+        });
+      });
+
+      const validAudiences = Array.isArray(audienceSignals) ? audienceSignals : [];
+      validAudiences.forEach((aud: any) => {
+        const audResource = typeof aud === "string" ? aud : aud?.resourceName;
+        if (audResource && String(audResource).trim()) {
+          mutateOperations.push({
+            assetGroupSignalOperation: {
+              create: {
+                assetGroup: tempAssetGroupResourceName,
+                audience: { audience: String(audResource).trim() }
+              }
+            }
+          });
+        }
+      });
+
       const mutateRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:mutate`, { mutateOperations }, { headers });
       const results = mutateRes.data.mutateOperationResponses;
       apiResult.assetGroupResourceName = results[0]?.assetGroupResult?.resourceName;
@@ -539,6 +625,127 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
         { locations, languages, headers }
       );
       apiResult.criteriaResults = criteriaResults;
+
+      // 8. Attach Campaign Extension Assets (Sitelinks, Callouts, Promotions, Prices, Call, Snippets)
+      try {
+        const campaignAssetOperations: any[] = [];
+
+        // Sitelinks
+        const validSitelinks = Array.isArray(sitelinks) ? sitelinks.filter((s: any) => s && s.text && s.url) : [];
+        for (const st of validSitelinks) {
+          const sRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+            operations: [{
+              create: {
+                type: "SITELINK",
+                sitelinkAsset: {
+                  linkText: GoogleAdsBaseService.cleanAdText(st.text, 25),
+                  description1: st.desc1 ? GoogleAdsBaseService.cleanAdText(st.desc1, 35) : undefined,
+                  description2: st.desc2 ? GoogleAdsBaseService.cleanAdText(st.desc2, 35) : undefined
+                },
+                finalUrls: [GoogleAdsBaseService.cleanUrl(st.url)]
+              }
+            }]
+          }, { headers });
+          const assetRef = sRes.data?.results?.[0]?.resourceName;
+          if (assetRef) {
+            campaignAssetOperations.push({
+              create: {
+                campaign: campaignRef,
+                asset: assetRef,
+                fieldType: "SITELINK",
+                status: "ENABLED"
+              }
+            });
+          }
+        }
+
+        // Callouts
+        const validCallouts = Array.isArray(callouts) ? callouts.map((c: any) => String(c).trim()).filter(Boolean) : [];
+        for (const co of validCallouts) {
+          const coRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+            operations: [{
+              create: {
+                type: "CALLOUT",
+                calloutAsset: {
+                  calloutText: GoogleAdsBaseService.cleanAdText(co, 25)
+                }
+              }
+            }]
+          }, { headers });
+          const assetRef = coRes.data?.results?.[0]?.resourceName;
+          if (assetRef) {
+            campaignAssetOperations.push({
+              create: {
+                campaign: campaignRef,
+                asset: assetRef,
+                fieldType: "CALLOUT",
+                status: "ENABLED"
+              }
+            });
+          }
+        }
+
+        // Call Asset
+        if (callAsset && callAsset.phone) {
+          const callRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+            operations: [{
+              create: {
+                type: "CALL",
+                callAsset: {
+                  countryCode: callAsset.countryCode || "IN",
+                  phoneNumber: String(callAsset.phone).trim()
+                }
+              }
+            }]
+          }, { headers });
+          const assetRef = callRes.data?.results?.[0]?.resourceName;
+          if (assetRef) {
+            campaignAssetOperations.push({
+              create: {
+                campaign: campaignRef,
+                asset: assetRef,
+                fieldType: "CALL",
+                status: "ENABLED"
+              }
+            });
+          }
+        }
+
+        // Structured Snippets
+        const validSnippets = Array.isArray(structuredSnippets) ? structuredSnippets.filter((sn: any) => sn && sn.header && Array.isArray(sn.values) && sn.values.length > 0) : [];
+        for (const sn of validSnippets) {
+          const snRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+            operations: [{
+              create: {
+                type: "STRUCTURED_SNIPPET",
+                structuredSnippetAsset: {
+                  header: sn.header,
+                  values: sn.values.map((v: string) => GoogleAdsBaseService.cleanAdText(String(v), 25)).filter(Boolean)
+                }
+              }
+            }]
+          }, { headers });
+          const assetRef = snRes.data?.results?.[0]?.resourceName;
+          if (assetRef) {
+            campaignAssetOperations.push({
+              create: {
+                campaign: campaignRef,
+                asset: assetRef,
+                fieldType: "STRUCTURED_SNIPPET",
+                status: "ENABLED"
+              }
+            });
+          }
+        }
+
+        if (campaignAssetOperations.length > 0) {
+          await axios.post(`${ADS_BASE}/customers/${cid}/campaignAssets:mutate`, {
+            operations: campaignAssetOperations
+          }, { headers });
+        }
+      } catch (extErr: any) {
+        console.warn("[PMax Extension Assets Warning]:", extErr?.response?.data || extErr.message);
+      }
 
     } catch (err: any) {
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);

@@ -8,9 +8,9 @@ const DEFAULT_ORG_ID = "demo-org-123";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_KEY = process.env.GROQ_KEY || "";
 
-// Helper: parse orgId from query or body
-const getOrgId = (req: any) => (req.query.orgId || req.body?.orgId || DEFAULT_ORG_ID) as string;
-const getCustomerId = (req: any) => (req.query.customerId || req.body?.customerId || "") as string;
+// Helper: parse orgId from query or body or headers
+const getOrgId = (req: any) => (req.headers?.["x-organization-id"] || req.query?.orgId || req.body?.orgId || DEFAULT_ORG_ID) as string;
+const getCustomerId = (req: any) => (req.query?.customerId || req.body?.customerId || "") as string;
 
 // Mount new isolated campaign routes
 import salesRoutes from "./campaigns/salesRoutes";
@@ -389,9 +389,10 @@ router.post("/campaign/draft", async (req, res) => {
   try {
     const orgId = getOrgId(req);
     const {
+      draftId,
       customerId,
       campaignName = "Untitled Campaign Draft",
-      campaignType = "PERFORMANCE_MAX",
+      campaignType = "",
       biddingStrategy,
       budget,
       startDate,
@@ -408,28 +409,55 @@ router.post("/campaign/draft", async (req, res) => {
       draftData
     } = req.body;
 
-    const draftCampaign = await prisma.googleAdCampaign.create({
-      data: {
-        organizationId: orgId,
-        customerId: customerId || "default",
-        name: campaignName,
-        campaignType: campaignType || "PERFORMANCE_MAX",
-        biddingStrategy: biddingStrategy || null,
-        budget: budget ? Number(budget) : null,
-        startDate: startDate ? new Date(startDate) : new Date(),
-        endDate: endDate ? new Date(endDate) : null,
-        status: "DRAFT",
-        finalUrl: finalUrl || null,
-        headlines: headlines || [],
-        descriptions: descriptions || [],
-        keywords: keywords || [],
-        geoTargets: geoTargets || [],
-        languages: languages || [],
-        searchThemes: searchThemes || [],
-        audienceSignal: audienceSignal || (draftData ? draftData : null),
-        adSchedule: adSchedule || null
-      } as any
-    });
+    const cidClean = (customerId || "default").replace(/-/g, "");
+
+    let draftCampaign: any;
+    if (draftId) {
+      draftCampaign = await prisma.googleAdCampaign.update({
+        where: { id: draftId },
+        data: {
+          name: campaignName,
+          campaignType: campaignType || "",
+          biddingStrategy: biddingStrategy || null,
+          budget: budget ? Number(budget) : null,
+          startDate: startDate ? new Date(startDate) : new Date(),
+          endDate: endDate ? new Date(endDate) : null,
+          status: "DRAFT",
+          finalUrl: finalUrl || null,
+          headlines: headlines || [],
+          descriptions: descriptions || [],
+          keywords: keywords || [],
+          geoTargets: geoTargets || [],
+          languages: languages || [],
+          searchThemes: searchThemes || [],
+          audienceSignal: audienceSignal || (draftData ? draftData : null),
+          adSchedule: adSchedule || null
+        } as any
+      });
+    } else {
+      draftCampaign = await prisma.googleAdCampaign.create({
+        data: {
+          organizationId: orgId,
+          customerId: cidClean,
+          name: campaignName,
+          campaignType: campaignType || "",
+          biddingStrategy: biddingStrategy || null,
+          budget: budget ? Number(budget) : null,
+          startDate: startDate ? new Date(startDate) : new Date(),
+          endDate: endDate ? new Date(endDate) : null,
+          status: "DRAFT",
+          finalUrl: finalUrl || null,
+          headlines: headlines || [],
+          descriptions: descriptions || [],
+          keywords: keywords || [],
+          geoTargets: geoTargets || [],
+          languages: languages || [],
+          searchThemes: searchThemes || [],
+          audienceSignal: audienceSignal || (draftData ? draftData : null),
+          adSchedule: adSchedule || null
+        } as any
+      });
+    }
 
     const serializedDraft = {
       ...draftCampaign,
@@ -450,10 +478,17 @@ router.post("/campaign/draft", async (req, res) => {
 router.get("/campaigns/drafts", async (req, res) => {
   try {
     const orgId = getOrgId(req);
-    const customerId = getCustomerId(req);
+    const rawCid = getCustomerId(req);
+    const cidClean = rawCid ? rawCid.replace(/-/g, "") : "";
 
     const whereClause: any = { organizationId: orgId, status: "DRAFT" };
-    if (customerId) whereClause.customerId = customerId;
+    if (cidClean && cidClean !== "default") {
+      whereClause.OR = [
+        { customerId: cidClean },
+        { customerId: rawCid },
+        { customerId: "default" }
+      ];
+    }
 
     const drafts = await prisma.googleAdCampaign.findMany({
       where: whereClause,
@@ -1137,6 +1172,12 @@ router.get("/places/details", async (req, res) => {
     console.error("Place details error:", err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// GET /api/ads/places/config - Provide Google Places/Maps API key for interactive map preview
+router.get("/places/config", async (_req, res) => {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_API_KEY || "";
+  res.status(200).json({ apiKey, hasKey: Boolean(apiKey) });
 });
 
 // GET /api/ads/languages

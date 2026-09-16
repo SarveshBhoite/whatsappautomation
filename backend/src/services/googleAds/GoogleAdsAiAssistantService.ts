@@ -1,5 +1,6 @@
 import axios from "axios";
 import { GoogleAdsCampaignValidator, ValidationError } from "./shared/GoogleAdsCampaignValidator";
+import { GoogleAdsBaseService } from "./shared/GoogleAdsBaseService";
 import { GoogleAdsImageGenService, GeneratedCreativeImage } from "./GoogleAdsImageGenService";
 
 export interface BusinessContext {
@@ -38,7 +39,10 @@ export interface CampaignState {
   businessName?: string;
   website?: string;
   finalUrl?: string;
+  budgetType?: "DAILY" | "TOTAL" | string;
   dailyBudget?: number | null;
+  totalBudget?: number | null;
+  budget?: number | null;
   locations?: string[];
   language?: string;
   biddingStrategy?: string;
@@ -74,12 +78,11 @@ export interface CampaignState {
   appName?: string;
   platform?: "ANDROID" | "IOS";
   appStore?: "GOOGLE_APP_STORE" | "APPLE_APP_STORE";
-  // Shopping specific settings
+  // Shopping & Performance Max specific settings
   merchantCenterId?: string;
   merchantId?: string;
   salesCountry?: string;
   feedLabel?: string;
-  budgetType?: string;
   customerAcquisitionMode?: string;
   campaignPriority?: string;
   localProducts?: boolean;
@@ -89,14 +92,57 @@ export interface CampaignState {
   productGroupFilter?: string;
   productGroupSelectBy?: string;
   productGroupCustomLabel?: string;
+  assetGroupName?: string;
+  brandGuidelinesEnabled?: boolean;
+  positiveGeoTargetType?: string;
+  negativeGeoTargetType?: string;
   trackingTemplate?: string;
   finalUrlSuffix?: string;
+  customParameters?: Array<{ id?: string; name: string; value: string }>;
+  displayPath1?: string;
+  displayPath2?: string;
+  mobileFinalUrl?: string;
+  searchThemes?: string[];
+  audienceSignals?: Array<{ resourceName: string; name?: string; type?: string }>;
+  sitelinks?: Array<{ text: string; url: string; desc1?: string; desc2?: string }>;
+  callouts?: string[];
+  callPhoneNumber?: string;
+  promotions?: Array<{ promotionTarget: string; finalUrl: string; occasion?: string; percentOff?: number; moneyAmountOff?: number; currencyCode?: string }>;
+  prices?: Array<{ header: string; description?: string; amount?: number; currencyCode?: string; unit?: string; finalUrl?: string }>;
+  structuredSnippets?: Array<{ header: string; values: string[] }>;
+  languages?: string[];
+  networkSearch?: boolean;
+  networkDisplay?: boolean;
+  locationOptionsPresence?: string;
+  locationOptionsExclude?: string;
+  adRotationMode?: string;
+  onlyBidNewCustomers?: boolean;
+  adjustLapsedCustomers?: boolean;
+  mainBrandColor?: string;
+  accentBrandColor?: string;
+  brandFont?: string;
+  adName?: string;
+  brandGuidelines?: {
+    mainColor?: string;
+    accentColor?: string;
+    font?: string;
+  };
+  optAdaptiveLayouts?: boolean;
+  optAnimatedImages?: boolean;
+  optGeneratedVideos?: boolean;
+  optShorterVideos?: boolean;
+  optResizedVideos?: boolean;
+  optLandingPagePreviews?: boolean;
+  includeViewThrough?: boolean;
+  optimizedTargeting?: boolean;
+  ipExclusions?: string[];
   startDate?: string;
   endDate?: string;
   euPolitical?: "YES" | "NO";
   readyForReview?: boolean;
   readyForPublish?: boolean;
   stage?: CampaignStage;
+  [key: string]: any;
 }
 
 export interface AiChatResponse {
@@ -297,10 +343,13 @@ export class GoogleAdsAiAssistantService {
     return placeholders.some(p => lower.includes(p));
   }
 
-  private static sanitizeArray(arr: any[] | undefined): string[] {
+  private static sanitizeArray(arr: any[] | undefined, maxLen?: number): string[] {
     if (!Array.isArray(arr)) return [];
     return arr
-      .map(item => (typeof item === "string" ? item.trim() : (item?.url || item?.name || "").trim()))
+      .map(item => {
+        const raw = typeof item === "string" ? item.trim() : (item?.url || item?.name || "").trim();
+        return maxLen ? GoogleAdsBaseService.cleanAdText(raw, maxLen) : GoogleAdsBaseService.cleanAdText(raw);
+      })
       .filter(item => item.length > 0 && !this.isPlaceholderOrFabrication(item));
   }
 
@@ -331,32 +380,20 @@ Stage 2: **CAMPAIGN OBJECTIVE RECOMMENDATION**
 - Explain WHY this objective is recommended in simple, non-jargon language.
 - If an objective was already chosen and confirmed by the user in \`currentState.objective\`, PRESERVE it unless the user explicitly asks to change their goal.
 
-Stage 3: **CONVERSION GOAL / SUBTYPE RECOMMENDATION (AUTHORITATIVE MANUAL CRM MAPPING)**
-- Match the objective strictly to allowed conversion goals/subtypes:
-  * For \`SALES\`, \`LEADS\`, and \`WEBSITE_TRAFFIC\`: Select EXACTLY ONE from these 7 single-selection composite goal options:
-    1. \`["phone_leads"]\` ("Phone call leads")
-    2. \`["contacts"]\` ("Contacts")
-    3. \`["get_directions"]\` ("Get directions")
-    4. \`["phone_leads", "contacts"]\` ("Phone call leads + Contacts")
-    5. \`["contacts", "get_directions"]\` ("Contacts + Get directions")
-    6. \`["phone_leads", "get_directions"]\` ("Phone call leads + Get directions")
-    7. \`["phone_leads", "contacts", "get_directions"]\` ("Phone call leads + Contacts + Get directions")
-  * For \`APP_PROMOTION\`: Select a Campaign Subtype from:
-    - \`["installs"]\` ("App installs")
-    - \`["engagement"]\` ("App engagement")
-    - \`["preregistration"]\` ("App pre-registration (Android only)")
-  * For \`AWARENESS\`: Select a Campaign Subtype from:
-    - \`["views"]\` ("Video views")
-    - \`["reach"]\` ("Reach")
-    - \`["subscriptions"]\` ("YouTube subscriptions & engagements")
-  * For \`LOCAL\`: No conversion goals or subtypes. Leave \`conversionGoals: []\`.
-  * For \`NO_GUIDANCE\`: Goals are selected only after campaign type:
-    - If Demand Gen: \`["phone_leads"]\`
-    - If Shopping: \`["phone_leads"]\`, \`["get_directions"]\`, or \`["phone_leads", "get_directions"]\`
-    - Otherwise: \`conversionGoals: []\`
+Stage 3: **CONVERSION GOAL / SUBTYPE & CAMPAIGN TYPE CONSULTATION**
+- For \`SALES\`, \`LEADS\`, and \`WEBSITE_TRAFFIC\`:
+  * Default conversion goal to \`["phone_leads"]\` or ask user how customers reach them (phone calls, website purchases, contact forms, store directions).
+  * CRITICAL: When the user asks for suggestions or recommends a campaign for selling their product/business, DO NOT force or auto-select \`PERFORMANCE_MAX\` as the only option.
+  * Instead, clearly present and explain the best compatible campaign types for Sales and ask the user which one they prefer:
+    1. **Search Campaign**: Best for capturing high-intent customers actively searching Google for your product/service keywords.
+    2. **Shopping Campaign**: Best for ecommerce stores selling physical products with images and prices directly in Google search results.
+    3. **Performance Max**: Best for multi-channel automated reach across Search, YouTube, Gmail, Maps, and Display in a single campaign.
+    4. **Demand Gen**: Best for visual storytelling on YouTube Shorts, Discover, and Gmail.
+  * Provide selectable suggestion chips for the campaign types (e.g. \`["Use Search Campaign", "Use Shopping Campaign", "Use Performance Max", "Use Demand Gen"]\`).
+  * If user asks to "suggest campaign type", provide this consultative comparison and ask them to choose or confirm, rather than auto-assigning Performance Max without asking.
 
 Stage 4: **CAMPAIGN TYPE RECOMMENDATION (EXACT DEPENDENCY RULES)**
-- You MUST only recommend campaign types that are strictly compatible with the objective and goals:
+- Match user's choice to allowed types:
   * For \`APP_PROMOTION\`: ONLY \`APP\`.
   * For \`LOCAL\`: ONLY \`PERFORMANCE_MAX\`.
   * For \`AWARENESS\`:
@@ -364,9 +401,9 @@ Stage 4: **CAMPAIGN TYPE RECOMMENDATION (EXACT DEPENDENCY RULES)**
     - If subtype is \`reach\` -> \`VIDEO\` or \`DISPLAY\`.
     - If subtype is \`subscriptions\` -> ONLY \`DEMAND_GEN\`.
   * For \`SALES\` & \`LEADS\`:
-    - If \`contacts\` is in conversion goals -> ONLY \`PERFORMANCE_MAX\`.
-    - If \`get_directions\` is in conversion goals (without contacts) -> \`PERFORMANCE_MAX\`, \`SEARCH\`, \`SHOPPING\`.
-    - If \`phone_leads\` only -> \`PERFORMANCE_MAX\`, \`SEARCH\`, \`DEMAND_GEN\`, \`VIDEO\`, \`DISPLAY\`, \`SHOPPING\`.
+    - If goal is \`phone_leads\` -> \`SEARCH\`, \`SHOPPING\`, \`PERFORMANCE_MAX\`, \`DEMAND_GEN\`, \`VIDEO\`, \`DISPLAY\`.
+    - If goal is \`get_directions\` -> \`SEARCH\`, \`SHOPPING\`, \`PERFORMANCE_MAX\`.
+    - If goal is \`contacts\` -> \`PERFORMANCE_MAX\`.
   * For \`WEBSITE_TRAFFIC\`: \`SEARCH\`, \`PERFORMANCE_MAX\`, \`DEMAND_GEN\`, \`DISPLAY\`, \`SHOPPING\`, \`VIDEO\`.
   * For \`NO_GUIDANCE\`: \`PERFORMANCE_MAX\`, \`SEARCH\`, \`DISPLAY\`, \`DEMAND_GEN\`, \`SHOPPING\`.
 - Provide a clear rationale explaining why this campaign type fits their specific goals.
@@ -490,21 +527,51 @@ Stage 6: **VALIDATION & REVIEW**
 4. **IMAGE & ASSET VERIFICATION (NEVER FABRICATE ASSETS)**:
    - If the user claims "I attached images" or "I uploaded logos", but \`campaignState.images\` is empty (\`[]\`), DO NOT pretend images are present. Politely remind them to click the **Upload Media** or **Attach Images** button to attach real creative images.
    - Do NOT invent fake or placeholder URLs for images or logos in \`campaignState.images\` or \`campaignState.logos\`.
-5. **LOCATION & LANGUAGE INTEGRITY**:
-   - Only set \`locations\` and \`language\` if specified by the user or detected from their website content / \`currentState\`. If the user communicates in a non-English language, set \`language\` to that language (e.g., "Hindi", "Marathi", "Gujarati", "Spanish", "German").
-6. **MANDATORY GOOGLE ADS COPY REQUIREMENTS (NEVER GENERATE ONLY 1 HEADLINE OR DESCRIPTION)**:
-   - When the user asks to "generate headlines", "generate ad copy", "create headlines and descriptions", "generate all required", or when ad copy is needed for the campaign:
+5. **LOCATION & RADIUS TARGETING INTEGRITY**:
+   - Only set \`locations\` and \`language\` if specified by the user or detected from their website content / \`currentState\`.
+   - **Supports both Standard Locations and Radius Targeting**:
+     * Standard: City, State, Country, Postal PIN codes (e.g. \`["India"]\`, \`["Mumbai, Maharashtra, India"]\`, \`["411038"]\`).
+     * Radius: Custom distance around a place or landmark in km or mi (e.g. \`["20 km around Pune"]\`, \`["15 mi around New Delhi"]\`, \`["25 km around Bhor"]\`).
+   - If user asks for local store radius (e.g. "target 10 km around my store in Pune"), format as \`"[distance] [km/mi] around [Location]"\`.
+   - If the user communicates in a non-English language, set \`language\` to that language (e.g., "Hindi", "Marathi", "Gujarati", "Spanish", "German").
+6. **STRICT ASSET GENERATION PREREQUISITE FLOW (NEVER GENERATE COPY/CREATIVES BEFORE PREREQUISITES ARE SET)**:
+   - **CRITICAL ORDER OF OPERATIONS**:
+     1. **Step 1: Website & Business URL**: If the website URL is not yet provided (\`website: ""\`), DO NOT generate headlines, long headlines, descriptions, images, or logos yet. Stop and ask the user for their official website or landing page URL first so that ad copy can be grounded in verified business content.
+     2. **Step 2: Campaign Objective & Campaign Type**: If the website is already present but the \`objective\` or \`campaignType\` is not yet selected/configured, DO NOT generate copy or creative assets yet. Instead, analyze the business/website and suggest the ideal objective and compatible campaign types (e.g. Search, Shopping, Performance Max, Demand Gen), asking the user to confirm their preferred campaign strategy.
+     3. **Step 3: Copy & Asset Generation**: ONLY AFTER the website URL, objective, and campaign type are properly set/known, proceed to generate tailored ad copy (3-5 Headlines <= 30 chars, 1-2 Long Headlines <= 90 chars, 2-4 Descriptions <= 90 chars, 5-10 Keywords) tailored specifically to that campaign type.
+   - When prerequisites are fully satisfied and user asks to generate ad copy or assets:
      * **HEADLINES (REQUIRED: MINIMUM 3 TO 5 DISTINCT HEADLINES)**: You MUST generate at least 3 to 5 unique, punchy headlines in the user's conversation language. NEVER generate only 1 headline. Each headline must be <= 30 characters.
      * **LONG HEADLINES (REQUIRED: MINIMUM 1 TO 2 LONG HEADLINES)**: You MUST generate at least 1 to 2 long headlines in the user's conversation language. Each long headline must be <= 90 characters.
      * **DESCRIPTIONS (REQUIRED: MINIMUM 2 TO 4 DISTINCT DESCRIPTIONS)**: You MUST generate at least 2 to 4 distinct descriptions in the user's conversation language. NEVER generate only 1 description. Each description must be <= 90 characters.
-     * **KEYWORDS (REQUIRED: MINIMUM 5 TO 10 KEYWORDS)**: If campaign type is Search or includes keywords, generate 5 to 10 high purchase-intent keywords in the user's language/script or relevant local terms.
-   - Tailor all copy specifically to the user's business name, products/services, and website value propositions.
+     * **KEYWORDS (REQUIRED: MINIMUM 5 TO 10 KEYWORDS)**: If campaign type is Search or includes keywords, generate 5 to 10 high purchase-intent keywords in the user's language/script.
+
+### BUDGET ACCOUNTING & DATE PACING RULES (DAILY BUDGET VS LIFETIME TOTAL BUDGET):
+Google Ads supports two budget types with precise accounting and scheduling rules:
+1. **DAILY BUDGET (\`budgetType: "DAILY"\`)**:
+   - The budget specifies the average spend **per day** (e.g., ₹500/day, ₹1,000/day, ₹2,500/day).
+   - **Start Date (\`startDate\`)**: Required (defaults to today or specified future date).
+   - **End Date (\`endDate\`)**: **Optional** (can run continuously without an end date, or stop on a specified date).
+   - **Smart Auto-Suggestions to Provide**: Suggest budget amounts and duration options like ["Daily: ₹1,000/day", "Daily: ₹2,500/day", "Run Continuously (No End Date)", "Set 30-Day Duration"].
+
+2. **LIFETIME / TOTAL BUDGET (\`budgetType: "TOTAL"\`)**:
+   - The budget specifies the **total amount** to spend across the entire campaign duration (e.g., ₹15,000 total budget for 15 days).
+   - **Start Date (\`startDate\`)**: **Required**.
+   - **End Date (\`endDate\`)**: **Mandatory (Required)**. Google Ads API requires a fixed end date to calculate daily spend pacing (\`Estimated Daily Pacing = Total Budget ÷ Number of Days\`).
+   - If the user selects a Total Budget without an end date, you MUST proactively ask them: *"For a Total/Lifetime budget, Google Ads requires a Start and End Date to pace your spending evenly. How many days would you like this campaign to run or what is your target end date?"*
+   - **Smart Auto-Suggestions to Provide**: Suggest duration options like ["Run for 7 Days", "Run for 14 Days", "Run for 30 Days", "Switch to Daily Budget"].
+
+### PROACTIVE QUESTIONING & DYNAMIC CONTEXTUAL AUTO-SUGGESTIONS:
+- Whenever key campaign elements are missing or needed, actively ask the user in simple, conversational language and provide **3 to 5 highly relevant, actionable suggestion chips** in the \`suggestions\` array:
+  * If goal is missing: \`suggestions: ["I want more Leads & Phone Calls", "I want Online Sales", "I want Website Traffic", "I want App Downloads"]\`
+  * If budget is missing: \`suggestions: ["Daily: ₹1,000/day", "Daily: ₹2,500/day", "Total: ₹15,000 (15 Days)", "Run Continuously (No End Date)"]\`
+  * If dates are requested: \`suggestions: ["Start Immediately", "Run for 14 Days", "Run for 30 Days", "No End Date (Ongoing)"]\`
+  * If copy/keywords are needed: \`suggestions: ["Generate Headlines & Descriptions", "Generate 10 High-Intent Keywords", "Upload Media Creatives", "Review & Launch"]\`
 
 ### OUTPUT JSON SCHEMA:
 You MUST reply strictly with valid, parseable JSON matching this schema:
 {
-  "message": "Conversational markdown response explaining your recommendation clearly and explaining WHY, then stating what is needed next.",
-  "suggestions": ["Use Recommended Settings", "Upload Media", "Change Budget", "Show Other Options"],
+  "message": "Conversational markdown response explaining your recommendation clearly and explaining WHY, asking clarifying questions if needed, and stating what is next.",
+  "suggestions": ["Daily: ₹1,000/day", "Total: ₹15,000 (15 Days)", "Run Continuously", "Generate Ad Copy"],
   "campaignState": {
     "business": {
       "name": "string",
@@ -523,6 +590,7 @@ You MUST reply strictly with valid, parseable JSON matching this schema:
     "campaignName": "string",
     "businessName": "string",
     "website": "string",
+    "budgetType": "DAILY" | "TOTAL",
     "dailyBudget": number | null,
     "locations": ["string"],
     "language": "string",
@@ -640,11 +708,32 @@ ${JSON.stringify(currentState, null, 2)}
         return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : undefined;
       };
 
-      // Extract explicit budget if stated in natural language in last user message
+      // Extract explicit budget & budget type if stated in natural language in last user message
       let explicitBudget: number | null = null;
+      let explicitBudgetType: "DAILY" | "TOTAL" | undefined = undefined;
+
+      if (
+        lastUserMsg.includes("total budget") ||
+        lastUserMsg.includes("lifetime") ||
+        lastUserMsg.includes("campaign total") ||
+        lastUserMsg.includes("campaign budget") ||
+        lastUserMsg.includes("campain budget") ||
+        lastUserMsg.includes("set campaign budget")
+      ) {
+        explicitBudgetType = "TOTAL";
+      } else if (
+        lastUserMsg.includes("daily") ||
+        lastUserMsg.includes("per day") ||
+        lastUserMsg.includes("/day") ||
+        lastUserMsg.includes("set daily budget") ||
+        lastUserMsg.includes("dailay")
+      ) {
+        explicitBudgetType = "DAILY";
+      }
+
       const budgetMatch = lastUserMsg.match(/(?:budget|spend|cost)\s*(?:is|of|to)?\s*(?:rs\.?|₹|inr)?\s*(\d[\d,]*)/i) ||
-                          lastUserMsg.match(/(?:rs\.?|₹|inr)\s*(\d[\d,]*)\s*(?:per day|daily|\/day)?/i) ||
-                          lastUserMsg.match(/(\d[\d,]*)\s*(?:per day|daily|\/day)/i);
+                          lastUserMsg.match(/(?:rs\.?|₹|inr)\s*(\d[\d,]*)\s*(?:per day|daily|\/day|total)?/i) ||
+                          lastUserMsg.match(/(\d[\d,]*)\s*(?:per day|daily|\/day|total)/i);
       if (budgetMatch && budgetMatch[1]) {
         const parsedNum = parseInt(budgetMatch[1].replace(/,/g, ""), 10);
         if (!isNaN(parsedNum) && parsedNum > 0) {
@@ -652,7 +741,7 @@ ${JSON.stringify(currentState, null, 2)}
         }
       }
 
-      // Extract explicit dates if stated in natural language in last user message
+      // Extract explicit dates & duration if stated in natural language in last user message
       let explicitStartDate: string | undefined = undefined;
       let explicitEndDate: string | undefined = undefined;
       const startDateMatch = lastUserMsg.match(/start\s*(?:date)?\s*(?:is|:)?\s*(\d{1,4}[-\/\.]\d{1,2}[-\/\.]\d{1,4})/i);
@@ -663,6 +752,22 @@ ${JSON.stringify(currentState, null, 2)}
       if (endDateMatch && endDateMatch[1]) {
         explicitEndDate = normalizeDateString(endDateMatch[1]);
       }
+
+      const durationMatch = lastUserMsg.match(/for\s*(\d+)\s*(?:days|day)/i);
+      if (durationMatch && durationMatch[1] && !explicitEndDate) {
+        const days = parseInt(durationMatch[1], 10);
+        if (days > 0) {
+          const baseDate = new Date(explicitStartDate || currentState.startDate || new Date().toISOString().split("T")[0]);
+          baseDate.setDate(baseDate.getDate() + days);
+          explicitEndDate = baseDate.toISOString().split("T")[0];
+        }
+      }
+
+      if (lastUserMsg.includes("no end date") || lastUserMsg.includes("ongoing") || lastUserMsg.includes("continuously") || lastUserMsg.includes("indefinite")) {
+        explicitEndDate = undefined;
+      }
+
+      const resolvedBudgetType = explicitBudgetType || parsedState.budgetType || currentState.budgetType || "DAILY";
 
       // Regex fallback for business name and website if LLM omitted them
       const bizNameMatch = lastUserMsg.match(/(?:shop|business|company|store|brand)\s*(?:name)?\s*(?:is|:)?\s*["']([^"']+)["']/i);
@@ -694,21 +799,27 @@ ${JSON.stringify(currentState, null, 2)}
         ? this.sanitizeArray(parsedState.locations)
         : (currentState.locations && currentState.locations.length > 0 ? currentState.locations : ["India"]);
 
-      let cleanKeywords = (userAskedForGen || userConfirmedSettings || (parsedState.keywords && parsedState.keywords.length > 0))
-        ? this.sanitizeArray(parsedState.keywords || currentState.keywords)
-        : this.sanitizeArray(currentState.keywords);
+      // Check if user requested copy/assets or if parsedState contains generated items
+      const hasKeywordsInParsed = Array.isArray(parsedState.keywords) && parsedState.keywords.length > 0;
+      const hasHeadlinesInParsed = Array.isArray(parsedState.headlines) && parsedState.headlines.length > 0;
+      const hasDescriptionsInParsed = Array.isArray(parsedState.descriptions) && parsedState.descriptions.length > 0;
+      const hasLongHeadlinesInParsed = Array.isArray(parsedState.longHeadlines) && parsedState.longHeadlines.length > 0;
 
-      let cleanHeadlines = (userAskedForGen || userConfirmedSettings || (parsedState.headlines && parsedState.headlines.length > 0))
-        ? this.sanitizeArray(parsedState.headlines || currentState.headlines)
-        : this.sanitizeArray(currentState.headlines);
+      let cleanKeywords = (hasKeywordsInParsed || userAskedForGen || userConfirmedSettings)
+        ? this.sanitizeArray(hasKeywordsInParsed ? parsedState.keywords : (currentState.keywords || []), 80)
+        : this.sanitizeArray(currentState.keywords, 80);
 
-      let cleanDescriptions = (userAskedForGen || userConfirmedSettings || (parsedState.descriptions && parsedState.descriptions.length > 0))
-        ? this.sanitizeArray(parsedState.descriptions || currentState.descriptions)
-        : this.sanitizeArray(currentState.descriptions);
+      let cleanHeadlines = (hasHeadlinesInParsed || userAskedForGen || userConfirmedSettings)
+        ? this.sanitizeArray(hasHeadlinesInParsed ? parsedState.headlines : (currentState.headlines || []), 30)
+        : this.sanitizeArray(currentState.headlines, 30);
 
-      let cleanLongHeadlines = (userAskedForGen || userConfirmedSettings || (parsedState.longHeadlines && parsedState.longHeadlines.length > 0))
-        ? this.sanitizeArray(parsedState.longHeadlines || currentState.longHeadlines)
-        : this.sanitizeArray(currentState.longHeadlines);
+      let cleanDescriptions = (hasDescriptionsInParsed || userAskedForGen || userConfirmedSettings)
+        ? this.sanitizeArray(hasDescriptionsInParsed ? parsedState.descriptions : (currentState.descriptions || []), 90)
+        : this.sanitizeArray(currentState.descriptions, 90);
+
+      let cleanLongHeadlines = (hasLongHeadlinesInParsed || userAskedForGen || userConfirmedSettings)
+        ? this.sanitizeArray(hasLongHeadlinesInParsed ? parsedState.longHeadlines : (currentState.longHeadlines || []), 90)
+        : this.sanitizeArray(currentState.longHeadlines, 90);
 
       // User confirmed values vs recommendation values
       const resolvedBiddingStrategy = parsedState.biddingStrategy || currentState.biddingStrategy || "";
@@ -749,16 +860,20 @@ ${JSON.stringify(currentState, null, 2)}
       let mergedImages = currentState.images || [];
       let mergedLogos = currentState.logos || [];
 
+      const resolvedTypeUpper = ((resolvedCampaignType as any) || parsedState.campaignType || currentState.campaignType || "").toUpperCase();
+      const isVisualType = ["DEMAND_GEN", "PERFORMANCE_MAX", "DISPLAY", "VIDEO"].includes(resolvedTypeUpper);
       const userAskedForImages = lastUserMsg.includes("generate image") || lastUserMsg.includes("generate images") ||
                                  lastUserMsg.includes("generate logo") || lastUserMsg.includes("create image") ||
                                  lastUserMsg.includes("create logo") || lastUserMsg.includes("generate and auto fill") ||
-                                 lastUserMsg.includes("generate creatives") || (lastUserMsg.includes("image") && lastUserMsg.includes("logo"));
+                                 lastUserMsg.includes("generate creatives") || (lastUserMsg.includes("image") && lastUserMsg.includes("logo")) ||
+                                 lastUserMsg.includes("@") || (isVisualType && (mergedImages.length === 0 || mergedLogos.length === 0));
 
       if (userAskedForImages && (resolvedBizName || resolvedWebsite)) {
         try {
-          console.log(`[AI-GUIDED] Generating ad visuals for business: "${resolvedBizName}"`);
+          console.log(`[AI-GUIDED] Generating ad visuals for business: "${resolvedBizName}" (${resolvedTypeUpper || "CAMPAIGN"})`);
           const tempStateForImg: CampaignState = {
             ...currentState,
+            campaignType: (resolvedTypeUpper as any) || currentState.campaignType,
             businessName: resolvedBizName,
             website: resolvedWebsite,
             business: {
@@ -767,7 +882,7 @@ ${JSON.stringify(currentState, null, 2)}
               description: cleanBizDesc || `${resolvedBizName} products and services`
             }
           };
-          const imgGenRes = await GoogleAdsImageGenService.generateAdImages(lastUserMsg, tempStateForImg);
+          const imgGenRes = await GoogleAdsImageGenService.generateAdImages(lastUserMsg || `Professional ad images and logo for ${resolvedBizName}`, tempStateForImg);
           if (imgGenRes && imgGenRes.generatedImages && imgGenRes.generatedImages.length > 0) {
             generatedCreativesList = imgGenRes.generatedImages;
             mergedImages = imgGenRes.campaignState.images || [];
@@ -799,6 +914,7 @@ ${JSON.stringify(currentState, null, 2)}
         biddingStrategy: resolvedBiddingStrategy,
         targetCpa: resolvedTargetCpa,
         targetRoas: resolvedTargetRoas,
+        budgetType: resolvedBudgetType,
         dailyBudget: resolvedDailyBudget,
         startDate: resolvedStartDate,
         endDate: resolvedEndDate,
@@ -902,13 +1018,25 @@ ${JSON.stringify(currentState, null, 2)}
         descriptionsCount: updatedState.descriptions?.length || 0
       });
 
+      // Context-aware dynamic suggestions
+      let computedSuggestions: string[] = [];
+      if (Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0) {
+        computedSuggestions = parsed.suggestions;
+      } else if (!updatedState.objective) {
+        computedSuggestions = ["I want more Leads & Phone Calls", "I want Online Sales", "I want Website Traffic", "I want App Downloads"];
+      } else if (!updatedState.dailyBudget) {
+        computedSuggestions = ["Daily: ₹1,000/day", "Daily: ₹2,500/day", "Total: ₹15,000 (15 Days)", "Run Continuously (No End Date)"];
+      } else if (updatedState.budgetType === "TOTAL" && !updatedState.endDate) {
+        computedSuggestions = ["Run for 7 Days", "Run for 14 Days", "Run for 30 Days", "Switch to Daily Budget"];
+      } else if (!updatedState.headlines || updatedState.headlines.length < 3) {
+        computedSuggestions = ["Generate Headlines & Copy", "Generate 10 High-Intent Keywords", "Upload Media Creatives", "Review Settings"];
+      } else {
+        computedSuggestions = ["Confirm & Review Campaign", "Adjust Daily Budget", "Change Target Locations", "Show Other Options"];
+      }
+
       return {
         message: parsed.message || "I've updated your campaign configuration based on your input.",
-        suggestions: Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0
-          ? parsed.suggestions
-          : hasCampaignType && !isReadyForPublish && validationErrors.some(e => e.type === "ASSET")
-            ? ["Upload Media", "Use Recommended Settings", "Show Required Assets"]
-            : ["Use Recommended Settings", "Show Other Options", "Change Budget"],
+        suggestions: computedSuggestions,
         campaignState: updatedState,
         generatedImages: generatedCreativesList.length > 0 ? generatedCreativesList : undefined,
         missingFields,
@@ -932,7 +1060,7 @@ ${JSON.stringify(currentState, null, 2)}
         resolvedObjective = "LEADS";
         resolvedCampaignType = "SEARCH";
         resolvedGoals = ["phone_leads", "contacts"];
-        fallbackMessage = "Based on your goal to get **more leads and phone inquiries**, I recommend a **Search Campaign** targeting high-intent customers actively searching for your services.\n\n### Recommended Strategy:\n- **Objective:** Leads\n- **Campaign Type:** Search\n- **Conversion Goals:** Phone call leads & Contact form enquiries\n- **Target Location:** India\n\nWould you like to provide your website URL or tell me your daily budget to generate ad headlines?";
+        fallbackMessage = "Based on your goal to get **more leads and phone inquiries**, I recommend a **Search Campaign** targeting high-intent customers actively searching for your services.\n\n### Recommended Strategy:\n- **Objective:** Leads\n- **Campaign Type:** Search\n- **Conversion Goals:** Phone call leads & Contact form enquiries\n- **Target Location:** India\n\nWould you like to provide your website URL or tell me your budget?";
       } else if (lastUserMsg.includes("sale") || lastUserMsg.includes("product") || lastUserMsg.includes("ecommerce") || lastUserMsg.includes("buy")) {
         resolvedObjective = "SALES";
         resolvedCampaignType = "PERFORMANCE_MAX";
@@ -952,9 +1080,17 @@ ${JSON.stringify(currentState, null, 2)}
 
       // Check if user specified a budget in fallback
       let explicitBudget: number | null = currentState.dailyBudget || null;
+      let fallbackBudgetType: "DAILY" | "TOTAL" = currentState.budgetType === "TOTAL" ? "TOTAL" : "DAILY";
+
+      if (lastUserMsg.includes("total budget") || lastUserMsg.includes("lifetime")) {
+        fallbackBudgetType = "TOTAL";
+      } else if (lastUserMsg.includes("daily") || lastUserMsg.includes("per day")) {
+        fallbackBudgetType = "DAILY";
+      }
+
       const budgetMatch = lastUserMsg.match(/(?:budget|spend|cost)\s*(?:is|of|to)?\s*(?:rs\.?|₹|inr)?\s*(\d[\d,]*)/i) ||
-                          lastUserMsg.match(/(?:rs\.?|₹|inr)\s*(\d[\d,]*)\s*(?:per day|daily|\/day)?/i) ||
-                          lastUserMsg.match(/(\d[\d,]*)\s*(?:per day|daily|\/day)/i);
+                          lastUserMsg.match(/(?:rs\.?|₹|inr)\s*(\d[\d,]*)\s*(?:per day|daily|\/day|total)?/i) ||
+                          lastUserMsg.match(/(\d[\d,]*)\s*(?:per day|daily|\/day|total)/i);
       if (budgetMatch && budgetMatch[1]) {
         const parsedNum = parseInt(budgetMatch[1].replace(/,/g, ""), 10);
         if (!isNaN(parsedNum) && parsedNum > 0) explicitBudget = parsedNum;
@@ -1000,6 +1136,7 @@ ${JSON.stringify(currentState, null, 2)}
         objective: resolvedObjective as any,
         campaignType: resolvedCampaignType as any,
         conversionGoals: resolvedGoals,
+        budgetType: fallbackBudgetType,
         dailyBudget: explicitBudget,
         startDate: fallbackStartDate,
         endDate: fallbackEndDate,
@@ -1016,10 +1153,10 @@ ${JSON.stringify(currentState, null, 2)}
       return {
         message: fallbackMessage,
         suggestions: [
-          "Use Recommended Settings",
-          "Set Daily Budget to ₹1,000",
-          "I want to sell products online",
-          "I want more leads"
+          "Daily: ₹1,000/day",
+          "Daily: ₹2,500/day",
+          "Total: ₹15,000 (15 Days)",
+          "Run Continuously (No End Date)"
         ],
         campaignState: fallbackState,
         missingFields: GoogleAdsCampaignValidator.validate(fallbackState).missingSummary,

@@ -172,23 +172,49 @@ export class SalesVideoService extends GoogleAdsBaseService {
         return url;
       };
 
+      const toPollinationsTransform = (url: string, width: number, height: number): string => {
+        if (typeof url === "string" && url.includes("image.pollinations.ai")) {
+          return url.replace(/width=\d+/, `width=${width}`).replace(/height=\d+/, `height=${height}`);
+        }
+        return url;
+      };
+
       // Upload marketing images (Landscape 1.91:1 and Square 1:1)
       for (const img of (images || [])) {
         const raw = typeof img === "string" ? img : img?.url || img?.data || "";
         if (!raw) continue;
 
-        // 1. Landscape 1.91:1
-        const landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
-        const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Vid_Land_${Date.now()}`, landscapeUrl);
-        if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
-          createdAssets.marketingImages.push(landscapeRef);
-        }
+        const fieldType = typeof img === "object" && img?.fieldType ? img.fieldType : null;
+        const aspectRatio = typeof img === "object" && img?.aspectRatio ? img.aspectRatio : null;
 
-        // 2. Square 1:1
-        const squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
-        const squareRef = await this.uploadImageAsset(organizationId, customerId, `Vid_Sq_${Date.now()}`, squareUrl);
-        if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
-          createdAssets.squareMarketingImages.push(squareRef);
+        if (fieldType === "MARKETING_IMAGE" || aspectRatio === "1.91:1") {
+          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
+          const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Vid_Land_${Date.now()}`, landscapeUrl);
+          if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
+            createdAssets.marketingImages.push(landscapeRef);
+          }
+        } else if (fieldType === "SQUARE_MARKETING_IMAGE" || aspectRatio === "1:1") {
+          let squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
+          const squareRef = await this.uploadImageAsset(organizationId, customerId, `Vid_Sq_${Date.now()}`, squareUrl);
+          if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
+            createdAssets.squareMarketingImages.push(squareRef);
+          }
+        } else {
+          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
+          const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Vid_Land_${Date.now()}`, landscapeUrl);
+          if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
+            createdAssets.marketingImages.push(landscapeRef);
+          }
+
+          let squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
+          const squareRef = await this.uploadImageAsset(organizationId, customerId, `Vid_Sq_${Date.now()}`, squareUrl);
+          if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
+            createdAssets.squareMarketingImages.push(squareRef);
+          }
         }
       }
 
@@ -197,19 +223,20 @@ export class SalesVideoService extends GoogleAdsBaseService {
         const raw = typeof logo === "string" ? logo : logo?.url || logo?.data || "";
         if (!raw) continue;
 
-        const logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+        let logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+        logoUrl = toPollinationsTransform(logoUrl, 500, 500);
         const logoRef = await this.uploadImageAsset(organizationId, customerId, `Vid_Logo_${Date.now()}`, logoUrl);
         if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
           createdAssets.logoImages.push(logoRef);
         }
       }
 
-      // Fallbacks if only square images or logos were provided
-      if (createdAssets.squareMarketingImages.length > 0 && createdAssets.logoImages.length === 0) {
-        createdAssets.logoImages.push(createdAssets.squareMarketingImages[0]);
+      // Safe square fallback for squareMarketingImages only
+      if (createdAssets.squareMarketingImages.length === 0 && createdAssets.logoImages.length > 0) {
+        createdAssets.squareMarketingImages.push(createdAssets.logoImages[0]);
       }
-      if (createdAssets.marketingImages.length === 0 && createdAssets.squareMarketingImages.length > 0) {
-        createdAssets.marketingImages.push(createdAssets.squareMarketingImages[0]);
+      if (createdAssets.logoImages.length === 0 && createdAssets.squareMarketingImages.length > 0) {
+        createdAssets.logoImages.push(createdAssets.squareMarketingImages[0]);
       }
 
       if (createdAssets.marketingImages.length > 0 && createdAssets.logoImages.length > 0 && apiResult.adGroupResourceName) {

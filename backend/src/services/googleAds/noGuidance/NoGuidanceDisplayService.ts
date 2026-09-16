@@ -875,11 +875,19 @@ export class NoGuidanceDisplayService extends GoogleAdsBaseService {
         return url;
       };
 
+      const toPollinationsTransform = (url: string, width: number, height: number): string => {
+        if (typeof url === "string" && url.includes("image.pollinations.ai")) {
+          return url.replace(/width=\d+/, `width=${width}`).replace(/height=\d+/, `height=${height}`);
+        }
+        return url;
+      };
+
       // Upload dedicated Landscape Images (1.91:1)
       for (const img of rawLandscapeImages) {
         const raw = typeof img === "string" ? img : img?.url || img?.data || "";
         if (!raw) continue;
-        const landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+        let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+        landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
         const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Land_${Date.now()}`, landscapeUrl);
         if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
           createdAssets.marketingImages.push(landscapeRef);
@@ -891,7 +899,8 @@ export class NoGuidanceDisplayService extends GoogleAdsBaseService {
       for (const img of rawSquareImages) {
         const raw = typeof img === "string" ? img : img?.url || img?.data || "";
         if (!raw) continue;
-        const squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+        let squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+        squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
         const squareRef = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Sq_${Date.now()}`, squareUrl);
         if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
           createdAssets.squareMarketingImages.push(squareRef);
@@ -904,30 +913,45 @@ export class NoGuidanceDisplayService extends GoogleAdsBaseService {
         const raw = typeof img === "string" ? img : img?.url || img?.data || "";
         if (!raw) continue;
         const fieldType = typeof img === "object" && img?.fieldType ? img.fieldType : null;
+        const aspectRatio = typeof img === "object" && img?.aspectRatio ? img.aspectRatio : null;
 
-        if (fieldType === "MARKETING_IMAGE") {
-          const landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+        if (fieldType === "MARKETING_IMAGE" || aspectRatio === "1.91:1") {
+          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
           const ref = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Land_${Date.now()}`, landscapeUrl);
           if (ref && !createdAssets.marketingImages.includes(ref)) {
             createdAssets.marketingImages.push(ref);
             createdAssetResources.push(ref);
           }
-        } else if (fieldType === "SQUARE_MARKETING_IMAGE") {
-          const squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+        } else if (fieldType === "SQUARE_MARKETING_IMAGE" || aspectRatio === "1:1") {
+          let squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
           const ref = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Sq_${Date.now()}`, squareUrl);
           if (ref && !createdAssets.squareMarketingImages.includes(ref)) {
             createdAssets.squareMarketingImages.push(ref);
             createdAssetResources.push(ref);
           }
+        } else if (fieldType === "LOGO") {
+          let logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+          logoUrl = toPollinationsTransform(logoUrl, 500, 500);
+          if (!raw.startsWith("customers/")) {
+            const ref = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Logo_${Date.now()}`, logoUrl);
+            if (ref && !createdAssets.logoImages.includes(ref)) {
+              createdAssets.logoImages.push(ref);
+              createdAssetResources.push(ref);
+            }
+          }
         } else {
-          const landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
           const lRef = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Land_${Date.now()}`, landscapeUrl);
           if (lRef && !createdAssets.marketingImages.includes(lRef)) {
             createdAssets.marketingImages.push(lRef);
             createdAssetResources.push(lRef);
           }
 
-          const squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          let squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
           const sRef = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Sq_${Date.now()}`, squareUrl);
           if (sRef && !createdAssets.squareMarketingImages.includes(sRef)) {
             createdAssets.squareMarketingImages.push(sRef);
@@ -936,15 +960,51 @@ export class NoGuidanceDisplayService extends GoogleAdsBaseService {
         }
       }
 
-      // Upload Logos (1:1 Square)
+      // Upload Logos (Strict 1:1 Square)
       for (const logo of rawLogos) {
         const raw = typeof logo === "string" ? logo : logo?.url || logo?.data || "";
         if (!raw) continue;
-        const logoUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+        if (raw.startsWith("customers/") && raw.includes("/assets/")) {
+          continue;
+        }
+        const isAlreadySquare = typeof logo === "object" && (logo?.aspectRatio === "1:1" || logo?.fieldType === "LOGO");
+        let logoUrl = isAlreadySquare ? raw : toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
+        logoUrl = toPollinationsTransform(logoUrl, 500, 500);
         const logoRef = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Logo_${Date.now()}`, logoUrl);
         if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
           createdAssets.logoImages.push(logoRef);
           createdAssetResources.push(logoRef);
+        }
+      }
+
+      // If no valid marketing images or square marketing images, upload default clean marketing images
+      const DEFAULT_DISP_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+      if (createdAssets.marketingImages.length === 0) {
+        let landscapeUrl = toImageKitTransform(DEFAULT_DISP_IMAGE, "tr:w-1200,h-628,fo-auto");
+        landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
+        const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Land_${Date.now()}`, landscapeUrl);
+        if (landscapeRef) {
+          createdAssets.marketingImages.push(landscapeRef);
+          createdAssetResources.push(landscapeRef);
+        }
+      }
+      if (createdAssets.squareMarketingImages.length === 0) {
+        let squareUrl = toImageKitTransform(DEFAULT_DISP_IMAGE, "tr:w-1200,h-1200,fo-auto");
+        squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
+        const squareRef = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Sq_${Date.now()}`, squareUrl);
+        if (squareRef) {
+          createdAssets.squareMarketingImages.push(squareRef);
+          createdAssetResources.push(squareRef);
+        }
+      }
+
+      // If no valid logo image was created, upload guaranteed 1:1 fallback logo
+      if (createdAssets.logoImages.length === 0) {
+        const DEFAULT_DISP_LOGO = "https://ik.imagekit.io/automationjds/tr:w-500,h-500,fo-auto/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+        const fallbackLogoRef = await this.uploadImageAsset(organizationId, customerId, `NoG_Disp_Logo_${Date.now()}`, DEFAULT_DISP_LOGO);
+        if (fallbackLogoRef) {
+          createdAssets.logoImages.push(fallbackLogoRef);
+          createdAssetResources.push(fallbackLogoRef);
         }
       }
 

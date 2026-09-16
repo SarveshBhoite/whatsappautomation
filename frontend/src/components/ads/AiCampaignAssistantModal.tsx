@@ -53,6 +53,7 @@ export interface CampaignState {
   campaignName?: string;
   businessName?: string;
   website?: string;
+  budgetType?: "DAILY" | "TOTAL" | string;
   dailyBudget?: number | null;
   locations?: string[];
   language?: string;
@@ -82,6 +83,9 @@ interface Message {
   content: string;
   suggestions?: string[];
   campaignState?: CampaignState;
+  proposedCampaignState?: CampaignState;
+  isApplied?: boolean;
+  isDismissed?: boolean;
   readyForReview?: boolean;
   readyForPublish?: boolean;
   timestamp: string;
@@ -334,6 +338,27 @@ export function AiCampaignAssistantModal({
     }
   };
 
+  const applyProposedCampaignState = (proposed: CampaignState, messageId?: string) => {
+    if (!proposed) return;
+    setCampaignState(prev => ({
+      ...prev,
+      ...proposed,
+      startDate: proposed.startDate || prev.startDate || todayIso,
+      endDate: proposed.endDate || prev.endDate,
+      images: (proposed.images && proposed.images.length > 0) ? proposed.images : prev.images,
+      logos: (proposed.logos && proposed.logos.length > 0) ? proposed.logos : prev.logos,
+      videos: (proposed.videos && proposed.videos.length > 0) ? proposed.videos : prev.videos
+    }));
+
+    if (messageId) {
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isApplied: true, isDismissed: false } : m));
+    }
+  };
+
+  const dismissProposedCampaignState = (messageId: string) => {
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isDismissed: true } : m));
+  };
+
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputVal).trim();
     if (!text || isLoading || isPublishing) return;
@@ -387,24 +412,15 @@ export function AiCampaignAssistantModal({
 
       const data = await res.json();
 
-      if (data.campaignState) {
-        setCampaignState(prev => ({
-          ...prev,
-          ...data.campaignState,
-          startDate: data.campaignState.startDate || prev.startDate || todayIso,
-          endDate: data.campaignState.endDate || prev.endDate,
-          images: (data.campaignState.images && data.campaignState.images.length > 0) ? data.campaignState.images : prev.images,
-          logos: (data.campaignState.logos && data.campaignState.logos.length > 0) ? data.campaignState.logos : prev.logos,
-          videos: (data.campaignState.videos && data.campaignState.videos.length > 0) ? data.campaignState.videos : prev.videos
-        }));
-      }
-
       const assistantMessage: Message = {
         id: `ai-${Date.now()}`,
         role: "assistant",
-        content: data.message || "I've updated the campaign setup based on your input.",
+        content: data.message || "I've formulated campaign recommendations for you. Please review and confirm to apply them.",
         suggestions: data.suggestions || [],
         campaignState: data.campaignState,
+        proposedCampaignState: data.campaignState,
+        isApplied: false,
+        isDismissed: false,
         readyForReview: data.readyForReview,
         readyForPublish: data.readyForPublish,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -633,6 +649,170 @@ export function AiCampaignAssistantModal({
                       ) : (
                         <div className="space-y-2.5">
                           {renderFormattedMarkdown(msg.content)}
+                        </div>
+                      )}
+
+                      {/* AI Proposed Campaign Changes Confirmation Box */}
+                      {msg.role === "assistant" && msg.proposedCampaignState && (
+                        <div className={`mt-3.5 pt-3 border-t rounded-xl p-3 transition-all ${
+                          msg.isApplied
+                            ? "bg-emerald-50/80 border border-emerald-200 shadow-2xs"
+                            : msg.isDismissed
+                            ? "bg-slate-100/80 border border-slate-200"
+                            : "bg-gradient-to-br from-blue-50/90 to-indigo-50/60 border border-blue-200 shadow-xs"
+                        }`}>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] shadow-xs ${
+                                msg.isApplied
+                                  ? "bg-emerald-600 text-white"
+                                  : msg.isDismissed
+                                  ? "bg-slate-500 text-white"
+                                  : "bg-blue-600 text-white"
+                              }`}>
+                                {msg.isApplied ? <Check className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-[11px] text-slate-900 leading-tight">
+                                  {msg.isApplied 
+                                    ? "Campaign Setup Applied"
+                                    : msg.isDismissed
+                                    ? "Suggested Updates Skipped"
+                                    : "Review AI Generated Campaign Data"}
+                                </h4>
+                                <p className="text-[9px] text-slate-500 leading-tight">
+                                  {msg.isApplied
+                                    ? "These settings have been loaded into your campaign setup."
+                                    : msg.isDismissed
+                                    ? "Existing campaign configuration remains unchanged."
+                                    : "Please confirm before updating your active campaign form."}
+                                </p>
+                              </div>
+                            </div>
+
+                            {msg.isApplied ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <CheckCircle2 className="h-2.5 w-2.5" /> Applied
+                              </span>
+                            ) : msg.isDismissed ? (
+                              <button
+                                type="button"
+                                onClick={() => applyProposedCampaignState(msg.proposedCampaignState!, msg.id)}
+                                className="text-[9px] font-bold text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                              >
+                                Apply anyway
+                              </button>
+                            ) : null}
+                          </div>
+
+                          {/* Summary Grid of Generated Details */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10px] mb-2.5">
+                            {/* Dates */}
+                            {(msg.proposedCampaignState.startDate || msg.proposedCampaignState.endDate) && (
+                              <div className="flex items-start gap-1.5 bg-white/95 p-1.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                                <Calendar className="h-3 w-3 text-blue-600 shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block">Dates</span>
+                                  <span className="font-semibold text-slate-800 truncate block">
+                                    {msg.proposedCampaignState.startDate || "Immediate"} → {msg.proposedCampaignState.endDate || "Ongoing"}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Campaign Type & Objective */}
+                            {(msg.proposedCampaignState.campaignType || msg.proposedCampaignState.objective) && (
+                              <div className="flex items-start gap-1.5 bg-white/95 p-1.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                                <Target className="h-3 w-3 text-indigo-600 shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block">Objective & Type</span>
+                                  <span className="font-semibold text-slate-800 truncate block">
+                                    {[msg.proposedCampaignState.objective, msg.proposedCampaignState.campaignType].filter(Boolean).join(" • ")}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Budget & Bidding */}
+                            {(msg.proposedCampaignState.dailyBudget || msg.proposedCampaignState.biddingStrategy) && (
+                              <div className="flex items-start gap-1.5 bg-white/95 p-1.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                                <DollarSign className="h-3 w-3 text-emerald-600 shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block">
+                                    {msg.proposedCampaignState.budgetType === "TOTAL" ? "Campaign Total Budget" : "Average Daily Budget"}
+                                  </span>
+                                  <span className="font-semibold text-slate-800 truncate block">
+                                    {msg.proposedCampaignState.dailyBudget ? `₹${msg.proposedCampaignState.dailyBudget.toLocaleString("en-IN")}` : ""} 
+                                    {msg.proposedCampaignState.budgetType === "TOTAL" ? " (Total Lifetime)" : " / day"}
+                                    {msg.proposedCampaignState.biddingStrategy ? ` • ${msg.proposedCampaignState.biddingStrategy}` : ""}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Locations */}
+                            {msg.proposedCampaignState.locations && msg.proposedCampaignState.locations.length > 0 && (
+                              <div className="flex items-start gap-1.5 bg-white/95 p-1.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                                <MapPin className="h-3 w-3 text-rose-600 shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block">Locations</span>
+                                  <span className="font-semibold text-slate-800 truncate block">
+                                    {msg.proposedCampaignState.locations.join(", ")}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Ad Copy */}
+                            {((msg.proposedCampaignState.headlines && msg.proposedCampaignState.headlines.length > 0) || 
+                              (msg.proposedCampaignState.descriptions && msg.proposedCampaignState.descriptions.length > 0)) && (
+                              <div className="flex items-start gap-1.5 bg-white/95 p-1.5 rounded-lg border border-slate-200/80 shadow-2xs sm:col-span-2">
+                                <FileText className="h-3 w-3 text-amber-600 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block">Ad Copy</span>
+                                  <span className="font-semibold text-slate-800 block">
+                                    {msg.proposedCampaignState.headlines?.length || 0} Headlines, {msg.proposedCampaignState.descriptions?.length || 0} Descriptions
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Keywords */}
+                            {msg.proposedCampaignState.keywords && msg.proposedCampaignState.keywords.length > 0 && (
+                              <div className="flex items-start gap-1.5 bg-white/95 p-1.5 rounded-lg border border-slate-200/80 shadow-2xs sm:col-span-2">
+                                <Tag className="h-3 w-3 text-blue-600 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block">Keywords ({msg.proposedCampaignState.keywords.length})</span>
+                                  <span className="text-[9px] text-slate-700 block truncate">
+                                    {msg.proposedCampaignState.keywords.slice(0, 5).join(", ")}
+                                    {msg.proposedCampaignState.keywords.length > 5 ? ` +${msg.proposedCampaignState.keywords.length - 5} more` : ""}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Action Buttons */}
+                          {!msg.isApplied && !msg.isDismissed && (
+                            <div className="flex items-center gap-2 pt-1 border-t border-blue-100">
+                              <button
+                                type="button"
+                                onClick={() => applyProposedCampaignState(msg.proposedCampaignState!, msg.id)}
+                                className="flex-1 py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-[11px] rounded-lg shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <Check className="h-3 w-3" />
+                                <span>Confirm & Update</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => dismissProposedCampaignState(msg.id)}
+                                className="py-1.5 px-2 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-[11px] rounded-lg border border-slate-300 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <X className="h-3 w-3" />
+                                <span>Dismiss</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -911,77 +1091,79 @@ export function AiCampaignAssistantModal({
               </div>
             </div>
 
-            {/* Creatives Card */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <ImageIcon className="h-4 w-4 text-blue-600" />
-                  <span className="font-bold text-xs text-slate-900">Campaign Creatives & Assets</span>
+            {/* Creatives Card (Only shown when Objective & Campaign Type are set and type uses media) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "SEARCH" && campaignState.campaignType !== "SHOPPING" && (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <ImageIcon className="h-4 w-4 text-blue-600" />
+                    <span className="font-bold text-xs text-slate-900">Campaign Creatives & Assets</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-[10px] text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Upload className="h-3 w-3" />
+                    Upload
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-[10px] text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  <Upload className="h-3 w-3" />
-                  Upload
-                </button>
+
+                {allAssetsCount === 0 ? (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-3 text-center cursor-pointer transition-colors"
+                  >
+                    <Upload className="h-5 w-5 text-slate-400 mx-auto mb-1" />
+                    <p className="text-[11px] font-semibold text-slate-700">No media attached yet</p>
+                    <p className="text-[10px] text-slate-400">Click to upload landscape (1.91:1), square (1:1), or logo</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {campaignState.images && campaignState.images.length > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Marketing Images:</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {campaignState.images.map((img, idx) => {
+                            const url = typeof img === "string" ? img : img?.url || "";
+                            const name = typeof img === "object" ? img?.name : `Image ${idx + 1}`;
+                            return (
+                              <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-900 aspect-video flex items-center justify-center">
+                                {url ? (
+                                  <img src={url} alt={name || "Creative"} className="w-full h-full object-cover" />
+                                ) : (
+                                  <ImageIcon className="h-4 w-4 text-slate-400" />
+                                )}
+                                <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono">
+                                  1.91:1 / 1:1
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {campaignState.logos && campaignState.logos.length > 0 && (
+                      <div className="space-y-1 pt-1.5 border-t border-slate-200">
+                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Logos:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {campaignState.logos.map((logo, idx) => {
+                            const url = typeof logo === "string" ? logo : logo?.url || "";
+                            return (
+                              <div key={idx} className="relative w-12 h-12 rounded-lg border border-slate-200 bg-white p-1 flex items-center justify-center overflow-hidden">
+                                {url ? <img src={url} alt="Logo" className="max-w-full max-h-full object-contain" /> : <ImageIcon className="h-3 w-3 text-slate-400" />}
+                                <span className="absolute bottom-0.5 right-0.5 bg-blue-600 text-white text-[7px] font-bold px-1 rounded">1:1</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-
-              {allAssetsCount === 0 ? (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-3 text-center cursor-pointer transition-colors"
-                >
-                  <Upload className="h-5 w-5 text-slate-400 mx-auto mb-1" />
-                  <p className="text-[11px] font-semibold text-slate-700">No media attached yet</p>
-                  <p className="text-[10px] text-slate-400">Click to upload landscape (1.91:1), square (1:1), or logo</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {campaignState.images && campaignState.images.length > 0 && (
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Marketing Images:</span>
-                      <div className="grid grid-cols-2 gap-2">
-                        {campaignState.images.map((img, idx) => {
-                          const url = typeof img === "string" ? img : img?.url || "";
-                          const name = typeof img === "object" ? img?.name : `Image ${idx + 1}`;
-                          return (
-                            <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-900 aspect-video flex items-center justify-center">
-                              {url ? (
-                                <img src={url} alt={name || "Creative"} className="w-full h-full object-cover" />
-                              ) : (
-                                <ImageIcon className="h-4 w-4 text-slate-400" />
-                              )}
-                              <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono">
-                                1.91:1 / 1:1
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {campaignState.logos && campaignState.logos.length > 0 && (
-                    <div className="space-y-1 pt-1.5 border-t border-slate-200">
-                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Logos:</span>
-                      <div className="flex flex-wrap gap-2">
-                        {campaignState.logos.map((logo, idx) => {
-                          const url = typeof logo === "string" ? logo : logo?.url || "";
-                          return (
-                            <div key={idx} className="relative w-12 h-12 rounded-lg border border-slate-200 bg-white p-1 flex items-center justify-center overflow-hidden">
-                              {url ? <img src={url} alt="Logo" className="max-w-full max-h-full object-contain" /> : <ImageIcon className="h-3 w-3 text-slate-400" />}
-                              <span className="absolute bottom-0.5 right-0.5 bg-blue-600 text-white text-[7px] font-bold px-1 rounded">1:1</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Launch Action Footer */}
             <div className="mt-auto pt-3 border-t border-slate-200 space-y-2">

@@ -295,51 +295,14 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
 
-      // ── 4. CAMPAIGN CRITERIA: LOCATIONS & LANGUAGES ──
-      const campaignCriterionOps: any[] = [];
-
-      const rawLocs = Array.isArray(locations) ? locations : [locations];
-      for (const loc of rawLocs) {
-        if (!loc || loc === "ALL" || loc === "All countries and territories") continue;
-        const locStr = typeof loc === "object" ? loc.canonicalName || loc.name || loc.id : String(loc);
-        const geoId = await this.resolveGeoTargetConstant(locStr, headers);
-        if (geoId) {
-          campaignCriterionOps.push({
-            create: {
-              campaign: campaignRef,
-              location: {
-                geoTargetConstant: `geoTargetConstants/${geoId}`
-              }
-            }
-          });
-        }
-      }
-
-      const rawLangs = Array.isArray(languages) ? languages : [languages];
-      for (const lang of rawLangs) {
-        const langId = this.resolveLanguageConstant(String(lang));
-        if (langId) {
-          campaignCriterionOps.push({
-            create: {
-              campaign: campaignRef,
-              language: {
-                languageConstant: `languageConstants/${langId}`
-              }
-            }
-          });
-        }
-      }
-
-      if (campaignCriterionOps.length > 0) {
-        try {
-          const critRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, {
-            operations: campaignCriterionOps
-          }, { headers });
-          apiResult.campaignCriteriaResourceNames = (critRes.data?.results || []).map((r: any) => r.resourceName);
-        } catch (critErr: any) {
-          console.warn("[AppPromotionAppService] campaignCriteria:mutate warning:", critErr?.response?.data || critErr.message);
-        }
-      }
+      // ── 4. CAMPAIGN CRITERIA: LOCATIONS, RADIUS & LANGUAGES ──
+      const criteriaResults = await GoogleAdsBaseService.mutateCampaignGeoAndLanguageCriteria(
+        organizationId,
+        customerId,
+        campaignRef,
+        { locations, languages, headers }
+      );
+      apiResult.campaignCriteriaResourceNames = (criteriaResults || []).map((r: any) => r.resourceName);
 
       // ── 5. CREATE APP CAMPAIGN AD GROUP (NO TYPE PROPERTY!) ──
       const effectiveAdGroupName = (adGroupName || "").trim() || `${effectiveCampaignName} Ad Group 1`;

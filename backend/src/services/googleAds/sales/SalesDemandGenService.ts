@@ -183,17 +183,7 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
         });
       }
 
-      // 4. Create Image and Logo Assets
-      const createdAssets: {
-        marketingImages: string[];
-        squareMarketingImages: string[];
-        logoImages: string[];
-      } = {
-        marketingImages: [],
-        squareMarketingImages: [],
-        logoImages: []
-      };
-
+      // 4. Create Image and Logo Assets with strict Aspect Ratio handling
       const toImageKitTransform = (url: string, transform: string): string => {
         if (typeof url === "string" && url.includes("ik.imagekit.io")) {
           if (url.includes("/tr:")) {
@@ -210,48 +200,102 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
         return url;
       };
 
-      // Upload marketing images (Landscape 1.91:1 and Square 1:1)
-      for (const img of (images || [])) {
-        const raw = typeof img === "string" ? img : img?.url || img?.data || "";
+      const toPollinationsTransform = (url: string, width: number, height: number): string => {
+        if (typeof url === "string" && url.includes("image.pollinations.ai")) {
+          return url.replace(/width=\d+/, `width=${width}`).replace(/height=\d+/, `height=${height}`);
+        }
+        return url;
+      };
+
+      const createdMarketingImages: string[] = [];
+      const createdSquareImages: string[] = [];
+      const createdLogoImages: string[] = [];
+
+      const rawImagesList = Array.isArray(images) ? images : [];
+      const rawLogosList = Array.isArray(logos) ? logos : [];
+
+      for (const img of rawImagesList) {
+        const raw = typeof img === "string" ? img : img?.url || img?.data || img?.asset || "";
         if (!raw) continue;
 
-        // 1. Landscape 1.91:1
-        const landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
-        const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `DG_Land_${Date.now()}`, landscapeUrl);
-        if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
-          createdAssets.marketingImages.push(landscapeRef);
-        }
+        const fieldType = typeof img === "object" && img?.fieldType ? img.fieldType : null;
+        const aspectRatio = typeof img === "object" && img?.aspectRatio ? img.aspectRatio : null;
 
-        // 2. Square 1:1
-        const squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
-        const squareRef = await this.uploadImageAsset(organizationId, customerId, `DG_Sq_${Date.now()}`, squareUrl);
-        if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
-          createdAssets.squareMarketingImages.push(squareRef);
+        if (fieldType === "MARKETING_IMAGE" || aspectRatio === "1.91:1") {
+          // Explicit Landscape (1.91:1)
+          let landUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          landUrl = toPollinationsTransform(landUrl, 1200, 628);
+          const ref = await this.uploadImageAsset(organizationId, customerId, `DG_Land_${Date.now()}`, landUrl);
+          if (ref && !createdMarketingImages.includes(ref)) createdMarketingImages.push(ref);
+        } else if (fieldType === "SQUARE_MARKETING_IMAGE" || aspectRatio === "1:1") {
+          // Explicit Square (1:1)
+          let sqUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          sqUrl = toPollinationsTransform(sqUrl, 1200, 1200);
+          const ref = await this.uploadImageAsset(organizationId, customerId, `DG_Sq_${Date.now()}`, sqUrl);
+          if (ref && !createdSquareImages.includes(ref)) createdSquareImages.push(ref);
+        } else if (fieldType === "LOGO") {
+          // Explicit Logo (1:1)
+          let logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+          logoUrl = toPollinationsTransform(logoUrl, 500, 500);
+          const ref = await this.uploadImageAsset(organizationId, customerId, `DG_Logo_${Date.now()}`, logoUrl);
+          if (ref && !createdLogoImages.includes(ref)) createdLogoImages.push(ref);
+        } else {
+          // Unclassified image: generate separate landscape & square assets
+          let landUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          landUrl = toPollinationsTransform(landUrl, 1200, 628);
+          const landRef = await this.uploadImageAsset(organizationId, customerId, `DG_Land_${Date.now()}`, landUrl);
+          if (landRef && !createdMarketingImages.includes(landRef)) createdMarketingImages.push(landRef);
+
+          let sqUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          sqUrl = toPollinationsTransform(sqUrl, 1200, 1200);
+          const sqRef = await this.uploadImageAsset(organizationId, customerId, `DG_Sq_${Date.now()}`, sqUrl);
+          if (sqRef && !createdSquareImages.includes(sqRef)) createdSquareImages.push(sqRef);
         }
       }
 
-      // Upload logos (Square 1:1)
-      for (const logo of (logos || [])) {
-        const raw = typeof logo === "string" ? logo : logo?.url || logo?.data || "";
+      for (const logo of rawLogosList) {
+        const raw = typeof logo === "string" ? logo : logo?.url || logo?.data || logo?.asset || "";
         if (!raw) continue;
 
-        const logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
-        const logoRef = await this.uploadImageAsset(organizationId, customerId, `DG_Logo_${Date.now()}`, logoUrl);
-        if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
-          createdAssets.logoImages.push(logoRef);
-        }
+        let logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+        logoUrl = toPollinationsTransform(logoUrl, 500, 500);
+        const ref = await this.uploadImageAsset(organizationId, customerId, `DG_Logo_${Date.now()}`, logoUrl);
+        if (ref && !createdLogoImages.includes(ref)) createdLogoImages.push(ref);
       }
 
-      // Fallback cross-assignments if logo or square image was not provided separately
-      if (createdAssets.squareMarketingImages.length > 0 && createdAssets.logoImages.length === 0) {
-        createdAssets.logoImages.push(createdAssets.squareMarketingImages[0]);
+      // Safe square fallback for squareMarketingImages only (never landscape)
+      if (createdSquareImages.length === 0 && createdLogoImages.length > 0) {
+        createdSquareImages.push(createdLogoImages[0]);
       }
-      if (createdAssets.marketingImages.length === 0 && createdAssets.squareMarketingImages.length > 0) {
-        createdAssets.marketingImages.push(createdAssets.squareMarketingImages[0]);
+      if (createdLogoImages.length === 0 && createdSquareImages.length > 0) {
+        createdLogoImages.push(createdSquareImages[0]);
       }
 
-      if (createdAssets.marketingImages.length === 0 || createdAssets.squareMarketingImages.length === 0 || createdAssets.logoImages.length === 0) {
-        throw new Error("At least 1 marketing image and 1 logo are required for Demand Gen ads. Please upload an image or logo.");
+      const DEFAULT_DG_LOGO = "https://ik.imagekit.io/automationjds/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+      const DEFAULT_DG_LANDSCAPE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+
+      if (createdMarketingImages.length === 0) {
+        let landUrl = toImageKitTransform(DEFAULT_DG_LANDSCAPE, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+        const landRef = await this.uploadImageAsset(organizationId, customerId, `DG_Land_${Date.now()}`, landUrl);
+        if (landRef) createdMarketingImages.push(landRef);
+      }
+
+      if (createdLogoImages.length === 0) {
+        let fallbackLogoUrl = toImageKitTransform(DEFAULT_DG_LOGO, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+        const logoRef = await this.uploadImageAsset(organizationId, customerId, `DG_Logo_${Date.now()}`, fallbackLogoUrl);
+        if (logoRef) createdLogoImages.push(logoRef);
+      }
+
+      // Final unique deduplication across all asset arrays
+      const uniqueMarketingImages = Array.from(new Set(createdMarketingImages));
+      const uniqueSquareImages = Array.from(new Set(createdSquareImages));
+      const uniqueLogoImages = Array.from(new Set(createdLogoImages));
+
+      if (uniqueMarketingImages.length === 0) {
+        throw new Error("At least 1 landscape marketing image (1.91:1) is required for Demand Gen ads. Please provide or generate a landscape image.");
+      }
+      if (uniqueLogoImages.length === 0) {
+        throw new Error("At least 1 logo (1:1) is required for Demand Gen ads. Please upload or generate a logo.");
       }
 
       // 5. Create Demand Gen Ad and AdGroupAd
@@ -277,9 +321,9 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
         demandGenMultiAssetAd: {
           headlines: safeHeadlines,
           descriptions: safeDescriptions,
-          marketingImages: createdAssets.marketingImages.map((asset: string) => ({ asset })),
-          squareMarketingImages: createdAssets.squareMarketingImages.map((asset: string) => ({ asset })),
-          logoImages: createdAssets.logoImages.map((asset: string) => ({ asset })),
+          marketingImages: uniqueMarketingImages.map((asset: string) => ({ asset })),
+          squareMarketingImages: uniqueSquareImages.map((asset: string) => ({ asset })),
+          logoImages: uniqueLogoImages.map((asset: string) => ({ asset })),
           businessName: safeBusinessName
         },
         finalUrls: [finalUrl]

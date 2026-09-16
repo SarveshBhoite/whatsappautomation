@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getGoogleAccessToken } from "./gmbSyncService";
 import prisma from "../utils/prisma";
+import { GoogleAdsBaseService } from "./googleAds/shared/GoogleAdsBaseService";
 
 const ADS_API_VERSION = "v24";
 const ADS_BASE = `https://googleads.googleapis.com/${ADS_API_VERSION}`;
@@ -1840,34 +1841,43 @@ export class GoogleAdsService {
       const campaignId = campaignRef.split("/").pop();
 
       // 3. Create Real Text & Image Assets on Google Ads
-      // A. Headlines (HEADLINE)
-      const validHeadlines = (params.headlines || []).filter(h => h && typeof h === "string" && h.trim());
+      // A. Headlines (HEADLINE - max 30 chars)
+      const validHeadlines = (params.headlines || [])
+        .map(h => GoogleAdsBaseService.cleanAdText(String(h || ""), 30))
+        .filter(h => h.length > 0);
       const headlineAssetRefs: string[] = [];
       for (const hText of validHeadlines) {
-        const ref = await this.createTextAsset(organizationId, customerId, hText.trim());
+        const ref = await this.createTextAsset(organizationId, customerId, hText);
         if (ref && !headlineAssetRefs.includes(ref)) headlineAssetRefs.push(ref);
       }
 
-      // B. Long Headlines (LONG_HEADLINE)
-      const validLongHeadlines = (params.longHeadlines || []).filter(lh => lh && typeof lh === "string" && lh.trim());
+      // B. Long Headlines (LONG_HEADLINE - max 90 chars)
+      const validLongHeadlines = (params.longHeadlines || [])
+        .map(lh => GoogleAdsBaseService.cleanAdText(String(lh || ""), 90))
+        .filter(lh => lh.length > 0);
       const longHeadlineAssetRefs: string[] = [];
       for (const lhText of validLongHeadlines) {
-        const ref = await this.createTextAsset(organizationId, customerId, lhText.trim());
+        const ref = await this.createTextAsset(organizationId, customerId, lhText);
         if (ref && !longHeadlineAssetRefs.includes(ref)) longHeadlineAssetRefs.push(ref);
       }
 
-      // C. Descriptions (DESCRIPTION)
-      const validDescriptions = (params.descriptions || []).filter(d => d && typeof d === "string" && d.trim());
+      // C. Descriptions (DESCRIPTION - max 90 chars)
+      const validDescriptions = (params.descriptions || [])
+        .map(d => GoogleAdsBaseService.cleanAdText(String(d || ""), 90))
+        .filter(d => d.length > 0);
       const descriptionAssetRefs: string[] = [];
       for (const dText of validDescriptions) {
-        const ref = await this.createTextAsset(organizationId, customerId, dText.trim());
+        const ref = await this.createTextAsset(organizationId, customerId, dText);
         if (ref && !descriptionAssetRefs.includes(ref)) descriptionAssetRefs.push(ref);
       }
 
-      // D. Business Name (BUSINESS_NAME)
+      // D. Business Name (BUSINESS_NAME - max 25 chars)
       let businessNameAssetRef: string | null = null;
       if (params.businessName && params.businessName.trim()) {
-        businessNameAssetRef = await this.createTextAsset(organizationId, customerId, params.businessName.trim());
+        const cleanBiz = GoogleAdsBaseService.cleanAdText(params.businessName, 25);
+        if (cleanBiz) {
+          businessNameAssetRef = await this.createTextAsset(organizationId, customerId, cleanBiz);
+        }
       }
 
       // E. Marketing Images & Logos

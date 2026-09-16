@@ -64,36 +64,43 @@ export class GoogleAdsBaseService {
     if (!text || typeof text !== "string") return "";
     let cleaned = text.trim();
 
-    // 1. Replace vertical bars, slashes, and bullet characters with hyphens or spaces
+    // 1. Remove all emojis and pictographic symbols (Unicode emojis, surrogate pairs, symbols)
+    cleaned = cleaned.replace(/[\u{1F000}-\u{1FFFF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{200D}\u{FE0F}]/gu, " ");
+
+    // 2. Replace arrows, bullets, and icons with hyphens or spaces
     cleaned = cleaned
+      .replace(/[→←↑↓↔↕↖↗↘↙⇒⇐⇑⇓⇔➜➔➤►▶◀◄▲▼●•▪◆★☆✓✔✕✖✗]/g, " - ")
       .replace(/[|│┃]/g, " - ")
-      .replace(/[•●▪◆★►▶✔✓]/g, " ")
       .replace(/[\/~^_*<>{}[\]\\#@+=]/g, " ");
 
-    // 2. Normalize hyphens and multiple dashes
-    cleaned = cleaned.replace(/\s*[-–—]+\s*/g, " - ");
+    // 3. Normalize quotes, unicode whitespace, and dashes
+    cleaned = cleaned
+      .replace(/[“”„‟«»]/g, '"')
+      .replace(/[‘’‚‛`]/g, "'")
+      .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, " ")
+      .replace(/\s*[-–—―]+\s*/g, " - ");
 
-    // 3. Remove leading punctuation & symbols (e.g. ",knb", "..hello", "-word", " - hello")
-    cleaned = cleaned.replace(/^[\s,.\-!?;:_~@#$%^&*+=<>]+/, "");
+    // 4. Remove leading punctuation & symbols
+    cleaned = cleaned.replace(/^[\s,.\-!?;:_~@#$%^&*+=<>'"\/]+/, "");
 
-    // 4. Remove trailing invalid punctuation & symbols
-    cleaned = cleaned.replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "");
+    // 5. Remove trailing invalid punctuation & symbols
+    cleaned = cleaned.replace(/[\s,:\-;_~@#$%^&*+=<>'"\/]+$/, "");
 
-    // 5. Replace multiple repeating punctuation with single (e.g. ",," -> ",", "!!" -> "!")
+    // 6. Replace multiple repeating punctuation with single (e.g. ",," -> ",", "!!" -> "!")
     cleaned = cleaned.replace(/([,.!?;:])\1+/g, "$1");
 
-    // 6. Fix missing space after punctuation (e.g. ",knb" -> ", knb", "hello.world" -> "hello. world")
+    // 7. Fix missing space after punctuation
     cleaned = cleaned.replace(/([,.!?;:])([a-zA-Z0-9])/g, "$1 $2");
 
-    // 7. Replace multiple consecutive spaces with a single space
+    // 8. Replace multiple consecutive spaces with a single space
     cleaned = cleaned.replace(/\s+/g, " ").trim();
 
-    // 8. Final trim of leading/trailing dashes if left behind
+    // 9. Final trim of leading/trailing dashes or hyphens
     cleaned = cleaned.replace(/^[-–—\s]+/, "").replace(/[-–—\s]+$/, "").trim();
 
     if (maxLength && cleaned.length > maxLength) {
       cleaned = cleaned.slice(0, maxLength).trim();
-      cleaned = cleaned.replace(/[\s,:\-;_~@#$%^&*+=<>]+$/, "").trim();
+      cleaned = cleaned.replace(/[\s,:\-;_~@#$%^&*+=<>'"\/]+$/, "").trim();
     }
     return cleaned;
   }
@@ -109,6 +116,39 @@ export class GoogleAdsBaseService {
       cleaned = `https://${cleaned}`;
     }
     return cleaned;
+  }
+
+  public static cleanTrackingTemplate(template: any): string | undefined {
+    if (!template || typeof template !== "string") return undefined;
+    let cleaned = template.trim();
+    if (!cleaned) return undefined;
+    // If it doesn't start with http:// or https:// or {lpurl}, check if it starts with protocol
+    if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://") && !cleaned.startsWith("{lpurl}") && !cleaned.startsWith("{unescapedlpurl}")) {
+      // If it looks like a domain or path, prepend https://
+      if (cleaned.includes(".") || cleaned.includes("/") || cleaned.includes("{")) {
+        cleaned = `https://${cleaned}`;
+      } else {
+        // Invalid garbage string, drop it to prevent Google Ads mutation errors
+        return undefined;
+      }
+    }
+    return cleaned;
+  }
+
+  public static cleanCustomParameters(params: any): Array<{ key: string; value: string }> {
+    if (!Array.isArray(params)) return [];
+    return params
+      .map((p: any) => {
+        const rawKey = p && (p.key || p.name);
+        const rawVal = p && (p.value !== undefined ? p.value : "");
+        if (!rawKey || typeof rawKey !== "string") return null;
+        // Google Ads custom parameter keys must only contain letters, digits, and underscores (no commas, colons, or punctuation)
+        const cleanKey = rawKey.trim().replace(/[^a-zA-Z0-9_]/g, "").slice(0, 16);
+        if (!cleanKey) return null;
+        const cleanVal = String(rawVal).trim().slice(0, 250);
+        return { key: cleanKey, value: cleanVal };
+      })
+      .filter((p): p is { key: string; value: string } => p !== null && p.key.length > 0);
   }
 
   public static formatGoogleAdsError(error: any): string {
@@ -303,6 +343,22 @@ export class GoogleAdsBaseService {
     "telugu": "1131",
     "urdu": "1041"
   };
+
+  public static resolveLanguageConstant(languageNameOrId: string, isAiGuided?: boolean): string | null {
+    if (!languageNameOrId || typeof languageNameOrId !== "string") return null;
+    const trimmed = languageNameOrId.trim();
+    if (!trimmed) return null;
+
+    if (/^\d+$/.test(trimmed)) return trimmed;
+    if (trimmed.startsWith("languageConstants/")) return trimmed.replace("languageConstants/", "");
+
+    const lower = trimmed.toLowerCase();
+    if (this.LANGUAGE_CONSTANT_MAP[lower]) {
+      return this.LANGUAGE_CONSTANT_MAP[lower];
+    }
+
+    return null;
+  }
 
   /**
    * Resolve a location string or object into an official Google Ads GeoTargetConstant ID
@@ -700,6 +756,48 @@ export class GoogleAdsBaseService {
   }
 
   protected static async saveCampaignToDatabase(data: any) {
-    return await prisma.googleAdCampaign.create({ data });
+    const validFields = [
+      "id",
+      "organizationId",
+      "customerId",
+      "campaignId",
+      "googleAdsCampaignId",
+      "name",
+      "status",
+      "campaignType",
+      "biddingStrategy",
+      "budget",
+      "budgetResourceName",
+      "startDate",
+      "endDate",
+      "headlines",
+      "descriptions",
+      "finalUrl",
+      "keywords",
+      "geoTargets",
+      "languages",
+      "searchThemes",
+      "audienceSignal",
+      "adSchedule",
+      "advertisingChannelType",
+      "amountMicros",
+      "impressions",
+      "clicks",
+      "costMicros",
+      "conversions"
+    ];
+
+    const sanitizedData: any = {};
+    for (const key of validFields) {
+      if (data && data[key] !== undefined) {
+        sanitizedData[key] = data[key];
+      }
+    }
+
+    if (data?.mobileFinalUrl && sanitizedData.geoTargets && typeof sanitizedData.geoTargets === "object") {
+      sanitizedData.geoTargets.mobileFinalUrl = data.mobileFinalUrl;
+    }
+
+    return await prisma.googleAdCampaign.create({ data: sanitizedData });
   }
 }

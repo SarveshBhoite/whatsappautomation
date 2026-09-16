@@ -516,6 +516,13 @@ export class NoGuidanceSearchService extends GoogleAdsBaseService {
 
       // ── 8. CREATE RESPONSIVE SEARCH AD (AdGroupAd) ──
       if (validHeadlines.length > 0 && validDescriptions.length > 0) {
+        const cleanedHeadlines = validHeadlines
+          .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 30))
+          .filter((text: string) => text.length > 0);
+        const cleanedDescriptions = validDescriptions
+          .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 90))
+          .filter((text: string) => text.length > 0);
+
         const adGroupAdPayload = {
           operations: [{
             create: {
@@ -524,8 +531,8 @@ export class NoGuidanceSearchService extends GoogleAdsBaseService {
               ad: {
                 finalUrls: [finalUrl],
                 responsiveSearchAd: {
-                  headlines: validHeadlines.map((text: string) => ({ text: text.trim() })),
-                  descriptions: validDescriptions.map((text: string) => ({ text: text.trim() }))
+                  headlines: cleanedHeadlines.slice(0, 15).map((text: string) => ({ text })),
+                  descriptions: cleanedDescriptions.slice(0, 4).map((text: string) => ({ text }))
                 }
               }
             }

@@ -796,6 +796,7 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
 
       // Resolve Audience and attach as AdGroupCriterion
       let createdAudienceResource: string | null = null;
+      const adGroupCriterionOps: any[] = [];
       if (audience && typeof audience === "object") {
         const dimensions = WebsiteTrafficDemandGenService.buildAudienceDimensions(audience, cid);
         if (dimensions.length > 0) {
@@ -1051,6 +1052,29 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
       }
 
       // ── 10. UPLOAD ASSETS & PREPARE FORMAT-SPECIFIC AD ──
+      const toImageKitTransform = (url: string, transform: string): string => {
+        if (typeof url === "string" && url.includes("ik.imagekit.io")) {
+          if (url.includes("/tr:")) {
+            return url.replace(/\/tr:[^/]+\//, `/${transform}/`);
+          }
+          const parts = url.split("ik.imagekit.io/");
+          if (parts.length === 2) {
+            const subParts = parts[1].split("/");
+            const endpoint = subParts[0];
+            const rest = subParts.slice(1).join("/");
+            return `https://ik.imagekit.io/${endpoint}/${transform}/${rest}`;
+          }
+        }
+        return url;
+      };
+
+      const toPollinationsTransform = (url: string, width: number, height: number): string => {
+        if (typeof url === "string" && url.includes("image.pollinations.ai")) {
+          return url.replace(/width=\d+/, `width=${width}`).replace(/height=\d+/, `height=${height}`);
+        }
+        return url;
+      };
+
       const format = (adFormat || "SINGLE_IMAGE").toUpperCase();
       const validHeadlines = (headlines || []).filter((h: any) => typeof h === "string" && h.trim().length > 0);
       const validLongHeadlines = (longHeadlines || []).filter((lh: any) => typeof lh === "string" && lh.trim().length > 0);
@@ -1066,20 +1090,31 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
 
       const safeBusinessName = GoogleAdsBaseService.cleanAdText(businessName || "My Business", 25) || "My Business";
 
-      // Upload or find Logos
+      // Upload or find Logos (STRICT: 1:1 Square 500x500)
+      const DEFAULT_DG_LOGO = "https://ik.imagekit.io/automationjds/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+      const DEFAULT_DG_LANDSCAPE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+
       let resolvedLogoAsset: string | null = null;
-      for (const logo of (logos || [])) {
+      const logoList = (logos && logos.length > 0) ? logos : [DEFAULT_DG_LOGO];
+      for (const logo of logoList) {
         const raw = typeof logo === "string" ? logo : logo?.url || logo?.data || logo?.asset || "";
         if (!raw) continue;
         if (raw.startsWith("customers/") && raw.includes("/assets/")) {
           resolvedLogoAsset = raw;
           break;
         }
-        const uploaded = await this.uploadImageAsset(organizationId, customerId, `DG_Logo_${Date.now()}`, raw);
+        let logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+        logoUrl = toPollinationsTransform(logoUrl, 500, 500);
+        const uploaded = await this.uploadImageAsset(organizationId, customerId, `DG_Logo_${Date.now()}`, logoUrl);
         if (uploaded) {
           resolvedLogoAsset = uploaded;
           break;
         }
+      }
+
+      if (!resolvedLogoAsset) {
+        let fallbackLogoUrl = toImageKitTransform(DEFAULT_DG_LOGO, "tr:w-500,h-500,cm-pad_resize,bg-FFFFFF");
+        resolvedLogoAsset = await this.uploadImageAsset(organizationId, customerId, `DG_Logo_${Date.now()}`, fallbackLogoUrl);
       }
 
       const adGroupAdOps: any[] = [];
@@ -1210,42 +1245,63 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
         const marketingImages: string[] = [];
         const squareMarketingImages: string[] = [];
 
-        const inputLandscapeImages = payload.marketingImages || images || [];
-        const inputSquareImages = payload.squareMarketingImages || (payload.squareImages || []);
+        const allImagesList = Array.isArray(payload.marketingImages) ? payload.marketingImages : (Array.isArray(images) ? images : []);
 
-        for (const img of inputLandscapeImages) {
+        for (const img of allImagesList) {
           const raw = typeof img === "string" ? img : img?.url || img?.data || img?.asset || "";
           if (!raw) continue;
+
+          const fieldType = typeof img === "object" && img?.fieldType ? img.fieldType : null;
+          const aspectRatio = typeof img === "object" && img?.aspectRatio ? img.aspectRatio : null;
+
           if (raw.startsWith("customers/") && raw.includes("/assets/")) {
-            marketingImages.push(raw);
+            if (fieldType === "SQUARE_MARKETING_IMAGE" || aspectRatio === "1:1") {
+              if (!squareMarketingImages.includes(raw)) squareMarketingImages.push(raw);
+            } else {
+              if (!marketingImages.includes(raw)) marketingImages.push(raw);
+            }
             continue;
           }
-          const uploaded = await this.uploadImageAsset(organizationId, customerId, `DG_Land_${Date.now()}`, raw);
-          if (uploaded) {
-            marketingImages.push(uploaded);
+
+          if (fieldType === "MARKETING_IMAGE" || aspectRatio === "1.91:1") {
+            let landUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+            landUrl = toPollinationsTransform(landUrl, 1200, 628);
+            const uploaded = await this.uploadImageAsset(organizationId, customerId, `DG_Land_${Date.now()}`, landUrl);
+            if (uploaded && !marketingImages.includes(uploaded)) marketingImages.push(uploaded);
+          } else if (fieldType === "SQUARE_MARKETING_IMAGE" || aspectRatio === "1:1") {
+            let sqUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+            sqUrl = toPollinationsTransform(sqUrl, 1200, 1200);
+            const uploaded = await this.uploadImageAsset(organizationId, customerId, `DG_Sq_${Date.now()}`, sqUrl);
+            if (uploaded && !squareMarketingImages.includes(uploaded)) squareMarketingImages.push(uploaded);
+          } else {
+            let landUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+            landUrl = toPollinationsTransform(landUrl, 1200, 628);
+            const landRef = await this.uploadImageAsset(organizationId, customerId, `DG_Land_${Date.now()}`, landUrl);
+            if (landRef && !marketingImages.includes(landRef)) marketingImages.push(landRef);
+
+            let sqUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+            sqUrl = toPollinationsTransform(sqUrl, 1200, 1200);
+            const sqRef = await this.uploadImageAsset(organizationId, customerId, `DG_Sq_${Date.now()}`, sqUrl);
+            if (sqRef && !squareMarketingImages.includes(sqRef)) squareMarketingImages.push(sqRef);
           }
         }
 
-        for (const img of inputSquareImages) {
-          const raw = typeof img === "string" ? img : img?.url || img?.data || img?.asset || "";
-          if (!raw) continue;
-          if (raw.startsWith("customers/") && raw.includes("/assets/")) {
-            squareMarketingImages.push(raw);
-            continue;
-          }
-          const uploaded = await this.uploadImageAsset(organizationId, customerId, `DG_Sq_${Date.now()}`, raw);
-          if (uploaded) {
-            squareMarketingImages.push(uploaded);
-          }
-        }
-
-        // If no explicit square images were provided but resolvedLogoAsset exists, or if square images were empty, fallback to square marketing image
+        // Safe square fallback for squareMarketingImages only (never landscape)
         if (squareMarketingImages.length === 0 && resolvedLogoAsset) {
           squareMarketingImages.push(resolvedLogoAsset);
         }
 
-        if (marketingImages.length === 0 || !resolvedLogoAsset) {
-          throw new Error("At least 1 marketing image and 1 logo are required for Demand Gen Single Image ads.");
+        if (marketingImages.length === 0) {
+          let landUrl = toImageKitTransform(DEFAULT_DG_LANDSCAPE, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
+          const landRef = await this.uploadImageAsset(organizationId, customerId, `DG_Land_${Date.now()}`, landUrl);
+          if (landRef) marketingImages.push(landRef);
+        }
+
+        const uniqueMarketingImages = Array.from(new Set(marketingImages));
+        const uniqueSquareImages = Array.from(new Set(squareMarketingImages));
+
+        if (uniqueMarketingImages.length === 0 || !resolvedLogoAsset) {
+          throw new Error("At least 1 landscape marketing image (1.91:1) and 1 logo (1:1) are required for Demand Gen Single Image ads.");
         }
 
         adGroupAdOps.push({
@@ -1259,8 +1315,8 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
               demandGenMultiAssetAd: {
                 headlines: safeHeadlines,
                 descriptions: safeDescriptions,
-                marketingImages: marketingImages.map(asset => ({ asset })),
-                squareMarketingImages: squareMarketingImages.map(asset => ({ asset })),
+                marketingImages: uniqueMarketingImages.map(asset => ({ asset })),
+                squareMarketingImages: uniqueSquareImages.map(asset => ({ asset })),
                 logoImages: [{ asset: resolvedLogoAsset }],
                 businessName: safeBusinessName
               }
@@ -1306,10 +1362,10 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
       finalUrl,
-      mobileFinalUrl: resolvedMobileFinalUrl,
       headlines,
       descriptions,
       geoTargets: {
+        mobileFinalUrl: resolvedMobileFinalUrl,
         locations,
         languages,
         channels,
