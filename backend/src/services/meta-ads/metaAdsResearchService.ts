@@ -204,8 +204,8 @@ export class MetaAdsResearchService {
       keyInsights.push(`🏆 **Best Historical Performer**: "${topCampaign.name}" delivered ${topCampaign.results} ${topCampaign.resultType} at an exceptional CPA of ₹${topCampaign.costPerResult}.`);
     }
 
-    const hasWhatsAppNumber = context.whatsAppNumbers.length > 0;
-    const hasPixel = context.pixels.length > 0;
+    const hasWhatsAppNumber = Boolean(context.whatsAppNumbers && context.whatsAppNumbers.length > 0);
+    const hasPixel = Boolean(context.pixels && context.pixels.length > 0);
 
     if (hasWhatsAppNumber) {
       keyInsights.push(`💬 **Direct Response Advantage**: WhatsApp destination campaigns in your category historically yield **3.2x higher conversion rates** compared to external landing pages because friction is removed.`);

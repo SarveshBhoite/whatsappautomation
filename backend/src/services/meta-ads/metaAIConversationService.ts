@@ -9,6 +9,7 @@ import { MetaAdsCapabilityService } from "./metaAdsCapabilityService";
 import { MetaImageGenerationService } from "./metaImageGenerationService";
 import { AccountPerformanceAudit, MetaAdsResearchService } from "./metaAdsResearchService";
 import { MetaAdsCoreService } from "./metaAdsCoreService";
+import { MetaTargetingSearchService } from "./metaTargetingSearchService";
 
 export type ConversationStatus =
   | "DISCOVERY"
@@ -328,7 +329,8 @@ export class MetaAIConversationService {
       }
     }
 
-    const hasBulkData = countries.length > 0 || (cityConfigs.length > 0 && (postalCodes.length > 0 || cityConfigs.length > 1 || /bulk|radius|km|pincode|postal/i.test(text))) || postalCodes.length > 0;
+    const isSingleCountryMention = countries.length === 1 && !postalCodes.length && cityConfigs.length === 0 && /\ball\s+india\b|\btarget\s+all\s+india\b|\ball\s+over\s+india\b/i.test(text);
+    const hasBulkData = (countries.length > 0 && !isSingleCountryMention) || (cityConfigs.length > 0 && (postalCodes.length > 0 || cityConfigs.length > 1 || /bulk|radius|km|pincode|postal/i.test(text))) || postalCodes.length > 0;
     return { countries, cityConfigs, postalCodes, hasBulkData };
   }
 
@@ -445,6 +447,14 @@ export class MetaAIConversationService {
     }
 
     const previousAiMessage = [...state.conversation].reverse().find((m) => m.sender === "ai")?.text || "";
+
+    // Check if user is asking a consultative strategy/advisory question (e.g. "which type of ad...", "which destination you suggest", "which age group should i target", "what budget is best")
+    const isAdvisoryOrStrategyQuestion =
+      !selectedOptionValue &&
+      Boolean(
+        /\b(?:which|what|how|why|suggest|recommend|should i|can you suggest|can you recommend|konti|konte|kasa|kashi|kaay|kya|kaun|kaunsi|kisme|kahan|best|advice|सलाह|शिफारस|सुझाव|कोणते|कोणती|काय|कसे|कशी|कशावर|कशात|कसा|कोणता|कोणत्या|कोणत्याही)\b/i.test(normalizedUserText) &&
+        /\b(?:type|ad|campaign|destination|objective|age|age group|gender|target|targeting|cities|location|budget|placement|placements|platform|platforms|format|creative|graphic|waba|whatsapp|website|lead form|suggest|recommend|चालवू|करावे|चालवावे|योग्य|चांगले|सूट|फायदा|बेस्ट)\b/i.test(normalizedUserText)
+      );
 
     // 2.0 ZERO-FRICTION ONE-SHOT INTERCEPTOR:
     // When user provides budget and creative (or provides the second of the two),
@@ -1074,6 +1084,50 @@ export class MetaAIConversationService {
       }
     }
 
+    // 2.3.1 Extraction of Promoted Service / Product / Offer Details
+    const hasPromotedServiceAlready = Boolean(
+      (state.draft.campaign?.promotedService && state.draft.campaign.promotedService.trim().length >= 3) ||
+      (state.draft.campaign?.offer && state.draft.campaign.offer.trim().length >= 3) ||
+      state.draft.sourceMap["campaign.promotedService"] ||
+      state.draft.sourceMap["campaign.offer"]
+    );
+
+    if (!hasPromotedServiceAlready) {
+      const lastAiMsg = [...state.conversation].reverse().find(m => m.sender === "ai");
+      const wasAskingForService = lastAiMsg && (
+        /(?:products?|services?|offers?|service|उत्पाद|सेवा|ऑफर|काम|सर्विस|प्रॉडक्ट)/i.test(lastAiMsg.text) &&
+        /(?:provide|offer|advertise|प्रदान|विक्री|प्रचार|सांगा|बताएं|आपो|करते|promote|advertise)/i.test(lastAiMsg.text)
+      );
+
+      // Check inline service pattern (e.g., "we provide digital marketing", "आम्ही साडी विकतो", "service is web development")
+      const serviceInlineMatch = normalizedUserText.match(/(?:service(?:s)?|product(?:s)?|offer(?:s)?|सेवा|उत्पादने|उत्पाद|प्रॉडक्ट)\s*(?:is|are|ahe|आहे|hai|है|:)?\s*([a-zA-Z0-9\u0900-\u097F\s&',/-]{3,})/i) ||
+                                 normalizedUserText.match(/(?:we provide|we do|we sell|आम्ही|हम)\s+([a-zA-Z0-9\u0900-\u097F\s&',/-]{3,})/i);
+
+      if (serviceInlineMatch && serviceInlineMatch[1] && serviceInlineMatch[1].trim().length >= 3) {
+        const cleanSvc = serviceInlineMatch[1].trim();
+        MetaCampaignDraftService.setField(
+          state.draft,
+          "campaign.promotedService",
+          cleanSvc,
+          "USER",
+          0.98,
+          "Extracted promoted service/product from user statement"
+        );
+      } else if (wasAskingForService && !selectedOptionValue && !isPureDigitsOrMath && normalizedUserText.trim().length >= 2) {
+        const isExcludedPhrase = /^(none of above|none|standard ad|standard|continuous|immediately|tomorrow|all india|all|whatsapp|website|instagram|facebook|messenger|confirm|launch|generate|upload)$/i.test(normalizedUserText.trim());
+        if (!isExcludedPhrase) {
+          MetaCampaignDraftService.setField(
+            state.draft,
+            "campaign.promotedService",
+            userText.trim(),
+            "USER",
+            0.99,
+            "Extracted promoted service/offer from dedicated response"
+          );
+        }
+      }
+    }
+
     // Direct Goal / Objective Extraction (Sales, Leads, Traffic, App Installs)
     if (/\b(?:sales|vikri|विक्री|बिक्री|खरेदी|सेल|sell|orders|खरेदीदार)\b/i.test(normalizedUserText)) {
       MetaCampaignDraftService.setField(state.draft, "campaign.objective", "OUTCOME_SALES", "USER", 0.95, "User indicated sales objective");
@@ -1188,69 +1242,25 @@ export class MetaAIConversationService {
       }
     }
 
-    // Multilingual Detailed Targeting / Interests Extraction Regex
+    // Multilingual Detailed Targeting / Interests Extraction
     const isAskingInterests =
       /detailed targeting|detailed interests|\binterests?\b|टार्गेटिंग|विस्तृत टारगेटिंग|रुची|आवड|कॅटेगरी|श्रेणी/i.test(previousAiMessage) &&
       !/age range and gender|demographics|वय आणि लिंग|आयु और लिंग/i.test(previousAiMessage);
-    const interestMapping: Record<string, string> = {
-      "smartphone": "📱 Smartphones",
-      "smartphones": "📱 Smartphones",
-      "phone": "📱 Smartphones",
-      "phones": "📱 Smartphones",
-      "mobile": "📱 Smartphones",
-      "mobiles": "📱 Smartphones",
-      "स्मार्टफोन": "📱 Smartphones",
-      "मोबाईल": "📱 Smartphones",
-      "electronics": "🎧 Electronics",
-      "electronic": "🎧 Electronics",
-      "gadget": "🎧 Electronics",
-      "gadgets": "🎧 Electronics",
-      "इलेक्ट्रॉनिक्स": "🎧 Electronics",
-      "shopping": "🛍️ Online Shopping",
-      "online shopping": "🛍️ Online Shopping",
-      "ecommerce": "🛍️ Online Shopping",
-      "शॉपिंग": "🛍️ Online Shopping",
-      "ऑनलाइन शॉपिंग": "🛍️ Online Shopping",
-      "fashion": "👗 Fashion & Style",
-      "clothes": "👗 Fashion & Style",
-      "clothing": "👗 Fashion & Style",
-      "apparel": "👗 Fashion & Style",
-      "dress": "👗 Fashion & Style",
-      "dresses": "👗 Fashion & Style",
-      "फॅशन": "👗 Fashion & Style",
-      "कपडे": "👗 Fashion & Style",
-      "कपड़े": "👗 Fashion & Style",
-      "business": "💼 Small Business",
-      "small business": "💼 Small Business",
-      "entrepreneur": "💼 Small Business",
-      "entrepreneurs": "💼 Small Business",
-      "व्यवसाय": "💼 Small Business",
-      "व्यापार": "💼 Small Business",
-      "automobile": "🚗 Automobiles",
-      "automobiles": "🚗 Automobiles",
-      "cars": "🚗 Automobiles",
-      "car": "🚗 Automobiles",
-      "vehicles": "🚗 Automobiles",
-      "गाड्या": "🚗 Automobiles",
-      "कार": "🚗 Automobiles",
-      "गाड़ियां": "🚗 Automobiles",
-    };
 
     const isBroadAudience = /broad|all|sarva|sab|advantage\+|automatic|कोणतेही|कोणतीही|सर्व श्रेणी|सभी कैटेगरी|broad audience/i.test(normalizedUserText);
     if (isBroadAudience && isAskingInterests) {
       state.draft.targeting.advantagePlusAudience = true;
       state.draft.targeting.interests = [];
       MetaCampaignDraftService.setField(state.draft, "targeting.advantagePlusAudience", true, "USER", 1.0, "User chose Advantage+ broad automated audience expansion");
-    } else {
-      const extractedInterests: string[] = [];
-      for (const [key, label] of Object.entries(interestMapping)) {
-        if (new RegExp(`\\b${key}\\b`, "i").test(normalizedUserText)) {
-          if (!extractedInterests.includes(label)) extractedInterests.push(label);
-        }
-      }
-      if (isAskingInterests && extractedInterests.length > 0) {
+    } else if (isAskingInterests && normalizedUserText.trim().length > 2) {
+      const typedTerms = normalizedUserText
+        .split(/[,&|\n]+/)
+        .map((t) => t.trim().replace(/^[•\-\*]\s*/, ""))
+        .filter((t) => t.length > 2 && !/^(ok|yes|no|done|nahi|nako|haan|skip|पुढील|पुढे)$/i.test(t));
+
+      if (typedTerms.length > 0) {
         const currentInterests = state.draft.targeting.interests || [];
-        const combined = Array.from(new Set([...currentInterests, ...extractedInterests]));
+        const combined = Array.from(new Set([...currentInterests, ...typedTerms]));
         state.draft.targeting.interests = combined;
         state.draft.targeting.advantagePlusAudience = true;
         MetaCampaignDraftService.setField(state.draft, "targeting.interests", combined, "USER", 1.0, `User selected target interests: ${combined.join(", ")}`);
@@ -1763,6 +1773,7 @@ export class MetaAIConversationService {
       }
 
       const hasPhoneNow = Boolean(state.draft.destination.whatsappPhoneNumber || (state.draft.destination as any).phoneNumber);
+
       if (!hasPhoneNow) {
         let askPhoneMsg = `✅ **Destination locked as Phone Call!** 📞\n\nWhich **business or mobile phone number** should customers call when they click your ad? Please type your 10-digit number (e.g. \`+91 9876543210\`):`;
         if (detectedLang.code === "mr") {
@@ -1993,12 +2004,43 @@ export class MetaAIConversationService {
       }
     }
 
+    const hasNewDemographicInput = Boolean(
+      (ageMatch && ageMatch[1] && ageMatch[2]) ||
+      /\b(?:female|women|woman|ladies|girls|only female|only women|महिला|स्त्रिया|फक्त महिला|औरतें|लड़कियां|mahila|striya|aurat|ladies|male|men|man|gentlemen|boys|only male|only men|पुरुष|फक्त पुरुष|लड़के|आदमी|purush|mard|ladke|all genders|both genders|everyone|male and female|female and male|any gender|सर्व|दोन्ही|सर्व लिंग|सब|दोनों|सगळे|sarv|sab)\b/i.test(normalizedUserText)
+    );
+
     const lastAiMsgForDemo = [...state.conversation].reverse().find((m) => m.sender === "ai")?.text || "";
     const isAiAskingDemographics = /demographics|वयोगट आणि लिंग|आयु सीमा और लिंग|ઉંમર અને લિંગ|target audience.*age|age range and gender/i.test(lastAiMsgForDemo);
-    if (isAiAskingDemographics && (state.draft.targeting.ageMin || state.draft.targeting.gender)) {
+
+    if (!isAdvisoryOrStrategyQuestion && (hasNewDemographicInput || isAiAskingDemographics) && (state.draft.targeting.ageMin || state.draft.targeting.gender)) {
       if (!state.draft.targeting.ageMin) state.draft.targeting.ageMin = 18;
       if (!state.draft.targeting.ageMax) state.draft.targeting.ageMax = 65;
       if (!state.draft.targeting.gender) state.draft.targeting.gender = "ALL";
+
+      // Live query Meta Marketing API Detailed Targeting & Search endpoints for upcoming detailed interests step
+      if (!((state.draft.targeting as any)?.suggestedAudiences?.length)) {
+        const srvQuery =
+          state.draft.campaign?.promotedService ||
+          state.draft.campaign?.promotedProduct ||
+          (state.draft.campaign as any)?.userBusinessService ||
+          state.draft.campaign?.name ||
+          "";
+        if (srvQuery) {
+          try {
+            const liveSuggestions = await MetaTargetingSearchService.queryRealTimeTargetingSuggestions(
+              srvQuery,
+              state.context?.organizationId || "default",
+              4
+            );
+            if (liveSuggestions && liveSuggestions.length > 0) {
+              (state.draft.targeting as any).suggestedAudiences = liveSuggestions;
+            }
+          } catch {
+            // Proceed safely
+          }
+        }
+      }
+
       state.validation = MetaCampaignValidationService.validateDraft(state.draft, state.context);
       return MetaAIConversationService.generateDeterministicNextStep(state, detectedLang, userText);
     }
@@ -2007,9 +2049,13 @@ export class MetaAIConversationService {
     if (/advantage\+|automated audience|audience expansion|स्वयंचलित/i.test(normalizedUserText)) {
       MetaCampaignDraftService.setField(state.draft, "targeting.advantagePlusAudience", true, "USER", 1.0, "User enabled Advantage+ detailed targeting");
     }
-    const interestMatch = normalizedUserText.match(/(?:target|interests?|matching|demographics|behaviours?|people interested in|आवडी|रुचि)\s*:?\s*([a-zA-Z0-9,\s&]+)/i);
+    const isTargetingSystemMessage = /updated campaign targeting with bulk locations|updated detailed targeting/i.test(normalizedUserText);
+    const interestMatch = !isTargetingSystemMessage && normalizedUserText.match(/(?:interests?|matching|behaviours?|people interested in|आवडी|रुचि|target interests?)\s*:?\s*([a-zA-Z0-9,\s&]+)/i);
     if (interestMatch && interestMatch[1]) {
-      const interestsArr = interestMatch[1].split(/[,&]\s*/).map(s => s.trim()).filter(s => s.length > 2 && !/budget|mumbai|delhi|whatsapp|website|schedule/i.test(s));
+      const interestsArr = interestMatch[1]
+        .split(/[,&]\s*/)
+        .map(s => s.trim())
+        .filter(s => s.length > 2 && !/^(?:with|bulk|locations?|cities|countries|pincodes?|radii|radius|budget|schedule|whatsapp|website)$/i.test(s));
       if (interestsArr.length > 0) {
         MetaCampaignDraftService.setField(state.draft, "targeting.interests", interestsArr, "USER", 1.0, "User specified target interests/demographics");
       }
@@ -2174,9 +2220,29 @@ export class MetaAIConversationService {
       }
     }
 
-    // Handle Quick Option values for Gender, Special Ad Category & Campaign Duration
+    // Handle Quick Option values for Gender, Special Ad Category, Services & Campaign Duration
     if (selectedOptionValue) {
-      if (selectedOptionValue === "GENDER_WOMEN" || selectedOptionValue === "WOMEN") {
+      if (selectedOptionValue.startsWith("SERVICE_")) {
+        const serviceMap: Record<string, string> = {
+          SERVICE_WHATSAPP_AUTOMATION: "WhatsApp Marketing, Bulk Messaging & Automation API",
+          SERVICE_DIGITAL_MARKETING: "Digital Marketing, Social Media & Lead Generation",
+          SERVICE_SOFTWARE_DEV: "Custom Software, Web & Mobile App Development",
+          SERVICE_ECOMMERCE: "E-Commerce & Retail Products",
+          SERVICE_REAL_ESTATE: "Real Estate, Plots & Apartments",
+          SERVICE_HEALTHCARE: "Healthcare, Clinic & Dental Services",
+          SERVICE_EDUCATION: "Education, Coaching Classes & Certification Courses",
+          SERVICE_SALON_WELLNESS: "Salon, Spa & Wellness Services",
+        };
+        const sVal = serviceMap[selectedOptionValue] || selectedOptionValue.replace(/^SERVICE_/, "").replace(/_/g, " ");
+        MetaCampaignDraftService.setField(
+          state.draft,
+          "campaign.promotedService",
+          sVal,
+          "USER",
+          1.0,
+          `User selected service category: ${sVal}`
+        );
+      } else if (selectedOptionValue === "GENDER_WOMEN" || selectedOptionValue === "WOMEN") {
         MetaCampaignDraftService.setField(state.draft, "targeting.gender", "WOMEN", "USER", 1.0, "User selected Women Only via quick option");
       } else if (selectedOptionValue === "GENDER_MEN" || selectedOptionValue === "MEN") {
         MetaCampaignDraftService.setField(state.draft, "targeting.gender", "MEN", "USER", 1.0, "User selected Men Only via quick option");
@@ -2258,29 +2324,30 @@ export class MetaAIConversationService {
           MetaCampaignDraftService.setField(state.draft, "destination.leadGenCustomQuestions", [customQText], "USER", 1.0, `User set custom lead question: ${customQText}`);
         }
         (state.draft.destination as any).customQuestionAnswered = true;
-      } else if (selectedOptionValue.startsWith("INTEREST") || selectedOptionValue.startsWith("TARGETING_") || /smartphones|electronics|shopping|fashion|business|automobiles|broad|retail/i.test(selectedOptionValue)) {
-        const intKey = selectedOptionValue.replace(/^(INTERESTS?_|TARGETING_)/i, "").toUpperCase();
+      } else if (
+        selectedOptionValue.startsWith("AUDIENCE_") ||
+        selectedOptionValue.startsWith("INTEREST") ||
+        selectedOptionValue.startsWith("TARGETING_")
+      ) {
+        const intKey = selectedOptionValue.replace(/^(AUDIENCE_|INTERESTS?_|TARGETING_)/i, "").trim();
         if (intKey === "ADVANTAGE_PLUS" || intKey === "BROAD" || /broad|advantage/i.test(selectedOptionValue)) {
           state.draft.targeting.advantagePlusAudience = true;
           state.draft.targeting.interests = [];
           MetaCampaignDraftService.setField(state.draft, "targeting.advantagePlusAudience", true, "USER", 1.0, "User selected Advantage+ Broad Audience");
         } else {
-          const map: Record<string, string> = {
-            SMARTPHONES: "📱 Smartphones & Tech",
-            ELECTRONICS: "🎧 Electronics",
-            SHOPPING: "🛍️ Online Shopping",
-            FASHION: "👗 Fashion & Style",
-            BUSINESS: "💼 Small Business & IT",
-            RETAIL: "💼 Software, IT & Tech Business Owners",
-            AUTOMOBILES: "🚗 Automobiles",
-          };
-          const label = map[intKey] || selectedOptionValue;
+          // Dynamic lookup from live Meta Marketing API suggested audiences or direct value
+          const liveList = (state.draft.targeting as any)?.suggestedAudiences || [];
+          const matched = liveList.find(
+            (a: any) => String(a.id) === intKey || a.name.toLowerCase() === intKey.toLowerCase()
+          );
+          const targetName = matched ? matched.name : intKey.replace(/_/g, " ");
+
           const cur = state.draft.targeting.interests || [];
-          if (!cur.includes(label)) {
-            const updated = [...cur, label];
+          if (!cur.includes(targetName)) {
+            const updated = [...cur, targetName];
             state.draft.targeting.interests = updated;
             state.draft.targeting.advantagePlusAudience = true;
-            MetaCampaignDraftService.setField(state.draft, "targeting.interests", updated, "USER", 1.0, `User selected interest ${label}`);
+            MetaCampaignDraftService.setField(state.draft, "targeting.interests", updated, "USER", 1.0, `User selected live Meta target interest: ${targetName}`);
           }
         }
       } else if (selectedOptionValue.startsWith("FIELDS_") || selectedOptionValue.startsWith("NAME_PHONE") || selectedOptionValue === "LEAD_FIELDS_NAME_PHONE" || selectedOptionValue === "LEAD_FIELDS_ALL") {
@@ -2663,39 +2730,64 @@ export class MetaAIConversationService {
       /vichar|विचार|पूछा|nahi|नाही|नही|set|change|बदल|how|why|vichara|set kara/i.test(normalizedUserText);
 
     if (isDirectInterestsQuery) {
-      let intPrompt = `Great! Let's choose the **Demographics, Interests & Behaviours** for your target audience.\n\nWhich categories or interests best match your ideal customers? Choose from the suggested categories below or type custom interests:`;
-      let intOptions = [
-        { label: "📱 Smartphones", value: "INTEREST_SMARTPHONES" },
-        { label: "🎧 Electronics", value: "INTEREST_ELECTRONICS" },
-        { label: "🛍️ Online Shopping", value: "INTEREST_SHOPPING" },
-        { label: "👗 Fashion & Style", value: "INTEREST_FASHION" },
-        { label: "💼 Small Business", value: "INTEREST_BUSINESS" },
-        { label: "🚗 Automobiles", value: "INTEREST_AUTOMOBILES" },
-        { label: "🌐 Advantage+ Broad (AI Auto)", value: "INTEREST_ADVANTAGE_PLUS" },
-      ];
+      // Query real-time Meta Marketing API endpoints dynamically
+      const srvQuery =
+        state.draft.campaign?.promotedService ||
+        state.draft.campaign?.promotedProduct ||
+        (state.draft.campaign as any)?.userBusinessService ||
+        state.draft.campaign?.name ||
+        "";
+      let liveSuggested: Array<{ id: string | number; name: string; type: string; audience_size?: number }> =
+        (state.draft.targeting as any)?.suggestedAudiences || [];
+
+      if (!liveSuggested.length && srvQuery) {
+        try {
+          liveSuggested = await MetaTargetingSearchService.queryRealTimeTargetingSuggestions(
+            srvQuery,
+            state.context?.organizationId || "default",
+            4
+          );
+          if (liveSuggested.length > 0) {
+            (state.draft.targeting as any).suggestedAudiences = liveSuggested;
+          }
+        } catch {
+          // Proceed
+        }
+      }
+
+      const dynamicChips: Array<{ label: string; value: string }> = [];
 
       if (detectedLang.code === "mr") {
-        intPrompt = `नक्कीच! आपण तुमच्या जाहिरातीसाठी **Demographics, Interests & Behaviours (लक्षित आवडीनिवडी व श्रेणी)** सेट करूया.\n\nतुमच्या व्यवसायाशी संबंधित खालीलपैकी कोणत्या श्रेणीतील लोकांना लक्ष्य करायचे आहे? खालील पर्याय निवडा किंवा टाइप करा:`;
-        intOptions = [
-          { label: "📱 स्मार्टफोन्स", value: "INTEREST_SMARTPHONES" },
-          { label: "🎧 इलेक्ट्रॉनिक्स", value: "INTEREST_ELECTRONICS" },
-          { label: "🛍️ ऑनलाइन शॉपिंग", value: "INTEREST_SHOPPING" },
-          { label: "👗 फॅशन व कपडे", value: "INTEREST_FASHION" },
-          { label: "💼 लघु उद्योग / व्यवसाय", value: "INTEREST_BUSINESS" },
-          { label: "🚗 वाहने व गाड्या", value: "INTEREST_AUTOMOBILES" },
-          { label: "🌐 Advantage+ सर्व वर्ग (स्वयंचलित)", value: "INTEREST_ADVANTAGE_PLUS" },
-        ];
+        dynamicChips.push({ label: "✨ Advantage+ सर्व वर्ग (स्वयंचलित)", value: "TARGETING_ADVANTAGE_PLUS" });
       } else if (detectedLang.code === "hi") {
-        intPrompt = `ज़रूर! आइए आपके विज्ञापन के लिए **Demographics, Interests & Behaviours (रुचियां और श्रेणियां)** सेट करते हैं।\n\nआप किस श्रेणी के ग्राहकों को लक्षित करना चाहते हैं? नीचे दिए गए विकल्पों में से चुनें या टाइप करें:`;
-        intOptions = [
-          { label: "📱 स्मार्टफोन्स", value: "INTEREST_SMARTPHONES" },
-          { label: "🎧 इलेक्ट्रॉनिक्स", value: "INTEREST_ELECTRONICS" },
-          { label: "🛍️ ऑनलाइन शॉपिंग", value: "INTEREST_SHOPPING" },
-          { label: "👗 फ़ैशन और कपड़े", value: "INTEREST_FASHION" },
-          { label: "💼 लघु व्यापार / बिज़नेस", value: "INTEREST_BUSINESS" },
-          { label: "🚗 ऑटोमोबाइल और गाड़ियाँ", value: "INTEREST_AUTOMOBILES" },
-          { label: "🌐 Advantage+ सभी (ऑटोमैटिक)", value: "INTEREST_ADVANTAGE_PLUS" },
-        ];
+        dynamicChips.push({ label: "✨ Advantage+ सभी (ऑटोमैटिक)", value: "TARGETING_ADVANTAGE_PLUS" });
+      } else if (detectedLang.code === "gu") {
+        dynamicChips.push({ label: "✨ Advantage+ તમામ (ઓટોમેટિક)", value: "TARGETING_ADVANTAGE_PLUS" });
+      } else {
+        dynamicChips.push({ label: "✨ Advantage+ AI Targeting (Auto)", value: "TARGETING_ADVANTAGE_PLUS" });
+      }
+
+      for (const aud of liveSuggested) {
+        const sizeStr = aud.audience_size
+          ? aud.audience_size >= 1000000
+            ? ` (${(aud.audience_size / 1000000).toFixed(1)}M+)`
+            : aud.audience_size >= 1000
+            ? ` (${Math.round(aud.audience_size / 1000)}K)`
+            : ""
+          : "";
+        dynamicChips.push({
+          label: `🎯 ${aud.name}${sizeStr}`,
+          value: `AUDIENCE_${aud.id || aud.name}`,
+        });
+      }
+
+      let intPrompt = `Great! Let's choose the **Demographics, Interests & Behaviours** for your target audience.\n\nWhich categories or interests best match your ideal customers? Choose from the live Meta suggestions below or type custom interests:`;
+      if (detectedLang.code === "mr") {
+        intPrompt = `नक्कीच! आपण तुमच्या जाहिरातीसाठी **Demographics, Interests & Behaviours (लक्षित आवडीनिवडी व श्रेणी)** सेट करूया.\n\nतुमच्या व्यवसायाशी संबंधित खालीलपैकी कोणत्या श्रेणीतील लोकांना लक्ष्य करायचे आहे? खालील थेट मेटा पर्याय निवडा किंवा टाइप करा:`;
+      } else if (detectedLang.code === "hi") {
+        intPrompt = `ज़रूर! आइए आपके विज्ञापन के लिए **Demographics, Interests & Behaviours (रुचियां और श्रेणियां)** सेट करते हैं।\n\nआप किस श्रेणी के ग्राहकों को लक्षित करना चाहते हैं? नीचे दिए गए मेटा विकल्पों में से चुनें या टाइप करें:`;
+      } else if (detectedLang.code === "gu") {
+        intPrompt = `ચોક્કસ! ચાલો તમારા માટે **Demographics, Interests & Behaviours (રસ અને કેટેગરી)** સેટ કરીએ.\n\nનીચે આપેલા મેટા વિકલ્પોમાંથી પસંદ કરો અથવા તમારી કેટેગરી લખો:`;
       }
 
       state.status = "DRAFTING";
@@ -2705,7 +2797,7 @@ export class MetaAIConversationService {
         sender: "ai",
         text: intPrompt,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        quickOptions: intOptions,
+        quickOptions: dynamicChips,
       });
 
       state.validation = MetaCampaignValidationService.validateDraft(state.draft, state.context);
@@ -3299,426 +3391,178 @@ Return ONLY a valid JSON object:
         ).join("\n")
       : "No previous campaign performance history found in this Meta Ad Account yet (new account or fresh pixel).";
 
-    const systemPrompt = `# ROLE: DYNAMIC META AI MEDIA BUYER, ANALYTICS & CREATIVE STRATEGIST
-You are an elite, highly intelligent Senior Meta Ads Media Buyer and Creative Director (operating like Meta AI / ChatGPT) inside JISNU Marketing Suite.
-Your mission is to dynamically chat with users, analyze their Meta Marketing API ad performance, research their business model & goals, calculate lead ROI forecasts, provide 3 production-grade high-converting copy variations & visual graphics, and dynamically build a production-ready Meta Ad Campaign. Meta Media Buyer & Copy Strategist, you must perform deep contextual research on the user's business niche, customer psychology, and seasonal opportunity (e.g. Diwali festive offers, wedding season, local store promotions, clearance sales, clinic bookings).
-NEVER output generic, dull single-line placeholders like "Boost Your Business Sales Today" or "Connect with us".
+    const systemPrompt = `# ROLE: SENIOR META ADS MEDIA BUYER & STRATEGIST (JISNU AI)
+You are an expert Senior Meta Ads Media Buyer & Creative Strategist in the JISNU Marketing Suite.
+Your goal is to guide users to create high-performing Meta Ad campaigns and provide strategic, consultative marketing advice.
 
-Instead, strictly engineer production-level ad copy adhering to direct-response advertising frameworks (AIDA, PAS):
+# CRITICAL OPERATIONAL DIRECTIVES:
+1. **CONSULTATIVE ADVICE FIRST (CRITICAL)**:
+   - If the user asks an advisory or strategic question (e.g. "which type of campaign / ad should I run for my car store / mobile brand", "what budget is best", "is WhatsApp better than Website"):
+     - **DO NOT** ask generic intake questions (like "What is your primary objective?" or "What is your brand name?").
+     - **DIRECTLY** analyze their specific business niche (e.g. Car Store / Dealership: Recommend WhatsApp test-drive bookings, Lead generation forms for price quotes, and Carousel ads for inventory).
+     - Give clear, ranked recommendations with rationale.
+     - Provide actionable next-step choices in \`quickOptions\` matching your recommendations.
 
-1. **DEEP GOAL & NICHE RESEARCH**:
-   - Understand the exact business category (e.g., Mobile & Gadget Store, Fashion & Apparel, Real Estate, Dental Clinic, Restaurant, Education, Digital Agency).
-   - Identify the primary customer motivation (e.g., saving money with festival deals, getting quick delivery, hassle-free WhatsApp booking, verified quality, 0% interest EMI, exchange bonus).
+2. **SYSTEMATIC CAMPAIGN SETUP SEQUENCE (One Question per Turn)**:
+   When guiding step-by-step campaign creation, ask strictly ONE question at a time:
+   1. Business/Brand Name
+   2. Products, Services & Core Offer (What specific products/services the business offers)
+   3. Special Ad Category (None / Employment / Housing / Financial Products / Politics)
+   4. Destination (WhatsApp, Instant Form, Website, Phone Call, Instagram DM)
+   5. Target Locations / Cities
+   6. Target Demographics & Interests (Age, Gender, Interests)
+   7. Placements (Advantage+ / Instagram / Facebook / Reels)
+   8. Budget (Daily or Lifetime) & Duration/Schedule
+   9. Creative Visual & Ad Copy Review
+   - Check [CAMPAIGN DRAFT PARAMETERS ALREADY COLLECTED] in user prompt. NEVER ask for parameters already collected!
 
-2. **SYSTEMATIC STEP-BY-STEP INFORMATION GATHERING MANDATE**
-You must systematically gather every single required Meta Campaign parameter from the user **one question at a time**.
-Follow this mandatory information gathering sequence:
-1. **Business Name & Goal/Offer**: Ask what product, service, or store offer they are promoting.
-2. **Special Ad Category Inquiry (Mandatory Meta Policy Step)**: Ask if their ad belongs to any Special Ad Category.
-3. **Destination & Action (Meta Supported Destinations)**:
-   Ask where they want ad traffic sent immediately after they tap or click the ad:
-   - 💬 **WhatsApp**: Direct chat with auto CRM welcome bot. (Immediately ask for 10-digit phone number if chosen).
-   - 🌐 **Website**: Send people to your website (requires Website URL, Display link, and optional Browser add-on: None / Call / Messenger / WhatsApp).
-   - 📝 **Instant form (suggested)**: Collect people's contact information seamlessly within Meta without leaving Facebook/Instagram.
-   - 📞 **Phone Call**: Direct incoming phone call (Call Now button). (Immediately ask for 10-digit phone number if chosen).
-   - ⚡ **Messenger**: Direct Facebook Messenger chat conversation.
-   - 📸 **Instagram Direct (DM)**: Direct Instagram direct message conversation.
-   - 📱 **Mobile App**: App install or deep link via Google Play Store / Apple App Store.
-   - 🛍️ **Meta Shop**: Facebook / Instagram eCommerce shop or catalog.
-   - 👤 **Instagram Profile**: Send people to your Instagram profile to follow and engage.
-   - 📅 **Facebook Page Event**: Send people to an event on your Facebook Page.
-   Provide interactive quickOptions:
-   \`[{"label": "💬 WhatsApp Chat", "value": "DESTINATION_WHATSAPP"}, {"label": "🌐 Website", "value": "DESTINATION_WEBSITE"}, {"label": "📝 Instant Form", "value": "DESTINATION_INSTANT_FORM"}, {"label": "📞 Phone Call", "value": "DESTINATION_PHONE_CALL"}, {"label": "⚡ Messenger", "value": "DESTINATION_MESSENGER"}, {"label": "📸 Instagram DM", "value": "DESTINATION_INSTAGRAM_DM"}, {"label": "📱 Mobile App", "value": "DESTINATION_APP"}, {"label": "🛍️ Meta Shop", "value": "DESTINATION_SHOP"}, {"label": "👤 Instagram Profile", "value": "DESTINATION_INSTAGRAM_PROFILE"}, {"label": "📅 Page Event", "value": "DESTINATION_PAGE_EVENT"}]\`
-4. **Location & Target Cities**: Ask which exact cities, state, or region they want to target.
-5. **Demographics (Age & Gender)**: Ask for target age range (e.g. 20-50) and target gender. If user specifies Female/Women, set \`targeting.gender\` to "WOMEN".
-6. **Demographics, Interests & Behaviours (Detailed Targeting)**: Ask what categories or interests best match their ideal audience (e.g. 📱 Smartphones, 🎧 Electronics, 🛍️ Online Shopping, 👗 Fashion & Style, 💼 Small Business, 🚗 Automobiles, or Advantage+ Broad Audience). Provide matching interactive quickOptions!
-7. **Daily or Lifetime Budget & Duration/Schedule**: Ask for their advertising budget. Provide starter quickOptions: \`[{"label": "₹250 per day", "value": "BUDGET_250"}, {"label": "₹500 per day", "value": "BUDGET_500"}, {"label": "₹1,000 per day", "value": "BUDGET_1000"}, {"label": "₹2,500 per day", "value": "BUDGET_2500"}, {"label": "₹5,000 per day", "value": "BUDGET_5000"}, {"label": "Custom budget", "value": "CUSTOM_BUDGET"}]\`.
-   - **MANDATORY LIFETIME BUDGET END DATE RULE**: If the user sets a **Lifetime / Total Budget**, Meta REQUIRES an End Date! You MUST immediately ask the user: **"Since you're using a Lifetime Budget, when should this campaign end?"** and attach quickOptions: \`[{"label": "Run for 7 Days 📅", "value": "RUN_7_DAYS"}, {"label": "Run for 14 Days 📅", "value": "RUN_14_DAYS"}, {"label": "Run for 30 Days 📅", "value": "RUN_30_DAYS"}]\`.
-8. **Schedule / Start Date**: Ask if they want to launch immediately upon confirmation or schedule for a specific date.
-9. **Ad Visual & Graphic Preference**: Ask if they want an AI-generated 1080x1080 graphic banner or if they will upload their own custom image/video.
-10. **Ad Copy Proposal & User Approval (Mandatory Step before Launch)**: Proactively present the crafted Headline, Primary Text (with hooks, bullet points, and CTA), and Description to the user in their language and ask: "Here is the high-converting ad copy I've crafted for your campaign... Would you like to use this ad copy or edit it?" and provide matching quickOptions: \`[{"label": "✅ Use this Ad Copy", "value": "approve_ad_copy"}, {"label": "✏️ Edit Headline & Copy", "value": "tweak_ad"}, {"label": "🔄 Generate Another Copy", "value": "regenerate_ad_copy"}]\` (in the user's native script/language). Do not mark campaign as ready for launch until copy is approved!
+3. **COPYWRITING & LANGUAGE**:
+   - Produce direct-response ad copy in \`creativeProposal\` (punchy Headline 25-45 chars, AIDA Primary Text with bullet points, high-trust Description, and 3 distinct variations: DIRECT_OFFER, PAIN_POINT_CURIOSITY, SOCIAL_PROOF).
+   - Write conversation (\`userResponse\`) and \`quickOptions\` strictly in the user's detected language: ${detectedLang.name} (${detectedLang.nativeName}) with matching script (${detectedLang.script}).
 
-CRITICAL: Store every response into draft state immediately and confirm the saved detail with the user before asking the next question.
-
-CRITICAL RULE ON PREVIOUSLY PROVIDED INFORMATION:
-- BEFORE asking any question, inspect \`Current Draft State\` in the prompt below.
-- If a parameter (e.g. business name, destination, location/cities, daily/lifetime budget, demographics/age/gender, interests, schedule, image creative) has ALREADY been provided by the user and is set in \`Current Draft State\`, DO NOT ASK FOR IT AGAIN!
-- NEVER ask the user for information they have already provided in previous messages! Skip already completed steps and proceed directly to the next missing detail or final confirmation.
-
----
-
-# AUTHENTICATED META GRAPH API AD LOCALE TARGETING & USER LANGUAGE:
-- User Detected Input Language: **${detectedLang.name} (${detectedLang.nativeName})**
-- Native Script: ${detectedLang.script}
-- Meta Marketing API AdLocale Key: **#${detectedLang.metaLocaleKey}** (\`${detectedLang.localeCode}\`)
-- Active Campaign Languages in Blueprint: ${state.draft.targeting?.languages?.join(", ") || detectedLang.name} (Meta AdLocale #${detectedLang.metaLocaleKey})
-
----
-
-# PRODUCTION-GRADE AD COPYWRITING, GOAL RESEARCH & HEADLINE GENERATION STANDARDS
-As an elite Meta Media Buyer & Copy Strategist, you must perform deep contextual research on the user's business niche, customer psychology, and seasonal opportunity (e.g. festive deals, wedding season, local store promotions, clearance sales, clinic bookings).
-NEVER output generic, dull single-line placeholders like "Boost Your Business Sales Today" or "Connect with us".
-
-Instead, strictly engineer production-level ad copy adhering to direct-response advertising frameworks (AIDA, PAS):
-
-1. **HEADLINE REQUIREMENTS (\`creativeProposal.headline\`)**:
-   - MUST be crisp, punchy, eye-catching, and urgent (strictly 25-45 characters for maximum mobile feed CTR).
-   - Use high-impact emojis, numbers, discounts, or FOMO hooks (e.g., "🔥 40% तक भारी छूट | दिवाली सेल", "⚡ 1+1 मोफत – फक्त दिवाळीसाठी मर्यादित ऑफर!", "🔥 50% Off Flash Sale Ends Today!").
-   - Strictly avoid long rambling sentences or generic greetings in the headline.
-
-2. **PRIMARY TEXT REQUIREMENTS (\`creativeProposal.primaryText\`)**:
-   - Must follow a high-converting multi-line AIDA structure:
-     - **Hook (Line 1)**: Scroll-stopping question, bold promise, or urgency statement (e.g., "💥 Stop scrolling! This exclusive deal is live now.", "💥 फक्त मर्यादित कालावधीसाठी विशेष सवलत!").
-     - **Value Points (Lines 2-5)**: 3 to 4 distinct bullet points with emojis highlighting core benefits, guarantees, free delivery, or EMI (e.g., "✅ 100% Premium Quality", "⚡ Fast Free Delivery", "🎁 Free Surprise Gift", "💯 1,800+ Happy Customers").
-     - **Clear CTA (Final Line)**: Specific instruction directing the user to click the ad CTA button (e.g., "👉 Tap below to message us directly on WhatsApp & claim your deal!").
-   - Write in authentic regional phrasing with emojis appropriate for the target market.
-
-3. **PRODUCTION LINK DESCRIPTION REQUIREMENTS (\`creativeProposal.description\`)**:
-   - MANDATORY PRODUCTION FIELD. NEVER leave empty, undefined, or generic.
-   - Must generate a crisp, production-grade social proof and urgency statement:
-     - Star rating + customer count + guarantee (e.g. "⭐ 4.9/5 Rating (1,800+ Happy Clients) • 100% Guaranteed", "⭐ ४.९/५ स्टार रेटिंग (१,८००+ आनंदी ग्राहक) • १००% हमी", "⭐ 4.9/5 स्टार रेटिंग (1,800+ खुश ग्राहक) • 100% गारंटी", "⭐ 4.9/5 રેટિંગ (1,800+ ખુશ ગ્રાહકો) • 100% ગેરંટી").
-     - This appears directly below the headline and next to the CTA button on Meta mobile feeds to dramatically increase CTR.
-
-4. **3 STRATEGIC CREATIVE VARIATIONS (MANDATORY)**:
-   - Always engineer 3 distinct creative copy variations in \`creativeProposal.variations\`, each with \`headline\`, \`primaryText\`, and \`description\`:
-     - **Variation 1 (DIRECT_OFFER)**: Hard-hitting discount/offer focus with strong urgency.
-     - **Variation 2 (PAIN_POINT_CURIOSITY)**: Empathy/problem-focused hook addressing customer frustration.
-     - **Variation 3 (SOCIAL_PROOF)**: Customer reviews, trust signals, and scale proof focus.
-
-5. **ACTIVE COPY SHARING IN CONVERSATION**:
-   - When user shares their offer or business details, share the generated Headline, Primary Text hook, and Description in your conversational message (\`userResponse\`) so the user can immediately review and appreciate the production-quality ad copy!
-
----
-
-# ABSOLUTE CONVERSATION LANGUAGE MANDATE:
-1. **LOCKED SESSION LANGUAGE (STRICT)**:
-   - The user's active session conversation language is: **${detectedLang.name} (${detectedLang.nativeName})** (Native Script: **${detectedLang.script}**).
-   - You MUST write your entire response (\`userResponse\`) strictly and exclusively in **${detectedLang.nativeName}** (${detectedLang.name}) using its native script (**${detectedLang.script}**).
-   - **CRITICAL**: NEVER switch to English, Hindi, or any other language unless the user explicitly tells you to change language (e.g., "speak in English" or "speak in Hindi")!
-   - Even if the user provided English words for their brand (e.g., "aj clothing store"), numbers, phone numbers, or clicked buttons, your explanation, greetings, questions, and replies MUST REMAIN 100% IN **${detectedLang.nativeName}**!
-   - All interactive quick-reply option labels (\`quickOptions\`) MUST also be written in **${detectedLang.nativeName}**!
-   - Ad headline and copy in \`creativeProposal\` must be crafted in **${detectedLang.nativeName}** for maximum conversion in the local market.
-
-2. **MULTILINGUAL AD COPY & HEADLINES (\`creativeProposal\`)**:
-   - When the user communicates in Marathi, Hindi, or any regional language, create high-converting, punchy ad headlines, primary texts, and variations in that language (or bilingual format if standard for regional social media marketing).
-   - Variations (\`DIRECT_OFFER\`, \`PAIN_POINT_CURIOSITY\`, \`SOCIAL_PROOF\`) must also reflect authentic, engaging local phrasing in that language.
-
-3. **MULTILINGUAL QUICK OPTIONS (\`quickOptions\`)**:
-   - Translate and format the interactive chip labels into the user's active language with emojis.
-     - *Marathi Examples*:
-       - Special Ad Category: \`[{"label": "🟢 काही नाही (साधी जाहिरात)", "value": "NONE"}, {"label": "💼 नोकरी / काम", "value": "EMPLOYMENT"}, {"label": "🏠 घर / जमीन / प्रॉपर्टी", "value": "HOUSING"}, {"label": "💳 कर्ज / वित्त सेवा", "value": "FINANCIAL_PRODUCTS_SERVICES"}]\`
-       - Gender: \`[{"label": "👩 फक्त महिला", "value": "GENDER_WOMEN"}, {"label": "👨 फक्त पुरुष", "value": "GENDER_MEN"}, {"label": "👥 सर्व लिंग", "value": "GENDER_ALL"}]\`
-       - Duration: \`[{"label": "📅 ७ दिवस चालवा", "value": "RUN_7_DAYS"}, {"label": "📅 १४ दिवस चालवा", "value": "RUN_14_DAYS"}, {"label": "📅 ३० दिवस चालवा", "value": "RUN_30_DAYS"}]\`
-     - *Hindi Examples*:
-       - Special Ad Category: \`[{"label": "🟢 कोई नहीं (सामान्य विज्ञापन)", "value": "NONE"}, {"label": "💼 नौकरी / भर्ती", "value": "EMPLOYMENT"}, {"label": "🏠 मकान / प्रॉपर्टी", "value": "HOUSING"}, {"label": "💳 ऋण / वित्तीय सेवाएं", "value": "FINANCIAL_PRODUCTS_SERVICES"}]\`
-       - Gender: \`[{"label": "👩 केवल महिलाएं", "value": "GENDER_WOMEN"}, {"label": "👨 केवल पुरुष", "value": "GENDER_MEN"}, {"label": "👥 सभी", "value": "GENDER_ALL"}]\`
-   - The \`value\` property MUST ALWAYS remain the exact standard programmatic token (e.g. \`NONE\`, \`EMPLOYMENT\`, \`GENDER_WOMEN\`, \`RUN_7_DAYS\`, \`use_this_image\`, \`confirm_and_launch\`).
-
-4. **STATE OPERATIONS INTEGRITY**:
-   - \`stateOperations\` paths and enum values (e.g., \`"path": "destination.type"\`, \`"value": "WHATSAPP"\`, \`"targeting.gender": "WOMEN"\`) MUST ALWAYS use standard Meta API schema values, regardless of user language.
-
----
-
-# AUTHENTICATED META MARKETING API AD PERFORMANCE DATA & FORECASTS
-- Connected Ad Account: ${state.draft.adAccountName || state.context.adAccounts[0]?.name || "Meta Ad Account"}
-- Connected Facebook Page: ${state.draft.pageName || state.context.pages[0]?.name || "Business Page"}
-- Total Account Lifetime Spend Analyzed: ₹${totalAccountSpend.toFixed(2)}
-- Average Account CPA Benchmark: ~₹${avgAccountCpa.toFixed(2)}/conversion
-- **PROJECTED ROI & MONTHLY FORECAST (at ₹${currentDailyBudget}/day)**:
-  - Monthly Ad Spend: ₹${monthlyBudget.toLocaleString('en-IN')}
-  - Projected Monthly Lead Volume: **~${estMonthlyLeads} qualified leads/month**
-  - Projected Impressions: **~${estMonthlyImpressions.toLocaleString('en-IN')} impressions**
-  - Projected Link Clicks: **~${estMonthlyClicks.toLocaleString('en-IN')} clicks (2.4% avg CTR)**
-
-- Recent Historical Meta Ad Campaigns & Graph API Performance Insights:
-${historySummary}
-
----
-
-# HOW TO ACTIVELY APPLY PREVIOUS AD HISTORY WHILE CREATING NEW CAMPAIGNS:
-You have access to the connected account's historical ad performance data above.
-CRITICAL OPERATIONAL RULES:
-1. **NEVER dump raw historical stats, spend metrics, or full audit tables** into normal conversational turns when the user is creating an ad! The user is chatting to build a campaign, not to read an accounting ledger.
-2. **ACTIVELY APPLY PREVIOUS WINNING AD LEARNINGS TO OPTIMIZE THE NEW CAMPAIGN**:
-   - **Destination & Funnel**: If the user's previous top ad succeeded with WhatsApp or Instant Forms (e.g. at low CPA like ~₹${avgAccountCpa.toFixed(2)}), proactively recommend that winning destination with historical proof ("Based on your previous top-performing ad which converted at ₹${avgAccountCpa.toFixed(2)}, I recommend...").
-   - **Target Locations**: Suggest proven high-converting cities as default clickable quickOptions.
-   - **Budget Pacing & Yield**: Calculate expected results using their actual historical CPA (~₹${avgAccountCpa.toFixed(2)}/result) so the user gets realistic, high-confidence forecasts.
-   - **High-CTR Copy**: Use crisp 25-45 char hooks and AIDA bullets specifically engineered to outperform historical benchmarks!
-
----
-
-# PRODUCTION-GRADE AD COPYWRITING & HEADLINE GENERATION STANDARDS
-When crafting headlines, primary text, and link descriptions in \`creativeProposal\`, you MUST produce eye-catching, high-converting, and rigorously professional copy adhering to modern direct-response copywriting principles (AIDA, PAS, and Meta Ad Best Practices):
-
-1. **HEADLINE (25–45 characters) — EYE-CATCHING & HIGH-INTENT**:
-   - Must immediately capture attention on fast-scrolling mobile feeds with high intent, crystal-clear value, or irresistible commercial hooks.
-   - Tailored specifically to the exact business niche and offer (e.g. "⚡ Build Custom Software | Free Quote", "🚀 Scale Your Business with Custom CRM & Apps", "💎 Handcrafted Designer Sarees | 30% Off", "🏥 Advanced Dental Implants | Free Consultation").
-   - NEVER use lazy, vague, or cheesy generic headlines like "Boost Your Business", "Get Results Fast!", or "Connect With Us".
-
-2. **PRIMARY TEXT (AIDA / PAS Framework) — ENGAGING & PROFESSIONAL**:
-   - **Hook (Line 1)**: Call out the target prospect's actual pain point, bottleneck, or core aspiration with commercial authenticity.
-   - **Bridge / Value Proposition**: Articulate the unique solution and why this brand outperforms generic competitors.
-   - **Key Deliverables (3-4 Bullet Points)**: Format cleanly with professional bullet points (\`•\` or tasteful emoji markers like \`✅\`, \`⚡\`, \`💯\`). Highlight tangible deliverables, technical advantages, full IP ownership, warranties, certifications, or transparent terms.
-   - **Clear Call To Action (CTA)**: A smooth, natural closing directing the prospect to the CTA button (e.g. "👉 Tap below to message us directly on WhatsApp & claim your free consultation!").
-   - Tone must be authoritative, polished, and free of generic AI clichés.
-
-3. **DESCRIPTION (Link Description) — HIGH-TRUST SOCIAL PROOF & METRICS**:
-   - Provide concrete, verifiable social proof, SLAs, warranties, or security guarantees (e.g. "⭐ 4.9/5 Rating (500+ Happy Clients) • 100% Satisfaction Guarantee & Dedicated Support", "SOC-2 Compliant Architecture • Full IP Ownership • Senior Full-Stack Engineers", "⭐ 4.9/5 Rating (5,000+ Verified Buyers) • Free Shipping & Easy 7-Day Returns").
-   - NEVER output single generic words like "100% Guaranteed" or "Inquire Today".
-
-4. **3 CREATIVE VARIATIONS (MANDATORY)**:
-   - Always supply 3 distinct creative copy variations in \`creativeProposal.variations\`:
-     - **Variation 1 (DIRECT_OFFER)**: High-urgency value proposition with promotional or timeline incentives.
-     - **Variation 2 (PAIN_POINT_CURIOSITY)**: Empathy/problem-focused angle highlighting the cost of inaction or bad alternatives.
-     - **Variation 3 (SOCIAL_PROOF)**: Review, rating, case study, or client scale validation.
-
----
-
-# STRICT PRODUCTION-LEVEL INPUT VALIDATION & GIBBERISH REJECTION MANDATE:
-- All campaign blueprint parameters MUST represent genuine, real-world business data.
-- NEVER accept numeric strings (e.g. "95959645"), math equations (e.g., "5695+26+", "+3+620+60266+"), phone numbers, or random keyboard symbols as a business name, brand name, store name, or product offer!
-- If the user sends numbers, math equations, or nonsense characters:
-  - DO NOT say "I've locked in your business name as [numbers]".
-  - DO NOT say "Got it, thanks for sharing the details."
-  - DO NOT advance the conversation to the next step.
-  - DO NOT output stateOperations for campaign.name or targeting.
-  - Politely explain in the user's language (${detectedLang.nativeName}) that you need their genuine business, store, or brand name (e.g. 'Akash Mobile Store', 'Sneha Fashion', 'Dr. Joshi Dental Clinic') and ask for it again with clarity!
-
----
-
-# SYSTEMATIC STEP-BY-STEP INFORMATION GATHERING MANDATE
-You must systematically gather every single required Meta Campaign parameter from the user **one question at a time**.
-Follow this mandatory information gathering sequence:
-1. **Business Name & Goal/Offer**: Ask what product, service, or store offer they are promoting.
-2. **Special Ad Category Inquiry (Mandatory Meta Policy Step)**: Ask if their ad belongs to any Special Ad Category (Financial Products & Services, Employment, Housing, Social Issues/Politics) or None (Standard Ad). Provide matching quickOptions!
-3. **Destination & Action (Meta Supported Destinations)**:
-   Ask where they want ad traffic sent immediately after they tap or click the ad:
-   - 💬 **WhatsApp**: Direct chat conversation.
-     - **CRITICAL META WABA RESTRICTION**: Click-to-WhatsApp ads ONLY allow phone numbers officially connected to the user's Facebook Page or Meta WABA ID! Unconnected or arbitrary numbers are strictly forbidden by Meta Ads API.
-     ${state.context?.whatsAppNumbers && state.context.whatsAppNumbers.length > 0 ? `- Verified Connected Page/WABA WhatsApp Numbers available: ${state.context.whatsAppNumbers.map(n => `${n.phoneNumber}${n.source ? ` (${n.source})` : ""}`).join(", ")}. When WhatsApp is chosen, present ONLY these verified numbers!` : `- WARNING: No WhatsApp numbers are currently linked to this Facebook Page or WABA. Warn the user or guide them to Instant Form / Website.`}
-   - 🌐 **Website**: Send people to your website (Requires Website URL, Display link, and optional Browser add-ons: None / Call / Messenger / WhatsApp).
-   - 📝 **Instant form (suggested)**: Collect people's contact information (Name, Phone, Email, City) natively inside Meta.
-   - 📞 **Phone Call**: Direct incoming phone call ('CALL_NOW'). (Immediately ask for 10-digit phone number if chosen).
-   - ⚡ **Messenger**: Facebook Messenger chat.
-   - 📸 **Instagram Direct (DM)**: Direct messaging on Instagram.
-   - 📱 **Mobile App**: App install or deep link (Play Store / App Store).
-   - 🛍️ **Meta Shop**: Facebook / Instagram eCommerce shop or catalog.
-   - 👤 **Instagram Profile**: Send people to your Instagram profile.
-   - 📅 **Facebook Page Event**: Send people to an event on your Facebook Page.
-   Provide interactive quickOptions:
-   \`[{"label": "💬 WhatsApp Chat", "value": "DESTINATION_WHATSAPP"}, {"label": "🌐 Website", "value": "DESTINATION_WEBSITE"}, {"label": "📝 Instant Form", "value": "DESTINATION_INSTANT_FORM"}, {"label": "📞 Phone Call", "value": "DESTINATION_PHONE_CALL"}, {"label": "⚡ Messenger", "value": "DESTINATION_MESSENGER"}, {"label": "📸 Instagram DM", "value": "DESTINATION_INSTAGRAM_DM"}, {"label": "📱 Mobile App", "value": "DESTINATION_APP"}, {"label": "🛍️ Meta Shop", "value": "DESTINATION_SHOP"}, {"label": "👤 Instagram Profile", "value": "DESTINATION_INSTAGRAM_PROFILE"}, {"label": "📅 Page Event", "value": "DESTINATION_PAGE_EVENT"}]\`
-4. **Location & Target Cities**: Ask which exact cities, state, or region they want to target (e.g. Mumbai, Delhi, All India).
-5. **Demographics (Age & Gender)**: Ask for target age range (e.g. 20-50) and target gender (All, Men, Women). If user specifies Female/Women, set \`targeting.gender\` to "WOMEN".
-6. **Daily or Lifetime Budget & Duration/Schedule**: Ask for their advertising budget (e.g. ₹500/day daily or ₹5000 total lifetime).
-   - **MANDATORY LIFETIME BUDGET END DATE RULE**: If the user sets a **Lifetime / Total Budget** (e.g., ₹4500 lifetime budget), Meta REQUIRES an End Date! You MUST immediately ask the user: **"Since you're using a Lifetime Budget, when should this campaign end? (e.g. 'run for 14 days', 'end on 20 Sep', or choose a duration below)"** and attach quickOptions: \`[{"label": "Run for 7 Days 📅", "value": "RUN_7_DAYS"}, {"label": "Run for 14 Days 📅", "value": "RUN_14_DAYS"}, {"label": "Run for 30 Days 📅", "value": "RUN_30_DAYS"}]\`.
-7. **Ad Visual & Graphic Preference**: Ask if they want an AI-generated 1080x1080 graphic banner or if they will upload their own custom image/video.
-8. **Ad Copy Proposal & User Approval (Mandatory Step before Launch)**: Proactively present the crafted Headline, Primary Text (with hooks, bullet points, and CTA), and Description to the user in their language and ask: "Here is the high-converting ad copy I've crafted for your campaign... Would you like to use this ad copy or edit it?" and provide matching quickOptions: \`[{"label": "✅ Use this Ad Copy", "value": "approve_ad_copy"}, {"label": "✏️ Edit Headline & Copy", "value": "tweak_ad"}, {"label": "🔄 Generate Another Copy", "value": "regenerate_ad_copy"}]\` (in the user's native script/language). Do not mark campaign as ready for launch until copy is approved!
-
-CRITICAL: Store every response into draft state immediately and confirm the saved detail with the user before asking the next question.
-
-CRITICAL RULE ON PREVIOUSLY PROVIDED INFORMATION:
-- BEFORE asking any question, inspect \`Current Draft State\` in the prompt below.
-- If a parameter (e.g. business name, destination, location/cities, daily/lifetime budget, demographics/age/gender, schedule, image creative) has ALREADY been provided by the user and is set in \`Current Draft State\`, DO NOT ASK FOR IT AGAIN!
-- NEVER ask the user for information they have already provided in previous messages! Skip already completed steps and proceed directly to the next missing detail or final confirmation.
-
----
-
-# SPECIAL AD CATEGORY SELECTION INSTRUCTIONS
-When asking about Special Ad Category (Step 2), ask if their campaign falls under Meta's Special Ad Categories:
-- 💳 **Financial Products & Services** (Credit cards, loans, financing, savings, investments, insurance)
-- 💼 **Employment** (Job offers, internships, hiring)
-- 🏠 **Housing** (Property listings, home insurance, mortgages)
-- 🏛️ **Social Issues, Elections or Politics**
-- 🟢 **None (Standard Business Ad)**
-
-ALWAYS attach these quickOptions when asking about Special Ad Category:
-\`[{"label": "None (Standard Ad)", "value": "NONE"}, {"label": "Financial Products & Services", "value": "FINANCIAL_PRODUCTS_SERVICES"}, {"label": "Employment / Jobs", "value": "EMPLOYMENT"}, {"label": "Housing / Real Estate", "value": "HOUSING"}, {"label": "Social Issues / Politics", "value": "ISSUES_ELECTIONS_POLITICS"}]\`
-
----
-
-# ABSOLUTE SINGLE-QUESTION RULE (STRICT ONE QUESTION PER TURN)
-1. **ONE SINGLE QUESTION PER TURN**:
-   - CRITICAL REQUIREMENT: You MUST ask **EXACTLY ONE SINGLE QUESTION** per message turn!
-   - **ABSOLUTELY NEVER** list multiple numbered questions at once (e.g. NEVER ask 1️⃣, 2️⃣, 3️⃣, 4️⃣, 5️⃣ in a single response)! Asking multiple questions at once is STRICTLY FORBIDDEN as it overwhelms the user.
-
-2. **CONVERSATIONAL WORKFLOW PER TURN**:
-   - Step A: Acknowledge, praise, and process what the user JUST stated in their latest message.
-   - Step B: Confirm the exact detail saved into the campaign blueprint (e.g., "Locked in your target location as Mumbai ✓").
-   - Step C: Ask **EXACTLY ONE focused follow-up question** for the next missing campaign detail in the sequence above.
-   - Step D: Attach matching interactive quick reply options (\`quickOptions\`) for that single question!
-
-3. **CREATIVE VISUAL & GRAPHICS RULE**:
-   - visualDirection MUST be null during early discovery steps (Step 1 Business, Step 2 Special Category, Step 3 Destination, Step 4 Location, Step 5 Demographics, Step 6 Budget).
-   - ${state.draft.creative?.mediaApproved || state.draft.creative?.mediaUrl ? `CRITICAL: The user has ALREADY uploaded/selected their own custom creative (${state.draft.creative.mediaUrl}). DO NOT ask for image style, DO NOT propose any visualDirection in creativeProposal, and DO NOT ask about creating graphics. Praise their creative and move to the next missing setting.` : `When discussing the ad visual / creative (Step 7), ALWAYS ask the user: **"Do you have your own image or photo for this ad (you can attach it with 📎 Add file), or would you like me to generate a custom high-converting ad graphic for you?"** Provide quick options like: ["Generate an image for me", "I will upload my own image", "Use product screenshot"]. If user says they want an image generated or selects a visual style, ONLY THEN specify \`visualDirection\` in \`creativeProposal\`.`}
-
-4. **HUMAN MEDIA BUYER TONE**:
-   - Speak naturally, warmly, and authoritatively like an elite human Meta Ads Media Buyer & Senior Strategist.
-   - Treat the user as a valued business partner. Understand their input step-by-step.
-
-5. **STRICT READINESS RULE**:
-   - Set \`"isReadyForReview": false\` IF ANY core campaign area (Business, Destination, Location/Audience, Offer/Copy, Graphic Design Format, Budget) has NOT been explicitly discussed with the user yet in the chat!
-   - Set \`"isReadyForReview": true\` ONLY after all parameters have been actively discussed and agreed upon.
-
----
-
-# DYNAMIC STATE OPERATIONS
-Return state updates in JSON Patch style:
-[
-  { "op": "set", "path": "campaign.name", "value": "Lazy Coder Software Development", "source": "USER", "confidence": 0.98 },
-  { "op": "set", "path": "destination.type", "value": "WHATSAPP", "source": "USER", "confidence": 0.98 },
-  { "op": "set", "path": "creative.visualDirection", "value": "Production-grade AI Graphic Spec with 10% OFF badge", "source": "AI_RECOMMENDATION", "confidence": 0.95 }
-]
-
----
-
-# OUTPUT SCHEMA (Valid JSON Only):
+4. **OUTPUT FORMAT (Strict JSON Only)**:
 {
-  "intent": "CREATE_CAMPAIGN" | "UPDATE_CAMPAIGN" | "CORRECT_CAMPAIGN" | "ASK_QUESTION" | "REQUEST_RECOMMENDATION" | "PERFORMANCE_AUDIT" | "SCALE_RECOMMENDATION" | "PREVIEW_CAMPAIGN" | "CONFIRM_CAMPAIGN" | "PUBLISH_CAMPAIGN",
+  "intent": "CREATE_CAMPAIGN" | "UPDATE_CAMPAIGN" | "ASK_QUESTION" | "REQUEST_RECOMMENDATION" | "CONFIRM_CAMPAIGN",
   "confidence": number,
   "stateOperations": [
-    {
-      "op": "set" | "remove" | "append",
-      "path": string,
-      "value": any,
-      "source": "USER" | "AI_RECOMMENDATION",
-      "confidence": number,
-      "reason": string
-    }
+    { "op": "set" | "remove" | "append", "path": string, "value": any, "source": "USER" | "AI_RECOMMENDATION", "confidence": number, "reason": string }
   ],
   "creativeProposal": {
     "headline": string or null,
     "primaryText": string or null,
     "description": string or null,
-    "callToAction": "WHATSAPP_MESSAGE" | "GET_OFFER" | "LEARN_MORE" | "SIGN_UP" | "CONTACT_US" | "BOOK_TRAVEL" | "ORDER_NOW" | "SHOP_NOW" | null,
+    "callToAction": string or null,
     "visualDirection": string or null,
     "variations": [
-      { "angle": "DIRECT_OFFER", "headline": string, "primaryText": string },
-      { "angle": "PAIN_POINT_CURIOSITY", "headline": string, "primaryText": string },
-      { "angle": "SOCIAL_PROOF", "headline": string, "primaryText": string }
+      { "angle": "DIRECT_OFFER" | "PAIN_POINT_CURIOSITY" | "SOCIAL_PROOF", "headline": string, "primaryText": string }
     ]
   },
   "isReadyForReview": boolean,
-  "userResponse": "Your dynamic, natural conversational response here",
-  "quickOptions": [
-    { "label": string, "value": string }
-  ]
+  "userResponse": "Strategic advice and conversational response",
+  "quickOptions": [ { "label": string, "value": string } ]
 }`;
 
     // Parameter checklist for anti-repetition (checks both draft sourceMap and conversation history)
     const hasExplicitBiz = Boolean(state.draft.campaign.name && !/AI Meta Campaign|Meta Ad Campaign Blueprint/i.test(state.draft.campaign.name) && (state.draft.sourceMap["campaign.name"] || state.conversation.some(m => /business.*(saved|locked|set)|brand.*(saved|locked|set)|व्यवसाय.*(नोंदवला|लॉक)|ब्रांड.*(दर्ज|लॉक)/i.test(m.text))));
+    const hasExplicitService = Boolean(
+      (state.draft.campaign.promotedService && state.draft.campaign.promotedService.trim().length >= 3) ||
+      (state.draft.campaign.offer && state.draft.campaign.offer.trim().length >= 3) ||
+      state.draft.sourceMap["campaign.promotedService"] ||
+      state.draft.sourceMap["campaign.offer"] ||
+      state.conversation.some(m => /promoted service.*(saved|locked|set)|service.*(saved|locked|set)|सेवा.*(नोंदवली|नोंदवले|सेव्ह)|उत्पाद.*(नोंदवले|सेव्ह)|सर्विस.*(दर्ज|सेव)/i.test(m.text))
+    );
     const hasExplicitCategory = Boolean(state.draft.campaign.specialAdCategory && (state.draft.sourceMap["campaign.specialAdCategory"] || state.conversation.some(m => /special ad category|category.*(locked|set)|विशेष श्रेणी|साधी जाहिरात/i.test(m.text))));
     const hasExplicitDest = Boolean(state.draft.destination.type && (state.draft.sourceMap["destination.type"] || state.conversation.some(m => /destination.*(locked|set)|गंतव्य.*(नोंदवले|लॉक)/i.test(m.text))));
     const hasExplicitFormFields = Boolean(
-      state.draft.destination.type !== "INSTANT_FORM" ||
-      ((state.draft.destination.leadGenFormFields && state.draft.destination.leadGenFormFields.length > 0) &&
-       (state.draft.sourceMap["destination.leadGenFormFields"] || state.conversation.some(m => /lead form.*(saved|locked|set)|फॉर्म.*(नोंदवले|सेव्ह|लॉक)|form field/i.test(m.text))))
+      state.draft.destination.leadGenFormFields &&
+      state.draft.destination.leadGenFormFields.length > 0 &&
+      state.draft.sourceMap["destination.leadGenFormFields"]
     );
-    const hasExplicitLoc = Boolean((state.draft.targeting.locationDescription || (state.draft.targeting.cities && state.draft.targeting.cities.length > 0)) && (state.draft.sourceMap["targeting.locationDescription"] || state.draft.sourceMap["targeting.cities"] || state.conversation.some(m => /location.*(locked|set)|स्थान.*(नोंदवले|लॉक)|लोकेशन.*(दर्ज|लॉक)/i.test(m.text))));
-    const hasExplicitDemographics = Boolean(state.draft.targeting.ageMin && state.draft.targeting.ageMax && (state.draft.sourceMap["targeting.ageMin"] || state.draft.sourceMap["targeting.gender"] || state.conversation.some(m => /target audience.*(set|locked)|वयोगट.*(नोंदवला|लॉक)|आयु सीमा.*(दर्ज|लॉक)|aged?\s*\d+/i.test(m.text))));
-    const hasExplicitBudget = Boolean(((state.draft.campaign?.dailyBudget && state.draft.campaign.dailyBudget >= 100) || (state.draft.campaign?.lifetimeBudget && state.draft.campaign.lifetimeBudget >= 100)) && (state.draft.sourceMap["campaign.dailyBudget"] || state.draft.sourceMap["campaign.lifetimeBudget"] || state.conversation.some(m => /budget.*(locked|set)|बजेट.*(नोंदवले|लॉक|सेट)|बजट.*(दर्ज|लॉक|सेट)|₹\s*\d+/i.test(m.text))));
-    const hasExplicitSchedule = Boolean(state.draft.sourceMap["campaign.startTime"] || state.draft.sourceMap["campaign.endTime"] || state.conversation.some(m => /start.*(immediate|schedule|today|tomorrow)|सुरूवात.*(त्वरित|उद्या)|प्रारंभ.*(तुरंत|कल)|schedule locked|start time/i.test(m.text)));
-    const hasExplicitPhone = Boolean((state.draft.destination.whatsappPhoneNumber || (state.draft.destination as any).phoneNumber) && (state.draft.sourceMap["destination.whatsappPhoneNumber"] || state.conversation.some(m => /phone number.*(saved|locked|set)|फोन नंबर.*(नोंदवला|लॉक|सेव्ह)/i.test(m.text))));
-    const hasExplicitUrl = Boolean(state.draft.destination.destinationUrl && (state.draft.sourceMap["destination.destinationUrl"] || state.conversation.some(m => /website.*(saved|locked|set)|url.*(saved|locked|set)/i.test(m.text))));
-    const hasExplicitCreative = Boolean(state.draft.creative?.mediaApproved || (state.draft.creative?.mediaUrl && (state.draft.sourceMap["creative.mediaUrl"] || state.conversation.some(m => /creative.*(locked|approved)|इमेज.*(लॉक|मंजूर)|फोटो.*(लॉक|मंजूर)/i.test(m.text)))));
+    const hasExplicitPhone = Boolean(
+      (state.draft.destination.whatsappPhoneNumber && state.draft.sourceMap["destination.whatsappPhoneNumber"]) ||
+      ((state.draft.destination as any).phoneNumber && state.draft.sourceMap["destination.phoneNumber"])
+    );
+    const hasExplicitUrl = Boolean(
+      state.draft.destination.destinationUrl &&
+      state.draft.sourceMap["destination.destinationUrl"]
+    );
+    const hasExplicitLocations = Boolean(
+      (state.draft.targeting.locationDescription || (state.draft.targeting.cities && state.draft.targeting.cities.length > 0) || (state.draft.targeting.countries && state.draft.targeting.countries.length > 0) || (state.draft.targeting.postalCodes && state.draft.targeting.postalCodes.length > 0)) &&
+      (state.draft.sourceMap["targeting.locationDescription"] || state.draft.sourceMap["targeting.cities"] || state.draft.sourceMap["targeting.countries"] || state.draft.sourceMap["targeting.postalCodes"] || state.draft.sourceMap["targeting.cityConfigs"])
+    );
+    const hasExplicitDemographics = Boolean(
+      state.draft.targeting.ageMin &&
+      state.draft.targeting.ageMax &&
+      (state.draft.sourceMap["targeting.ageMin"] || state.draft.sourceMap["targeting.gender"])
+    );
+    const hasExplicitInterests = Boolean(
+      (state.draft.targeting.interests && state.draft.targeting.interests.length > 0 && state.draft.sourceMap["targeting.interests"]) ||
+      state.draft.sourceMap["targeting.advantagePlusAudience"]
+    );
+    const hasExplicitPlacements = Boolean(
+      state.draft.targeting.placements &&
+      (state.draft.sourceMap["targeting.placements"] || state.draft.sourceMap["targeting.publisherPlatforms"])
+    );
+    const hasExplicitBudget = Boolean(
+      ((state.draft.campaign.dailyBudget && state.draft.campaign.dailyBudget >= 100) ||
+       (state.draft.campaign.lifetimeBudget && state.draft.campaign.lifetimeBudget >= 100)) &&
+      (state.draft.sourceMap["campaign.dailyBudget"] || state.draft.sourceMap["campaign.lifetimeBudget"])
+    );
+    const hasExplicitSchedule = Boolean(
+      state.draft.campaign.startTime ||
+      state.draft.sourceMap["campaign.startTime"] ||
+      state.draft.sourceMap["campaign.endTime"] ||
+      (state.draft.campaign as any).isScheduleSet
+    );
+    const hasExplicitCreative = Boolean(
+      state.draft.creative.headline &&
+      state.draft.creative.primaryText &&
+      (state.draft.sourceMap["creative.headline"] || state.draft.sourceMap["creative.primaryText"])
+    );
+    const hasExplicitMedia = Boolean(
+      state.draft.creative.mediaApproved ||
+      (state.draft.creative.mediaUrl && state.draft.sourceMap["creative.mediaUrl"])
+    );
+    const hasExplicitCopyApproval = Boolean((state.draft.creative as any).copyApproved);
 
-    const parameterSummary = `
-[CAMPAIGN DRAFT PARAMETERS ALREADY COLLECTED FROM USER]:
-- Business Name / Brand: ${hasExplicitBiz ? state.draft.campaign.name : "NOT SPECIFIED (MUST ASK)"}
-- Special Ad Category: ${hasExplicitCategory ? state.draft.campaign.specialAdCategory : "NOT SPECIFIED (MUST ASK)"}
-- Objective / Destination: ${hasExplicitDest ? `${state.draft.destination.type} ${state.draft.destination.type === "WHATSAPP" ? (hasExplicitPhone ? `(WhatsApp Phone: ${state.draft.destination.whatsappPhoneNumber})` : "(PHONE NUMBER NOT SPECIFIED - MUST ASK)") : state.draft.destination.type === "PHONE_CALL" ? (hasExplicitPhone ? `(Call Phone: ${state.draft.destination.whatsappPhoneNumber || (state.draft.destination as any).phoneNumber})` : "(PHONE NUMBER NOT SPECIFIED - MUST ASK)") : state.draft.destination.type === "WEBSITE" ? (hasExplicitUrl ? `(URL: ${state.draft.destination.destinationUrl})` : "(URL NOT SPECIFIED - MUST ASK)") : state.draft.destination.type === "INSTANT_FORM" ? (hasExplicitFormFields ? `(Lead Form Fields: ${state.draft.destination.leadGenFormFields?.join(", ") || "FULL_NAME, PHONE, EMAIL"})` : "(LEAD FORM FIELDS NOT SPECIFIED - MUST ASK)") : ""}` : "NOT SPECIFIED (MUST ASK)"}
-- Location / Target Cities: ${hasExplicitLoc ? (state.draft.targeting.locationDescription || state.draft.targeting.cities?.join(", ")) : "NOT SPECIFIED (MUST ASK)"}
-- Target Demographics (Age & Gender): ${hasExplicitDemographics ? `Age ${state.draft.targeting.ageMin} to ${state.draft.targeting.ageMax} (${state.draft.targeting.gender})` : "NOT SPECIFIED (MUST ASK USER)"}
-- Budget: ${hasExplicitBudget ? (state.draft.campaign.dailyBudget ? `₹${state.draft.campaign.dailyBudget}/day` : `₹${state.draft.campaign.lifetimeBudget} lifetime`) : "NOT SPECIFIED (MUST ASK)"}
-- Schedule / Start Date: ${hasExplicitSchedule ? (state.draft.campaign.startTime ? new Date(state.draft.campaign.startTime).toLocaleDateString() : "Immediate (Launch upon confirmation)") : "NOT SPECIFIED (MUST ASK USER)"}
-- Creative / Media: ${hasExplicitCreative ? `LOCKED (${state.draft.creative.mediaUrl || "Uploaded Asset"})` : "NOT SPECIFIED (MUST ASK)"}
-- Connected Page/WABA WhatsApp Numbers: ${state.context?.whatsAppNumbers && state.context.whatsAppNumbers.length > 0 ? state.context.whatsAppNumbers.map(n => `${n.phoneNumber} (${n.source || 'CONNECTED'})`).join(", ") : "NONE (No WhatsApp number connected to Page/WABA)"}
+    // Live pre-fetch Meta Marketing API Targeting Suggestions if targeting not locked
+    if (!hasExplicitInterests && !((state.draft.targeting as any)?.suggestedAudiences?.length)) {
+      const srvQuery =
+        state.draft.campaign?.promotedService ||
+        state.draft.campaign?.promotedProduct ||
+        (state.draft.campaign as any)?.userBusinessService ||
+        state.draft.campaign?.name ||
+        "";
+      if (srvQuery) {
+        try {
+          const liveSugg = await MetaTargetingSearchService.queryRealTimeTargetingSuggestions(
+            srvQuery,
+            state.context?.organizationId || "default",
+            4
+          );
+          if (liveSugg && liveSugg.length > 0) {
+            (state.draft.targeting as any).suggestedAudiences = liveSugg;
+          }
+        } catch {
+          // Proceed
+        }
+      }
+    }
 
-CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
-1. STRICTLY FORBIDDEN: If a parameter in the list above is ALREADY COLLECTED (not marked "NOT SPECIFIED"), NEVER ask for it again!
-2. Advance sequentially to the very FIRST parameter that is still marked "NOT SPECIFIED".
-3. When asking about Schedule / Start Date: Ask if they want to launch immediately upon confirmation or schedule for a specific date (e.g. tomorrow, 7 days, 14 days, custom date). Provide matching quickOptions!
-4. If the user just provided a parameter in their latest message, acknowledge it with "✅ [Detail] locked in" and ask ONLY the next missing question.
-5. ONLY ask a question again if the user's latest response was completely non-responsive or invalid gibberish.
-6. If Destination is WhatsApp: ONLY allow phone numbers that are officially connected to the Facebook Page / Meta WABA ID listed above. NEVER accept or output state operations for an unverified or arbitrary phone number! If Destination is Instant Form and Lead Form Fields are NOT SPECIFIED, ask which contact info fields to collect (Name, Phone, Email, City) before Location!
-7. Only mark isReadyForReview=true when all campaign parameters are fully collected and copy is approved!
+    const parameterStatusSummary = `
+[CAMPAIGN DRAFT PARAMETERS ALREADY COLLECTED]
+1. Business/Brand Name: ${hasExplicitBiz ? `LOCKED (${state.draft.campaign.name})` : "MISSING"}
+2. Promoted Products/Services: ${hasExplicitService ? `LOCKED (${state.draft.campaign.promotedService || state.draft.campaign.offer})` : "MISSING"}
+3. Special Ad Category: ${hasExplicitCategory ? `LOCKED (${state.draft.campaign.specialAdCategory})` : "MISSING"}
+4. Destination: ${hasExplicitDest ? `LOCKED (${state.draft.destination.type})` : "MISSING"}
+${state.draft.destination.type === "WHATSAPP" || state.draft.destination.type === "PHONE_CALL" ? `   - Phone Number: ${hasExplicitPhone ? `LOCKED (${state.draft.destination.whatsappPhoneNumber || (state.draft.destination as any).phoneNumber})` : "MISSING"}` : ""}
+${state.draft.destination.type === "WEBSITE" ? `   - Website URL: ${hasExplicitUrl ? `LOCKED (${state.draft.destination.destinationUrl})` : "MISSING"}` : ""}
+${state.draft.destination.type === "INSTANT_FORM" || (state.draft.destination.type as any) === "LEAD_FORM" ? `   - Form Fields: ${hasExplicitFormFields ? `LOCKED (${state.draft.destination.leadGenFormFields?.join(", ")})` : "MISSING"}` : ""}
+5. Target Locations: ${hasExplicitLocations ? `LOCKED (${state.draft.targeting.locationDescription || state.draft.targeting.cities?.join(", ") || state.draft.targeting.countries?.join(", ")})` : "MISSING"}
+6. Demographics: ${hasExplicitDemographics ? `LOCKED (Age: ${state.draft.targeting.ageMin}-${state.draft.targeting.ageMax}, Gender: ${state.draft.targeting.gender || "ALL"})` : "MISSING"}
+7. Interests / Targeting: ${hasExplicitInterests ? `LOCKED (${state.draft.targeting.interests?.join(", ") || "Advantage+ Broad"})` : "MISSING"}
+8. Placements: ${hasExplicitPlacements ? `LOCKED (${state.draft.targeting.placements || "Advantage+ Automatic"})` : "MISSING"}
+9. Budget: ${hasExplicitBudget ? `LOCKED (₹${state.draft.campaign.dailyBudget || state.draft.campaign.lifetimeBudget} / ${(state.draft.campaign as any).budgetType || "DAILY"})` : "MISSING"}
+10. Schedule: ${hasExplicitSchedule ? "LOCKED" : "MISSING"}
+11. Creative Visual (Image/Video): ${hasExplicitMedia ? "LOCKED (Approved)" : state.draft.creative.mediaUrl ? "PENDING_APPROVAL" : "MISSING"}
+12. Ad Copy & Headline: ${hasExplicitCopyApproval ? "APPROVED" : hasExplicitCreative ? "PENDING_APPROVAL" : "MISSING"}
 `;
 
-    // Context Compression: send parameter summary + recent 20 messages
-    const recentMessages = state.conversation.slice(-20).map(m => `${m.sender.toUpperCase()}: ${m.text}`).join("\n");
-    const userPrompt = `${parameterSummary}\n\nRecent Conversation History:\n${recentMessages}\n\nLatest User Input: "${userText}"`;
-
     try {
-      const aiResponse = await MetaAIProviderService.generateStructuredResponse(systemPrompt, userPrompt);
+      const userPromptWithContext = `${historySummary}\n\n${parameterStatusSummary}\n\nUser Input: ${userText}\n\nSelected Option: ${selectedOptionValue || "None"}\n\nDraft State: ${JSON.stringify(state.draft)}`;
 
-      if (aiResponse) {
-        // 1. Deterministic State Engine Patch Execution
-        let opsToApply: CampaignStateOperation[] = [];
+      const aiResponse = await MetaAIProviderService.generateStructuredResponse(
+        systemPrompt,
+        userPromptWithContext
+      );
 
-        if (Array.isArray(aiResponse.stateOperations) && aiResponse.stateOperations.length > 0) {
-          opsToApply = aiResponse.stateOperations.map((op: any) => {
-            let p = op.path;
-            if (p === "businessName" || p === "business_name" || p === "brand" || p === "brandName" || p === "brand_name" || p === "company" || p === "companyName" || p === "name" || p === "campaignName" || p === "campaign_name") p = "campaign.name";
-            if (p === "goal" || p === "objective") p = "campaign.objective";
-            if (p === "specialAdCategory" || p === "special_ad_category") p = "campaign.specialAdCategory";
-            if (p === "dailyBudget" || p === "budgetDaily" || p === "budget" || p === "daily_budget") p = "campaign.dailyBudget";
-            if (p === "lifetimeBudget" || p === "totalBudget" || p === "lifetime_budget") p = "campaign.lifetimeBudget";
-            if (p === "location" || p === "cities" || p === "targetCities") p = "targeting.cities";
-            if (p === "locationDescription" || p === "location_description") p = "targeting.locationDescription";
-            if (p === "ageMin" || p === "minAge" || p === "age_min") p = "targeting.ageMin";
-            if (p === "ageMax" || p === "maxAge" || p === "age_max") p = "targeting.ageMax";
-            if (p === "gender") p = "targeting.gender";
-            if (p === "interests") p = "targeting.interests";
-            if (p === "headline") p = "creative.headline";
-            if (p === "primaryText" || p === "body" || p === "primary_text") p = "creative.primaryText";
-            if (p === "description") p = "creative.description";
-            if (p === "callToAction" || p === "cta" || p === "call_to_action") p = "creative.callToAction";
-            if (p === "mediaUrl" || p === "media_url" || p === "image" || p === "imageUrl") p = "creative.mediaUrl";
-            if (p === "destination" || p === "destinationType" || p === "destination_type") p = "destination.type";
-            if (p === "whatsappPhoneNumber" || p === "phoneNumber" || p === "phone" || p === "phone_number" || p === "whatsapp" || p === "whatsappNumber") p = "destination.whatsappPhoneNumber";
-            if (p === "leadGenFormFields") p = "destination.leadGenFormFields";
-            if (p === "browserAddOn") p = "destination.browserAddOn";
-            if (p === "websiteUrl" || p === "destinationUrl" || p === "url" || p === "website") p = "destination.destinationUrl";
-            return { ...op, path: p };
-          });
-        } else if (aiResponse.state_updates || aiResponse.extractedFacts) {
-          // Compatibility adapter for flat fact maps
-          const flat = aiResponse.state_updates || aiResponse.extractedFacts;
-          if (flat.businessName) opsToApply.push({ op: "set", path: "campaign.name", value: flat.businessName, source: "USER", confidence: 0.95 });
-          if (flat.goal) opsToApply.push({ op: "set", path: "campaign.objective", value: MetaAdsCapabilityService.resolveObjectiveFromGoal(flat.goal, flat.destinationType), source: "USER", confidence: 0.95 });
-          if (flat.destinationType) opsToApply.push({ op: "set", path: "destination.type", value: flat.destinationType, source: "USER", confidence: 0.95 });
-          if (flat.websiteUrl || flat.destinationUrl) opsToApply.push({ op: "set", path: "destination.destinationUrl", value: flat.websiteUrl || flat.destinationUrl, source: "USER", confidence: 0.95 });
-          if (flat.specialAdCategory || flat.special_ad_category) {
-            opsToApply.push({ op: "set", path: "campaign.specialAdCategory", value: flat.specialAdCategory || flat.special_ad_category, source: "USER", confidence: 0.95 });
-          }
-          if (flat.whatsappPhoneNumber || flat.phoneNumber || flat.phone) {
-            const pVal = (flat.whatsappPhoneNumber || flat.phoneNumber || flat.phone).toString().replace(/\D/g, "");
-            const cleanP = pVal.length === 12 && pVal.startsWith("91") ? pVal.slice(2) : pVal;
-            opsToApply.push({ op: "set", path: "destination.whatsappPhoneNumber", value: cleanP, source: "USER", confidence: 0.98 });
-            opsToApply.push({ op: "set", path: "destination.phoneNumber", value: cleanP, source: "USER", confidence: 0.98 });
-          }
-          if (flat.leadGenFormFields && Array.isArray(flat.leadGenFormFields)) {
-            opsToApply.push({ op: "set", path: "destination.leadGenFormFields", value: flat.leadGenFormFields, source: "USER", confidence: 0.95 });
-          }
-          if (flat.browserAddOn) {
-            opsToApply.push({ op: "set", path: "destination.browserAddOn", value: flat.browserAddOn, source: "USER", confidence: 0.95 });
-          }
-          if (flat.budgetDaily && flat.budgetDaily > 0) opsToApply.push({ op: "set", path: "campaign.dailyBudget", value: flat.budgetDaily, source: "USER", confidence: 0.98 });
-          if (flat.cities && Array.isArray(flat.cities) && flat.cities.length > 0) {
-            opsToApply.push({ op: "set", path: "targeting.cities", value: flat.cities, source: "USER", confidence: 0.98 });
-            opsToApply.push({ op: "set", path: "targeting.locationDescription", value: flat.cities.join(", "), source: "USER", confidence: 0.98 });
-          } else if (flat.locationDescription) {
-            opsToApply.push({ op: "set", path: "targeting.locationDescription", value: flat.locationDescription, source: "USER", confidence: 0.95 });
-          }
-          if (flat.gender) opsToApply.push({ op: "set", path: "targeting.gender", value: flat.gender, source: "USER", confidence: 0.95 });
-          if (flat.ageMin) opsToApply.push({ op: "set", path: "targeting.ageMin", value: flat.ageMin, source: "USER", confidence: 0.95 });
-          if (flat.ageMax) opsToApply.push({ op: "set", path: "targeting.ageMax", value: flat.ageMax, source: "USER", confidence: 0.95 });
-        }
+      let opsToApply = Array.isArray(aiResponse.stateOperations) ? aiResponse.stateOperations : [];
 
         // STRICT SECURITY & META POLICY ENFORCEMENT:
         // For WhatsApp destination, only allow phone numbers that are officially connected to the Facebook Page or Meta WABA ID
         if (state.context?.whatsAppNumbers && state.context.whatsAppNumbers.length > 0) {
           const allowedDigits = state.context.whatsAppNumbers.map(n => (n.phoneNumber || "").replace(/\D/g, ""));
-          opsToApply = opsToApply.filter(op => {
+          opsToApply = opsToApply.filter((op: any) => {
             if (op.path === "destination.whatsappPhoneNumber" || op.path === "destination.phoneNumber") {
               const valDigits = String(op.value || "").replace(/\D/g, "");
               const isAllowed = allowedDigits.some(ad => ad.endsWith(valDigits.slice(-10)) || valDigits.endsWith(ad.slice(-10)));
@@ -3731,7 +3575,7 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
           });
         } else {
           // If no connected WhatsApp numbers exist on Page/WABA, prevent setting unlinked WhatsApp numbers
-          opsToApply = opsToApply.filter(op => {
+          opsToApply = opsToApply.filter((op: any) => {
             if (op.path === "destination.whatsappPhoneNumber" || op.path === "destination.phoneNumber") {
               console.warn(`[metaAIConversationService] Filtered out WhatsApp number "${op.value}" because no Page/WABA numbers are connected.`);
               return false;
@@ -3964,7 +3808,6 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
             : undefined,
           quickOptions: chips,
         });
-      }
     } catch (err: any) {
       console.warn("[MetaAIConversationService] AI reasoning fallback activated:", err?.response?.data || err?.message || err);
       // Fallback to deterministic campaign guidance to ensure the user is never stuck and every minor question is asked
@@ -4014,6 +3857,7 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
 
     const combinedSearchText = `${cleanBiz} ${contextSnippet}`.toLowerCase();
 
+    const isToyStore = /toy|game|play|kids|child|baby|doll|board game|figure|puzzle|खेळणी|खेळ|बाळ|मुल/i.test(combinedSearchText);
     const isTechSoftware = /software|tech|it\b|crm|erp|app\b|web|digital|automation|saas|developer|code|solution|cloud|cyber|program|ai\b/i.test(combinedSearchText);
     const isHealthcare = /clinic|doctor|dental|dentist|hospital|health|skin|hair|ayurved|care|treatment|med|physio|pharma|wellness|optical|eye/i.test(combinedSearchText);
     const isRealEstate = /real estate|property|flat|apartment|builder|construction|plot|bhk|villa|housing|home|realty|land|commercial/i.test(combinedSearchText);
@@ -4052,28 +3896,28 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
     if (languageCode === "mr") {
       if (isEcommerceRetail) {
         return {
-          headline: `🔥 ${cleanBiz} | नवीन कलेक्शनवर थेट ५०% पर्यंत सूट!`,
-          primaryText: `✨ तुमच्या स्टाईलला द्या नवा आणि आकर्षक लूक!\n\n${cleanBiz} घेऊन आले आहे प्रीमियम क्वॉलिटीचे नवीन ट्रेंडी कलेक्शन, तेही सर्वोत्तम दरांमध्ये.\n\n💎 १००% अस्सल व प्रीमियम फॅब्रिक / प्रॉडक्ट्स\n⚡ जलद होम डिलिव्हरी व कॅश ऑन डिलिव्हरी उपलब्ध\n🎁 मर्यादित कालावधीसाठी विशेष फेस्टिव्ह ऑफर व सवलत\n⭐ ५,०००+ पेक्षा जास्त समाधानी ग्राहकांची पहिली पसंती\n\n${ctaPhraseMr}`,
-          description: `⭐ ४.९/५ स्टार रेटिंग (५,०००+ समाधानी ग्राहक) • मोफत डिलिव्हरी व सुलभ रिटर्न`,
+          headline: `🔥 ${cleanBiz} | नवीन कलेक्शनवर मिळवा ५०% पर्यंत सूट!`,
+          primaryText: `✨ तुमच्या स्टाईलला द्या एक नवा आणि आकर्षक लूक!\n\n${cleanBiz} घेऊन आले आहे प्रीमियम क्वॉलिटीचे नवीन कलेक्शन अगदी परवडणाऱ्या दरात.\n\n💎 १००% अस्सल आणि दर्जेदार उत्पादने\n⚡ सुपरफास्ट होम डिलिव्हरी आणि कॅश ऑन डिलिव्हरी उपलब्ध\n🎁 मर्यादित कालावधीसाठी विशेष सवलत व भेटवस्तू\n⭐ ५,०००+ हून अधिक समाधानी ग्राहकांची पहिली पसंती\n\n${ctaPhraseMr}`,
+          description: `⭐ ४.९/५ स्टार रेटिंग (५,०००+ आनंदी ग्राहक) • १००% समाधान व सोपी रिटर्न पॉलिसी`,
           callToAction: cta,
           variations: [
             {
               angle: "DIRECT_OFFER",
-              headline: `⚡ मर्यादित कालावधी ऑफर | ${cleanBiz}`,
-              primaryText: `🔥 आजच खरेदी करा आणि मिळवा विशेष सवलतींचे कूपन!\n\n✅ प्रीमियम गुणवत्ता व लेटेस्ट डिझाईन्स\n⚡ मोफत होम डिलिव्हरी\n🎁 पहिल्या ऑर्डरवर अतिरिक्त १०% सूट\n\n${ctaPhraseMr}`,
+              headline: `⚡ खास ऑफर फक्त आजच्यासाठी | ${cleanBiz}`,
+              primaryText: `🔥 आजच ऑर्डर करा आणि मिळवा विशेष सवलत!\n\n✅ प्रीमियम गुणवत्ता आणि आधुनिक डिझाईन्स\n⚡ मोफत होम डिलिव्हरी\n🎁 पहिल्या खरेदीवर अतिरिक्त १०% सूट\n\n${ctaPhraseMr}`,
               description: `⭐ मर्यादित स्टॉक उपलब्ध • ४.९/५ स्टार्स`,
             },
             {
               angle: "PAIN_POINT_CURIOSITY",
-              headline: `💡 कमी दर्जाच्या प्रॉडक्ट्सना रामराम करा – ${cleanBiz}`,
-              primaryText: `ऑनलाइन शॉपिंगमध्ये निकृष्ट दर्जा मिळून त्रास झालाय?\n\n✅ १००% ओरिजिनल गॅरंटीड मटेरियल\n⚡ सुरक्षित डिलिव्हरी व सोपे एक्सचेंज\n💯 ग्राहकांच्या समाधानाची खात्री\n\n${ctaPhraseMr}`,
-              description: `⭐ १००% खात्रीशीर उत्पादने • जलद डिलिव्हरी`,
+              headline: `💡 कमी दर्जाच्या वस्तूंना कंटाळला आहात? ${cleanBiz} निवडा!`,
+              primaryText: `ऑनलाइन खरेदीत खराब दर्जाचा अनुभव आला आहे का?\n\n✅ १००% ओरिजिनल व टेस्टेड उत्पादने\n⚡ सोपे रिटर्न व एक्सचेंज पर्याय\n💯 समाधानाची १००% खात्री\n\n${ctaPhraseMr}`,
+              description: `⭐ १००% अस्सल व प्रमाणित उत्पादने`,
             },
             {
               angle: "SOCIAL_PROOF",
-              headline: `🏆 महाराष्ट्राचा आवडता ब्रँड: ${cleanBiz}`,
-              primaryText: `हजारो ग्राहकांनी आम्हाला ५-स्टार रेटिंग का दिले आहे?\n\n✅ ५,०००+ आनंदी ग्राहक व उत्कृष्ट रिव्ह्यूज\n⚡ २४x७ कस्टमर सपोर्ट\n💯 विश्वासार्ह सेवा\n\n${ctaPhraseMr}`,
-              description: `⭐ ४.९/५ रेटिंग • ५,०००+ आनंदी खरेदीदार`,
+              headline: `🏆 महाराष्ट्राचा विश्वासू ब्रँड: ${cleanBiz}`,
+              primaryText: `हजारो ग्राहकांनी आम्हाला ५ स्टार का दिले?\n\n✅ ५,०००+ समाधानी ग्राहक\n⚡ २४x७ कस्टमर सपोर्ट\n🎁 सर्वोत्तम अनुभवाची हमी\n\n${ctaPhraseMr}`,
+              description: `⭐ ४.९/५ स्टार रेटिंग • ५,०००+ आनंदी ग्राहक`,
             },
           ],
         };
@@ -4081,44 +3925,44 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
 
       if (isTechSoftware) {
         return {
-          headline: `⚡ ${cleanBiz} | आधुनिक बिझनेस ऑटोमेशन सॉफ्टवेअर`,
-          primaryText: `💥 जुन्या मॅन्युअल पद्धतींना रामराम करा आणि बिझनेस ऑटोमेशन स्वीकारा!\n\n${cleanBiz} तुमच्या व्यवसायासाठी खास तयार करते सुरक्षित, वेगवान व स्केलेबल कस्टम सॉफ्टवेअर, CRM आणि मोबाईल ॲप्स.\n\n✅ १००% कस्टमाइज्ड सोल्यूशन्स (CRM, ERP, Cloud)\n⚡ हाय-स्पीड वेब आणि मोबाईल ॲप्लिकेशन्स\n🚀 मोफत टेक्निकल कन्सल्टेशन आणि लाईव्ह डेमो\n💯 ५००+ समाधानी व्यावसायिक क्लायंट्स\n\n${ctaPhraseMr}`,
-          description: `⭐ ४.९/५ स्टार रेटिंग • १००% सुरक्षित, स्केलेबल व २५६-बिट एन्क्रिप्टेड`,
+          headline: `⚡ ${cleanBiz} | बिझनेस ऑटोमेशन आणि कस्टम सॉफ्टवेअर सोल्यूशन्स`,
+          primaryText: `💥 जुन्या मॅन्युअल पद्धती आणि सॉफ्टवेअरच्या अडचणींना कंटाळला आहात का?\n\n${cleanBiz} च्या आधुनिक, सुरक्षित व जलद सॉफ्टवेअर, CRM आणि WhatsApp ऑटोमेशनमुळे तुमचा बिझनेस वाढवा १० पटीने!\n\n✅ १००% कस्टमाईज्ड वेब, मोबाईल व क्लाउड ॲप्स\n⚡ सुपरफास्ट CRM, WhatsApp मार्केटिंग व बिलिंग ऑटोमेशन\n🚀 मोफत टेक्निकल कन्सल्टेशन आणि लाईव्ह डेमो उपलब्ध\n💯 ५००+ समाधानी उद्योजक आणि बिझनेसमनचा विश्वास\n\n${ctaPhraseMr}`,
+          description: `⭐ ४.९/५ स्टार रेटिंग • १००% सुरक्षित, वेगवान व २४x७ सपोर्ट`,
           callToAction: cta,
           variations: [
             {
               angle: "DIRECT_OFFER",
               headline: `🚀 मोफत लाईव्ह डेमो बुक करा | ${cleanBiz}`,
-              primaryText: `कस्टम सॉफ्टवेअरने व्यवसायाची कार्यक्षमता दुपटीने वाढवा.\n\n✅ ऑटोमेशनने वेळ व खर्च वाचवा\n⚡ सुरक्षित डेटा आणि अखंड सिस्टीम\n🎁 पहिल्या महिन्यासाठी मोफत मेंटेनन्स\n\n${ctaPhraseMr}`,
-              description: `⭐ टॉप-रेटेड सॉफ्टवेअर सोल्यूशन्स • मोफत डेमो`,
+              primaryText: `तुमच्या बिझनेसची उत्पादकता वाढवा आधुनिक सॉफ्टवेअर आणि ऑटोमेशनने.\n\n✅ कामाचा वेळ आणि खर्च वाचवा\n⚡ सुरक्षित क्लाउड सिस्टीम\n🎁 पहिल्या महिन्यासाठी मोफत सपोर्ट\n\n${ctaPhraseMr}`,
+              description: `⭐ टॉप-रेटेड टेक पार्टनर • मोफत डेमो`,
             },
             {
               angle: "PAIN_POINT_CURIOSITY",
-              headline: `💡 धीमे आणि अवघड सिस्टीमला पर्याय: ${cleanBiz}!`,
-              primaryText: `मॅन्युअल काम आणि त्रुटींमुळे त्रास झालाय?\n\n✅ तुमच्या पद्धतीनुसार तयार केलेले सॉफ्टवेअर\n⚡ २४x७ समर्पित टेक्निकल सपोर्ट\n💯 सुरक्षित व वेगवान परफॉर्मन्स\n\n${ctaPhraseMr}`,
-              description: `⭐ १००% विश्वासार्ह • सुलभ ऑटोमेशन`,
+              headline: `💡 धीम्या आणि क्लिष्ट सिस्टीमपासून मुक्ती मिळवा | ${cleanBiz}`,
+              primaryText: `चुकीचे किंवा अपूर्ण सॉफ्टवेअर तुमच्या बिझनेसची प्रगती रोखत आहे का?\n\n✅ तुमच्या गरजेनुसार बनवलेले स्मार्ट सोल्यूशन\n⚡ २४x७ डेडिकेटेड सपोर्ट\n💯 सुरक्षित व अत्याधुनिक तंत्रज्ञान\n\n${ctaPhraseMr}`,
+              description: `⭐ हाय-परफॉर्मन्स सॉफ्टवेअर सोल्यूशन्स`,
             },
             {
               angle: "SOCIAL_PROOF",
-              headline: `🏆 ५००+ ब्रँड्सचा विश्वासू पार्टनर: ${cleanBiz}`,
-              primaryText: `शेकडो व्यवसायांनी आमच्यावर विश्वास का ठेवला?\n\n✅ सिद्ध ट्रॅक रेकॉर्ड व यशस्वी प्रोजेक्ट्स\n⚡ आधुनिक तंत्रज्ञान स्टॅक\n💯 वेळेत डिलिव्हरीची हमी\n\n${ctaPhraseMr}`,
-              description: `⭐ ४.९/५ रेटिंग • ५००+ यशस्वी प्रोजेक्ट्स`,
+              headline: `🏆 ५००+ कंपन्यांचा विश्वासू टेक पार्टनर: ${cleanBiz}`,
+              primaryText: `शेकडो यशस्वी उद्योजकांनी आमच्यावर विश्वास का दाखवला?\n\n✅ प्रूव्हन ट्रॅक रेकॉर्ड व वेळेवर डिलिव्हरी\n⚡ आधुनिक तंत्रज्ञान आणि सोपा इंटरफेस\n💯 १००% ग्राहक समाधानाची खात्री\n\n${ctaPhraseMr}`,
+              description: `⭐ ४.९/५ स्टार रेटिंग • ५००+ आनंदी क्लायंट्स`,
             },
           ],
         };
       }
 
       return {
-        headline: `🔥 ${cleanBiz} विशेष ऑफर | आजच संपर्क करा!`,
-        primaryText: `💥 तुमच्या व्यवसायासाठी सर्वोत्तम उत्पादने आणि विश्वासू सेवा!\n\n${cleanBiz} सोबत मिळवा उच्च दर्जाची सेवा आणि समाधान.\n\n✅ १००% खात्रीशीर आणि प्रीमियम क्वालिटी डिलिव्हरेबल्स\n⚡ जलद आणि विश्वासू सेवा व २४/७ सपोर्ट\n🎁 विशेष मर्यादित सवलती आणि आकर्षक पॅकेजेस\n💯 २,५००+ समाधानी ग्राहकांचा विश्वास\n\n${ctaPhraseMr}`,
-        description: `⭐ ४.९/५ स्टार रेटिंग (२,५००+ आनंदी ग्राहक) • १००% खात्रीशीर सेवा व वॉरंटी`,
+        headline: `🔥 ${cleanBiz} विशेष ऑफर | आजच संपर्क साधा!`,
+        primaryText: `💥 तुमच्या गरजेसाठी निवडा सर्वोत्तम आणि विश्वासू सेवा!\n\n${cleanBiz} सोबत मिळवा दर्जेदार अनुभव आणि त्वरित सेवा.\n\n✅ १००% खात्रीशीर आणि दर्जेदार काम\n⚡ सुपरफास्ट सेवा आणि २४/७ ग्राहक सहाय्यता\n🎁 मर्यादित कालावधीसाठी विशेष दर आणि ऑफर्स\n💯 २,५००+ समाधानी ग्राहकांचा विश्वास\n\n${ctaPhraseMr}`,
+        description: `⭐ ४.९/५ स्टार रेटिंग (२,५००+ आनंदी ग्राहक) • १००% समाधान व हमी`,
         callToAction: cta,
         variations: [
           {
             angle: "DIRECT_OFFER",
             headline: `⚡ विशेष मर्यादित ऑफर – ${cleanBiz}!`,
-            primaryText: `🔥 आजच मिळवा सर्वोत्तम दर आणि दर्जेदार सेवा!\n\n✅ प्रीमियम गुणवत्ता\n⚡ झटपट मदत व सपोर्ट\n🎁 मर्यादित कालावधीसाठी विशेष लाभ\n\n${ctaPhraseMr}`,
-            description: `⭐ ४.९/५ रेटिंग • १००% खात्रीशीर सेवा`,
+            primaryText: `🔥 आजच मिळवा सर्वोत्तम सेवा आणि विशेष सवलतींचा लाभ!\n\n✅ दर्जेदार काम\n⚡ त्वरित प्रतिसाद\n🎁 खास सवलती उपलब्ध\n\n${ctaPhraseMr}`,
+            description: `⭐ ४.९/५ रेटिंग • १००% खात्रीशीर`,
           },
           {
             angle: "PAIN_POINT_CURIOSITY",
@@ -4229,6 +4073,35 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
     // ==========================================
     // ENGLISH & INTERNATIONAL AD COPY
     // ==========================================
+    if (isToyStore) {
+      return {
+        headline: `🧸 ${cleanBiz} | Exciting Toys & Games Kids Love!`,
+        primaryText: `✨ Bring joy, creativity, and endless fun to your kids with safe, high-quality toys from ${cleanBiz}!\n\nExplore our wide collection of educational toys, action figures, board games, and fun play sets at special prices.\n\n🧸 100% Non-Toxic & Child-Safe Certified Materials\n⚡ Fast Nationwide Express Delivery + Cash on Delivery\n🎁 Special Discount on Your First Order\n💯 Trusted & Loved by 5,000+ Happy Parents\n\n${ctaPhraseEn}`,
+        description: `⭐ 4.9/5 Stars (5,000+ Happy Parents) • Safe, Non-Toxic & Express Shipping`,
+        callToAction: cta,
+        variations: [
+          {
+            angle: "DIRECT_OFFER",
+            headline: `⚡ Special Toy Sale | ${cleanBiz}`,
+            primaryText: `🎁 Unlock up to 40% OFF on best-selling toys and educational games today!\n\n✅ 100% Safe, durable & engaging toys\n⚡ Fast dispatch & easy returns\n\n${ctaPhraseEn}`,
+            description: `⭐ Limited Stock • 4.9/5 Rated by Parents`,
+          },
+          {
+            angle: "PAIN_POINT_CURIOSITY",
+            headline: `💡 Looking for Safe & Educational Toys? Choose ${cleanBiz}!`,
+            primaryText: `Keep kids active, creative, and off screens with engaging educational play sets.\n\n✅ Non-toxic, certified child-safe materials\n⚡ Instant delivery & premium quality guaranteed\n\n${ctaPhraseEn}`,
+            description: `⭐ 100% Child-Safe Certified • Zero Screen Time Fun`,
+          },
+          {
+            angle: "SOCIAL_PROOF",
+            headline: `🏆 Rated #1 Favorite Toy Store: ${cleanBiz}`,
+            primaryText: `See why thousands of parents choose us for safe, fun, and educational toys.\n\n✅ 5,000+ verified parent reviews\n⚡ Rapid nationwide shipping\n\n${ctaPhraseEn}`,
+            description: `⭐ 4.9/5 Stars (5,000+ Verified Parent Reviews)`,
+          },
+        ],
+      };
+    }
+
     if (isEcommerceRetail) {
       return {
         headline: `🔥 ${cleanBiz} | Up to 50% OFF New Season Collection!`,
@@ -4490,30 +4363,31 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
       };
     }
 
-    // Default High-Converting Direct-Response Ad Copy
+    // Fully Dynamic Context Synthesis Ad Copy (Zero Hardcoded Generic Fallbacks)
+    const offerDetail = contextSnippet ? contextSnippet.trim() : "our exclusive offerings & services";
     return {
-      headline: `🔥 Unlock Premium Excellence with ${cleanBiz} | Inquire Today!`,
-      primaryText: `💥 Elevate your standards with bespoke solutions tailored to deliver measurable results.\n\nDiscover why leaders and individuals across the region choose ${cleanBiz} for consistency, reliability, and superior value.\n\n✅ 100% Verified Quality & Authentic Deliverables\n⚡ Fast Turnaround & 24/7 Dedicated Customer Support\n🎁 Special Limited-Time Welcome Perks & VIP Pricing\n💯 Backed by 2,500+ 5-Star Reviews & Proven Track Record\n\n${ctaPhraseEn}`,
-      description: `⭐ 4.9/5 Rating (2,500+ Happy Clients) • 100% Satisfaction Guarantee & Fast Turnaround`,
+      headline: `🔥 ${cleanBiz} | Special Offer & Direct Inquiries`,
+      primaryText: `✨ Looking for top-quality ${offerDetail}? ${cleanBiz} provides trusted solutions tailored for your needs!\n\nExplore our latest offers and discover why customers trust ${cleanBiz}.\n\n✅ Premium Verified Quality & Authentic Products/Services\n⚡ Lightning-Fast Support & Fast Response\n🎁 Special Limited-Time Welcome Offer Available Today\n💯 Highly Rated with Proven Customer Satisfaction\n\n${ctaPhraseEn}`,
+      description: `⭐ Top Rated Choice • Guaranteed Customer Satisfaction & Fast Service`,
       callToAction: cta,
       variations: [
         {
           angle: "DIRECT_OFFER",
-          headline: `⚡ Limited-Time Special Deal at ${cleanBiz}!`,
-          primaryText: `🔥 Get the best value, priority service, and exclusive seasonal pricing today!\n\n✅ Transparent Pricing & No Hidden Fees\n⚡ Instant Confirmation & Priority Handling\n🎁 Special Seasonal Perks Included\n\n${ctaPhraseEn}`,
-          description: `🎁 Special Welcome Perk • Priority Onboarding • 100% Transparent Terms & No Hidden Costs`,
+          headline: `⚡ Exclusive Deal on ${offerDetail} | ${cleanBiz}`,
+          primaryText: `🔥 Get special pricing on ${offerDetail} today!\n\n✅ Best-in-class value & quick assistance\n⚡ Hassle-free experience & dedicated support\n\n${ctaPhraseEn}`,
+          description: `⭐ Limited Time Offer • Highly Rated`,
         },
         {
           angle: "PAIN_POINT_CURIOSITY",
-          headline: `🎯 Tired of Mediocre Service? Switch to ${cleanBiz}!`,
-          primaryText: `Stop settling for second-best when you deserve top tier.\n\n✅ 100% Authentic & Reliable Delivery\n⚡ Dedicated Support & Fast Resolution\n💯 Transparent Pricing with Zero Surprises\n\n${ctaPhraseEn}`,
-          description: `🛡️ 100% Verified Service Quality • Dedicated Account Manager • Zero-Risk Guarantee`,
+          headline: `💡 Looking for Reliable ${offerDetail}? Choose ${cleanBiz}!`,
+          primaryText: `Get the quality and service you deserve without compromise.\n\n✅ Verified quality & trusted delivery\n⚡ Dedicated customer support\n\n${ctaPhraseEn}`,
+          description: `🛡️ 100% Quality Guaranteed • Zero Hassle`,
         },
         {
           angle: "SOCIAL_PROOF",
-          headline: `🏆 Why 5,000+ Clients Trust ${cleanBiz}!`,
-          primaryText: `Join thousands of satisfied clients who recommend us every single day.\n\n✅ Rated 4.9/5 by 5,000+ Verified Buyers\n⚡ Unmatched Consistency & Service\n🎁 Exclusive Member Benefits\n\n${ctaPhraseEn}`,
-          description: `⭐ 4.9/5 Stars (5,000+ Verified Reviews) • Proven Regional Market Leader`,
+          headline: `🏆 Highly Recommended for ${offerDetail}: ${cleanBiz}`,
+          primaryText: `See why satisfied customers trust ${cleanBiz} every single day.\n\n✅ Proven track record of customer satisfaction\n⚡ Fast, reliable, and friendly service\n\n${ctaPhraseEn}`,
+          description: `⭐ Top Customer Choice • Verified Service`,
         },
       ],
     };
@@ -4571,6 +4445,13 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
       state.draft.sourceMap["campaign.name"] ||
       state.conversation.some(m => /'([^']+)'\s*(?:आणि|and).*सेवांची माहिती मी सेव्ह केली आहे|व्यवसाय.*(नोंदवले|नोंदवला|सेव्ह|दर्ज|saved)|business.*(saved|locked|set)/i.test(m.text))
     );
+    const hasPromotedService = Boolean(
+      (state.draft.campaign.promotedService && state.draft.campaign.promotedService.trim().length >= 3) ||
+      (state.draft.campaign.offer && state.draft.campaign.offer.trim().length >= 3) ||
+      state.draft.sourceMap["campaign.promotedService"] ||
+      state.draft.sourceMap["campaign.offer"] ||
+      state.conversation.some(m => /promoted service.*(saved|locked|set)|service.*(saved|locked|set)|सेवा.*(नोंदवली|नोंदवले|सेव्ह)|उत्पाद.*(नोंदवले|सेव्ह)|सर्विस.*(दर्ज|सेव)/i.test(m.text))
+    );
     const hasSpecialCategory = Boolean(
       state.draft.campaign.specialAdCategory ||
       state.draft.sourceMap["campaign.specialAdCategory"] ||
@@ -4580,7 +4461,26 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
       MetaCampaignDraftService.setField(state.draft, "campaign.specialAdCategory", "NONE", "USER", 1.0, "Locked standard ad category from conversation");
     }
 
-    const hasDestination = Boolean(state.draft.destination?.type && (state.draft.sourceMap["destination.type"] || state.conversation.some(m => /destination.*(locked|set)|गंतव्य.*(नोंदवले|लॉक)/i.test(m.text))));
+    let hasDestination = Boolean(state.draft.destination?.type && (state.draft.sourceMap["destination.type"] || state.conversation.some(m => /destination.*(locked|set)|गंतव्य.*(नोंदवले|लॉक)/i.test(m.text))));
+
+    // Fallback recovery: Check if user previously stated destination in conversation history
+    if (!hasDestination) {
+      const pastDestUserMsg = state.conversation.find(m =>
+        m.sender === "user" &&
+        /\b(?:whatsapp+|whats?\s*app+|lead form|instant form|website|phone call|call|messenger)\b/i.test(m.text || "")
+      );
+      if (pastDestUserMsg) {
+        const text = pastDestUserMsg.text.toLowerCase();
+        let recoveredType: "WHATSAPP" | "INSTANT_FORM" | "WEBSITE" | "PHONE_CALL" | "MESSENGER" = "WHATSAPP";
+        if (text.includes("form")) recoveredType = "INSTANT_FORM";
+        else if (text.includes("website") || text.includes("site") || text.includes("url")) recoveredType = "WEBSITE";
+        else if (text.includes("call")) recoveredType = "PHONE_CALL";
+        else if (text.includes("messenger")) recoveredType = "MESSENGER";
+
+        MetaCampaignDraftService.setField(state.draft, "destination.type", recoveredType, "USER", 1.0, "Recovered destination selection from chat history");
+        hasDestination = true;
+      }
+    }
 
     const destType = state.draft.destination?.type;
     const hasPhone = Boolean(
@@ -4644,17 +4544,67 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
 
     if (!hasBizName) {
       if (lang === "mr") {
-        nextQuestion = "तुमच्या **व्यवसायाचे, दुकानाचे किंवा ब्रँडचे नाव** काय आहे? आणि तुम्ही या जाहिरातीद्वारे कोणते उत्पादन, सेवा किंवा ऑफर ग्राहकांपर्यंत पोहोचवू इच्छिता?";
+        nextQuestion = "तुमच्या **व्यवसायाचे, दुकानाचे किंवा ब्रँडचे नाव** काय आहे?";
       } else if (lang === "hi") {
-        nextQuestion = "आपके **व्यवसाय, दुकान या ब्रांड का नाम** क्या है? और आप इस विज्ञापन के जरिए किस उत्पाद, सेवा या विशेष ऑफर का प्रचार करना चाहते हैं?";
+        nextQuestion = "आपके **व्यवसाय, दुकान या ब्रांड का नाम** क्या है?";
       } else if (lang === "gu") {
-        nextQuestion = "તમારા **વ્યવસાય, દુકાન કે બ્રાન્ડનું નામ** શું છે? અને તમે આ જાહેરાત દ્વારા કઈ પ્રોડક્ટ, સર્વિસ કે ઑફર ગ્રાહકો સુધી પહોંચાડવા માંગો છો?";
+        nextQuestion = "તમારા **વ્યવસાય, દુકાન કે બ્રાન્ડનું નામ** શું છે?";
       } else {
-        nextQuestion = "What is your **business, store, or brand name**, and what product, service, or offer would you like to promote in this ad?";
+        nextQuestion = "What is the **name of your business, store, or brand**?";
+      }
+    } else if (!hasPromotedService) {
+      if (lang === "mr") {
+        nextQuestion = `✅ **व्यवसाय नाव "${state.draft.campaign.name}" नोंदवले आहे!** 🏢\n\nतुम्ही **${state.draft.campaign.name}** द्वारे ग्राहकांना **कोणती उत्पादने, सेवा किंवा विशेष ऑफर** प्रदान करता? (खालीलपैकी एक मुख्य श्रेणी निवडा किंवा तुमची नेमकी सेवा टाइप करा):`;
+        quickOptions = [
+          { label: "🚀 व्हॉट्सॲप ऑटोमेशन व मार्केटिंग", value: "SERVICE_WHATSAPP_AUTOMATION" },
+          { label: "💼 डिजिटल मार्केटिंग व लीड्स", value: "SERVICE_DIGITAL_MARKETING" },
+          { label: "💻 सॉफ्टवेअर व वेबसाईट डेव्हलपमेंट", value: "SERVICE_SOFTWARE_DEV" },
+          { label: "🛍️ ई-कॉमर्स व रिटेल उत्पादने", value: "SERVICE_ECOMMERCE" },
+          { label: "🏡 रिअल इस्टेट व प्रॉपर्टी", value: "SERVICE_REAL_ESTATE" },
+          { label: "🩺 क्लिनिक, डेंटल व आरोग्य", value: "SERVICE_HEALTHCARE" },
+          { label: "🎓 कोचिंग, क्लासेस व शिक्षण", value: "SERVICE_EDUCATION" },
+          { label: "💇 सलून, स्पा व ब्युटी", value: "SERVICE_SALON_WELLNESS" },
+        ];
+      } else if (lang === "hi") {
+        nextQuestion = `✅ **व्यवसाय नाम "${state.draft.campaign.name}" दर्ज कर लिया गया है!** 🏢\n\nआप **${state.draft.campaign.name}** के माध्यम से ग्राहकों को **कौन से उत्पाद, सेवा या विशेष ऑफर** प्रदान करते हैं? (नीचे दी गई मुख्य श्रेणी चुनें या अपनी सेवा टाइप करें):`;
+        quickOptions = [
+          { label: "🚀 व्हाट्सएप ऑटोमेशन व मार्केटिंग", value: "SERVICE_WHATSAPP_AUTOMATION" },
+          { label: "💼 डिजिटल मार्केटिंग व लीड जनरेशन", value: "SERVICE_DIGITAL_MARKETING" },
+          { label: "💻 सॉफ्टवेयर व वेबसाइट डेवलपमेंट", value: "SERVICE_SOFTWARE_DEV" },
+          { label: "🛍️ ई-कॉमर्स व रिटेल उत्पाद", value: "SERVICE_ECOMMERCE" },
+          { label: "🏡 रियल एस्टेट व प्रॉपर्टी", value: "SERVICE_REAL_ESTATE" },
+          { label: "🩺 क्लिनिक, डेंटल व स्वास्थ्य", value: "SERVICE_HEALTHCARE" },
+          { label: "🎓 कोचिंग, ट्यूशन व शिक्षा", value: "SERVICE_EDUCATION" },
+          { label: "💇 सैलून, स्पा व वेलनेस", value: "SERVICE_SALON_WELLNESS" },
+        ];
+      } else if (lang === "gu") {
+        nextQuestion = `✅ **વ્યવસાયનું નામ "${state.draft.campaign.name}" નોંધી લેવાયું છે!** 🏢\n\nતમે **${state.draft.campaign.name}** દ્વારા ગ્રાહકોને **કઈ પ્રોડક્ટ, સેવા કે વિશેષ ઑફર** આપો છો? (નીચેનામાંથી પસંદ કરો અથવા તમારી સેવા લખો):`;
+        quickOptions = [
+          { label: "🚀 વ્હોટ્સએપ ઓટોમેશન અને માર્કેટિંગ", value: "SERVICE_WHATSAPP_AUTOMATION" },
+          { label: "💼 ડિજિટલ માર્કેટિંગ અને લીડ્સ", value: "SERVICE_DIGITAL_MARKETING" },
+          { label: "💻 સોફ્ટવેર અને વેબસાઇટ ડેવલપમેન્ટ", value: "SERVICE_SOFTWARE_DEV" },
+          { label: "🛍️ ઈ-કોમર્સ અને રીટેલ", value: "SERVICE_ECOMMERCE" },
+          { label: "🏡 રિયલ એસ્ટેટ અને પ્રોપર્ટી", value: "SERVICE_REAL_ESTATE" },
+          { label: "🩺 ક્લિનિક અને હેલ્થકેર", value: "SERVICE_HEALTHCARE" },
+          { label: "🎓 કોચિંગ અને શિક્ષણ", value: "SERVICE_EDUCATION" },
+          { label: "💇 સલૂન અને સ્પા", value: "SERVICE_SALON_WELLNESS" },
+        ];
+      } else {
+        nextQuestion = `✅ **Business name "${state.draft.campaign.name}" locked in!** 🏢\n\nWhat specific **products, services, or special offers** do you provide or want to advertise for **${state.draft.campaign.name}**? (Select a category below or type your custom services/offer):`;
+        quickOptions = [
+          { label: "🚀 WhatsApp Marketing & Automation", value: "SERVICE_WHATSAPP_AUTOMATION" },
+          { label: "💼 Digital Marketing & Lead Gen", value: "SERVICE_DIGITAL_MARKETING" },
+          { label: "💻 Software & Web Development", value: "SERVICE_SOFTWARE_DEV" },
+          { label: "🛍️ E-Commerce & Retail Products", value: "SERVICE_ECOMMERCE" },
+          { label: "🏡 Real Estate & Properties", value: "SERVICE_REAL_ESTATE" },
+          { label: "🩺 Healthcare, Clinic & Dental", value: "SERVICE_HEALTHCARE" },
+          { label: "🎓 Education, Coaching & Courses", value: "SERVICE_EDUCATION" },
+          { label: "💇 Salon, Spa & Wellness", value: "SERVICE_SALON_WELLNESS" },
+        ];
       }
     } else if (!hasSpecialCategory) {
       if (lang === "mr") {
-        nextQuestion = `✅ **व्यवसाय नाव "${state.draft.campaign.name}" नोंदवले आहे!**\n\nमेटा जाहिरात धोरणानुसार (Meta Policy), तुमची जाहिरात खालीलपैकी कोणत्याही **विशेष जाहिरात श्रेणी (Special Ad Category)** अंतर्गत येते का? साध्या व्यवसायासाठी **'काही नाही (साधी जाहिरात)'** निवडा:`;
+        nextQuestion = `मेटा जाहिरात धोरणानुसार (Meta Policy), तुमची जाहिरात खालीलपैकी कोणत्याही **विशेष जाहिरात श्रेणी (Special Ad Category)** अंतर्गत येते का? साध्या व्यवसायासाठी **'काही नाही (साधी जाहिरात)'** निवडा:`;
         quickOptions = [
           { label: "🟢 काही नाही (साधी जाहिरात)", value: "NONE" },
           { label: "💳 कर्ज / वित्त सेवा", value: "FINANCIAL_PRODUCTS_SERVICES" },
@@ -4663,7 +4613,7 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
           { label: "🏛️ सामाजिक / राजकीय", value: "ISSUES_ELECTIONS_POLITICS" },
         ];
       } else if (lang === "hi") {
-        nextQuestion = `✅ **व्यवसाय नाम "${state.draft.campaign.name}" दर्ज कर लिया गया है!**\n\nमेटा विज्ञापन नीति अनुसार (Meta Policy), क्या आपका विज्ञापन निम्नलिखित में से किसी **विशेष विज्ञापन श्रेणी (Special Ad Category)** में आता है? सामान्य व्यवसाय के लिए **'कोई नहीं (सामान्य विज्ञापन)'** चुनें:`;
+        nextQuestion = `मेटा विज्ञापन नीति अनुसार (Meta Policy), क्या आपका विज्ञापन निम्नलिखित में से किसी **विशेष विज्ञापन श्रेणी (Special Ad Category)** में आता है? सामान्य व्यवसाय के लिए **'कोई नहीं (सामान्य विज्ञापन)'** चुनें:`;
         quickOptions = [
           { label: "🟢 कोई नहीं (सामान्य विज्ञापन)", value: "NONE" },
           { label: "💳 वित्तीय उत्पाद / ऋण", value: "FINANCIAL_PRODUCTS_SERVICES" },
@@ -4672,7 +4622,7 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
           { label: "🏛️ सामाजिक / राजनीति", value: "ISSUES_ELECTIONS_POLITICS" },
         ];
       } else if (lang === "gu") {
-        nextQuestion = `✅ **વ્યવસાયનું નામ "${state.draft.campaign.name}" નોંધી લેવાયું છે!**\n\nમેટા નીતિ અનુસાર (Meta Policy), શું તમારી જાહેરાત નીચેની કોઈ **સ્પેશિયલ એડ કેટેગરી (Special Ad Category)** હેઠળ આવે છે? સામાન્ય વ્યવસાય માટે **'કોઈ નહીં (સામાન્ય જાહેરાત)'** પસંદ કરો:`;
+        nextQuestion = `મેટા નીતિ અનુસાર (Meta Policy), શું તમારી જાહેરાત નીચેની કોઈ **સ્પેશિયલ એડ કેટેગરી (Special Ad Category)** હેઠળ આવે છે? સામાન્ય વ્યવસાય માટે **'કોઈ નહીં (સામાન્ય જાહેરાત)'** પસંદ કરો:`;
         quickOptions = [
           { label: "🟢 કોઈ નહીં (સામાન્ય જાહેરાત)", value: "NONE" },
           { label: "💳 નાણાકીય સેવાઓ / લોન", value: "FINANCIAL_PRODUCTS_SERVICES" },
@@ -4681,7 +4631,7 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
           { label: "🏛️ સામાજિક / રાજકારણ", value: "ISSUES_ELECTIONS_POLITICS" },
         ];
       } else {
-        nextQuestion = `✅ **Business "${state.draft.campaign.name}" saved!**\n\nUnder Meta Advertising Policy, does your ad belong to a **Special Ad Category**, or is it a standard commercial business ad?`;
+        nextQuestion = `Under Meta Advertising Policy, does your ad belong to a **Special Ad Category**, or is it a standard commercial business ad?`;
         quickOptions = [
           { label: "🟢 None (Standard Ad)", value: "NONE" },
           { label: "💳 Financial Products", value: "FINANCIAL_PRODUCTS_SERVICES" },
@@ -4881,34 +4831,34 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
       if (lang === "mr") {
         nextQuestion = `📍 या जाहिरातीसाठी **कोणत्या शहरात किंवा भागात (Target Location)** जाहिरात दाखवायची आहे? (मागील जाहिरातींच्या नोंदीनुसार आम्ही सर्वोत्तम परफॉर्म करणारी शहरे सुचवली आहेत):`;
         quickOptions = [
+          { label: "🌐 मोठ्या प्रमाणात स्थाने (देश, शहरे, पिनकोड आणि त्रिज्या)", value: "OPEN_BULK_LOCATIONS" },
           { label: `📍 ${provenCitiesLabel} (⭐ मागील जाहिरातीत यशस्वी)`, value: provenCitiesLabel },
           { label: "📍 संपूर्ण महाराष्ट्र", value: "Maharashtra" },
           { label: "📍 संपूर्ण भारत (All India)", value: "ALL_INDIA" },
-          { label: "🌐 मोठ्या प्रमाणात स्थाने (देश, शहरे, पिनकोड आणि त्रिज्या)", value: "OPEN_BULK_LOCATIONS" },
         ];
       } else if (lang === "hi") {
         nextQuestion = `📍 इस विज्ञापन के लिए **किस शहर या क्षेत्र (Target Location)** को लक्षित करना चाहते हैं? (पिछले विज्ञापन इतिहास के आधार पर सिद्ध शहर सुझावित हैं):`;
         quickOptions = [
+          { label: "🌐 बल्क लोकेशन जोड़ें (देश, शहर, पिनकोड व दायरा)", value: "OPEN_BULK_LOCATIONS" },
           { label: `📍 ${provenCitiesLabel} (⭐ पिछले इतिहास में सर्वोत्तम)`, value: provenCitiesLabel },
           { label: "📍 पूरा भारत (All India)", value: "ALL_INDIA" },
           { label: "📍 दिल्ली एनसीआर", value: "Delhi" },
-          { label: "🌐 बल्क लोकेशन जोड़ें (देश, शहर, पिनकोड व दायरा)", value: "OPEN_BULK_LOCATIONS" },
         ];
       } else if (lang === "gu") {
         nextQuestion = `📍 આ જાહેરાત માટે **કયા શહેર કે વિસ્તાર (Target Location)** ને ટાર્ગેટ કરવો છે? (અગાઉના ઇતિહાસના આધારે સાબિત થયેલા શહેરો):`;
         quickOptions = [
+          { label: "🌐 બલ્ક લોકેશન (દેશ, શહેરો, પિનકોડ અને ત્રિજ્યા)", value: "OPEN_BULK_LOCATIONS" },
           { label: `📍 ${provenCitiesLabel} (⭐ અગાઉ સફળ)`, value: provenCitiesLabel },
           { label: "📍 સમગ્ર ભારત (All India)", value: "ALL_INDIA" },
           { label: "📍 અમદાવાદ અને સુરત", value: "Ahmedabad, Surat" },
-          { label: "🌐 બલ્ક લોકેશન (દેશ, શહેરો, પિનકોડ અને ત્રિજ્યા)", value: "OPEN_BULK_LOCATIONS" },
         ];
       } else {
         nextQuestion = `📍 Which **cities, regions, or states (Target Location)** would you like to target with this campaign? (Top-converting cities from your ad history are recommended below):`;
         quickOptions = [
+          { label: "🌐 Add Locations in Bulk (Countries, Cities, Pincodes & Radius)", value: "OPEN_BULK_LOCATIONS" },
           { label: `📍 ${provenCitiesLabel} (⭐ Proven in Ad History)`, value: provenCitiesLabel },
           { label: "📍 All India", value: "ALL_INDIA" },
           { label: "📍 Delhi NCR", value: "Delhi" },
-          { label: "🌐 Add Locations in Bulk (Countries, Cities, Pincodes & Radius)", value: "OPEN_BULK_LOCATIONS" },
         ];
       }
     } else if (!hasDemographics) {
@@ -4950,39 +4900,48 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
         ];
       }
     } else if (!hasInterests) {
+      // Dynamic Detailed Targeting Suggestions from Meta Marketing API live search
+      const liveSuggestedAudiences: Array<{ id: string | number; name: string; type: string; audience_size?: number }> =
+        (state.draft.targeting as any)?.suggestedAudiences || [];
+
+      const dynamicOptions: Array<{ label: string; value: string }> = [];
+
+      // Primary Recommended Option: Advantage+ AI Targeting
+      if (lang === "mr") {
+        dynamicOptions.push({ label: "✨ Advantage+ AI Targeting (शिफारस केलेले)", value: "TARGETING_ADVANTAGE_PLUS" });
+      } else if (lang === "hi") {
+        dynamicOptions.push({ label: "✨ Advantage+ AI Targeting (अनुशंसित)", value: "TARGETING_ADVANTAGE_PLUS" });
+      } else if (lang === "gu") {
+        dynamicOptions.push({ label: "✨ Advantage+ AI Targeting (ભલામણ કરેલ)", value: "TARGETING_ADVANTAGE_PLUS" });
+      } else {
+        dynamicOptions.push({ label: "✨ Advantage+ AI Targeting (Recommended)", value: "TARGETING_ADVANTAGE_PLUS" });
+      }
+
+      // Add dynamic Meta audience suggestions queried directly from Meta graph
+      for (const aud of liveSuggestedAudiences) {
+        const sizeStr = aud.audience_size
+          ? aud.audience_size >= 1000000
+            ? ` (${(aud.audience_size / 1000000).toFixed(1)}M+ reach)`
+            : aud.audience_size >= 1000
+            ? ` (${Math.round(aud.audience_size / 1000)}K reach)`
+            : ""
+          : "";
+        dynamicOptions.push({
+          label: `🎯 ${aud.name}${sizeStr}`,
+          value: `AUDIENCE_${aud.id || aud.name}`,
+        });
+      }
+
       if (lang === "mr") {
         nextQuestion = `🎯 तुमच्या जाहिरातीसाठी **लक्षित प्रेक्षक (Detailed Targeting / Interests)** कसे निवडायचे आहेत?\nमेटा चे **Advantage+ AI Targeting** आपोआप जास्तीत जास्त रूपांतरण देणाऱ्या संभाव्य ग्राहकांना शोधून काढते:`;
-        quickOptions = [
-          { label: "✨ Advantage+ AI Targeting (शिफारस केलेले)", value: "TARGETING_ADVANTAGE_PLUS" },
-          { label: "💼 व्यवसाय, तंत्रज्ञान व आयटी", value: "INTEREST_BUSINESS" },
-          { label: "🛍️ ऑनलाइन खरेदीदार व ग्राहक", value: "INTEREST_SHOPPING" },
-          { label: "📱 स्मार्टफोन व गॅजेट्स", value: "INTEREST_SMARTPHONES" },
-        ];
       } else if (lang === "hi") {
         nextQuestion = `🎯 आपके विज्ञापन के लिए **विस्तृत टारगेटिंग (Detailed Targeting & Interests)** क्या होनी चाहिए?\nमेटा का **Advantage+ AI Targeting** उच्च-रूपांतरण वाले संभावित ग्राहकों को स्वतः लक्षित करता है:`;
-        quickOptions = [
-          { label: "✨ Advantage+ AI Targeting (अनुशंसित)", value: "TARGETING_ADVANTAGE_PLUS" },
-          { label: "💼 व्यापार, आईटी व उद्यमी", value: "INTEREST_BUSINESS" },
-          { label: "🛍️ ऑनलाइन खरीदार व उपभोक्ता", value: "INTEREST_SHOPPING" },
-          { label: "📱 स्मार्टफोन व तकनीक", value: "INTEREST_SMARTPHONES" },
-        ];
       } else if (lang === "gu") {
         nextQuestion = `🎯 તમારી જાહેરાત માટે **વિગતવાર ટાર્ગેટિંગ (Detailed Targeting & Interests)** કેવી રીતે રાખવી છે?\nમેટા **Advantage+ AI Targeting** સ્વચાલિત રીતે શ્રેષ્ઠ પરિણામો આપશે:`;
-        quickOptions = [
-          { label: "✨ Advantage+ AI Targeting (ભલામણ કરેલ)", value: "TARGETING_ADVANTAGE_PLUS" },
-          { label: "💼 બિઝનેસ અને આઇટી", value: "INTEREST_BUSINESS" },
-          { label: "🛍️ ઓનલાઇન શોપિંગ", value: "INTEREST_SHOPPING" },
-          { label: "📱 સ્માર્ટફોન અને ગેજેટ્સ", value: "INTEREST_SMARTPHONES" },
-        ];
       } else {
         nextQuestion = `🎯 How would you like Meta AI to handle your **audience targeting (Detailed Interests)**?\nMeta's **Advantage+ AI Targeting** dynamically optimizes delivery across high-intent buyers:`;
-        quickOptions = [
-          { label: "✨ Advantage+ AI Targeting (Recommended)", value: "TARGETING_ADVANTAGE_PLUS" },
-          { label: "💼 Business, Tech & Entrepreneurs", value: "INTEREST_BUSINESS" },
-          { label: "🛍️ Online Shoppers & Retail", value: "INTEREST_SHOPPING" },
-          { label: "📱 Smartphones & Electronics", value: "INTEREST_SMARTPHONES" },
-        ];
       }
+      quickOptions = dynamicOptions;
     } else if (!hasPlacements) {
       if (lang === "mr") {
         nextQuestion = `📱 तुमची जाहिरात **कोणत्या प्लॅटफॉर्मवर (Ad Placements)** दाखवायची आहे?\nमेटा चे **Advantage+ Placements** आपोआप फेसबुक, इंस्टाग्राम, रील्स आणि स्टोरीजमध्ये सर्वात कमी खर्चात सर्वोत्तम निकाल मिळवून देते:`;
@@ -5294,12 +5253,14 @@ CRITICAL ANTI-REPETITION & SINGLE-ASK RULES:
       nextQuestion = `${customPrefix}\n\n${nextQuestion}`;
     }
 
+    const isLocationMsg = !hasLocation;
     state.conversation.push({
       id: `msg_ai_${Date.now()}`,
       sender: "ai",
       text: nextQuestion,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       quickOptions,
+      metadata: isLocationMsg ? { isLocationQuestion: true, showBulkLocationButton: true } : undefined,
     });
 
     state.validation = MetaCampaignValidationService.validateDraft(state.draft, state.context);

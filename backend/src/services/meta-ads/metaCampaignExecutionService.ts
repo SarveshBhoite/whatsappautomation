@@ -455,10 +455,19 @@ export class MetaCampaignExecutionService {
         const resolvedInterests: any[] = [];
         for (const interestName of draft.targeting.interests) {
           try {
+            // Strip leading emojis, parenthetical notes, and taxonomy path prefixes (e.g. "Demographics > Work > Job titles > Small business" -> "Small business")
+            const cleanQuery = interestName
+              .replace(/^[^\w\s\u0900-\u0D7F]+/gu, "")
+              .replace(/\(.*?\)/g, "")
+              .split(">")
+              .pop()!
+              .trim();
+            if (!cleanQuery) continue;
+
             const intRes = await axios.get(`${META_GRAPH_BASE}/search`, {
               params: {
                 type: "adinterest",
-                q: interestName,
+                q: cleanQuery,
                 access_token: config.accessToken,
               },
               timeout: 5000,
@@ -466,7 +475,7 @@ export class MetaCampaignExecutionService {
             if (intRes.data?.data?.[0]?.id) {
               resolvedInterests.push({
                 id: intRes.data.data[0].id,
-                name: intRes.data.data[0].name || interestName,
+                name: intRes.data.data[0].name || cleanQuery,
               });
             }
           } catch (e: any) {

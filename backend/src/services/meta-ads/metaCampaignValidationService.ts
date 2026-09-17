@@ -135,7 +135,7 @@ export class MetaCampaignValidationService {
           field: "destination.whatsappPhoneNumber",
           message: "A connected WhatsApp phone number is required for Click-to-WhatsApp ads.",
           blocking: true,
-          suggestedFix: context.whatsAppNumbers.length > 0
+          suggestedFix: (context.whatsAppNumbers && context.whatsAppNumbers.length > 0)
             ? `Select from your verified connected numbers: ${context.whatsAppNumbers.map((n) => n.phoneNumber).join(", ")}`
             : "Connect your WhatsApp number to your Facebook Page, or switch destination to Instant Lead Form.",
         });

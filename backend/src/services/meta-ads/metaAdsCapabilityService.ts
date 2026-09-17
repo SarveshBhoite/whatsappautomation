@@ -777,4 +777,132 @@ export class MetaAdsCapabilityService {
       customEventType,
     };
   }
+
+  /**
+   * Build compliant Meta Marketing API targeting spec incorporating Advantage+ Audience rules (v23.0+)
+   * - Sets targeting_automation: { advantage_audience: 1 } by default or { advantage_audience: 0 } when opted out.
+   * - For Advantage+ audience (1): sets age_min (clamped 18-25), age_max: 65, and age_range: [min, max].
+   * - For Manual targeting (0): sets exact age_min and age_max.
+   * - Preserves non-negotiable constraints: geo_locations, custom audience exclusions, and locales.
+   */
+  static buildTargetingSpec(params: {
+    geoLocations: any;
+    ageMin?: number;
+    ageMax?: number;
+    gender?: string;
+    advantagePlusAudience?: boolean;
+    isSpecialCategory?: boolean;
+    flexibleSpec?: any[];
+    publisherPlatforms?: string[];
+    devicePlatforms?: string[];
+    customAudiences?: any[];
+    excludedCustomAudiences?: any[];
+    locales?: number[];
+    advantageDetailedTargeting?: boolean | "expansion_all" | "none";
+    targetingOptimization?: "expansion_all" | "none";
+    targetingRelaxationTypes?: {
+      custom_audience?: number;
+      lookalike?: number;
+      detailed_targeting?: number;
+    };
+    userOs?: string[];
+    userDevice?: string[];
+  }): any {
+    const isSpecialCat = Boolean(params.isSpecialCategory);
+    const isAdvantageAudience = isSpecialCat ? false : params.advantagePlusAudience !== false;
+    const rawAgeMin = params.ageMin ? Number(params.ageMin) : 18;
+    const rawAgeMax = params.ageMax ? Number(params.ageMax) : 65;
+
+    const targeting: any = {
+      geo_locations: params.geoLocations || { countries: ["IN"] },
+    };
+
+    if (isSpecialCat) {
+      // Special Ad Category requires 18-65 and advantage_audience: 0
+      targeting.age_min = 18;
+      targeting.age_max = 65;
+      targeting.targeting_automation = { advantage_audience: 0 };
+    } else if (isAdvantageAudience) {
+      // Advantage+ Audience Opt-In (1):
+      // - Targeting automation advantage_audience = 1
+      // - Minimum age constraint: age_min must be 18..25
+      // - age_max fixed at 65
+      // - Suggested age range: age_range = [min, max]
+      targeting.targeting_automation = { advantage_audience: 1 };
+      targeting.age_min = Math.min(Math.max(rawAgeMin, 18), 25);
+      targeting.age_max = 65;
+
+      if (rawAgeMin !== 18 || rawAgeMax !== 65) {
+        targeting.age_range = [rawAgeMin, rawAgeMax];
+      }
+    } else {
+      // Manual Targeting Opt-Out (0):
+      // - Targeting automation advantage_audience = 0
+      // - Strict age boundaries
+      targeting.targeting_automation = { advantage_audience: 0 };
+      targeting.age_min = rawAgeMin;
+      targeting.age_max = rawAgeMax;
+    }
+
+    // Advantage Detailed Targeting (targeting_optimization: "expansion_all" | "none")
+    if (!isSpecialCat) {
+      if (params.targetingOptimization) {
+        targeting.targeting_optimization = params.targetingOptimization;
+      } else if (params.advantageDetailedTargeting === true || params.advantageDetailedTargeting === "expansion_all") {
+        targeting.targeting_optimization = "expansion_all";
+      } else if (params.advantageDetailedTargeting === false || params.advantageDetailedTargeting === "none") {
+        targeting.targeting_optimization = "none";
+      }
+
+      if (params.targetingRelaxationTypes) {
+        targeting.targeting_relaxation_types = params.targetingRelaxationTypes;
+      }
+    }
+
+    // Gender constraints (Special category forbids restricting gender)
+    if (!isSpecialCat && params.gender) {
+      const g = params.gender.toUpperCase();
+      if (g === "MEN" || g === "MALE" || g === "1") {
+        targeting.genders = [1];
+      } else if (g === "WOMEN" || g === "FEMALE" || g === "2") {
+        targeting.genders = [2];
+      }
+    }
+
+    // Detailed targeting / Interests
+    if (params.flexibleSpec && params.flexibleSpec.length > 0 && !isSpecialCat) {
+      targeting.flexible_spec = params.flexibleSpec;
+    }
+
+    // Placements
+    if (params.publisherPlatforms && params.publisherPlatforms.length > 0) {
+      targeting.publisher_platforms = params.publisherPlatforms;
+    }
+    if (params.devicePlatforms && params.devicePlatforms.length > 0) {
+      targeting.device_platforms = params.devicePlatforms;
+    }
+
+    // OS / Devices (App promotion / technical campaigns)
+    if (params.userOs && params.userOs.length > 0) {
+      targeting.user_os = params.userOs;
+    }
+    if (params.userDevice && params.userDevice.length > 0) {
+      targeting.user_device = params.userDevice;
+    }
+
+    // Custom audiences & Exclusions (Non-negotiable constraints)
+    if (params.customAudiences && params.customAudiences.length > 0) {
+      targeting.custom_audiences = params.customAudiences;
+    }
+    if (params.excludedCustomAudiences && params.excludedCustomAudiences.length > 0) {
+      targeting.excluded_custom_audiences = params.excludedCustomAudiences;
+    }
+
+    // Locales
+    if (params.locales && params.locales.length > 0) {
+      targeting.locales = params.locales;
+    }
+
+    return targeting;
+  }
 }

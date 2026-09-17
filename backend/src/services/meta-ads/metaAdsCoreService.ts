@@ -32,17 +32,22 @@ export class MetaAdsCoreService {
 
     if (!config) {
       try {
-        config = await prisma.metaAdConfig.create({
-          data: {
-            organizationId,
-            appId: process.env.META_APP_ID || null,
-            accessToken: process.env.META_SYSTEM_USER_TOKEN || null,
-            adAccountId: process.env.META_AD_ACCOUNT_ID || null,
-            pixelId: process.env.META_PIXEL_ID || null,
-            systemStatus: process.env.META_SYSTEM_USER_TOKEN ? "CONNECTED" : "DISCONNECTED",
-          },
-        });
-      } catch (e) {
+        const orgExists = await prisma.organization.findUnique({ where: { id: organizationId } });
+        if (orgExists) {
+          config = await prisma.metaAdConfig.create({
+            data: {
+              organizationId,
+              appId: process.env.META_APP_ID || null,
+              accessToken: process.env.META_SYSTEM_USER_TOKEN || null,
+              adAccountId: process.env.META_AD_ACCOUNT_ID || null,
+              pixelId: process.env.META_PIXEL_ID || null,
+              systemStatus: process.env.META_SYSTEM_USER_TOKEN ? "CONNECTED" : "DISCONNECTED",
+            },
+          });
+        }
+      } catch (e) {}
+
+      if (!config) {
         config = {
           id: "temp_config",
           organizationId,
@@ -761,18 +766,20 @@ export class MetaAdsCoreService {
    * Search Meta Interest Targeting Database via Graph API (/search?type=adinterest)
    * Returns exact Meta Interest IDs with live audience reach lower/upper bound estimates
    */
-  static async searchInterests(organizationId: string, query: string): Promise<Array<{ id: string; name: string; audience_size_lower_bound: number; audience_size_upper_bound: number; path: string[] }>> {
+  static async searchInterests(organizationId: string, query: string): Promise<Array<{ id: string; name: string; audience_size_lower_bound: number; audience_size_upper_bound: number; path: string[]; topic?: string }>> {
     try {
       const config = await this.getConfig(organizationId);
-      if (!config.accessToken) return [];
+      const accessToken = config.accessToken || process.env.META_SYSTEM_USER_TOKEN;
+      if (!accessToken) return [];
 
       const res = await axios.get(`${META_GRAPH_BASE}/search`, {
         params: {
           type: "adinterest",
           q: query,
-          limit: 8,
-          access_token: config.accessToken,
+          limit: 10,
+          access_token: accessToken,
         },
+        timeout: 6000,
       });
 
       const items = res.data?.data || [];
@@ -782,9 +789,87 @@ export class MetaAdsCoreService {
         audience_size_lower_bound: item.audience_size_lower_bound || 1000000,
         audience_size_upper_bound: item.audience_size_upper_bound || 50000000,
         path: item.path || [item.name],
+        topic: item.topic || "Targeting",
       }));
     } catch (err: any) {
-      console.warn("[MetaAdsCoreService] Interest search error:", err.message);
+      console.warn("[MetaAdsCoreService] Interest search warning:", err.message);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch Targeting Suggestions from Meta Graph API based on seed keywords or interests
+   * (/search?type=adinterestsuggestion&interest_list=["Fashion","Shopping"])
+   */
+  static async searchTargetingSuggestions(
+    organizationId: string,
+    seedKeywords: string[]
+  ): Promise<Array<{ id: string; name: string; audience_size_lower_bound: number; audience_size_upper_bound: number; path: string[]; topic?: string }>> {
+    try {
+      const config = await this.getConfig(organizationId);
+      const accessToken = config.accessToken || process.env.META_SYSTEM_USER_TOKEN;
+      if (!accessToken || !seedKeywords || seedKeywords.length === 0) return [];
+
+      const cleanList = seedKeywords.map(k => k.replace(/^[^\w\s\u0900-\u0D7F]+/gu, "").trim()).filter(Boolean);
+      if (cleanList.length === 0) return [];
+
+      const res = await axios.get(`${META_GRAPH_BASE}/search`, {
+        params: {
+          type: "adinterestsuggestion",
+          interest_list: JSON.stringify(cleanList.slice(0, 5)),
+          limit: 12,
+          access_token: accessToken,
+        },
+        timeout: 6000,
+      });
+
+      const items = res.data?.data || [];
+      return items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        audience_size_lower_bound: item.audience_size_lower_bound || 1500000,
+        audience_size_upper_bound: item.audience_size_upper_bound || 45000000,
+        path: item.path || [item.name],
+        topic: item.topic || "Targeting",
+      }));
+    } catch (err: any) {
+      console.warn("[MetaAdsCoreService] Targeting suggestions warning:", err.message);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch Meta Ad Targeting Categories Taxonomy (Demographics, Interests, Behaviors)
+   * (/search?type=adtargetingcategory&class=interests)
+   */
+  static async searchTargetingCategories(
+    organizationId: string,
+    categoryClass: "interests" | "demographics" | "behaviors" = "interests"
+  ): Promise<Array<{ id: string; name: string; path: string[]; type: string }>> {
+    try {
+      const config = await this.getConfig(organizationId);
+      const accessToken = config.accessToken || process.env.META_SYSTEM_USER_TOKEN;
+      if (!accessToken) return [];
+
+      const res = await axios.get(`${META_GRAPH_BASE}/search`, {
+        params: {
+          type: "adtargetingcategory",
+          class: categoryClass,
+          access_token: accessToken,
+          limit: 25,
+        },
+        timeout: 6000,
+      });
+
+      const items = res.data?.data || [];
+      return items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        path: item.path || [item.name],
+        type: item.type || categoryClass,
+      }));
+    } catch (err: any) {
+      console.warn("[MetaAdsCoreService] Targeting categories warning:", err.message);
       return [];
     }
   }

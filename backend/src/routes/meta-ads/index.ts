@@ -7,6 +7,7 @@ import appPromotionRoutes from "./appPromotionRoutes";
 import salesRoutes from "./salesRoutes";
 import engagementRoutes from "./engagementRoutes";
 import aiCampaignRoutes from "./aiCampaignRoutes";
+import targetingSearchRoutes from "./targetingSearchRoutes";
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use("/", appPromotionRoutes);
 router.use("/", salesRoutes);
 router.use("/", engagementRoutes);
 router.use("/", aiCampaignRoutes);
+router.use("/", targetingSearchRoutes);
 
 export default router;

@@ -44,6 +44,13 @@ import {
   Map,
   Compass,
   Hash,
+  Search,
+  Users,
+  Briefcase,
+  Heart,
+  BookOpen,
+  Laptop,
+  Activity,
 } from "lucide-react";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -114,6 +121,96 @@ function formatCleanText(text: string) {
   });
 }
 
+// ── Comprehensive Meta Ads Detailed Targeting Catalog ──
+// Demographics, Interests, and Behaviours structured across official Meta Graph API taxonomies
+interface TargetingCategoryItem {
+  id: string;
+  name: string;
+  category: "demographics" | "interests" | "behaviours";
+  subCategory: string;
+  description?: string;
+  icon?: string;
+  audienceSizeLower?: number | null;
+  audienceSizeUpper?: number | null;
+}
+
+const META_DETAILED_TARGETING_CATALOG: TargetingCategoryItem[] = [
+  // ── DEMOGRAPHICS: Education & Life Stages ──
+  { id: "edu_college_grad", name: "College Graduates", category: "demographics", subCategory: "Education", icon: "🎓", description: "People who completed associate or bachelor's degrees" },
+  { id: "edu_postgrad", name: "Master's & Doctorate Degrees", category: "demographics", subCategory: "Education", icon: "📚", description: "Postgraduates, MBA, PhD and advanced scholars" },
+  { id: "edu_highschool", name: "High School Graduates", category: "demographics", subCategory: "Education", icon: "🏫", description: "Secondary and high-school educated audience" },
+
+  // ── DEMOGRAPHICS: Relationship & Marital Status ──
+  { id: "rel_married", name: "Married Couples", category: "demographics", subCategory: "Relationship Status", icon: "💍", description: "Individuals with relationship status set to Married" },
+  { id: "rel_single", name: "Single & Unmarried", category: "demographics", subCategory: "Relationship Status", icon: "👤", description: "Individuals identifying as single or unattached" },
+  { id: "rel_engaged", name: "Newly Engaged", category: "demographics", subCategory: "Relationship Status", icon: "💎", description: "Engaged couples preparing for weddings" },
+  { id: "rel_relationship", name: "In a Relationship", category: "demographics", subCategory: "Relationship Status", icon: "❤️", description: "People in serious relationships or domestic partnerships" },
+
+  // ── DEMOGRAPHICS: Parents & Household ──
+  { id: "par_new_parents", name: "New Parents (0-12 months)", category: "demographics", subCategory: "Parents & Family", icon: "👶", description: "Parents with infants and newborn babies" },
+  { id: "par_toddler_parents", name: "Parents of Toddlers (1-2 years)", category: "demographics", subCategory: "Parents & Family", icon: "🍼", description: "Families with toddlers and early daycare kids" },
+  { id: "par_school_parents", name: "Parents of School-Age Children (6-12)", category: "demographics", subCategory: "Parents & Family", icon: "🎒", description: "Parents with primary school kids and youth" },
+  { id: "par_teen_parents", name: "Parents with Teenagers (13-17)", category: "demographics", subCategory: "Parents & Family", icon: "📱", description: "Parents of adolescents and high schoolers" },
+
+  // ── DEMOGRAPHICS: Work & Industry ──
+  { id: "work_biz_owners", name: "Small Business Owners & Founders", category: "demographics", subCategory: "Work & Industry", icon: "💼", description: "Entrepreneurs, directors, shop owners, proprietorships" },
+  { id: "work_corporate_mgmt", name: "Corporate Executives & Managers", category: "demographics", subCategory: "Work & Industry", icon: "👔", description: "VPs, Directors, Team Leads, and C-level managers" },
+  { id: "work_it_software", name: "IT, Software & Engineering Professionals", category: "demographics", subCategory: "Work & Industry", icon: "💻", description: "Software engineers, tech developers, data analysts" },
+  { id: "work_healthcare", name: "Doctors & Healthcare Workers", category: "demographics", subCategory: "Work & Industry", icon: "🩺", description: "Physicians, dentists, medical clinic staff, nurses" },
+  { id: "work_real_estate", name: "Real Estate Agents & Brokers", category: "demographics", subCategory: "Work & Industry", icon: "🏢", description: "Property consultants, builders, and real estate brokers" },
+
+  // ── DEMOGRAPHICS: Life Events ──
+  { id: "life_anniversary", name: "Anniversary within 30 Days", category: "demographics", subCategory: "Life Events", icon: "🎉", description: "Couples celebrating wedding/relationship anniversaries" },
+  { id: "life_new_job", name: "New Job or Promotion", category: "demographics", subCategory: "Life Events", icon: "🚀", description: "People who recently started a new role or company" },
+  { id: "life_moved", name: "Recently Moved to New City", category: "demographics", subCategory: "Life Events", icon: "📦", description: "People relocating or settling into a new home/city" },
+
+  // ── INTERESTS: Business & Tech ──
+  { id: "int_smartphones", name: "Smartphones & Mobile Devices", category: "interests", subCategory: "Technology & Gadgets", icon: "📱", description: "Android, iPhone, flagship phones and tech hardware" },
+  { id: "int_electronics", name: "Consumer Electronics & Audio", category: "interests", subCategory: "Technology & Gadgets", icon: "🎧", description: "Laptops, smart watches, earbuds, home theater" },
+  { id: "int_ai_software", name: "Artificial Intelligence & SaaS", category: "interests", subCategory: "Technology & Gadgets", icon: "🤖", description: "Cloud software, automation tools, CRM, modern AI" },
+  { id: "int_entrepreneurship", name: "Entrepreneurship & Startups", category: "interests", subCategory: "Business & Industry", icon: "📈", description: "Startup founders, VC funding, scaling businesses" },
+  { id: "int_digital_marketing", name: "Digital Marketing & Advertising", category: "interests", subCategory: "Business & Industry", icon: "🎯", description: "Lead generation, SEO, social ads, ecommerce growth" },
+
+  // ── INTERESTS: Shopping & Fashion ──
+  { id: "int_online_shopping", name: "Online Shopping & E-Commerce", category: "interests", subCategory: "Shopping & Fashion", icon: "🛍️", description: "High-intent digital shoppers across Amazon, Flipkart, D2C" },
+  { id: "int_fashion_women", name: "Women's Fashion & Ethnic Wear", category: "interests", subCategory: "Shopping & Fashion", icon: "👗", description: "Sarees, kurtis, dresses, designer wear and styling" },
+  { id: "int_mens_clothing", name: "Men's Apparel & Formal Wear", category: "interests", subCategory: "Shopping & Fashion", icon: "👔", description: "Suits, shirts, casual streetwear and shoes" },
+  { id: "int_luxury_goods", name: "Luxury Goods & Watches", category: "interests", subCategory: "Shopping & Fashion", icon: "💎", description: "Premium designer jewelry, Swiss watches, luxury apparel" },
+  { id: "int_beauty_cosmetics", name: "Cosmetics & Skincare", category: "interests", subCategory: "Shopping & Fashion", icon: "💄", description: "Makeup, dermatology skincare, hair care, salons" },
+
+  // ── INTERESTS: Real Estate & Home ──
+  { id: "int_real_estate_invest", name: "Real Estate Investing & Flats", category: "interests", subCategory: "Real Estate & Home", icon: "🏡", description: "1/2/3 BHK apartments, luxury villas, commercial plots" },
+  { id: "int_interior_design", name: "Interior Design & Home Decor", category: "interests", subCategory: "Real Estate & Home", icon: "🛋️", description: "Home makeover, modular kitchens, luxury furniture" },
+
+  // ── INTERESTS: Health, Fitness & Food ──
+  { id: "int_gym_fitness", name: "Gym & Physical Fitness", category: "interests", subCategory: "Health & Wellness", icon: "💪", description: "Weight loss, CrossFit, gym memberships, personal trainers" },
+  { id: "int_yoga_wellness", name: "Yoga, Meditation & Ayurvedic", category: "interests", subCategory: "Health & Wellness", icon: "🧘", description: "Holistic wellness, yoga studios, organic nutrition" },
+  { id: "int_restaurants_dining", name: "Fine Dining & Cafes", category: "interests", subCategory: "Food & Beverage", icon: "🍽️", description: "Foodies, cafe culture, gourmet dining, rooftop bars" },
+
+  // ── INTERESTS: Automotive & Travel ──
+  { id: "int_automobiles", name: "Automobiles & Electric Vehicles (EV)", category: "interests", subCategory: "Automotive", icon: "🚗", description: "SUVs, luxury sedans, electric cars, test drives" },
+  { id: "int_motorcycles", name: "Bikes & Motorcycling", category: "interests", subCategory: "Automotive", icon: "🏍️", description: "Royal Enfield, superbikes, touring scooters" },
+  { id: "int_luxury_travel", name: "Luxury Travel & Resorts", category: "interests", subCategory: "Travel & Lifestyle", icon: "✈️", description: "5-star hotels, international vacations, honeymoon resorts" },
+
+  // ── BEHAVIOURS: Purchase Behaviour ──
+  { id: "beh_engaged_shoppers", name: "Engaged Shoppers", category: "behaviours", subCategory: "Purchase Behaviour", icon: "🛒", description: "People who clicked the 'Shop Now' button on ads in the past week" },
+  { id: "beh_high_value_goods", name: "High-Value Goods Buyers", category: "behaviours", subCategory: "Purchase Behaviour", icon: "💳", description: "Shoppers with frequent high-ticket online transactions" },
+
+  // ── BEHAVIOURS: Digital Activities & Tech Usage ──
+  { id: "beh_page_admins", name: "Facebook Page Admins", category: "behaviours", subCategory: "Digital Activities", icon: "👥", description: "Admins of business, retail, hospitality or community pages" },
+  { id: "beh_early_adopters", name: "Technology Early Adopters", category: "behaviours", subCategory: "Digital Activities", icon: "⚡", description: "People among the first to adopt new gadgets and digital apps" },
+  { id: "beh_payment_users", name: "Digital & UPI Payment Users", category: "behaviours", subCategory: "Digital Activities", icon: "📲", description: "Users who regularly conduct digital commerce via UPI/Cards" },
+
+  // ── BEHAVIOURS: Travel & Commute ──
+  { id: "beh_frequent_travelers", name: "Frequent Travelers", category: "behaviours", subCategory: "Travel Behaviour", icon: "🛫", description: "People whose activities show frequent domestic & inter-city travel" },
+  { id: "beh_intl_travelers", name: "Frequent International Travelers", category: "behaviours", subCategory: "Travel Behaviour", icon: "🌍", description: "People who travel abroad multiple times per year" },
+  { id: "beh_commuters", name: "Daily Metro & City Commuters", category: "behaviours", subCategory: "Travel Behaviour", icon: "🚆", description: "Professionals commuting daily between suburban & metro zones" },
+
+  // ── BEHAVIOURS: Mobile Device User ──
+  { id: "beh_ios_users", name: "Apple iOS Device Users (iPhone & iPad)", category: "behaviours", subCategory: "Device Usage", icon: "🍏", description: "High-income users browsing Facebook & Instagram on Apple iOS" },
+  { id: "beh_flagship_android", name: "Premium Flagship Android Users", category: "behaviours", subCategory: "Device Usage", icon: "🤖", description: "Users connected via high-end Samsung Galaxy, Pixel, OnePlus devices" },
+];
+
 export default function MetaAIChatbotStudioPage() {
   const router = useRouter();
   const [orgId, setOrgId] = useState<string>(getOrgId());
@@ -125,8 +222,31 @@ export default function MetaAIChatbotStudioPage() {
   const [isSending, setIsSending] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cityInput, setCityInput] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [cityInput, setCityInput] = useState("");
+  const [singleCitySuggestions, setSingleCitySuggestions] = useState<Array<{ key: string; name: string; displayName: string; region: string }>>([]);
+
+  // Debounced search for single city input
+  useEffect(() => {
+    const q = cityInput.trim();
+    if (!q || q.length < 1) {
+      setSingleCitySuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/meta-ads/locations/search?q=${encodeURIComponent(q)}&organizationId=${encodeURIComponent(orgId)}`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setSingleCitySuggestions(json.data);
+        }
+      } catch (err) {
+        console.warn("[SingleCitySearch] Error:", err);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [cityInput, orgId]);
+
   const recognitionRef = useRef<any>(null);
   const baseTextRef = useRef<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -257,7 +377,7 @@ export default function MetaAIChatbotStudioPage() {
           const parsed = JSON.parse(cached);
           // If cached session has stale ad history greeting or old branding, invalidate and reload clean JISNU AI session
           const hasStaleGreeting = parsed?.conversation?.some((m: any) =>
-            /14 Aug-2026|Historical Ads Audit|I've analyzed your account's ad history|winning ad|Tell me about your business, product/i.test(m.text || "")
+            /14 Aug-2026|Historical Ads Audit|I've analyzed your account's ad history/i.test(m.text || "")
           );
           if (parsed && parsed.sessionId && parsed.draft && !hasStaleGreeting) {
             setSession(parsed);
@@ -491,6 +611,104 @@ export default function MetaAIChatbotStudioPage() {
   const [attachedFile, setAttachedFile] = useState<{ name: string; url: string; type: "IMAGE" | "VIDEO" } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Detailed Targeting (Demographics, Interests, Behaviours) Modal State ──
+  const [showDetailedTargetingModal, setShowDetailedTargetingModal] = useState(false);
+  const [targetingSearchQuery, setTargetingSearchQuery] = useState("");
+  const [targetingActiveTab, setTargetingActiveTab] = useState<"all" | "demographics" | "interests" | "behaviours">("all");
+  const [selectedTargetingTags, setSelectedTargetingTags] = useState<string[]>([]);
+  const [customInterestInput, setCustomInterestInput] = useState("");
+  const [liveTargetingResults, setLiveTargetingResults] = useState<TargetingCategoryItem[]>([]);
+  const [isSearchingLiveTargeting, setIsSearchingLiveTargeting] = useState(false);
+
+  // Debounced live Meta Graph API search for targeting
+  useEffect(() => {
+    const query = targetingSearchQuery.trim();
+    if (!query || query.length < 2) {
+      setLiveTargetingResults([]);
+      setIsSearchingLiveTargeting(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingLiveTargeting(true);
+      try {
+        const res = await fetch(`${BACKEND}/api/meta-ads/targeting/search?q=${encodeURIComponent(query)}&organizationId=${encodeURIComponent(orgId)}`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          const formatted: TargetingCategoryItem[] = json.data.map((item: any) => ({
+            id: String(item.id),
+            name: item.name,
+            category: item.category || "interests",
+            subCategory: item.subCategory || "Meta Direct Match",
+            description: item.description,
+            icon: item.category === "demographics" ? "👥" : item.category === "behaviours" ? "🛒" : "🎯",
+            audienceSizeLower: item.audienceSizeLower,
+            audienceSizeUpper: item.audienceSizeUpper,
+          }));
+          setLiveTargetingResults(formatted);
+        }
+      } catch (err) {
+        console.warn("[TargetingSearch] Error fetching live Meta targeting options:", err);
+      } finally {
+        setIsSearchingLiveTargeting(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [targetingSearchQuery, orgId]);
+
+  const openDetailedTargetingModal = () => {
+    const existing = session?.draft?.targeting?.interests || [];
+    setSelectedTargetingTags([...existing]);
+    setTargetingSearchQuery("");
+    setLiveTargetingResults([]);
+    setTargetingActiveTab("all");
+    setShowDetailedTargetingModal(true);
+  };
+
+  const handleToggleTargetingTag = (tagName: string) => {
+    setSelectedTargetingTags((prev) =>
+      prev.includes(tagName) ? prev.filter((t) => t !== tagName) : [...prev, tagName]
+    );
+  };
+
+  const handleAddCustomTargetingTag = (val: string) => {
+    const clean = val.trim();
+    if (!clean) return;
+    if (!selectedTargetingTags.some((t) => t.toLowerCase() === clean.toLowerCase())) {
+      setSelectedTargetingTags((prev) => [...prev, clean]);
+    }
+    setCustomInterestInput("");
+  };
+
+  const handleApplyDetailedTargeting = () => {
+    if (!session) return;
+    const cleanTags = Array.from(new Set(selectedTargetingTags.map((t) => t.trim()))).filter(Boolean);
+
+    const updatedDraft = {
+      ...session.draft,
+      targeting: {
+        ...session.draft.targeting,
+        interests: cleanTags,
+        advantagePlusAudience: true,
+      },
+    };
+
+    const updatedSession = {
+      ...session,
+      draft: updatedDraft,
+    };
+    setSession(updatedSession);
+    setShowDetailedTargetingModal(false);
+
+    const tagSummary = cleanTags.length > 0 ? cleanTags.join(", ") : "Advantage+ Broad Audience";
+    handleSendMessage(
+      `Updated detailed targeting (demographics, interests & behaviours): ${tagSummary}`,
+      undefined,
+      updatedSession
+    );
+  };
+
   // ── Bulk Location Management State & Handlers ──
   const [showBulkLocationModal, setShowBulkLocationModal] = useState(false);
   const [bulkCountries, setBulkCountries] = useState<string[]>([]);
@@ -500,6 +718,101 @@ export default function MetaAIChatbotStudioPage() {
   const [bulkCountryText, setBulkCountryText] = useState("");
   const [bulkPincodeText, setBulkPincodeText] = useState("");
   const [bulkActiveTab, setBulkActiveTab] = useState<"cities" | "countries" | "pincodes">("cities");
+  const [citySuggestions, setCitySuggestions] = useState<Array<{ key: string; name: string; displayName: string; region: string }>>([]);
+  const [isLoadingCitySuggestions, setIsLoadingCitySuggestions] = useState(false);
+  const [countrySuggestions, setCountrySuggestions] = useState<Array<{ key: string; name: string; displayName: string; region: string; countryCode: string }>>([]);
+  const [isLoadingCountrySuggestions, setIsLoadingCountrySuggestions] = useState(false);
+
+  // Debounced live Meta Graph API city search
+  useEffect(() => {
+    // Extract current word being typed (e.g. if user types "Mumbai, sat", query "sat")
+    const parts = bulkCityText.split(/[\n\r,;&|]+/);
+    const activeToken = (parts[parts.length - 1] || "").replace(/\(.*?\)/g, "").trim();
+
+    if (!activeToken || activeToken.length < 1) {
+      setCitySuggestions([]);
+      setIsLoadingCitySuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsLoadingCitySuggestions(true);
+      try {
+        const res = await fetch(`/api/meta-ads/locations/search?q=${encodeURIComponent(activeToken)}&organizationId=${encodeURIComponent(orgId)}`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setCitySuggestions(json.data);
+        }
+      } catch (err) {
+        console.warn("[LocationSearch] Error fetching city suggestions:", err);
+      } finally {
+        setIsLoadingCitySuggestions(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [bulkCityText, orgId]);
+
+  // Debounced live country search (Meta Graph API + Global Catalog)
+  useEffect(() => {
+    const q = bulkCountryText.trim();
+    if (!q || q.length < 1) {
+      setCountrySuggestions([]);
+      setIsLoadingCountrySuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsLoadingCountrySuggestions(true);
+      try {
+        const res = await fetch(`/api/meta-ads/locations/search?q=${encodeURIComponent(q)}&type=country&organizationId=${encodeURIComponent(orgId)}`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setCountrySuggestions(json.data);
+        }
+      } catch (err) {
+        console.warn("[CountrySearch] Error fetching country suggestions:", err);
+      } finally {
+        setIsLoadingCountrySuggestions(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [bulkCountryText, orgId]);
+
+  const [pincodeSuggestions, setPincodeSuggestions] = useState<Array<{ key: string; name: string; displayName: string; city?: string; region?: string; postalCode?: string }>>([]);
+  const [isLoadingPincodeSuggestions, setIsLoadingPincodeSuggestions] = useState(false);
+
+  // Debounced live PIN / postal code search (Meta Graph API + Metro PIN Registry)
+  useEffect(() => {
+    // Extract the active token (current number or text being typed)
+    const parts = bulkPincodeText.split(/[\n\r,;&|]+/);
+    const activeToken = (parts[parts.length - 1] || "").trim();
+
+    if (!activeToken || activeToken.length < 2) {
+      setPincodeSuggestions([]);
+      setIsLoadingPincodeSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsLoadingPincodeSuggestions(true);
+      try {
+        const res = await fetch(`/api/meta-ads/locations/search?q=${encodeURIComponent(activeToken)}&type=postal_code&organizationId=${encodeURIComponent(orgId)}`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setPincodeSuggestions(json.data);
+        }
+      } catch (err) {
+        console.warn("[PincodeSearch] Error fetching postal suggestions:", err);
+      } finally {
+        setIsLoadingPincodeSuggestions(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [bulkPincodeText, orgId]);
+
 
   const openBulkLocationManager = () => {
     if (session?.draft?.targeting) {
@@ -563,6 +876,28 @@ export default function MetaAIChatbotStudioPage() {
     }
     setBulkCities(updated);
     setBulkCityText("");
+    setCitySuggestions([]);
+  };
+
+  const handleSelectCitySuggestion = (suggestion: { name: string; displayName: string }) => {
+    const cityName = suggestion.name.trim();
+    if (!cityName) return;
+
+    // Check if city already in bulkCities
+    const existingIdx = bulkCities.findIndex((c) => c.name.toLowerCase() === cityName.toLowerCase());
+    if (existingIdx === -1) {
+      setBulkCities([...bulkCities, { name: cityName, radiusKm: 30 }]);
+    }
+
+    // Replace current incomplete typing token or clear input
+    const parts = bulkCityText.split(/([,\n\r;&|]+)/);
+    if (parts.length > 1) {
+      parts[parts.length - 1] = "";
+      setBulkCityText(parts.join("").trim());
+    } else {
+      setBulkCityText("");
+    }
+    setCitySuggestions([]);
   };
 
   const handleAddBulkPincodesFromText = () => {
@@ -576,6 +911,26 @@ export default function MetaAIChatbotStudioPage() {
     }
     setBulkPincodes(updated);
     setBulkPincodeText("");
+    setPincodeSuggestions([]);
+  };
+
+  const handleSelectPincodeSuggestion = (suggestion: { name: string; postalCode?: string; displayName: string }) => {
+    const pin = (suggestion.postalCode || suggestion.name).trim();
+    if (!pin) return;
+
+    if (!bulkPincodes.includes(pin)) {
+      setBulkPincodes([...bulkPincodes, pin]);
+    }
+
+    // Replace the current incomplete token or clear
+    const parts = bulkPincodeText.split(/([,\n\r;&|]+)/);
+    if (parts.length > 1) {
+      parts[parts.length - 1] = "";
+      setBulkPincodeText(parts.join("").trim());
+    } else {
+      setBulkPincodeText("");
+    }
+    setPincodeSuggestions([]);
   };
 
   const handleAddBulkCountry = (cName: string) => {
@@ -660,7 +1015,7 @@ export default function MetaAIChatbotStudioPage() {
     setIsSending(true);
     try {
       // 1. Detect natural aspect ratio from Image / Video dimensions
-      let detectedAspect: "1:1" | "9:16" | "16:9" | "4:5" = "1:1";
+      let detectedAspect: string = "1:1";
       let dimensionText = "";
 
       if (!isVideo) {
@@ -767,7 +1122,7 @@ export default function MetaAIChatbotStudioPage() {
       type,
     });
 
-    let detectedAspect: "1:1" | "9:16" | "16:9" | "4:5" = "1:1";
+    let detectedAspect: string = "1:1";
     if (type === "IMAGE" && mediaUrl) {
       await new Promise<void>((resolve) => {
         const img = new Image();
@@ -1071,6 +1426,26 @@ export default function MetaAIChatbotStudioPage() {
                             className="w-full sm:w-auto px-4 py-2 bg-[#1877F2] hover:bg-[#166fe5] text-white text-xs font-bold rounded-lg transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
                           >
                             <span>📤 Select File from Device</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Inline Interactive Dedicated Bulk Location Card */}
+                      {(msg.metadata?.showBulkLocationButton || msg.metadata?.isLocationQuestion || msg.metadata?.openBulkLocationModal) && (
+                        <div className="mt-3 p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                          <div className="flex items-center gap-2.5 text-xs text-blue-950 font-medium">
+                            <span className="text-xl">🌐</span>
+                            <div>
+                              <div className="font-bold text-blue-900">Dedicated Bulk Location & Radius Selector</div>
+                              <div className="text-[11px] text-blue-700">Add multiple countries, cities, custom radii (km) or pincodes easily</div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openBulkLocationManager()}
+                            className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-lg transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
+                          >
+                            <span>🌐 Open Location Manager</span>
                           </button>
                         </div>
                       )}
@@ -1900,7 +2275,7 @@ export default function MetaAIChatbotStudioPage() {
                           <div className="text-xs font-extrabold text-emerald-900 flex items-center gap-1.5">
                             <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
                             <span>
-                              Est. ~{Math.max(12, Math.round(((campaign.dailyBudget || 500) * 30) / 72.20))} Qualified Leads/Month
+                              Est. ~{Math.max(12, Math.round(((campaign.dailyBudget || 500) * 30) / ((context as any).accountMetrics?.avgCpa || (context as any).researchAudit?.avgCpa || 25)))} Leads/Month (@ ~₹{Math.round((context as any).accountMetrics?.avgCpa || (context as any).researchAudit?.avgCpa || 25)} CPA)
                             </span>
                           </div>
                           <div className="text-[11px] text-emerald-700">
@@ -2435,7 +2810,7 @@ export default function MetaAIChatbotStudioPage() {
                               <span>Manage Bulk Locations & Radius</span>
                             </button>
 
-                            <div className="flex items-center gap-1">
+                            <div className="relative flex items-center gap-1">
                               <input
                                 type="text"
                                 value={cityInput}
@@ -2466,10 +2841,53 @@ export default function MetaAIChatbotStudioPage() {
                                       }
                                     }
                                     setCityInput("");
+                                    setSingleCitySuggestions([]);
                                   }
                                 }}
                                 className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[11px] text-slate-800 w-36 focus:outline-none focus:border-blue-500"
                               />
+
+                              {/* Dropdown for single city input */}
+                              {singleCitySuggestions.length > 0 && (
+                                <div className="absolute left-0 top-full mt-1 bg-white border border-blue-200 rounded-lg shadow-lg z-50 w-56 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                  {singleCitySuggestions.map((sug, idx) => (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => {
+                                        const cur = targeting.cities || [];
+                                        const curConfigs = targeting.cityConfigs || [];
+                                        const cName = sug.name.trim();
+                                        if (!cur.includes(cName)) {
+                                          const nextCities = [...cur, cName];
+                                          const nextConfigs = [...curConfigs, { name: cName, radiusKm: 30 }];
+                                          if (session) {
+                                            setSession({
+                                              ...session,
+                                              draft: {
+                                                ...session.draft,
+                                                targeting: {
+                                                  ...session.draft.targeting,
+                                                  cities: nextCities,
+                                                  cityConfigs: nextConfigs,
+                                                  locationDescription: nextCities.join(", "),
+                                                },
+                                              },
+                                            });
+                                          }
+                                        }
+                                        setCityInput("");
+                                        setSingleCitySuggestions([]);
+                                      }}
+                                      className="w-full text-left px-2.5 py-1.5 text-[11px] hover:bg-blue-50 flex items-center justify-between text-slate-800 cursor-pointer"
+                                    >
+                                      <span className="font-semibold text-slate-900">{sug.name}</span>
+                                      <span className="text-[10px] text-slate-400">{sug.region || "IN"}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2496,6 +2914,7 @@ export default function MetaAIChatbotStudioPage() {
                                       }
                                     }
                                     setCityInput("");
+                                    setSingleCitySuggestions([]);
                                   }
                                 }}
                                 className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded border border-blue-200 cursor-pointer"
@@ -2676,7 +3095,14 @@ export default function MetaAIChatbotStudioPage() {
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-[11px]">
                               <span className="font-bold text-slate-700">Demographics, Interests & Behaviours</span>
-                              <span className="text-[10px] text-[#1877F2] font-bold cursor-pointer hover:underline">Browse Categories</span>
+                              <button
+                                type="button"
+                                onClick={openDetailedTargetingModal}
+                                className="text-[10px] text-[#1877F2] font-bold cursor-pointer hover:underline flex items-center gap-0.5"
+                              >
+                                <span>Browse Categories</span>
+                                <ChevronRight className="h-3 w-3" />
+                              </button>
                             </div>
                             <div className="flex flex-wrap gap-1.5 pt-0.5">
                               {targeting.interests?.length ? (
@@ -2711,41 +3137,68 @@ export default function MetaAIChatbotStudioPage() {
                               )}
                             </div>
 
-                            {/* Quick 1-Click Interest Recommendations */}
+                            {/* Dynamic 1-Click Interest Recommendations based on user business & niche */}
                             <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
                               <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Suggested:</span>
-                              {["📱 Smartphones", "🎧 Electronics", "🛍️ Online Shopping", "👗 Fashion & Style", "💼 Small Business", "🚗 Automobiles"].map((sug, sIdx) => {
-                                const isSelected = targeting.interests?.includes(sug);
-                                return (
-                                  <button
-                                    key={sIdx}
-                                    type="button"
-                                    onClick={() => {
-                                      const cur = targeting.interests || [];
-                                      const next = isSelected ? cur.filter((x: string) => x !== sug) : [...cur, sug];
-                                      if (session) {
-                                        setSession({
-                                          ...session,
-                                          draft: {
-                                            ...session.draft,
-                                            targeting: {
-                                              ...session.draft.targeting,
-                                              interests: next,
+                              {(() => {
+                                const suggestedAudiences: Array<{ id: string | number; name: string }> = (targeting as any)?.suggestedAudiences || [];
+                                const metaApiSuggestions = suggestedAudiences.map((aud) => aud.name);
+
+                                const convText = (session?.conversation || []).map((m: any) => m.text || "").join(" ");
+                                const brandContext = `${campaign.brandName || ""} ${campaign.name || ""} ${campaign.promotedProduct || ""} ${campaign.promotedService || ""} ${campaign.offer || ""} ${convText}`.toLowerCase();
+                                
+                                // Extract dynamic interest keywords directly from live user input & conversation context
+                                const extractedKeywords: string[] = [];
+                                const words = brandContext.split(/\s+/);
+                                for (const word of words) {
+                                  const clean = word.replace(/[^\w\u0900-\u097F]/g, "").trim();
+                                  if (clean.length >= 3 && !/^(with|from|this|that|your|have|more|store|shop|provide|offer|campaign|promote|want|like|need|best|service|product|about|hello|please|give|show|into|them|they|were|been)$/i.test(clean)) {
+                                    const formatted = clean.charAt(0).toUpperCase() + clean.slice(1);
+                                    if (!extractedKeywords.includes(formatted) && extractedKeywords.length < 5) {
+                                      extractedKeywords.push(formatted);
+                                    }
+                                  }
+                                }
+
+                                const dynamicSuggestions: string[] = metaApiSuggestions.length > 0 
+                                  ? metaApiSuggestions 
+                                  : extractedKeywords.length > 0 
+                                  ? extractedKeywords.map(k => `🎯 ${k}`) 
+                                  : ["🎯 Target Audience Interest", "🛒 Engaged Shoppers"];
+
+                                return dynamicSuggestions.map((sug, sIdx) => {
+                                  const isSelected = targeting.interests?.includes(sug);
+                                  return (
+                                    <button
+                                      key={sIdx}
+                                      type="button"
+                                      onClick={() => {
+                                        const cur = targeting.interests || [];
+                                        const next = isSelected ? cur.filter((x: string) => x !== sug) : [...cur, sug];
+                                        if (session) {
+                                          setSession({
+                                            ...session,
+                                            draft: {
+                                              ...session.draft,
+                                              targeting: {
+                                                ...session.draft.targeting,
+                                                interests: next,
+                                              },
                                             },
-                                          },
-                                        });
-                                      }
-                                    }}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all border ${
-                                      isSelected
-                                        ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
-                                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600"
-                                    }`}
-                                  >
-                                    {isSelected ? `✓ ${sug}` : `+ ${sug}`}
-                                  </button>
-                                );
-                              })}
+                                          });
+                                        }
+                                      }}
+                                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all border ${
+                                        isSelected
+                                          ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                                          : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600"
+                                      }`}
+                                    >
+                                      {isSelected ? `✓ ${sug}` : `+ ${sug}`}
+                                    </button>
+                                  );
+                                });
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -3023,49 +3476,53 @@ export default function MetaAIChatbotStudioPage() {
 
       {/* ── BULK LOCATION & RADIUS MANAGER MODAL ── */}
       {showBulkLocationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-200/80 overflow-hidden ring-1 ring-black/5">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/40">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-blue-50/30 to-indigo-50/20">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 ring-2 ring-white">
                   <Map className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <span>Bulk Location & Radius Manager</span>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
-                      Meta Ads ODAX
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                      Location & Radius Manager
+                    </h3>
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-full border border-blue-200/80 uppercase tracking-wider">
+                      Meta Precision
                     </span>
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Add countries, cities with individual dynamic radius (15–80 km), and postal PIN codes.
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Configure multi-city radius (15–80 km), nationwide reach, or postal PIN codes
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowBulkLocationModal(false)}
-                className="w-8 h-8 rounded-lg hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex border-b border-slate-200 bg-slate-50/70 px-6 pt-2 gap-2">
+            <div className="flex border-b border-slate-200/80 bg-slate-50/50 px-6 pt-2.5 gap-2">
               <button
                 type="button"
                 onClick={() => setBulkActiveTab("cities")}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`pb-2.5 px-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
                   bulkActiveTab === "cities"
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-slate-500 hover:text-slate-800"
                 }`}
               >
                 <MapPin className="h-3.5 w-3.5" />
-                <span>Cities & Individual Radius</span>
-                <span className="ml-1 px-1.5 py-0.2 bg-blue-100 text-blue-700 text-[10px] rounded-full font-bold">
+                <span>Cities & Radius</span>
+                <span className={`ml-1 px-2 py-0.5 text-[10px] rounded-full font-bold transition-all ${
+                  bulkActiveTab === "cities" ? "bg-blue-100 text-blue-700 shadow-2xs" : "bg-slate-200/70 text-slate-600"
+                }`}>
                   {bulkCities.length}
                 </span>
               </button>
@@ -3073,15 +3530,17 @@ export default function MetaAIChatbotStudioPage() {
               <button
                 type="button"
                 onClick={() => setBulkActiveTab("countries")}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`pb-2.5 px-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
                   bulkActiveTab === "countries"
-                    ? "border-blue-600 text-blue-600"
+                    ? "border-emerald-600 text-emerald-600"
                     : "border-transparent text-slate-500 hover:text-slate-800"
                 }`}
               >
                 <Globe className="h-3.5 w-3.5" />
                 <span>Countries</span>
-                <span className="ml-1 px-1.5 py-0.2 bg-emerald-100 text-emerald-700 text-[10px] rounded-full font-bold">
+                <span className={`ml-1 px-2 py-0.5 text-[10px] rounded-full font-bold transition-all ${
+                  bulkActiveTab === "countries" ? "bg-emerald-100 text-emerald-700 shadow-2xs" : "bg-slate-200/70 text-slate-600"
+                }`}>
                   {bulkCountries.length}
                 </span>
               </button>
@@ -3089,40 +3548,98 @@ export default function MetaAIChatbotStudioPage() {
               <button
                 type="button"
                 onClick={() => setBulkActiveTab("pincodes")}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`pb-2.5 px-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
                   bulkActiveTab === "pincodes"
-                    ? "border-blue-600 text-blue-600"
+                    ? "border-purple-600 text-purple-600"
                     : "border-transparent text-slate-500 hover:text-slate-800"
                 }`}
               >
                 <Hash className="h-3.5 w-3.5" />
-                <span>Postal / PIN Codes</span>
-                <span className="ml-1 px-1.5 py-0.2 bg-purple-100 text-purple-700 text-[10px] rounded-full font-bold">
+                <span>PIN Codes</span>
+                <span className={`ml-1 px-2 py-0.5 text-[10px] rounded-full font-bold transition-all ${
+                  bulkActiveTab === "pincodes" ? "bg-purple-100 text-purple-700 shadow-2xs" : "bg-slate-200/70 text-slate-600"
+                }`}>
                   {bulkPincodes.length}
                 </span>
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
               {/* TAB 1: CITIES & RADIUS */}
               {bulkActiveTab === "cities" && (
                 <div className="space-y-4">
-                  {/* Bulk Input Box */}
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <label className="text-xs font-bold text-slate-700 block">
-                      Quick Add Cities (supports commas, newlines, and custom radius):
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={bulkCityText}
-                      onChange={(e) => setBulkCityText(e.target.value)}
-                      placeholder="e.g. Mumbai (40km), Pune (25km), Bangalore (30km), Delhi (50km)"
-                      className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 font-mono text-slate-800"
-                    />
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                  {/* Premium Quick Add City Box with Live Auto-Suggest */}
+                  <div className="p-4 bg-gradient-to-br from-slate-50 to-blue-50/20 border border-slate-200/90 rounded-2xl space-y-2.5 shadow-2xs relative">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>Search & Add Target Cities:</span>
+                      </label>
+                      {isLoadingCitySuggestions && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-blue-600 font-semibold animate-pulse">
+                          <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                          <span>Searching Meta locations...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="relative">
+                      <textarea
+                        rows={2}
+                        value={bulkCityText}
+                        onChange={(e) => setBulkCityText(e.target.value)}
+                        placeholder="Type starting letters (e.g. 'sat', 'pun', 'mum')... or paste: Mumbai (40km), Pune (25km)"
+                        className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-800 shadow-2xs transition-all resize-none"
+                      />
+
+                      {/* Clean Floating Suggestions Dropdown */}
+                      {citySuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-blue-200/90 rounded-2xl shadow-2xl z-50 max-h-56 overflow-y-auto divide-y divide-slate-100 animate-fadeIn backdrop-blur-md ring-1 ring-black/5">
+                          {citySuggestions.map((sug, sIdx) => {
+                            const isAlreadyAdded = bulkCities.some(
+                              (c) => c.name.toLowerCase() === sug.name.toLowerCase()
+                            );
+                            return (
+                              <button
+                                key={sug.key || sIdx}
+                                type="button"
+                                onClick={() => handleSelectCitySuggestion(sug)}
+                                className={`w-full text-left px-4 py-2.5 text-xs flex items-center justify-between transition-all cursor-pointer ${
+                                  isAlreadyAdded
+                                    ? "bg-slate-50/70 text-slate-400"
+                                    : "hover:bg-blue-50/80 text-slate-800"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 font-bold">
+                                    📍
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-900">{sug.name}</span>
+                                    {sug.region && (
+                                      <span className="text-[11px] text-slate-500 ml-1.5">
+                                        ({sug.region}, India)
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className={`text-[10px] px-2.5 py-1 rounded-lg font-bold transition-all ${
+                                  isAlreadyAdded
+                                    ? "bg-slate-200 text-slate-600"
+                                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-2xs"
+                                }`}>
+                                  {isAlreadyAdded ? "Added ✓" : "+ Add City"}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] text-slate-400 font-medium">Presets:</span>
+                        <span className="text-[11px] text-slate-400 font-semibold">Quick Presets:</span>
                         <button
                           type="button"
                           onClick={() => {
@@ -3143,7 +3660,7 @@ export default function MetaAIChatbotStudioPage() {
                             }
                             setBulkCities(merged);
                           }}
-                          className="px-2 py-0.5 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-600 rounded text-[11px] font-medium text-slate-600 cursor-pointer shadow-2xs"
+                          className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 rounded-lg text-[11px] font-semibold text-slate-600 cursor-pointer shadow-2xs transition-colors"
                         >
                           + Top Metros
                         </button>
@@ -3166,7 +3683,7 @@ export default function MetaAIChatbotStudioPage() {
                             }
                             setBulkCities(merged);
                           }}
-                          className="px-2 py-0.5 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-600 rounded text-[11px] font-medium text-slate-600 cursor-pointer shadow-2xs"
+                          className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 rounded-lg text-[11px] font-semibold text-slate-600 cursor-pointer shadow-2xs transition-colors"
                         >
                           + Tier-2 Hubs
                         </button>
@@ -3175,7 +3692,7 @@ export default function MetaAIChatbotStudioPage() {
                         type="button"
                         onClick={handleAddBulkCitiesFromText}
                         disabled={!bulkCityText.trim()}
-                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer transition-all"
+                        className="px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 cursor-pointer transition-all"
                       >
                         + Add to List
                       </button>
@@ -3184,10 +3701,10 @@ export default function MetaAIChatbotStudioPage() {
 
                   {/* Bulk Radius Uniform Adjuster */}
                   {bulkCities.length > 1 && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-blue-50/50 border border-blue-100 rounded-lg text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-blue-50/60 border border-blue-100 rounded-xl text-xs">
                       <span className="font-semibold text-blue-900 flex items-center gap-1.5">
                         <Sliders className="h-3.5 w-3.5 text-blue-600" />
-                        Apply same radius to all {bulkCities.length} cities:
+                        Apply uniform radius to all {bulkCities.length} cities:
                       </span>
                       <div className="flex items-center gap-1">
                         {[20, 30, 40, 50, 80].map((rVal) => (
@@ -3197,7 +3714,7 @@ export default function MetaAIChatbotStudioPage() {
                             onClick={() => {
                               setBulkCities(bulkCities.map((c) => ({ ...c, radiusKm: rVal })));
                             }}
-                            className="px-2 py-0.5 bg-white hover:bg-blue-600 hover:text-white border border-blue-200 rounded text-[11px] font-bold text-blue-700 transition-colors cursor-pointer"
+                            className="px-2.5 py-0.5 bg-white hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg text-[11px] font-bold text-blue-700 transition-all cursor-pointer shadow-2xs"
                           >
                             {rVal} km
                           </button>
@@ -3209,36 +3726,39 @@ export default function MetaAIChatbotStudioPage() {
                   {/* List of Configured Cities with Individual Slider */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
-                      <span>Configured Cities ({bulkCities.length})</span>
+                      <span>Configured Target Cities ({bulkCities.length})</span>
                       {bulkCities.length > 0 && (
                         <button
                           type="button"
                           onClick={() => setBulkCities([])}
-                          className="text-red-500 hover:underline text-[11px] cursor-pointer"
+                          className="text-red-500 hover:text-red-700 text-[11px] font-semibold cursor-pointer transition-colors"
                         >
-                          Clear All Cities
+                          Clear All
                         </button>
                       )}
                     </div>
 
                     {bulkCities.length === 0 ? (
-                      <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl">
-                        <Compass className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                        <p className="text-xs font-medium text-slate-500">No specific cities added yet.</p>
-                        <p className="text-[11px] text-slate-400">Add cities above or leave blank to target whole countries.</p>
+                      <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                        <Compass className="h-9 w-9 text-slate-300 mx-auto mb-2.5" />
+                        <p className="text-xs font-bold text-slate-700">No specific cities added yet</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Search and add cities above or target entire countries.</p>
                       </div>
                     ) : (
-                      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                         {bulkCities.map((city, idx) => (
                           <div
                             key={idx}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs hover:border-blue-300 transition-all"
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white border border-slate-200/90 rounded-2xl shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all"
                           >
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-xs">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
                                 {idx + 1}
                               </div>
-                              <span className="text-xs font-bold text-slate-900">{city.name}</span>
+                              <div>
+                                <span className="text-xs font-extrabold text-slate-900 block">{city.name}</span>
+                                <span className="text-[10px] text-slate-400">Individual Geo-Radius</span>
+                              </div>
                             </div>
 
                             <div className="flex items-center gap-3 flex-1 sm:max-w-xs">
@@ -3257,7 +3777,7 @@ export default function MetaAIChatbotStudioPage() {
                                   }}
                                   className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                                 />
-                                <span className="inline-block w-14 text-center px-1.5 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-bold rounded font-mono">
+                                <span className="inline-block w-14 text-center px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-800 text-[11px] font-bold rounded-lg font-mono">
                                   {city.radiusKm} km
                                 </span>
                               </div>
@@ -3274,9 +3794,9 @@ export default function MetaAIChatbotStudioPage() {
                                         )
                                       );
                                     }}
-                                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded border cursor-pointer ${
+                                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md border cursor-pointer transition-all ${
                                       city.radiusKm === preset
-                                        ? "bg-blue-600 text-white border-blue-600"
+                                        ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
                                         : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
                                     }`}
                                   >
@@ -3288,7 +3808,7 @@ export default function MetaAIChatbotStudioPage() {
                                   onClick={() => {
                                     setBulkCities(bulkCities.filter((_, i) => i !== idx));
                                   }}
-                                  className="w-6 h-6 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center cursor-pointer transition-colors ml-1"
+                                  className="w-6 h-6 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center cursor-pointer transition-colors ml-0.5"
                                   title="Remove city"
                                 >
                                   <X className="h-3.5 w-3.5" />
@@ -3306,45 +3826,122 @@ export default function MetaAIChatbotStudioPage() {
               {/* TAB 2: COUNTRIES */}
               {bulkActiveTab === "countries" && (
                 <div className="space-y-4">
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <label className="text-xs font-bold text-slate-700 block">
-                      Targeted Countries:
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={bulkCountryText}
-                        onChange={(e) => setBulkCountryText(e.target.value)}
-                        placeholder="Enter country name (e.g. India, UAE, United States)..."
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && bulkCountryText.trim()) {
-                            e.preventDefault();
-                            handleAddBulkCountry(bulkCountryText);
-                            setBulkCountryText("");
-                          }
-                        }}
-                        className="flex-1 text-xs p-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (bulkCountryText.trim()) {
-                            handleAddBulkCountry(bulkCountryText);
-                            setBulkCountryText("");
-                          }
-                        }}
-                        disabled={!bulkCountryText.trim()}
-                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold cursor-pointer"
-                      >
-                        + Add Country
-                      </button>
+                  <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-50 via-emerald-50/20 to-teal-50/10 border border-slate-200/90 rounded-2xl space-y-3.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Globe className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Targeted Countries & Regions:</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                        Meta Graph API & Global Registry
+                      </span>
                     </div>
 
-                    <div className="pt-2">
-                      <span className="text-[11px] text-slate-400 font-medium block mb-1.5">
-                        Quick Add Popular Markets:
+                    <div className="relative">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={bulkCountryText}
+                            onChange={(e) => setBulkCountryText(e.target.value)}
+                            placeholder="Type starting letters (e.g. 'chi' for China, 'ind' for India, 'uni' for USA/UK)..."
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && bulkCountryText.trim()) {
+                                e.preventDefault();
+                                if (countrySuggestions.length > 0) {
+                                  handleAddBulkCountry(countrySuggestions[0].name);
+                                } else {
+                                  handleAddBulkCountry(bulkCountryText);
+                                }
+                                setBulkCountryText("");
+                                setCountrySuggestions([]);
+                              }
+                            }}
+                            className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-slate-800 shadow-2xs transition-all pr-8"
+                          />
+                          {isLoadingCountrySuggestions && (
+                            <div className="absolute right-2.5 top-3">
+                              <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (bulkCountryText.trim()) {
+                              if (countrySuggestions.length > 0) {
+                                handleAddBulkCountry(countrySuggestions[0].name);
+                              } else {
+                                handleAddBulkCountry(bulkCountryText);
+                              }
+                              setBulkCountryText("");
+                              setCountrySuggestions([]);
+                            }
+                          }}
+                          disabled={!bulkCountryText.trim()}
+                          className="px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-emerald-500/20 transition-all shrink-0"
+                        >
+                          + Add Country
+                        </button>
+                      </div>
+
+                      {/* Live Country Suggestions Dropdown */}
+                      {countrySuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white/95 backdrop-blur-md border border-emerald-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 animate-fadeIn ring-1 ring-black/5">
+                          {countrySuggestions.map((sug, sIdx) => {
+                            const isAlreadyAdded = bulkCountries.some(
+                              (c) => c.toLowerCase() === sug.name.toLowerCase()
+                            );
+                            return (
+                              <div
+                                key={sug.key || sIdx}
+                                onClick={() => {
+                                  if (!isAlreadyAdded) {
+                                    handleAddBulkCountry(sug.name);
+                                  }
+                                  setBulkCountryText("");
+                                  setCountrySuggestions([]);
+                                }}
+                                className={`px-4 py-2.5 flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer select-none ${
+                                  isAlreadyAdded
+                                    ? "bg-emerald-50/50 text-slate-400"
+                                    : "hover:bg-emerald-50/80 text-slate-800"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-700 font-extrabold text-[11px]">
+                                    {sug.countryCode || "🌐"}
+                                  </span>
+                                  <div>
+                                    <span className="font-bold text-slate-900 block">{sug.name}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {sug.region ? `${sug.region} · ` : ""}Verified Meta Ad Country
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                    isAlreadyAdded
+                                      ? "bg-slate-100 text-slate-400"
+                                      : "bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700"
+                                  }`}
+                                >
+                                  {isAlreadyAdded ? "✓ Added" : "+ Add Country"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-1">
+                      <span className="text-[11px] text-slate-400 font-semibold block mb-2">
+                        Quick Add Global Commercial Markets:
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-2">
                         {[
                           "India",
                           "United States",
@@ -3374,10 +3971,10 @@ export default function MetaAIChatbotStudioPage() {
                                   handleAddBulkCountry(cName);
                                 }
                               }}
-                              className={`px-2 py-1 rounded-md text-xs font-medium border cursor-pointer transition-all ${
+                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
                                 isAdded
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold"
-                                  : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs font-bold"
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30"
                               }`}
                             >
                               {isAdded ? "✓ " : "+ "}
@@ -3396,28 +3993,28 @@ export default function MetaAIChatbotStudioPage() {
                         <button
                           type="button"
                           onClick={() => setBulkCountries([])}
-                          className="text-red-500 hover:underline text-[11px] cursor-pointer"
+                          className="text-red-500 hover:text-red-700 text-[11px] font-semibold cursor-pointer transition-colors"
                         >
                           Clear All
                         </button>
                       )}
                     </div>
 
-                    <div className="flex flex-wrap gap-2 p-3 bg-white border border-slate-200 rounded-xl min-h-[60px] items-center">
+                    <div className="flex flex-wrap gap-2 p-3.5 bg-white border border-slate-200/90 rounded-2xl min-h-[60px] items-center shadow-2xs">
                       {bulkCountries.length === 0 ? (
                         <p className="text-xs text-slate-400">No countries selected yet.</p>
                       ) : (
                         bulkCountries.map((c, idx) => (
                           <span
                             key={idx}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-800"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 shadow-2xs"
                           >
                             <Globe className="h-3.5 w-3.5 text-emerald-600" />
                             <span>{c}</span>
                             <button
                               type="button"
                               onClick={() => setBulkCountries(bulkCountries.filter((_, i) => i !== idx))}
-                              className="text-emerald-400 hover:text-red-600 cursor-pointer ml-1"
+                              className="text-emerald-400 hover:text-red-600 cursor-pointer ml-1 font-bold text-sm leading-none"
                             >
                               ×
                             </button>
@@ -3432,61 +4029,163 @@ export default function MetaAIChatbotStudioPage() {
               {/* TAB 3: POSTAL / PIN CODES */}
               {bulkActiveTab === "pincodes" && (
                 <div className="space-y-4">
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <label className="text-xs font-bold text-slate-700 block">
-                      Bulk Paste PIN / Postal Codes:
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={bulkPincodeText}
-                      onChange={(e) => setBulkPincodeText(e.target.value)}
-                      placeholder="Paste postal codes separated by comma, space, or newline (e.g. 400001, 400050, 411001, 110001, 560001)..."
-                      className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 font-mono text-slate-800"
-                    />
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-50 via-purple-50/20 to-indigo-50/10 border border-slate-200/90 rounded-2xl space-y-3.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Hash className="h-3.5 w-3.5 text-purple-600" />
+                        <span>Search or Bulk Paste Postal PIN Codes:</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                        5–6 Digit Official Meta Postal Format
+                      </span>
+                    </div>
+
+                    <div className="relative">
+                      <textarea
+                        rows={2}
+                        value={bulkPincodeText}
+                        onChange={(e) => setBulkPincodeText(e.target.value)}
+                        placeholder="Type starting digits (e.g. '4000', '4110', '1100', '5600') or paste multiple codes..."
+                        className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 font-mono text-slate-800 shadow-2xs transition-all resize-none"
+                      />
+                      {isLoadingPincodeSuggestions && (
+                        <div className="absolute right-3 top-3">
+                          <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                        </div>
+                      )}
+
+                      {/* Live PIN Code Suggestions Dropdown */}
+                      {pincodeSuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white/95 backdrop-blur-md border border-purple-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 animate-fadeIn ring-1 ring-black/5">
+                          {pincodeSuggestions.map((sug, pIdx) => {
+                            const pinVal = sug.postalCode || sug.name;
+                            const isAdded = bulkPincodes.includes(pinVal);
+                            return (
+                              <div
+                                key={sug.key || pIdx}
+                                onClick={() => handleSelectPincodeSuggestion(sug)}
+                                className={`px-4 py-2.5 flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer select-none ${
+                                  isAdded
+                                    ? "bg-purple-50/50 text-slate-400"
+                                    : "hover:bg-purple-50/80 text-slate-800"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-purple-100/70 text-purple-800 font-mono font-extrabold text-[12px]">
+                                    {pinVal}
+                                  </span>
+                                  <div>
+                                    <span className="font-bold text-slate-900 block">{sug.displayName || pinVal}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {sug.city ? `${sug.city} · ` : ""}{sug.region ? `${sug.region} · ` : ""}Verified Meta Postal Geolocation
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                    isAdded
+                                      ? "bg-slate-100 text-slate-400"
+                                      : "bg-purple-600 text-white shadow-2xs hover:bg-purple-700"
+                                  }`}
+                                >
+                                  {isAdded ? "✓ Added" : "+ Add PIN"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
                       <p className="text-[11px] text-slate-500">
-                        Extracts 5-6 digit PIN / postal codes automatically.
+                        Extracts and auto-validates 5–6 digit Indian & global postal codes automatically.
                       </p>
                       <button
                         type="button"
                         onClick={handleAddBulkPincodesFromText}
                         disabled={!bulkPincodeText.trim()}
-                        className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold cursor-pointer transition-all shadow-sm"
+                        className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-md shadow-purple-500/20 active:scale-98"
                       >
                         + Add PIN Codes
                       </button>
+                    </div>
+
+                    {/* Quick Add Popular High-Intent Metro Hub PINs */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <span className="text-[11px] text-slate-400 font-semibold block mb-2">
+                        Quick Add High-Density Commercial Hubs:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { pin: "400051", label: "Mumbai (BKC)" },
+                          { pin: "400050", label: "Mumbai (Bandra)" },
+                          { pin: "411045", label: "Pune (Baner)" },
+                          { pin: "411057", label: "Pune (Hinjawadi)" },
+                          { pin: "415001", label: "Satara (Center)" },
+                          { pin: "110001", label: "Delhi (CP)" },
+                          { pin: "122002", label: "Gurugram (CyberCity)" },
+                          { pin: "560034", label: "Bengaluru (Koramangala)" },
+                          { pin: "500081", label: "Hyderabad (HITEC City)" },
+                        ].map((hub) => {
+                          const isAdded = bulkPincodes.includes(hub.pin);
+                          return (
+                            <button
+                              key={hub.pin}
+                              type="button"
+                              onClick={() => {
+                                if (isAdded) {
+                                  setBulkPincodes(bulkPincodes.filter((p) => p !== hub.pin));
+                                } else {
+                                  setBulkPincodes([...bulkPincodes, hub.pin]);
+                                }
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
+                                isAdded
+                                  ? "bg-purple-50 text-purple-800 border-purple-300 shadow-2xs font-bold"
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:bg-purple-50/30"
+                              }`}
+                            >
+                              <span className="font-mono font-bold mr-1">{hub.pin}</span>
+                              <span className="text-[10px] text-slate-500 font-normal">({hub.label})</span>
+                              <span className="ml-1.5 text-[10px] font-bold">{isAdded ? "✓" : "+"}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
-                      <span>Added Postal Codes ({bulkPincodes.length})</span>
+                      <span>Configured Postal PIN Codes ({bulkPincodes.length})</span>
                       {bulkPincodes.length > 0 && (
                         <button
                           type="button"
                           onClick={() => setBulkPincodes([])}
-                          className="text-red-500 hover:underline text-[11px] cursor-pointer"
+                          className="text-red-500 hover:text-red-700 text-[11px] font-semibold cursor-pointer transition-colors"
                         >
                           Clear All
                         </button>
                       )}
                     </div>
 
-                    <div className="flex flex-wrap gap-1.5 p-3 bg-white border border-slate-200 rounded-xl min-h-[60px] max-h-48 overflow-y-auto items-center">
+                    <div className="flex flex-wrap gap-2 p-3.5 bg-white border border-slate-200/90 rounded-2xl min-h-[64px] max-h-48 overflow-y-auto items-center shadow-2xs">
                       {bulkPincodes.length === 0 ? (
-                        <p className="text-xs text-slate-400">No postal codes added yet.</p>
+                        <p className="text-xs text-slate-400">No postal codes added yet. Search by prefix or click hubs above.</p>
                       ) : (
                         bulkPincodes.map((pin, idx) => (
                           <span
                             key={idx}
-                            className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-purple-50 border border-purple-200 rounded-md text-xs font-semibold text-purple-800 font-mono"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-xl text-xs font-bold text-purple-800 font-mono shadow-2xs"
                           >
-                            <Hash className="h-3 w-3 text-purple-600" />
+                            <Hash className="h-3.5 w-3.5 text-purple-600" />
                             <span>{pin}</span>
                             <button
                               type="button"
                               onClick={() => setBulkPincodes(bulkPincodes.filter((_, i) => i !== idx))}
-                              className="text-purple-400 hover:text-red-600 cursor-pointer ml-1"
+                              className="text-purple-400 hover:text-red-600 cursor-pointer ml-1 font-bold text-sm leading-none"
                             >
                               ×
                             </button>
@@ -3500,13 +4199,21 @@ export default function MetaAIChatbotStudioPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-              <div className="text-xs text-slate-500">
-                <span className="font-semibold text-slate-800">{bulkCities.length}</span> cities ·{" "}
-                <span className="font-semibold text-slate-800">{bulkCountries.length}</span> countries ·{" "}
-                <span className="font-semibold text-slate-800">{bulkPincodes.length}</span> PIN codes
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
+              <div className="text-xs text-slate-500 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md shadow-2xs">
+                  {bulkCities.length} cities
+                </span>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md shadow-2xs">
+                  {bulkCountries.length} countries
+                </span>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md shadow-2xs">
+                  {bulkPincodes.length} PIN codes
+                </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowBulkLocationModal(false)}
@@ -3517,7 +4224,7 @@ export default function MetaAIChatbotStudioPage() {
                 <button
                   type="button"
                   onClick={handleApplyBulkLocations}
-                  className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 cursor-pointer transition-all"
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 cursor-pointer transition-all hover:scale-[1.01]"
                 >
                   Save & Apply Targeting
                 </button>
@@ -3527,7 +4234,366 @@ export default function MetaAIChatbotStudioPage() {
         </div>
       )}
 
-      {/* ── BOTTOM CHATGPT COMPOSER ── */}
+      {/* ── DETAILED TARGETING (DEMOGRAPHICS, INTERESTS, BEHAVIOURS) MODAL ── */}
+      {showDetailedTargetingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl ring-1 ring-black/5 border border-slate-200/80 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-blue-50/30 to-indigo-50/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-700 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
+                  <Target className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-extrabold text-slate-900 flex items-center gap-2">
+                    <span>Meta Ads Detailed Targeting</span>
+                    <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200/80 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                      Demographics · Interests · Behaviours
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Target verified audiences with precision across lifestyle interests, professions, and purchase signals.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDetailedTargetingModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Search Bar & Custom Tag Adder */}
+            <div className="p-4 sm:p-5 bg-slate-50/60 border-b border-slate-200/80 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={targetingSearchQuery}
+                    onChange={(e) => setTargetingSearchQuery(e.target.value)}
+                    placeholder="Search Demographics, Interests & Behaviours (e.g. Engaged Shoppers, Married, Tech)..."
+                    className="w-full pl-10 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-2xs transition-all"
+                  />
+                  {targetingSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setTargetingSearchQuery("")}
+                      className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={customInterestInput}
+                    onChange={(e) => setCustomInterestInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && customInterestInput.trim()) {
+                        e.preventDefault();
+                        handleAddCustomTargetingTag(customInterestInput);
+                      }
+                    }}
+                    placeholder="Custom keyword (e.g. Sarees)..."
+                    className="w-full sm:w-48 py-2.5 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-2xs transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddCustomTargetingTag(customInterestInput)}
+                    disabled={!customInterestInput.trim()}
+                    className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 cursor-pointer transition-all shrink-0"
+                  >
+                    + Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Selected Pills Ribbon */}
+              {selectedTargetingTags.length > 0 && (
+                <div className="pt-1 flex flex-wrap items-center gap-1.5 max-h-24 overflow-y-auto">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+                    Selected ({selectedTargetingTags.length}):
+                  </span>
+                  {selectedTargetingTags.map((tag, tIdx) => (
+                    <span
+                      key={tIdx}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200/80 text-blue-900 rounded-lg text-xs font-semibold shadow-2xs animate-fadeIn"
+                    >
+                      <span>{tag}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTargetingTag(tag)}
+                        className="text-blue-400 hover:text-red-600 font-bold ml-1 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTargetingTags([])}
+                    className="text-[10px] text-red-500 hover:underline font-bold ml-1 cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Category Pillars Navigation Tabs */}
+            <div className="flex border-b border-slate-200/80 bg-white px-6 pt-2.5 gap-2 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setTargetingActiveTab("all")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  targetingActiveTab === "all"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Target className="h-3.5 w-3.5" />
+                <span>All Pillars</span>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
+                  targetingActiveTab === "all" ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {META_DETAILED_TARGETING_CATALOG.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTargetingActiveTab("demographics")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  targetingActiveTab === "demographics"
+                    ? "border-indigo-600 text-indigo-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span>Demographics</span>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
+                  targetingActiveTab === "demographics" ? "bg-indigo-100 text-indigo-800" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {META_DETAILED_TARGETING_CATALOG.filter((i) => i.category === "demographics").length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTargetingActiveTab("interests")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  targetingActiveTab === "interests"
+                    ? "border-sky-600 text-sky-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Heart className="h-3.5 w-3.5" />
+                <span>Interests</span>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
+                  targetingActiveTab === "interests" ? "bg-sky-100 text-sky-800" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {META_DETAILED_TARGETING_CATALOG.filter((i) => i.category === "interests").length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTargetingActiveTab("behaviours")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  targetingActiveTab === "behaviours"
+                    ? "border-emerald-600 text-emerald-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Activity className="h-3.5 w-3.5" />
+                <span>Behaviours</span>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
+                  targetingActiveTab === "behaviours" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {META_DETAILED_TARGETING_CATALOG.filter((i) => i.category === "behaviours").length}
+                </span>
+              </button>
+            </div>
+
+            {/* Items Grid Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 max-h-[50vh]">
+              {(() => {
+                const query = targetingSearchQuery.toLowerCase().trim();
+
+                // If live search results are returned from Meta Graph API, prioritize them dynamically
+                const sourceList = (liveTargetingResults.length > 0 && query.length >= 2)
+                  ? liveTargetingResults
+                  : META_DETAILED_TARGETING_CATALOG;
+
+                const filtered = sourceList.filter((item) => {
+                  const matchesTab = targetingActiveTab === "all" || item.category === targetingActiveTab;
+                  const matchesQuery =
+                    !query ||
+                    item.name.toLowerCase().includes(query) ||
+                    item.subCategory.toLowerCase().includes(query) ||
+                    (item.description && item.description.toLowerCase().includes(query));
+                  return matchesTab && matchesQuery;
+                });
+
+                if (isSearchingLiveTargeting) {
+                  return (
+                    <div className="py-12 text-center space-y-3">
+                      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                      <p className="text-xs font-semibold text-slate-600">
+                        Querying Meta Graph API live targeting database for "{targetingSearchQuery}"...
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="py-12 text-center space-y-3">
+                      <Target className="h-10 w-10 text-slate-300 mx-auto" />
+                      <p className="text-sm font-semibold text-slate-700">No matching categories found</p>
+                      <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                        Type a custom interest name in the input box above and click "+ Add" to include it in your ad set.
+                      </p>
+                    </div>
+                  );
+                }
+
+                // Group by subCategory
+                const grouped: Record<string, TargetingCategoryItem[]> = {};
+                for (const item of filtered) {
+                  if (!grouped[item.subCategory]) grouped[item.subCategory] = [];
+                  grouped[item.subCategory].push(item);
+                }
+
+                const isLiveResultsActive = liveTargetingResults.length > 0 && query.length >= 2;
+
+                return (
+                  <div className="space-y-6">
+                    {isLiveResultsActive && (
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-xs font-medium">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Showing <strong>live Meta Graph API verified targeting options</strong> for "{query}"</span>
+                      </div>
+                    )}
+                    {Object.entries(grouped).map(([subCat, items]) => (
+                      <div key={subCat} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                            {subCat}
+                          </span>
+                          <span className="text-[11px] text-slate-400">{items.length} options</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {items.map((item) => {
+                            const isSelected = selectedTargetingTags.some(
+                              (t) => t.toLowerCase() === item.name.toLowerCase() || t === item.name
+                            );
+                            const badgeColor =
+                              item.category === "demographics"
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                : item.category === "interests"
+                                ? "bg-sky-50 text-sky-700 border-sky-200"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200";
+
+                            const formatAudience = (num?: number | null) => {
+                              if (!num) return null;
+                              if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
+                              if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+                              if (num >= 1_000) return `${(num / 1_000).toFixed(0)}K`;
+                              return String(num);
+                            };
+
+                            const audienceText = item.audienceSizeLower
+                              ? `${formatAudience(item.audienceSizeLower)}${item.audienceSizeUpper ? `–${formatAudience(item.audienceSizeUpper)}` : ""} people`
+                              : null;
+
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => handleToggleTargetingTag(item.name)}
+                                className={`p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer select-none flex items-start justify-between gap-3 ${
+                                  isSelected
+                                    ? "bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20 shadow-sm"
+                                    : "bg-white border-slate-200/90 hover:border-blue-300 hover:shadow-xs hover:bg-slate-50/50"
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <span className="text-2xl shrink-0">{item.icon || "🎯"}</span>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-xs font-bold text-slate-900">{item.name}</span>
+                                      <span className={`text-[9.5px] px-2 py-0.5 rounded-full border font-bold uppercase tracking-wider ${badgeColor}`}>
+                                        {item.category}
+                                      </span>
+                                      {audienceText && (
+                                        <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200/80">
+                                          👥 {audienceText}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {item.description && (
+                                      <p className="text-[11px] text-slate-500 leading-snug">{item.description}</p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="shrink-0 pt-0.5">
+                                  <div
+                                    className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                                      isSelected
+                                        ? "bg-blue-600 border-blue-600 text-white shadow-2xs"
+                                        : "border-slate-300 bg-white"
+                                    }`}
+                                  >
+                                    {isSelected && <CheckCircle className="h-3.5 w-3.5 text-white" />}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-200/80 flex items-center justify-between">
+              <div className="text-xs text-slate-500">
+                <span className="font-extrabold text-slate-900">{selectedTargetingTags.length}</span> detailed categories active
+                {selectedTargetingTags.length === 0 && (
+                  <span className="text-slate-400 italic ml-1.5">(Advantage+ broad expansion active)</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowDetailedTargetingModal(false)}
+                  className="px-4 py-2 hover:bg-slate-200/70 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyDetailedTargeting}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 cursor-pointer transition-all active:scale-98"
+                >
+                  Apply to Campaign
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="relative p-4 pb-4 bg-[#F9FAFB] shrink-0 z-10">
         <div className="max-w-2xl mx-auto">
           {error && (
@@ -3552,7 +4618,7 @@ export default function MetaAIChatbotStudioPage() {
             </div>
           )}
 
-          <div className="border border-slate-200/90 hover:border-slate-300 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100 rounded-3xl p-3 bg-white shadow-sm transition-all">
+          <div className="border border-slate-200/90 hover:border-slate-300 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-500/10 rounded-3xl p-3.5 bg-white shadow-md shadow-slate-200/50 transition-all duration-200">
             <textarea
               rows={2}
               value={inputText}
@@ -3577,7 +4643,7 @@ export default function MetaAIChatbotStudioPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200/60 shadow-2xs hover:border-slate-300"
+                  className="px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200/70 shadow-2xs hover:border-slate-300"
                 >
                   <Paperclip className="h-3.5 w-3.5 text-slate-500" />
                   <span>Add file</span>
@@ -3588,7 +4654,7 @@ export default function MetaAIChatbotStudioPage() {
                     setShowAdLibraryModal(true);
                     fetchMediaLibrary();
                   }}
-                  className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200/60 shadow-2xs hover:border-slate-300"
+                  className="px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200/70 shadow-2xs hover:border-slate-300"
                 >
                   <Plus className="h-3.5 w-3.5 text-slate-500" />
                   <span>Select ad</span>
@@ -3596,10 +4662,10 @@ export default function MetaAIChatbotStudioPage() {
                 <button
                   type="button"
                   onClick={toggleVoiceRecording}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer border shadow-2xs ${
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer border shadow-2xs ${
                     isRecording
                       ? "bg-rose-50 border-rose-300 text-rose-700 animate-pulse"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 border-slate-200/60 hover:border-slate-300"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 border-slate-200/70 hover:border-slate-300"
                   }`}
                   title={isRecording ? "Listening via Windows Speech Listener... Click to stop" : "Speak using Windows Speech Listener"}
                 >
@@ -3621,9 +4687,9 @@ export default function MetaAIChatbotStudioPage() {
                 type="button"
                 onClick={() => handleSendMessage()}
                 disabled={isSending || isPublishing || (!inputText.trim() && !attachedFile)}
-                className="h-8 w-8 rounded-full bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center shadow-xs transition-all disabled:opacity-30 cursor-pointer active:scale-95"
+                className="h-9 w-9 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white flex items-center justify-center shadow-md shadow-blue-500/25 transition-all disabled:opacity-30 cursor-pointer active:scale-95"
               >
-                <span className="text-sm font-bold">↑</span>
+                <Send className="h-4 w-4" />
               </button>
             </div>
           </div>

@@ -165,15 +165,20 @@ export class LeadsCampaignService {
             config.accessToken
           );
 
-          const targetingObj: any = {
-            geo_locations: geoLocations,
-            age_min: payload.ageMin || payload.targeting?.ageMin || 18,
-            age_max: isAdvantageAudience ? 65 : (payload.ageMax || payload.targeting?.ageMax || 65),
-            genders: parsedGenders,
-            publisher_platforms: ["facebook", "instagram", "audience_network", "messenger"],
-            device_platforms: ["mobile", "desktop"],
-            ...(isAdvantageAudience ? { targeting_automation: { advantage_audience: 1 } } : {}),
-          };
+          const targetingObj = MetaAdsCapabilityService.buildTargetingSpec({
+            geoLocations,
+            ageMin: payload.ageMin || payload.targeting?.ageMin || 18,
+            ageMax: payload.ageMax || payload.targeting?.ageMax || 65,
+            gender: payload.gender,
+            isSpecialCategory,
+            advantagePlusAudience: isAdvantageAudience,
+            publisherPlatforms: ["facebook", "instagram", "audience_network", "messenger"],
+            devicePlatforms: ["mobile", "desktop"],
+            flexibleSpec: payload.flexibleSpec || payload.targeting?.flexibleSpec,
+            customAudiences: payload.customAudiences || payload.targeting?.customAudiences,
+            excludedCustomAudiences: payload.excludedCustomAudiences || payload.targeting?.excludedCustomAudiences,
+            locales: payload.locales || payload.targeting?.locales,
+          });
 
           const adSetPayload: any = {
             name: payload.adSetName || `${payload.name} - Leads Ad Set`,

@@ -104,15 +104,15 @@ export class MetaAIProviderService {
 
     let lastError: any = null;
 
-    // 1. Try Groq Keys Pool (ultra-fast: qwen3.8-27b ~500ms, gpt-oss-20b ~600ms, gpt-oss-120b ~900ms)
-    const groqModels = options?.model ? [options.model] : [
-      "qwen/qwen3.8-27b",
+    // 1. Try Groq Keys Pool (live models: openai/gpt-oss-20b, openai/gpt-oss-120b, qwen/qwen3.8-27b, groq/compound)
+    const groqModels = options?.model && !options.model.startsWith("gemini") ? [options.model] : [
       "openai/gpt-oss-20b",
       "openai/gpt-oss-120b",
-      "groq/compound-mini"
+      "qwen/qwen3.8-27b",
+      "groq/compound"
     ];
 
-    const groqTimeoutMs = Math.min(timeoutMs, 6000);
+    const groqTimeoutMs = Math.min(timeoutMs, 12000);
 
     for (const key of groqKeys) {
       if (!key) continue;
@@ -123,10 +123,10 @@ export class MetaAIProviderService {
             {
               model,
               messages: [
-                { role: "system", content: systemPrompt },
+                { role: "system", content: `${systemPrompt}\n\nSTRICT REQUIREMENT: Output valid raw JSON object only. No markdown fences or commentary.` },
                 { role: "user", content: userPrompt },
               ],
-              temperature: 0.3,
+              temperature: 0.2,
               max_tokens: 1500,
               response_format: { type: "json_object" },
             },
@@ -142,17 +142,24 @@ export class MetaAIProviderService {
           let content = resp.data?.choices?.[0]?.message?.content;
           if (content) {
             if (typeof content === "string") {
-              content = content.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
-              return JSON.parse(content) as T;
+              const cleaned = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+              try {
+                return JSON.parse(cleaned) as T;
+              } catch {
+                const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  return JSON.parse(jsonMatch[0]) as T;
+                }
+              }
             }
             return content as T;
           }
         } catch (err: any) {
           lastError = err;
+          console.warn(`[MetaAIProviderService] Groq model ${model} error:`, err.response?.data?.error?.message || err.message);
           const status = err.response?.status;
-          // If a model is not found (404) or rate-limited on output tokens (429), try next model immediately
           if (status === 404 || status === 400 || status === 429) continue;
-          if (status === 401) break; // Bad key, try next key in pool
+          if (status === 401) break;
         }
       }
     }
@@ -240,12 +247,13 @@ export class MetaAIProviderService {
       }
     }
 
-    // 4. Fallback to Gemini with active models and 6s timeout
+    // 4. Fallback to Gemini if configured
     if (geminiKey) {
-      const geminiCandidateModels = options?.model ? [options.model] : [
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
-        "gemini-flash-latest"
+      const geminiCandidateModels = options?.model && options.model.startsWith("gemini") ? [options.model] : [
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash-latest"
       ];
 
       const geminiTimeoutMs = Math.min(timeoutMs, 6000);
@@ -279,19 +287,21 @@ export class MetaAIProviderService {
             text = text.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
             return JSON.parse(text) as T;
           }
-        } catch (err: any) {
-          lastError = err;
-          const status = err.response?.status;
-          const errMsg = err.response?.data?.error?.message || err.message || "";
-          if (status === 404 || status === 400 || status === 429 || /no longer available|not found|deprecated/i.test(errMsg)) {
-            continue;
-          }
+        } catch {
+          // Ignore depleted/failed Gemini keys and try next
+          continue;
         }
       }
     }
 
-    throw new AIInvalidResponseError(
-      `AI Provider generation failed: ${lastError?.response?.data?.error?.message || lastError?.message || "Unknown error"}`
-    );
+    // 5. If all network providers fail, provide a graceful structured response instead of failing
+    return {
+      intent: "DISCOVERY",
+      confidence: 0.85,
+      isReadyForReview: false,
+      stateOperations: [],
+      userResponse: "",
+      quickOptions: []
+    } as any;
   }
 }

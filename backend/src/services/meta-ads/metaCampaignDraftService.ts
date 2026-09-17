@@ -27,6 +27,10 @@ export interface MetaCampaignDraft {
 
   campaign: {
     name?: string;
+    brandName?: string;
+    promotedService?: string;
+    promotedProduct?: string;
+    offer?: string;
     objective?: string;
     buyingType?: "AUCTION" | "RESERVED";
     specialAdCategory?: string;
