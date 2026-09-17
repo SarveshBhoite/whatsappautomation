@@ -442,6 +442,14 @@ export class GoogleAdsAiAssistantService {
       clone.keywords = clone.keywords.slice(0, 8);
       clone.totalKeywordsCount = state.keywords?.length;
     }
+    if (Array.isArray(clone.searchThemes) && clone.searchThemes.length > 8) {
+      clone.searchThemes = clone.searchThemes.slice(0, 8);
+      clone.totalSearchThemesCount = state.searchThemes?.length;
+    }
+    if (Array.isArray(clone.sitelinks) && clone.sitelinks.length > 4) {
+      clone.sitelinks = clone.sitelinks.slice(0, 4);
+      clone.totalSitelinksCount = state.sitelinks?.length;
+    }
 
     // Sanitize images to keep only URLs / names (strip base64 data)
     if (Array.isArray(clone.images)) {
@@ -641,12 +649,28 @@ Stage 5: **CAMPAIGN TYPE PROGRESSIVE DISCLOSURE (UNIVERSAL REUSABLE BEHAVIOR)**
   * Keywords: REQUIRED (at least 1 valid keyword). Generate 5-10 high-intent search keywords. Support [exact], "phrase", and plain broad match.
   * Responsive Search Ad: Minimum 3 unique headlines (<= 30 chars) and minimum 2 unique descriptions (<= 90 chars).
   * Search AI Max Controls: \`aiMax\`, \`textCustomization\`, \`finalUrlExpansion\`, \`brandInclusions\`, \`brandExclusions\`.
+  * Sitelinks (Ad Extensions): Proactively suggest 2 to 4 high-CTR sitelinks with "text" (<= 25 chars), "desc1" (<= 35 chars), "desc2" (<= 35 chars), and landing page "url". CRITICAL: Each sitelink MUST point to a distinct subpage or landing page URL (e.g. \`${currentState.website?.replace(/\/+$/, '') || 'https://example.com'}/about\`, \`/contact\`, \`/services\`, \`/pricing\`). DO NOT use the exact same homepage URL for every sitelink. Always include \`sitelinks\` in \`campaignState\` for Search.
   * Bidding: \`Maximize conversions\`, \`Target CPA\`, \`Maximize conversion value\`, \`Target ROAS\`, \`Maximize Clicks\` (optional Max CPC limit), \`Target Impression Share\`.
   * Media: Search does NOT require landscape/square images or logos.
 
 - When \`campaignType\` is \`PERFORMANCE_MAX\`:
   * Asset Group Essentials: Minimum 3 headlines (<= 30 chars), 1 long headline (<= 90 chars), 2 descriptions (<= 90 chars).
   * Creative Assets: Landscape marketing image (1.91:1), Square marketing image (1:1), Logo (1:1).
+  * Google Merchant Center (E-commerce / Shopping Feed Integration):
+    - CONDITIONAL MERCHANT ACCOUNT FLOW: First, explicitly ask the user whether they have a Google Merchant Center account for advertising products (\`merchantCenterId\`).
+    - If user has Merchant Center / says "Yes" / provides Merchant ID: Set \`merchantCenterId\` (numeric ID), recommend linking their product feed, and suggest product feed parameters (\`salesCountry: "IN"\`, \`feedLabel: "IN"\`).
+    - If user says "No" / does not have Merchant Center: Do NOT require \`merchantCenterId\`; proceed with standard Performance Max multi-channel lead/sales conversion ads.
+    - Provide clear suggestions: \`["Yes, I have a Merchant Center Account", "No Merchant Center Account", "What is Merchant Center?"]\$.
+  * Search Themes (Asset Group Signals): Proactively recommend and ask for 5 to 10 high-relevance search themes (e.g. buyer search terms, product/service categories <= 80 chars each) to guide Google AI in finding high-converting queries. Always include \`searchThemes\` in \`campaignState\` for Performance Max.
+  * Sitelinks (Ad Extensions): Proactively suggest 2 to 4 high-CTR sitelinks with "text" (<= 25 chars), "desc1" (<= 35 chars), "desc2" (<= 35 chars), and landing page "url". CRITICAL: Each sitelink MUST point to a distinct subpage or landing page URL (e.g. \`${currentState.website?.replace(/\/+$/, '') || 'https://example.com'}/about\`, \`/contact\`, \`/services\`, \`/pricing\`). DO NOT use the exact same homepage URL for every sitelink. Always include \`sitelinks\` in \`campaignState\` for Performance Max.
+  * More Asset Types (Full 100% Parity with Manual Performance Max):
+    - Proactively suggest or offer setup for:
+      1. **Callouts**: 3-5 short callout highlights (<= 25 chars each, e.g. "Free Shipping", "24/7 Customer Support", "Verified Quality"). Include \`callouts: string[]\`.
+      2. **Structured Snippets**: Category header (e.g. "Amenities", "Brands", "Courses", "Destinations", "Models", "Service catalog", "Styles", "Types") + 3-5 item values (<= 25 chars each). Include \`structuredSnippets: [{ header: string, values: string[] }]\`.
+      3. **Promotions**: Special discounts/offers (\`promotionTarget\`, \`percentOff\` or \`moneyAmountOff\`, \`currencyCode\`, \`promotionCode\`, \`finalUrl\`, \`occasion\`).
+      4. **Prices**: Product or service tiers with header (<= 25 chars), price amount, unit, description (<= 25 chars), final URL.
+      5. **Messages**: WhatsApp/Messenger/Zalo chat extension with phone/custom URL, starter message, and call-to-action.
+      6. **Lead Forms**: Headline (<= 30 chars), business name (<= 25 chars), description (<= 200 chars), contact fields (Name, Email, Phone), and privacy policy URL.
   * Bidding: \`Maximize conversions\`, \`Target CPA\`, \`Maximize conversion value\`, \`Target ROAS\`.
 
 - When \`campaignType\` is \`DISPLAY\`:
@@ -826,6 +850,60 @@ You MUST reply strictly with valid, parseable JSON matching this schema:
     "targetCpa": number | null,
     "targetRoas": number | null,
     "keywords": ["string"],
+    "searchThemes": ["string"],
+    "sitelinks": [
+      {
+        "text": "string",
+        "desc1": "string",
+        "desc2": "string",
+        "url": "string"
+      }
+    ],
+    "merchantCenterId": "string",
+    "callouts": ["string"],
+    "structuredSnippets": [
+      {
+        "header": "string",
+        "values": ["string"]
+      }
+    ],
+    "promotions": [
+      {
+        "promotionTarget": "string",
+        "finalUrl": "string",
+        "percentOff": number,
+        "moneyAmountOff": number,
+        "currencyCode": "string",
+        "promotionCode": "string",
+        "occasion": "string"
+      }
+    ],
+    "prices": [
+      {
+        "header": "string",
+        "amount": number,
+        "currencyCode": "string",
+        "unit": "string",
+        "description": "string",
+        "finalUrl": "string"
+      }
+    ],
+    "messages": [
+      {
+        "platform": "WhatsApp" | "Messenger" | "Zalo",
+        "customUrlName": "string",
+        "starterMessage": "string",
+        "callToAction": "string"
+      }
+    ],
+    "leadForms": [
+      {
+        "headline": "string",
+        "businessName": "string",
+        "description": "string",
+        "privacyPolicyUrl": "string"
+      }
+    ],
     "headlines": ["string"],
     "descriptions": ["string"],
     "longHeadlines": ["string"],
@@ -1057,7 +1135,10 @@ ${JSON.stringify(promptState, null, 2)}
         : (currentState.locations && currentState.locations.length > 0 ? currentState.locations : ["India"]);
 
       // Check if user requested copy/assets or if parsedState contains generated items
+      // Check if user requested copy/assets or if parsedState contains generated items
       const hasKeywordsInParsed = Array.isArray(parsedState.keywords) && parsedState.keywords.length > 0;
+      const hasSearchThemesInParsed = Array.isArray(parsedState.searchThemes) && parsedState.searchThemes.length > 0;
+      const hasSitelinksInParsed = Array.isArray(parsedState.sitelinks) && parsedState.sitelinks.length > 0;
       const hasHeadlinesInParsed = Array.isArray(parsedState.headlines) && parsedState.headlines.length > 0;
       const hasDescriptionsInParsed = Array.isArray(parsedState.descriptions) && parsedState.descriptions.length > 0;
       const hasLongHeadlinesInParsed = Array.isArray(parsedState.longHeadlines) && parsedState.longHeadlines.length > 0;
@@ -1065,6 +1146,54 @@ ${JSON.stringify(promptState, null, 2)}
       let cleanKeywords = (hasKeywordsInParsed || userAskedForGen || userConfirmedSettings)
         ? this.sanitizeArray(hasKeywordsInParsed ? parsedState.keywords : (currentState.keywords || []), 80)
         : this.sanitizeArray(currentState.keywords, 80);
+
+      let cleanSearchThemes = (hasSearchThemesInParsed || userAskedForGen || userConfirmedSettings)
+        ? this.sanitizeArray(hasSearchThemesInParsed ? parsedState.searchThemes : (currentState.searchThemes || []), 80)
+        : this.sanitizeArray(currentState.searchThemes, 80);
+
+      // Sitelinks sanitization
+      let cleanSitelinks: Array<{ text: string; url: string; desc1?: string; desc2?: string }> = [];
+      const rawSitelinks = hasSitelinksInParsed ? parsedState.sitelinks : (currentState.sitelinks || []);
+      const baseSiteUrl = (currentState.website || "https://www.example.com").trim().replace(/\/+$/, "");
+      const usedSitelinkUrls = new Set<string>();
+
+      if (Array.isArray(rawSitelinks)) {
+        cleanSitelinks = rawSitelinks
+          .filter((st: any) => st && (st.text || st.linkText))
+          .map((st: any, idx: number) => {
+            const rawText = String(st.text || st.linkText);
+            let targetUrl = String(st.url || baseSiteUrl).trim();
+            const normalized = targetUrl.replace(/\/+$/, "");
+
+            // If the URL matches the base homepage or is duplicate, synthesize a relevant path
+            if (normalized === baseSiteUrl || usedSitelinkUrls.has(normalized)) {
+              const textSlug = rawText.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+              if (textSlug) {
+                targetUrl = `${baseSiteUrl}/${textSlug}`;
+              } else {
+                targetUrl = `${baseSiteUrl}/page-${idx + 1}`;
+              }
+            }
+            usedSitelinkUrls.add(targetUrl.replace(/\/+$/, ""));
+
+            return {
+              text: GoogleAdsBaseService.cleanAdText(rawText, 25),
+              desc1: (st.desc1 || st.description1) ? GoogleAdsBaseService.cleanAdText(String(st.desc1 || st.description1), 35) : undefined,
+              desc2: (st.desc2 || st.description2) ? GoogleAdsBaseService.cleanAdText(String(st.desc2 || st.description2), 35) : undefined,
+              url: GoogleAdsBaseService.cleanUrl ? GoogleAdsBaseService.cleanUrl(targetUrl) : targetUrl
+            };
+          })
+          .filter((st: any) => st.text && st.url);
+      }
+
+      // If campaignType is PERFORMANCE_MAX and searchThemes is empty but keywords exist, seed search themes
+      if (
+        (resolvedCampaignType === "PERFORMANCE_MAX" || currentState.campaignType === "PERFORMANCE_MAX") &&
+        cleanSearchThemes.length === 0 &&
+        cleanKeywords.length > 0
+      ) {
+        cleanSearchThemes = cleanKeywords.slice(0, 8);
+      }
 
       let cleanHeadlines = (hasHeadlinesInParsed || userAskedForGen || userConfirmedSettings)
         ? this.sanitizeArray(hasHeadlinesInParsed ? parsedState.headlines : (currentState.headlines || []), 30)
@@ -1176,6 +1305,8 @@ ${JSON.stringify(promptState, null, 2)}
         startDate: resolvedStartDate,
         endDate: resolvedEndDate,
         keywords: cleanKeywords,
+        searchThemes: cleanSearchThemes,
+        sitelinks: cleanSitelinks,
         headlines: cleanHeadlines,
         descriptions: cleanDescriptions,
         longHeadlines: cleanLongHeadlines,
@@ -1187,6 +1318,25 @@ ${JSON.stringify(promptState, null, 2)}
         appName: parsedState.appName || currentState.appName || undefined,
         platform: parsedState.platform || currentState.platform || (parsedState.appStore === "APPLE_APP_STORE" ? "IOS" : (currentState.platform || "ANDROID")),
         appStore: parsedState.appStore || currentState.appStore || (parsedState.platform === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE"),
+        // Extension Assets & More Asset Types preservation
+        callouts: Array.isArray(parsedState.callouts) && parsedState.callouts.length > 0
+          ? parsedState.callouts.map((c: any) => GoogleAdsBaseService.cleanAdText(String(c), 25)).filter(Boolean)
+          : (currentState.callouts || []),
+        structuredSnippets: Array.isArray(parsedState.structuredSnippets) && parsedState.structuredSnippets.length > 0
+          ? parsedState.structuredSnippets.filter((sn: any) => sn && sn.header && Array.isArray(sn.values))
+          : (currentState.structuredSnippets || []),
+        promotions: Array.isArray(parsedState.promotions) && parsedState.promotions.length > 0
+          ? parsedState.promotions.filter((p: any) => p && (p.promotionTarget || p.finalUrl))
+          : (currentState.promotions || []),
+        prices: Array.isArray(parsedState.prices) && parsedState.prices.length > 0
+          ? parsedState.prices.filter((pr: any) => pr && pr.header)
+          : (currentState.prices || []),
+        messages: Array.isArray(parsedState.messages) && parsedState.messages.length > 0
+          ? parsedState.messages.filter((m: any) => m && m.platform)
+          : (currentState.messages || []),
+        leadForms: Array.isArray(parsedState.leadForms) && parsedState.leadForms.length > 0
+          ? parsedState.leadForms.filter((lf: any) => lf && (lf.headline || lf.businessName))
+          : (currentState.leadForms || []),
         // Shopping-specific properties preservation
         merchantCenterId: parsedState.merchantCenterId || currentState.merchantCenterId || undefined,
         salesCountry: parsedState.salesCountry || currentState.salesCountry || undefined,
@@ -1272,7 +1422,9 @@ ${JSON.stringify(promptState, null, 2)}
         dailyBudget: updatedState.dailyBudget,
         conversionGoals: updatedState.conversionGoals,
         headlinesCount: updatedState.headlines?.length || 0,
-        descriptionsCount: updatedState.descriptions?.length || 0
+        descriptionsCount: updatedState.descriptions?.length || 0,
+        searchThemesCount: updatedState.searchThemes?.length || 0,
+        sitelinksCount: updatedState.sitelinks?.length || 0
       });
 
       // Context-aware dynamic suggestions
@@ -1285,6 +1437,12 @@ ${JSON.stringify(promptState, null, 2)}
         computedSuggestions = ["Daily: ₹1,000/day", "Daily: ₹2,500/day", "Total: ₹15,000 (15 Days)", "Run Continuously (No End Date)"];
       } else if (updatedState.budgetType === "TOTAL" && !updatedState.endDate) {
         computedSuggestions = ["Run for 7 Days", "Run for 14 Days", "Run for 30 Days", "Switch to Daily Budget"];
+      } else if (updatedState.campaignType === "PERFORMANCE_MAX" && updatedState.merchantCenterId === undefined && (lastUserMsg.toLowerCase().includes("performance max") || lastUserMsg.toLowerCase().includes("pmax") || lastUserMsg.toLowerCase().includes("sales"))) {
+        computedSuggestions = ["Yes, I have a Merchant Center Account", "No Merchant Center Account", "Suggest Search Themes", "Suggest Sitelinks & Callouts"];
+      } else if (updatedState.campaignType === "PERFORMANCE_MAX" && (!updatedState.searchThemes || updatedState.searchThemes.length === 0)) {
+        computedSuggestions = ["Suggest Search Themes", "Suggest 4 Sitelinks", "Add Callouts & Snippets", "Generate Headlines & Copy"];
+      } else if ((updatedState.campaignType === "PERFORMANCE_MAX" || updatedState.campaignType === "SEARCH") && (!updatedState.sitelinks || updatedState.sitelinks.length < 2)) {
+        computedSuggestions = ["Suggest 4 Sitelinks", "Add Callouts & Promotions", "Generate Headlines & Copy", "Review Settings"];
       } else if (!updatedState.headlines || updatedState.headlines.length < 3) {
         computedSuggestions = ["Generate Headlines & Copy", "Generate 10 High-Intent Keywords", "Upload Media Creatives", "Review Settings"];
       } else {

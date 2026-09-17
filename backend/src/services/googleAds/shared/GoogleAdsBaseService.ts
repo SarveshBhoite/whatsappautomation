@@ -198,9 +198,8 @@ export class GoogleAdsBaseService {
     name: string; amountPerDay: number; deliveryMethod?: string; shared?: boolean;
   }) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
-    // Google Ads API requires a per-day minimum (416 INR / ~5 USD) for Demand Gen and other campaign types
-    const minBudgetPerDay = 416;
-    const safeAmountPerDay = Math.max(Number(params.amountPerDay) || minBudgetPerDay, minBudgetPerDay);
+    // Respect user's specified amount (min 1 INR / 1 unit)
+    const safeAmountPerDay = Math.max(Number(params.amountPerDay) || 1, 1);
     const amountMicros = Math.round(safeAmountPerDay * 1_000_000);
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignBudgets:mutate`, {
       operations: [{
@@ -459,20 +458,36 @@ export class GoogleAdsBaseService {
 
     // 1. Process Locations
     const locList = Array.isArray(params.locations) ? params.locations : [params.locations].filter(Boolean);
-    for (const loc of locList) {
-      if (!loc) continue;
+    for (const rawLoc of locList) {
+      if (!rawLoc) continue;
 
+      let loc = rawLoc;
       const isNegative = typeof loc === "object" && Boolean(loc.isExcluded);
+
+      // Support radius patterns in string format (e.g. "20 km around Mumbai, Maharashtra, India" or "10 mi around New York")
+      if (typeof loc === "string") {
+        const radiusMatch = loc.match(/^(\d+(?:\.\d+)?)\s*(km|mi|miles|kilometers)\s+(?:around|radius\s+of)\s+(.+)$/i);
+        if (radiusMatch) {
+          loc = {
+            mode: "RADIUS",
+            radius: Number(radiusMatch[1]),
+            radiusUnit: radiusMatch[2].toLowerCase().startsWith("mi") ? "mi" : "km",
+            name: radiusMatch[3].trim(),
+            canonicalName: radiusMatch[3].trim()
+          };
+        }
+      }
+
       const isRadiusMode = typeof loc === "object" && (loc.mode === "RADIUS" || (loc.radius && (loc.lat !== undefined && loc.lng !== undefined)));
 
       if (isRadiusMode) {
         // Radius Targeting -> CampaignCriterion.proximity (ProximityInfo)
         const radiusVal = Number(loc.radius) || 20;
-        const radiusUnits = (loc.radiusUnit || "km").toLowerCase() === "mi" ? "MILES" : "KILOMETERS";
+        const radiusUnits = (loc.radiusUnit || "km").toLowerCase().startsWith("mi") ? "MILES" : "KILOMETERS";
         let lat = Number(loc.lat);
         let lng = Number(loc.lng);
 
-        // If lat/lng missing, try resolving via Google Places details/geocoding
+        // If lat/lng missing, try resolving via Google Places details/geocoding or Nominatim/known city coordinates
         if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
           const placesApiKey = process.env.GOOGLE_PLACES_API_KEY;
           const queryStr = loc.placeId || loc.canonicalName || loc.name;
@@ -489,6 +504,44 @@ export class GoogleAdsBaseService {
               }
             } catch (e: any) {
               console.warn("[GoogleAdsBaseService] Proximity geocode fallback notice:", e.message);
+            }
+          }
+
+          // Fallback geocode for well-known Indian / Global metro centers if geocoding API was unreachable
+          if ((isNaN(lat) || isNaN(lng)) && (loc.name || loc.canonicalName)) {
+            const lowerName = String(loc.name || loc.canonicalName).toLowerCase();
+            const knownCoords: Record<string, [number, number]> = {
+              "mumbai": [19.0760, 72.8777],
+              "delhi": [28.6139, 77.2090],
+              "new delhi": [28.6139, 77.2090],
+              "bengaluru": [12.9716, 77.5946],
+              "bangalore": [12.9716, 77.5946],
+              "pune": [18.5204, 73.8567],
+              "hyderabad": [17.3850, 78.4867],
+              "chennai": [13.0827, 80.2707],
+              "kolkata": [22.5726, 88.3639],
+              "ahmedabad": [23.0225, 72.5714],
+              "jaipur": [26.9124, 75.7873],
+              "surat": [21.1702, 72.8311],
+              "lucknow": [26.8467, 80.9462],
+              "chandigarh": [30.7333, 76.7794],
+              "indore": [22.7196, 75.8577],
+              "kochi": [9.9312, 76.2673],
+              "coimbatore": [11.0168, 76.9558],
+              "nagpur": [21.1458, 79.0882],
+              "bhopal": [23.2599, 77.4126],
+              "patna": [25.5941, 85.1376],
+              "vadodara": [22.3072, 73.1812],
+              "ludhiana": [30.9010, 75.8573],
+              "agra": [27.1767, 78.0081],
+              "nashik": [19.9975, 73.7898]
+            };
+            for (const [cityName, coords] of Object.entries(knownCoords)) {
+              if (lowerName.includes(cityName)) {
+                lat = coords[0];
+                lng = coords[1];
+                break;
+              }
             }
           }
         }
@@ -619,16 +672,32 @@ export class GoogleAdsBaseService {
 
     // 1. Process Locations
     const locList = Array.isArray(params.locations) ? params.locations : [params.locations].filter(Boolean);
-    for (const loc of locList) {
-      if (!loc) continue;
+    for (const rawLoc of locList) {
+      if (!rawLoc) continue;
 
+      let loc = rawLoc;
       const isNegative = typeof loc === "object" && Boolean(loc.isExcluded);
+
+      // Support radius patterns in string format (e.g. "20 km around Mumbai, Maharashtra, India")
+      if (typeof loc === "string") {
+        const radiusMatch = loc.match(/^(\d+(?:\.\d+)?)\s*(km|mi|miles|kilometers)\s+(?:around|radius\s+of)\s+(.+)$/i);
+        if (radiusMatch) {
+          loc = {
+            mode: "RADIUS",
+            radius: Number(radiusMatch[1]),
+            radiusUnit: radiusMatch[2].toLowerCase().startsWith("mi") ? "mi" : "km",
+            name: radiusMatch[3].trim(),
+            canonicalName: radiusMatch[3].trim()
+          };
+        }
+      }
+
       const isRadiusMode = typeof loc === "object" && (loc.mode === "RADIUS" || (loc.radius && (loc.lat !== undefined && loc.lng !== undefined)));
 
       if (isRadiusMode) {
         // Radius Targeting -> AdGroupCriterion.proximity
         const radiusVal = Number(loc.radius) || 20;
-        const radiusUnits = (loc.radiusUnit || "km").toLowerCase() === "mi" ? "MILES" : "KILOMETERS";
+        const radiusUnits = (loc.radiusUnit || "km").toLowerCase().startsWith("mi") ? "MILES" : "KILOMETERS";
         let lat = Number(loc.lat);
         let lng = Number(loc.lng);
 
@@ -647,7 +716,33 @@ export class GoogleAdsBaseService {
                 lng = Number(geom.lng);
               }
             } catch (e: any) {
-              console.warn("[GoogleAdsBaseService] AdGroup proximity geocode fallback notice:", e.message);
+              console.warn("[GoogleAdsBaseService] AdGroup Proximity geocode fallback notice:", e.message);
+            }
+          }
+
+          if ((isNaN(lat) || isNaN(lng)) && (loc.name || loc.canonicalName)) {
+            const lowerName = String(loc.name || loc.canonicalName).toLowerCase();
+            const knownCoords: Record<string, [number, number]> = {
+              "mumbai": [19.0760, 72.8777],
+              "delhi": [28.6139, 77.2090],
+              "new delhi": [28.6139, 77.2090],
+              "bengaluru": [12.9716, 77.5946],
+              "bangalore": [12.9716, 77.5946],
+              "pune": [18.5204, 73.8567],
+              "hyderabad": [17.3850, 78.4867],
+              "chennai": [13.0827, 80.2707],
+              "kolkata": [22.5726, 88.3639],
+              "ahmedabad": [23.0225, 72.5714],
+              "jaipur": [26.9124, 75.7873],
+              "surat": [21.1702, 72.8311],
+              "lucknow": [26.8467, 80.9462]
+            };
+            for (const [cityName, coords] of Object.entries(knownCoords)) {
+              if (lowerName.includes(cityName)) {
+                lat = coords[0];
+                lng = coords[1];
+                break;
+              }
             }
           }
         }

@@ -131,6 +131,10 @@ router.post("/analyze-url", async (req, res) => {
     let longHeadlines: string[] = [];
     let descriptions: string[] = [];
     let keywords: string[] = [];
+    let searchThemes: string[] = [];
+    let sitelinks: Array<{ text: string; desc1?: string; desc2?: string; url: string }> = [];
+    let callouts: string[] = [];
+    let structuredSnippets: Array<{ header: string; values: string[] }> = [];
 
     if (analysis.title) {
       derivedBusinessName = analysis.title.split(/[-|:–]/)[0]?.trim();
@@ -143,30 +147,48 @@ router.post("/analyze-url", async (req, res) => {
       } catch {}
     }
 
-    const groqKey = process.env.GROQ_KEY || process.env.GROQ_API_KEY || "";
-    if (groqKey) {
+    // Call Groq if we have any scraped text
+    if (analysis.title || analysis.description || (analysis.headings && analysis.headings.length > 0) || analysis.mainTextSnippet) {
       try {
-        const prompt = `Analyze this verified website content to extract comprehensive Google Ads business parameters and creative assets.
-Website URL: ${url}
-Page Title: ${analysis.title || ""}
-Meta Description: ${analysis.description || ""}
-Headings: ${(analysis.headings || []).join(" | ")}
-Website Snippet: ${(analysis.mainTextSnippet || "").slice(0, 1500)}
+        const prompt = `Analyze this verified website content to extract business intelligence, conversion-focused Google Ads ad copy, Performance Max search themes, and sitelink extensions.
+Website Title: "${analysis.title || ""}"
+Meta Description: "${analysis.description || ""}"
+Headings: ${JSON.stringify(analysis.headings || [])}
+Discovered Site Links: ${JSON.stringify((analysis.discoveredLinks || []).slice(0, 10))}
+Content Snippet: "${(analysis.mainTextSnippet || "").slice(0, 2000)}"
+Target URL: "${url}"
 
-Instructions:
-1. Extract authentic, verified data only from the provided text. Do not invent products or claims not mentioned.
-2. Business Name: Real business/brand name (max 25 characters).
-3. Industry: Specific commercial or business category (e.g., "Computer Hardware & IT Retail", "Real Estate", "SaaS").
-4. Products/Services: 3 to 6 actual products or service categories offered on this website.
-5. Description: 1 to 2 clear sentences describing the business value proposition (max 150 chars).
-6. USP: The Unique Selling Proposition or key benefit stated on the site (e.g., "Authorized Dealer with Free Same-Day Shipping").
-7. Target Audience: Intended customer demographic (e.g., "Gamers, IT professionals, and students").
-8. Locations: Geographic area or country served if detected (e.g. ["India"] or ["United States"]).
-9. Language: Primary website language name or code (e.g., "English", "Hindi", "Marathi", "Gujarati", "Spanish", "French", "German").
-10. Headlines: 3 to 7 punchy Google Ads headlines in the website's primary language (each <= 30 characters).
-11. Long Headlines: 1 to 3 long headlines in the website's primary language (each <= 90 characters).
-12. Descriptions: 2 to 4 descriptions in the website's primary language (each <= 90 characters).
+Provide:
+1. Business Name (clean, under 25 chars, no legal suffixes like LLC/Inc/Pvt Ltd unless essential).
+2. Industry / Business Category.
+3. Core Products or Services (array of 3-6 items).
+4. Concise Business Description (under 150 chars).
+5. Unique Selling Proposition / Key differentiator (under 90 chars).
+6. Target Audience summary (under 60 chars).
+7. Target Locations / Regions mentioned or inferred from language/currency/contact (e.g. ["India"] or ["United States"]).
+8. Primary language of the content (e.g. "en", "es", "hi").
+9. Headlines: 3 to 5 punchy, high-CTR Google Ads headlines (EXACTLY <= 30 characters each). DO NOT exceed 30 chars.
+10. Long Headlines: 1 to 2 compelling long headlines for Performance Max & responsive ads (EXACTLY <= 90 characters each).
+11. Descriptions: 2 to 4 high-converting descriptions (EXACTLY <= 90 characters each). DO NOT exceed 90 chars.
+12. Call to Action: appropriate CTA (e.g., "Shop Now", "Learn More", "Get Quote", "Contact Us").
 13. Keywords: 5 to 10 purchase-intent search keywords based strictly on actual website offerings (in primary language or relevant search terms).
+14. Search Themes: 5 to 10 buyer intent search topics/categories for Google Performance Max Asset Group signals (each <= 80 characters, e.g. "gaming laptop store", "custom pc build services", "best deals on electronics").
+15. Sitelinks: 2 to 4 high-relevance sitelink extensions for Performance Max & Search ads.
+    CRITICAL SITELINK URL REQUIREMENT: Google Ads requires each sitelink to point to a UNIQUE and relevant destination URL / subpage. DO NOT output the exact same homepage URL for every sitelink.
+    - If a matching link exists in "Discovered Site Links", use its exact URL.
+    - Otherwise, build appropriate subpage paths based on the link's topic, e.g.:
+      * For "About Us" / company info: construct "${url.replace(/\/+$/, '')}/about" or "/about-us"
+      * For "Contact Us" / support: construct "${url.replace(/\/+$/, '')}/contact" or "/contact-us"
+      * For "Services" / "Products": construct "${url.replace(/\/+$/, '')}/services" or "/products"
+      * For "Pricing" / "Plans": construct "${url.replace(/\/+$/, '')}/pricing"
+    Each sitelink must have:
+    - "text": Punchy link title (EXACTLY <= 25 characters, e.g., "About Us", "Our Products", "Pricing Plans", "Contact Us")
+    - "desc1": First description line (EXACTLY <= 35 characters)
+    - "desc2": Second description line (EXACTLY <= 35 characters)
+    - "url": Distinct landing page URL for that specific page (e.g., https://example.com/about)
+
+16. Callouts: 3 to 4 short highlights (each <= 25 characters, e.g. "Free Shipping", "24/7 Support", "Verified Quality").
+17. Structured Snippets: 1 snippet with a header (e.g. "Services", "Brands", "Types", "Models") and 3 to 4 values (each <= 25 characters).
 
 Return ONLY JSON matching this format:
 {
@@ -181,16 +203,32 @@ Return ONLY JSON matching this format:
   "headlines": ["string"],
   "longHeadlines": ["string"],
   "descriptions": ["string"],
-  "keywords": ["string"]
+  "keywords": ["string"],
+  "searchThemes": ["string"],
+  "callouts": ["string"],
+  "structuredSnippets": [
+    {
+      "header": "string",
+      "values": ["string"]
+    }
+  ],
+  "sitelinks": [
+    {
+      "text": "string",
+      "desc1": "string",
+      "desc2": "string",
+      "url": "string"
+    }
+  ]
 }`;
 
         const groqResult = await GoogleAdsAiAssistantService.executeGroqChat({
           messages: [
-            { role: "system", content: "You are an expert Google Ads strategist extracting verified business information and ad copy from website content. Output strictly valid JSON." },
+            { role: "system", content: "You are an expert Google Ads strategist extracting verified business information, ad copy, Performance Max search themes, and sitelink extensions from website content. Output strictly valid JSON." },
             { role: "user", content: prompt }
           ],
           temperature: 0.1,
-          max_tokens: 1000,
+          max_tokens: 1200,
           response_format: { type: "json_object" }
         });
 
@@ -230,6 +268,30 @@ Return ONLY JSON matching this format:
         }
         if (Array.isArray(copyData.keywords) && copyData.keywords.length > 0) {
           keywords = copyData.keywords.map((k: string) => k.trim()).filter(Boolean);
+        }
+        if (Array.isArray(copyData.searchThemes) && copyData.searchThemes.length > 0) {
+          searchThemes = copyData.searchThemes
+            .map((st: string) => GoogleAdsBaseService.cleanAdText(st, 80))
+            .filter(Boolean);
+        }
+        if (Array.isArray(copyData.sitelinks) && copyData.sitelinks.length > 0) {
+          sitelinks = copyData.sitelinks
+            .filter((s: any) => s && (s.text || s.linkText))
+            .map((s: any) => ({
+              text: GoogleAdsBaseService.cleanAdText(String(s.text || s.linkText), 25),
+              desc1: s.desc1 || s.description1 ? GoogleAdsBaseService.cleanAdText(String(s.desc1 || s.description1), 35) : "",
+              desc2: s.desc2 || s.description2 ? GoogleAdsBaseService.cleanAdText(String(s.desc2 || s.description2), 35) : "",
+              url: GoogleAdsBaseService.cleanUrl ? GoogleAdsBaseService.cleanUrl(s.url || url) : (s.url || url)
+            }))
+            .filter((s: any) => s.text && s.url);
+        }
+        if (Array.isArray(copyData.callouts) && copyData.callouts.length > 0) {
+          callouts = copyData.callouts
+            .map((c: string) => GoogleAdsBaseService.cleanAdText(String(c), 25))
+            .filter(Boolean);
+        }
+        if (Array.isArray(copyData.structuredSnippets) && copyData.structuredSnippets.length > 0) {
+          structuredSnippets = copyData.structuredSnippets.filter((sn: any) => sn && sn.header && Array.isArray(sn.values));
         }
       } catch (gErr: any) {
         console.warn("[AI-GUIDED] AI analysis from website failed, falling back to heuristic extraction:", gErr.message);
@@ -300,6 +362,65 @@ Return ONLY JSON matching this format:
       descriptions.push(GoogleAdsBaseService.cleanAdText(businessDescription, 90));
     }
 
+    // Heuristic fallback for searchThemes from productsServices or keywords if empty
+    if (searchThemes.length === 0) {
+      if (productsServices.length > 0) {
+        searchThemes = productsServices
+          .map(p => GoogleAdsBaseService.cleanAdText(p, 80))
+          .filter(p => p.length > 0);
+      } else if (keywords.length > 0) {
+        searchThemes = keywords
+          .slice(0, 5)
+          .map(k => GoogleAdsBaseService.cleanAdText(k, 80))
+          .filter(k => k.length > 0);
+      }
+    }
+
+    // Heuristic fallback for sitelinks if empty
+    if (sitelinks.length === 0) {
+      const cleanBaseUrl = url.trim().replace(/\/+$/, "");
+
+      if (analysis.discoveredLinks && analysis.discoveredLinks.length >= 2) {
+        sitelinks = analysis.discoveredLinks.slice(0, 4).map(dl => ({
+          text: GoogleAdsBaseService.cleanAdText(dl.text, 25),
+          desc1: GoogleAdsBaseService.cleanAdText(`Explore ${dl.text} on our site`, 35),
+          desc2: GoogleAdsBaseService.cleanAdText("Fast, reliable & customer focused", 35),
+          url: dl.url
+        }));
+      } else if (productsServices.length >= 2) {
+        sitelinks = productsServices.slice(0, 4).map(p => {
+          const slug = encodeURIComponent(p.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""));
+          return {
+            text: GoogleAdsBaseService.cleanAdText(p, 25),
+            desc1: GoogleAdsBaseService.cleanAdText(`Explore top rated ${p}`, 35),
+            desc2: GoogleAdsBaseService.cleanAdText(`Best quality & prices guaranteed`, 35),
+            url: slug ? `${cleanBaseUrl}/${slug}` : cleanBaseUrl
+          };
+        });
+      } else {
+        sitelinks = [
+          {
+            text: "About Us",
+            desc1: GoogleAdsBaseService.cleanAdText(`Learn more about ${derivedBusinessName || "our company"}`, 35),
+            desc2: GoogleAdsBaseService.cleanAdText("Committed to customer excellence", 35),
+            url: `${cleanBaseUrl}/about`
+          },
+          {
+            text: "Contact Us",
+            desc1: GoogleAdsBaseService.cleanAdText("Get in touch with our team today", 35),
+            desc2: GoogleAdsBaseService.cleanAdText("Fast response and full support", 35),
+            url: `${cleanBaseUrl}/contact`
+          },
+          {
+            text: "Services & Products",
+            desc1: GoogleAdsBaseService.cleanAdText("Browse our complete catalog", 35),
+            desc2: GoogleAdsBaseService.cleanAdText("Quality service guaranteed", 35),
+            url: `${cleanBaseUrl}/services`
+          }
+        ];
+      }
+    }
+
     // Clean and sanitize all returned items
     const sanitizedHeadlines = headlines
       .map(h => GoogleAdsBaseService.cleanAdText(h, 30))
@@ -310,6 +431,40 @@ Return ONLY JSON matching this format:
     const sanitizedDescriptions = descriptions
       .map(d => GoogleAdsBaseService.cleanAdText(d, 90))
       .filter(d => d.length > 0);
+    const sanitizedSearchThemes = Array.from(new Set(searchThemes
+      .map(st => GoogleAdsBaseService.cleanAdText(st, 80))
+      .filter(st => st.length > 0 && !isBotText(st))
+    )).slice(0, 25);
+
+    // Ensure distinct URLs for each sitelink (Google Ads policy disallows duplicate final URLs across sitelinks)
+    const cleanBaseUrl = url.trim().replace(/\/+$/, "");
+    const usedUrls = new Set<string>();
+
+    const sanitizedSitelinks = sitelinks
+      .filter(s => s && s.text)
+      .slice(0, 8)
+      .map((s, idx) => {
+        let sitelinkUrl = s.url ? (GoogleAdsBaseService.cleanUrl ? GoogleAdsBaseService.cleanUrl(s.url) : s.url) : cleanBaseUrl;
+        
+        // If url is the same as the base homepage or already used by another sitelink, synthesize a distinct subpage URL
+        const normalized = sitelinkUrl.trim().replace(/\/+$/, "");
+        if (normalized === cleanBaseUrl || usedUrls.has(normalized)) {
+          const textSlug = s.text.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+          if (textSlug) {
+            sitelinkUrl = `${cleanBaseUrl}/${textSlug}`;
+          } else {
+            sitelinkUrl = `${cleanBaseUrl}/page-${idx + 1}`;
+          }
+        }
+        usedUrls.add(sitelinkUrl.trim().replace(/\/+$/, ""));
+
+        return {
+          text: GoogleAdsBaseService.cleanAdText(s.text, 25),
+          desc1: s.desc1 ? GoogleAdsBaseService.cleanAdText(s.desc1, 35) : "",
+          desc2: s.desc2 ? GoogleAdsBaseService.cleanAdText(s.desc2, 35) : "",
+          url: sitelinkUrl
+        };
+      });
 
     return res.status(200).json({
       ...analysis,
@@ -324,7 +479,11 @@ Return ONLY JSON matching this format:
       headlines: sanitizedHeadlines,
       longHeadlines: sanitizedLongHeadlines,
       descriptions: sanitizedDescriptions,
-      keywords
+      keywords,
+      searchThemes: sanitizedSearchThemes,
+      sitelinks: sanitizedSitelinks,
+      callouts,
+      structuredSnippets
     });
   } catch (error: any) {
     console.error(`[AI-GUIDED] analyze-url failure for ${url}:`, error.message);
@@ -777,7 +936,7 @@ router.post("/create-campaign", async (req, res) => {
           dailyBudget,
           locations,
           languages,
-          biddingFocus: state.biddingStrategy || (objective === "LEADS" ? "Maximize conversions" : "Maximize conversion value"),
+          biddingFocus: state.biddingStrategy || (state as any).biddingFocus || (objective === "LEADS" ? "Maximize conversions" : "Maximize conversion value"),
           targetCpa: state.targetCpa || undefined,
           targetRoas: state.targetRoas || undefined,
           headlines: validHeadlines,
@@ -810,6 +969,9 @@ router.post("/create-campaign", async (req, res) => {
           sitelinks: anyState.sitelinks || [],
           callouts: anyState.callouts || [],
           promotions: anyState.promotions || [],
+          prices: anyState.prices || [],
+          messages: anyState.messages || [],
+          leadForms: anyState.leadForms || [],
           callAsset: anyState.callPhoneNumber ? { phone: anyState.callPhoneNumber, countryCode: "IN" } : anyState.callAsset,
           structuredSnippets: anyState.structuredSnippets || [],
           adSchedule: (() => {
@@ -1236,6 +1398,14 @@ router.post("/create-campaign", async (req, res) => {
     if (imgs.length > 0 || logos.length > 0) {
       console.log(`-----------------------------------------------------------------`);
       console.log(`🖼️ Media Assets: ${imgs.length} Images, ${logos.length} Logos`);
+    }
+
+    // Sitelinks
+    const stlinks = anyState?.sitelinks || [];
+    if (stlinks.length > 0) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`🔗 Sitelink Extensions (${stlinks.length}):`);
+      stlinks.forEach((st: any, i: number) => console.log(`   [${i + 1}] "${st.text}" -> ${st.url}${st.desc1 ? ` (${st.desc1})` : ""}`));
     }
 
     console.log(`-----------------------------------------------------------------`);

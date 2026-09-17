@@ -69,7 +69,10 @@ import {
   Bot,
   Cpu,
   BrainCircuit,
-  Sparkle
+  Sparkle,
+  ChevronUp,
+  Link2,
+  Link
 } from "lucide-react";
 
 export interface BusinessContext {
@@ -83,7 +86,7 @@ export interface BusinessContext {
 }
 
 export interface CampaignState {
-  [x: string]: unknown;
+  [x: string]: any;
   business?: BusinessContext;
   desiredOutcome?: string;
   objective?: string;
@@ -179,6 +182,20 @@ export interface CampaignState {
   optResizedVideos?: boolean;
   optLandingPagePreviews?: boolean;
   adName?: string;
+  sitelinks?: Array<{
+    text: string;
+    desc1?: string;
+    desc2?: string;
+    finalUrl?: string;
+    url?: string;
+    mobileFinalUrl?: string;
+    trackingTemplate?: string;
+    finalUrlSuffix?: string;
+    customParameters?: Array<{ name: string; value: string }>;
+    schedules?: Array<{ day: string; startHour: number; startMin: number; endHour: number; endMin: number }>;
+    startDate?: string;
+    endDate?: string;
+  }>;
   // Extension Assets
   promotions?: Array<{
     promotionTarget: string;
@@ -208,6 +225,18 @@ export interface CampaignState {
     callToActionDescription?: string;
     postSubmitHeadline?: string;
     postSubmitDescription?: string;
+  }>;
+  callouts?: string[];
+  structuredSnippets?: Array<{
+    header: string;
+    values: string[];
+  }>;
+  messages?: Array<{
+    platform: "WhatsApp" | "Messenger" | "Zalo" | string;
+    customUrlName?: string;
+    starterMessage?: string;
+    callToAction?: string;
+    ctaDescription?: string;
   }>;
   valueRules?: {
     type?: string;
@@ -772,6 +801,118 @@ export default function AiGuidedCampaignPage() {
   const [isAddingLongHeadline, setIsAddingLongHeadline] = useState<boolean>(false);
   const [newDescriptionInput, setNewDescriptionInput] = useState<string>("");
   const [isAddingDescription, setIsAddingDescription] = useState<boolean>(false);
+  const [newSearchThemeInput, setNewSearchThemeInput] = useState<string>("");
+  const [isAddingSearchTheme, setIsAddingSearchTheme] = useState<boolean>(false);
+
+  // Sitelink Modal & Form States (100% Parity with Manual Flow)
+  const [isSitelinkModalOpen, setIsSitelinkModalOpen] = useState<boolean>(false);
+  const [editingSitelinkIndex, setEditingSitelinkIndex] = useState<number | null>(null);
+  const [sitelinkText, setSitelinkText] = useState<string>("");
+  const [sitelinkDesc1, setSitelinkDesc1] = useState<string>("");
+  const [sitelinkDesc2, setSitelinkDesc2] = useState<string>("");
+  const [sitelinkUrl, setSitelinkUrl] = useState<string>("");
+  const [showSitelinkUrlOptions, setShowSitelinkUrlOptions] = useState<boolean>(false);
+  const [showSitelinkAdvancedOptions, setShowSitelinkAdvancedOptions] = useState<boolean>(false);
+  const [sitelinkMobileUrl, setSitelinkMobileUrl] = useState<string>("");
+  const [useSitelinkMobileUrl, setUseSitelinkMobileUrl] = useState<boolean>(false);
+  const [sitelinkTracking, setSitelinkTracking] = useState<string>("");
+  const [sitelinkSuffix, setSitelinkSuffix] = useState<string>("");
+  const [sitelinkCustomParams, setSitelinkCustomParams] = useState<Array<{ id: string; name: string; value: string }>>([]);
+  const [sitelinkSchedules, setSitelinkSchedules] = useState<Array<{ id: string; day: string; start: string; end: string; startDate: string; endDate: string }>>([]);
+
+  // Merchant Center Conditional Flow State
+  const [hasMerchantCenterAccount, setHasMerchantCenterAccount] = useState<boolean | null>(null);
+
+  // More Asset Types Modals & Forms State (100% Parity with Manual Sales Performance Max)
+  const [activeAssetModal, setActiveAssetModal] = useState<"PROMOTIONS" | "PRICES" | "APPS" | "SNIPPETS" | "LEAD_FORMS" | "BRAND_GUIDELINES" | null>(null);
+
+  // Promotions State
+  const [promoOccasion, setPromoOccasion] = useState<string>("None");
+  const [promoLanguage, setPromoLanguage] = useState<string>("English");
+  const [promoCurrency, setPromoCurrency] = useState<string>("INR");
+  const [promoType, setPromoType] = useState<string>("Monetary discount");
+  const [promoAmountValue, setPromoAmountValue] = useState<string>("");
+  const [promoDetailsType, setPromoDetailsType] = useState<string>("None");
+  const [promoDetailsValue, setPromoDetailsValue] = useState<string>("");
+  const [promoItem, setPromoItem] = useState<string>("");
+  const [promoFinalUrl, setPromoFinalUrl] = useState<string>("");
+  const [promoStartDate, setPromoStartDate] = useState<string>("");
+  const [promoEndDate, setPromoEndDate] = useState<string>("");
+  const [promoTrackingTemplate, setPromoTrackingTemplate] = useState<string>("");
+  const [promoFinalUrlSuffix, setPromoFinalUrlSuffix] = useState<string>("");
+  const [promoCustomParams, setPromoCustomParams] = useState<Array<{ id: string; name: string; value: string }>>([{ id: "pcp-1", name: "", value: "" }]);
+
+  // Prices State
+  const [priceLanguage, setPriceLanguage] = useState<string>("English");
+  const [priceType, setPriceType] = useState<string>("Brands");
+  const [priceCurrency, setPriceCurrency] = useState<string>("INR");
+  const [priceQualifier, setPriceQualifier] = useState<string>("No qualifier");
+  const [priceItems, setPriceItems] = useState<Array<{ id: string; header: string; amount: string; unit: string; description: string; finalUrl: string; mobileFinalUrl: string }>>([
+    { id: "pi-1", header: "", amount: "", unit: "No units", description: "", finalUrl: "", mobileFinalUrl: "" },
+    { id: "pi-2", header: "", amount: "", unit: "No units", description: "", finalUrl: "", mobileFinalUrl: "" },
+    { id: "pi-3", header: "", amount: "", unit: "No units", description: "", finalUrl: "", mobileFinalUrl: "" }
+  ]);
+  const [priceTrackingTemplate, setPriceTrackingTemplate] = useState<string>("");
+  const [priceFinalUrlSuffix, setPriceFinalUrlSuffix] = useState<string>("");
+  const [priceCustomParams, setPriceCustomParams] = useState<Array<{ id: string; name: string; value: string }>>([{ id: "pcp-1", name: "", value: "" }]);
+
+  // Messages State
+  const [msgPlatform, setMsgPlatform] = useState<"WhatsApp" | "Messenger" | "Zalo">("WhatsApp");
+  const [msgCustomUrlName, setMsgCustomUrlName] = useState<string>("");
+  const [msgStarterMessage, setMsgStarterMessage] = useState<string>("Can I get started with a delivery?");
+  const [msgCallToAction, setMsgCallToAction] = useState<string>("Get started");
+  const [msgCtaDescription, setMsgCtaDescription] = useState<string>("");
+
+  // Structured Snippets State
+  const [snippetLanguage, setSnippetLanguage] = useState<string>("English");
+  const [snippetHeaderType, setSnippetHeaderType] = useState<string>("Amenities");
+  const [snippetValues, setSnippetValues] = useState<string[]>(["", "", ""]);
+
+  // Lead Forms State
+  const [lfHeadline, setLfHeadline] = useState<string>("");
+  const [lfBusinessName, setLfBusinessName] = useState<string>("");
+  const [lfDescription, setLfDescription] = useState<string>("");
+  const [lfNameFormat, setLfNameFormat] = useState<"FULL_NAME" | "FIRST_LAST_NAME">("FULL_NAME");
+  const [lfContactFields, setLfContactFields] = useState<{ [key: string]: boolean }>({
+    Name: true,
+    Email: true,
+    "Phone number": true,
+    Country: true,
+    City: true,
+    "Zip/Postal code": true,
+    "State/Province": true,
+    "Street address": true
+  });
+  const [lfWorkFields, setLfWorkFields] = useState<{ [key: string]: boolean }>({
+    "Company name": true,
+    "Work email": true,
+    "Work phone number": true,
+    "Job title": true
+  });
+  const [lfAgeQuestion, setLfAgeQuestion] = useState<boolean>(false);
+  const [lfAgeYears, setLfAgeYears] = useState<string>("18");
+  const [lfPrivacyPolicyUrl, setLfPrivacyPolicyUrl] = useState<string>("");
+  const [lfSubHeadline, setLfSubHeadline] = useState<string>("Thank you.");
+  const [lfSubDescription, setLfSubDescription] = useState<string>("We'll contact you soon.");
+  const [lfSubCta, setLfSubCta] = useState<string>("Visit site");
+  const [lfSubCtaUrl, setLfSubCtaUrl] = useState<string>("");
+  const [lfAdCta, setLfAdCta] = useState<string>("Learn more");
+  const [lfAdCtaDescription, setLfAdCtaDescription] = useState<string>("");
+  const [lfWebhookUrl, setLfWebhookUrl] = useState<string>("");
+  const [lfWebhookKey, setLfWebhookKey] = useState<string>("");
+  const [lfNotificationEmails, setLfNotificationEmails] = useState<string>("");
+  const [lfFormType, setLfFormType] = useState<"MORE_VOLUME" | "MORE_QUALIFIED">("MORE_VOLUME");
+
+  // Callouts State
+  const [modalCalloutTexts, setModalCalloutTexts] = useState<string[]>([]);
+  const [newCalloutInput, setNewCalloutInput] = useState<string>("");
+  const [calloutStartDateType, setCalloutStartDateType] = useState<"none" | "date">("none");
+  const [calloutStartDateValue, setCalloutStartDateValue] = useState<string>("");
+  const [calloutEndDateType, setCalloutEndDateType] = useState<"none" | "date">("none");
+  const [calloutEndDateValue, setCalloutEndDateValue] = useState<string>("");
+  const [calloutSchedules, setCalloutSchedules] = useState<Array<{ id: string; day: string; start: string; end: string }>>([
+    { id: "cos-1", day: "All days", start: "00:00", end: "23:45" }
+  ]);
 
   // Optional Parameters Accordion Toggle in Cockpit
   const [showOptionalParams, setShowOptionalParams] = useState<boolean>(false);
@@ -2536,7 +2677,13 @@ export default function AiGuidedCampaignPage() {
                       : prevState.descriptions,
                     keywords: (data.keywords && data.keywords.length > 0)
                       ? Array.from(new Set([...(prevState.keywords || []), ...data.keywords]))
-                      : prevState.keywords
+                      : prevState.keywords,
+                    searchThemes: (data.searchThemes && data.searchThemes.length > 0)
+                      ? Array.from(new Set([...(prevState.searchThemes || []), ...data.searchThemes]))
+                      : prevState.searchThemes,
+                    sitelinks: (data.sitelinks && data.sitelinks.length > 0)
+                      ? Array.from(new Map([...(prevState.sitelinks || []), ...data.sitelinks].map(s => [s.text.toLowerCase(), s])).values())
+                      : prevState.sitelinks
                   };
                 });
 
@@ -2544,6 +2691,8 @@ export default function AiGuidedCampaignPage() {
                 const headlinesCount = (data.headlines || []).length;
                 const keywordsCount = (data.keywords || []).length;
                 const descriptionsCount = (data.descriptions || []).length;
+                const searchThemesCount = (data.searchThemes || []).length;
+                const sitelinksCount = (data.sitelinks || []).length;
                 const doneMsgId = `msg-url-analyzed-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
                 
                 setMessages(prev => [
@@ -2556,7 +2705,9 @@ export default function AiGuidedCampaignPage() {
                       `🎯 **Extracted Assets:**\n` +
                       `• **${headlinesCount} Headlines** generated\n` +
                       `• **${descriptionsCount} Descriptions** crafted\n` +
-                      `• **${keywordsCount} Target Keywords** extracted\n\n` +
+                      `• **${keywordsCount} Target Keywords** extracted\n` +
+                      (searchThemesCount > 0 ? `• **${searchThemesCount} Search Themes** (PMax signals) identified\n` : "") +
+                      (sitelinksCount > 0 ? `• **${sitelinksCount} Sitelinks** (Ad extensions) created\n\n` : "\n") +
                       `All assets have been auto-synced into your **Campaign Cockpit** on the right.`,
                     timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                   }
@@ -2860,7 +3011,7 @@ export default function AiGuidedCampaignPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Markdown parser helper for chat text
-  const renderFormattedMarkdown = (text: string) => {
+  const renderFormattedMarkdown = (text?: string | null): React.ReactNode => {
     if (!text) return null;
     const lines = text.split("\n");
 
@@ -4154,7 +4305,19 @@ export default function AiGuidedCampaignPage() {
             : (activeState.descriptions || []).map(d => cleanCopyFrontend(d, 90)).filter(Boolean),
           keywords: (analysisData.keywords && analysisData.keywords.length > 0)
             ? Array.from(new Set([...(activeState.keywords || []), ...analysisData.keywords]))
-            : activeState.keywords
+            : activeState.keywords,
+          searchThemes: (analysisData.searchThemes && analysisData.searchThemes.length > 0)
+            ? Array.from(new Set([...(activeState.searchThemes || []), ...analysisData.searchThemes]))
+            : activeState.searchThemes,
+          sitelinks: (analysisData.sitelinks && analysisData.sitelinks.length > 0)
+            ? Array.from(new Map([...(activeState.sitelinks || []), ...analysisData.sitelinks].map((s: any) => [s.text.toLowerCase(), s])).values())
+            : activeState.sitelinks,
+          callouts: (analysisData.callouts && analysisData.callouts.length > 0)
+            ? Array.from(new Set([...(activeState.callouts || []), ...analysisData.callouts]))
+            : activeState.callouts,
+          structuredSnippets: (analysisData.structuredSnippets && analysisData.structuredSnippets.length > 0)
+            ? [...(activeState.structuredSnippets || []), ...analysisData.structuredSnippets]
+            : activeState.structuredSnippets
         };
       } catch (err: any) {
         console.warn("[AI-GUIDED] analyze-url error (continuing with URL set):", err.message);
@@ -4276,6 +4439,16 @@ export default function AiGuidedCampaignPage() {
             descriptions: (returnedCs.descriptions && returnedCs.descriptions.length > 0) ? returnedCs.descriptions : prev.descriptions,
             longHeadlines: (returnedCs.longHeadlines && returnedCs.longHeadlines.length > 0) ? returnedCs.longHeadlines : prev.longHeadlines,
             keywords: (returnedCs.keywords && returnedCs.keywords.length > 0) ? returnedCs.keywords : prev.keywords,
+            searchThemes: (returnedCs.searchThemes && returnedCs.searchThemes.length > 0) ? returnedCs.searchThemes : prev.searchThemes,
+            sitelinks: (returnedCs.sitelinks && returnedCs.sitelinks.length > 0) ? returnedCs.sitelinks : prev.sitelinks,
+            callouts: (returnedCs.callouts && returnedCs.callouts.length > 0) ? returnedCs.callouts : prev.callouts,
+            structuredSnippets: (returnedCs.structuredSnippets && returnedCs.structuredSnippets.length > 0) ? returnedCs.structuredSnippets : prev.structuredSnippets,
+            promotions: (returnedCs.promotions && returnedCs.promotions.length > 0) ? returnedCs.promotions : prev.promotions,
+            prices: (returnedCs.prices && returnedCs.prices.length > 0) ? returnedCs.prices : prev.prices,
+            messages: (returnedCs.messages && returnedCs.messages.length > 0) ? returnedCs.messages : prev.messages,
+            leadForms: (returnedCs.leadForms && returnedCs.leadForms.length > 0) ? returnedCs.leadForms : prev.leadForms,
+            merchantCenterId: returnedCs.merchantCenterId !== undefined ? returnedCs.merchantCenterId : prev.merchantCenterId,
+            merchantId: returnedCs.merchantCenterId !== undefined ? returnedCs.merchantCenterId : prev.merchantId,
             images: mergedImages,
             logos: mergedLogos
           };
@@ -11207,6 +11380,18 @@ export default function AiGuidedCampaignPage() {
                             {campaignState.descriptions?.length || 0} (min 2, max 5)
                           </span>
                         </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Search Themes (Signals):</span>
+                          <span className={(campaignState.searchThemes?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-amber-600 font-medium"}>
+                            {(campaignState.searchThemes?.length || 0) > 0 ? `${campaignState.searchThemes?.length} added` : "0 added"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Sitelinks (Extensions):</span>
+                          <span className={(campaignState.sitelinks?.length || 0) >= 4 ? "text-emerald-600 font-bold" : (campaignState.sitelinks?.length || 0) > 0 ? "text-amber-600 font-medium" : "text-slate-400"}>
+                            {(campaignState.sitelinks?.length || 0) > 0 ? `${campaignState.sitelinks?.length} added (4 rec.)` : "0 added (4 rec.)"}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -11996,6 +12181,599 @@ export default function AiGuidedCampaignPage() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* 4a. MERCHANT CENTER & PRODUCT FEED CONDITIONAL SETUP (Performance Max / Sales) */}
+            {Boolean(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.objective === "SALES") && (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <ShoppingBag className="h-4 w-4 text-amber-600" />
+                    <span className="font-bold text-xs text-slate-900">Google Merchant Center & Products</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                    (campaignState.merchantCenterId || (campaignState as any).merchantId)
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : hasMerchantCenterAccount === false
+                      ? "bg-slate-100 text-slate-600 border-slate-200"
+                      : "bg-amber-50 text-amber-700 border-amber-200"
+                  }`}>
+                    {(campaignState.merchantCenterId || (campaignState as any).merchantId) ? "Connected ✓" : hasMerchantCenterAccount === false ? "Skipped (No Feed)" : "Setup Needed"}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2.5">
+                  <p className="text-[11px] font-semibold text-slate-800">
+                    Do you have a Google Merchant Center account for your store products?
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    Linking Merchant Center allows Performance Max to advertise your products directly across Google Shopping, Search, YouTube, and Maps.
+                  </p>
+
+                  {/* Yes / No Quick Radio Selection */}
+                  <div className="flex items-center gap-3 pt-1">
+                    <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                      hasMerchantCenterAccount === true || Boolean(campaignState.merchantCenterId || (campaignState as any).merchantId)
+                        ? "bg-amber-50 border-amber-400 text-amber-900 shadow-2xs"
+                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-white"
+                    }`}>
+                      <input
+                        type="radio"
+                        name="merchantAccountRadio"
+                        checked={hasMerchantCenterAccount === true || Boolean(campaignState.merchantCenterId || (campaignState as any).merchantId)}
+                        onChange={() => {
+                          setHasMerchantCenterAccount(true);
+                        }}
+                        className="text-amber-600"
+                      />
+                      <span>Yes, I have Merchant Center</span>
+                    </label>
+
+                    <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                      hasMerchantCenterAccount === false && !Boolean(campaignState.merchantCenterId || (campaignState as any).merchantId)
+                        ? "bg-slate-100 border-slate-400 text-slate-900 shadow-2xs"
+                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-white"
+                    }`}>
+                      <input
+                        type="radio"
+                        name="merchantAccountRadio"
+                        checked={hasMerchantCenterAccount === false && !Boolean(campaignState.merchantCenterId || (campaignState as any).merchantId)}
+                        onChange={() => {
+                          setHasMerchantCenterAccount(false);
+                          setCampaignState(prev => ({
+                            ...prev,
+                            merchantCenterId: undefined,
+                            merchantId: undefined
+                          }));
+                        }}
+                        className="text-slate-600"
+                      />
+                      <span>No, advertise without Merchant Center</span>
+                    </label>
+                  </div>
+
+                  {/* Merchant Center ID Input Field when Yes */}
+                  {(hasMerchantCenterAccount === true || Boolean(campaignState.merchantCenterId || (campaignState as any).merchantId)) && (
+                    <div className="pt-2 border-t border-slate-100 space-y-2 animate-in fade-in duration-150">
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-semibold text-slate-700">
+                          Merchant Center Account ID (Numeric, e.g. 5840531233):
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={campaignState.merchantCenterId || (campaignState as any).merchantId || ""}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, "");
+                              setCampaignState(prev => ({
+                                ...prev,
+                                merchantCenterId: val,
+                                merchantId: val
+                              }));
+                            }}
+                            placeholder="Enter 10-digit Merchant Center ID"
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-amber-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSendMessage("Suggest product feed information and how to optimize my Google Merchant Center products for Performance Max")}
+                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 shrink-0"
+                            title="AI Consult on Merchant Feed"
+                          >
+                            <Sparkles className="h-3 w-3 text-amber-600" />
+                            <span>Feed Tips</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500">
+                        <div>
+                          <span>Feed Label: </span>
+                          <span className="font-semibold text-slate-700">{campaignState.feedLabel || "IN"}</span>
+                        </div>
+                        <div>
+                          <span>Target Country: </span>
+                          <span className="font-semibold text-slate-700">{campaignState.salesCountry || "India (IN)"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 4b. PERFORMANCE MAX SEARCH THEMES MANAGER (Dedicated Card for Performance Max Asset Group Signals) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "PERFORMANCE_MAX" && (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Target className="h-4 w-4 text-purple-600" />
+                    <span className="font-bold text-xs text-slate-900">Search Themes (Signals)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      (campaignState.searchThemes?.length || 0) >= 1
+                        ? "bg-purple-50 text-purple-700 border-purple-200"
+                        : "bg-slate-100 text-slate-600 border-slate-200"
+                    }`}>
+                      {campaignState.searchThemes?.length || 0} Themes (Max 25)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSendMessage("Suggest 8 high-converting search themes for my Performance Max campaign based on my target audience and products")}
+                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-all shadow-2xs group"
+                      title="Generate high-intent search themes using Grok AI"
+                    >
+                      <Sparkles className="h-3 w-3 text-purple-600 group-hover:rotate-12 transition-transform" />
+                      <span>✨ Suggest Themes with AI</span>
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500">
+                  Search themes tell Google AI what your customers are searching for across Search, YouTube, Gmail & Maps. (Up to 25 search themes).
+                </p>
+
+                <div className="space-y-2">
+                  {/* Search Theme Input */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      let theme = (newSearchThemeInput || "").trim();
+                      if (!theme) return;
+                      if (theme.length > 80) {
+                        theme = theme.slice(0, 80);
+                      }
+                      if ((campaignState.searchThemes || []).length >= 25) {
+                        return;
+                      }
+                      if (!(campaignState.searchThemes || []).some(t => t.toLowerCase() === theme.toLowerCase())) {
+                        setCampaignState(prev => ({
+                          ...prev,
+                          searchThemes: [...(prev.searchThemes || []), theme]
+                        }));
+                      }
+                      setNewSearchThemeInput("");
+                    }}
+                    className="flex gap-1.5"
+                  >
+                    <input
+                      type="text"
+                      maxLength={80}
+                      value={newSearchThemeInput}
+                      onChange={(e) => setNewSearchThemeInput(e.target.value)}
+                      placeholder='Add search theme, e.g. "affordable running shoes"'
+                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-[11px] text-slate-900 focus:outline-none focus:border-purple-600"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newSearchThemeInput.trim()}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>Add</span>
+                    </button>
+                  </form>
+
+                  {/* Search Themes Chips List */}
+                  {campaignState.searchThemes && campaignState.searchThemes.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 bg-white border border-slate-200 rounded-xl">
+                      {campaignState.searchThemes.map((theme, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 rounded-lg border text-[10px] font-medium flex items-center gap-1.5 shadow-2xs bg-purple-50 text-purple-700 border-purple-200"
+                        >
+                          <Target className="h-2.5 w-2.5 text-purple-600 opacity-70" />
+                          <span>{theme}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => ({
+                                ...prev,
+                                searchThemes: (prev.searchThemes || []).filter((_, i) => i !== idx)
+                              }));
+                            }}
+                            className="hover:text-rose-600 transition-colors cursor-pointer ml-0.5"
+                            title="Remove Search Theme"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center space-y-2">
+                      <p className="text-[11px] text-slate-500">No search themes added yet. Search themes guide Performance Max machine learning towards high-intent queries.</p>
+                      <button
+                        type="button"
+                        onClick={() => handleSendMessage("Suggest 8 high-converting search themes for my Performance Max campaign based on my target audience and products")}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-[11px] font-bold shadow-xs cursor-pointer transition-all"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-white animate-pulse" />
+                        <span>✨ Suggest Search Themes with AI</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 4c. SITELINKS MANAGER (Ad Extensions for Performance Max & Search Campaigns) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SEARCH") && (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Link2 className="h-4 w-4 text-indigo-600" />
+                    <span className="font-bold text-xs text-slate-900">Sitelinks (Ad Extensions)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      (campaignState.sitelinks?.length || 0) >= 4
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : (campaignState.sitelinks?.length || 0) > 0
+                        ? "bg-purple-50 text-purple-700 border-purple-200"
+                        : "bg-slate-100 text-slate-600 border-slate-200"
+                    }`}>
+                      {campaignState.sitelinks?.length || 0} Sitelinks {(campaignState.sitelinks?.length || 0) >= 4 ? "✓" : "(4 Rec.)"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSendMessage("Suggest 4 high-converting sitelinks for my campaign with titles, description lines 1 & 2, and relevant landing page URLs")}
+                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-all shadow-2xs group"
+                      title="Generate sitelinks using Grok AI"
+                    >
+                      <Sparkles className="h-3 w-3 text-purple-600 group-hover:rotate-12 transition-transform" />
+                      <span>✨ Suggest with AI</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingSitelinkIndex(null);
+                        setSitelinkText("");
+                        setSitelinkDesc1("");
+                        setSitelinkDesc2("");
+                        setSitelinkUrl(campaignState.website || "");
+                        setSitelinkMobileUrl("");
+                        setUseSitelinkMobileUrl(false);
+                        setSitelinkTracking("");
+                        setSitelinkSuffix("");
+                        setSitelinkCustomParams([]);
+                        setSitelinkSchedules([]);
+                        setShowSitelinkUrlOptions(false);
+                        setShowSitelinkAdvancedOptions(false);
+                        setIsSitelinkModalOpen(true);
+                      }}
+                      className="text-[10px] text-indigo-700 hover:text-indigo-900 font-bold flex items-center gap-1 cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition-all shadow-2xs"
+                      title="Create a new sitelink extension"
+                    >
+                      <Plus className="h-3 w-3 text-indigo-600" />
+                      <span>Add</span>
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500">
+                  Draw more attention and conversions by taking users directly to specific pages (e.g. Products, About Us, Contact, Deals). Google recommends at least 4 sitelinks.
+                </p>
+
+                {/* Sitelinks List */}
+                {campaignState.sitelinks && campaignState.sitelinks.length > 0 ? (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                    {campaignState.sitelinks.map((st, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-xl bg-white border border-slate-200 text-[11px] text-slate-800 shadow-2xs group hover:border-indigo-300 transition-colors flex items-start justify-between gap-2"
+                      >
+                        <div className="space-y-0.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-indigo-600 text-xs truncate">
+                              {st.text}
+                            </span>
+                            <span className="text-[9px] font-mono text-slate-400">
+                              {st.text.length}/25
+                            </span>
+                          </div>
+                          {(st.desc1 || st.desc2) && (
+                            <p className="text-[10px] text-slate-500 line-clamp-1">
+                              {[st.desc1, st.desc2].filter(Boolean).join(" • ")}
+                            </p>
+                          )}
+                          <p className="text-[9px] text-slate-400 font-mono truncate">
+                            {st.url}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSitelinkIndex(idx);
+                              setSitelinkText(st.text || "");
+                              setSitelinkDesc1(st.desc1 || "");
+                              setSitelinkDesc2(st.desc2 || "");
+                              setSitelinkUrl(st.url || "");
+                              setSitelinkMobileUrl((st as any).mobileUrl || "");
+                              setUseSitelinkMobileUrl(Boolean((st as any).mobileUrl));
+                              setSitelinkTracking((st as any).tracking || "");
+                              setSitelinkSuffix((st as any).suffix || "");
+                              setSitelinkCustomParams((st as any).customParams || []);
+                              setSitelinkSchedules((st as any).schedules || []);
+                              setShowSitelinkUrlOptions(Boolean((st as any).mobileUrl || (st as any).tracking || (st as any).suffix || ((st as any).customParams && (st as any).customParams.length > 0)));
+                              setShowSitelinkAdvancedOptions(Boolean((st as any).schedules && (st as any).schedules.length > 0));
+                              setIsSitelinkModalOpen(true);
+                            }}
+                            className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors cursor-pointer"
+                            title="Edit sitelink"
+                          >
+                            <FileText className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => ({
+                                ...prev,
+                                sitelinks: (prev.sitelinks || []).filter((_, i) => i !== idx)
+                              }));
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                            title="Remove sitelink"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center space-y-2">
+                    <p className="text-[11px] text-slate-500">No sitelinks configured yet. Adding 4 or more sitelinks improves ad real estate and performance.</p>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSendMessage("Suggest 4 high-converting sitelinks for my campaign with titles, description lines 1 & 2, and relevant landing page URLs")}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-[11px] font-bold shadow-xs cursor-pointer transition-all"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-white animate-pulse" />
+                        <span>✨ Suggest Sitelinks with AI</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingSitelinkIndex(null);
+                          setSitelinkText("");
+                          setSitelinkDesc1("");
+                          setSitelinkDesc2("");
+                          setSitelinkUrl(campaignState.website || "");
+                          setSitelinkMobileUrl("");
+                          setUseSitelinkMobileUrl(false);
+                          setSitelinkTracking("");
+                          setSitelinkSuffix("");
+                          setSitelinkCustomParams([]);
+                          setSitelinkSchedules([]);
+                          setShowSitelinkUrlOptions(false);
+                          setShowSitelinkAdvancedOptions(false);
+                          setIsSitelinkModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-[11px] font-bold shadow-xs cursor-pointer transition-all"
+                      >
+                        <Plus className="h-3.5 w-3.5 text-slate-600" />
+                        <span>Create Manually</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 4d. MORE ASSET TYPES MANAGER (Promotions, Prices, Messages, Structured Snippets, Lead Forms, Callouts) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SEARCH") && (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-indigo-600" />
+                    <span className="font-bold text-xs text-slate-900">More Asset Types</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSendMessage("Suggest high-converting callouts, structured snippets, and promotion assets for my campaign")}
+                    className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-lg border border-purple-200 transition-all shadow-2xs"
+                    title="Suggest more asset types using AI"
+                  >
+                    <Sparkles className="h-3 w-3 text-purple-600" />
+                    <span>✨ AI Suggest Assets</span>
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-slate-500">
+                  Improve ad performance and make your ad more interactive by adding promotions, prices, messages, structured snippets, lead forms, and callouts.
+                </p>
+
+                {/* 6 Modal Trigger Buttons Matching Manual Flow */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveAssetModal("PROMOTIONS")}
+                    className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      (campaignState.promotions?.length || 0) > 0
+                        ? "bg-amber-50 border-amber-300 text-amber-900 shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
+                    }`}
+                  >
+                    <span>+ Promotions</span>
+                    {(campaignState.promotions?.length || 0) > 0 && (
+                      <span className="bg-amber-200 text-amber-900 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
+                        {campaignState.promotions?.length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveAssetModal("PRICES")}
+                    className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      (campaignState.prices?.length || 0) > 0
+                        ? "bg-emerald-50 border-emerald-300 text-emerald-900 shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
+                    }`}
+                  >
+                    <span>+ Prices</span>
+                    {(campaignState.prices?.length || 0) > 0 && (
+                      <span className="bg-emerald-200 text-emerald-900 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
+                        {campaignState.prices?.length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveAssetModal("APPS")}
+                    className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      (campaignState.messages?.length || 0) > 0
+                        ? "bg-sky-50 border-sky-300 text-sky-900 shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
+                    }`}
+                  >
+                    <span>+ Messages</span>
+                    {(campaignState.messages?.length || 0) > 0 && (
+                      <span className="bg-sky-200 text-sky-900 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
+                        {campaignState.messages?.length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveAssetModal("SNIPPETS")}
+                    className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      (campaignState.structuredSnippets?.length || 0) > 0
+                        ? "bg-purple-50 border-purple-300 text-purple-900 shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
+                    }`}
+                  >
+                    <span>+ Structured snippets</span>
+                    {(campaignState.structuredSnippets?.length || 0) > 0 && (
+                      <span className="bg-purple-200 text-purple-900 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
+                        {campaignState.structuredSnippets?.length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveAssetModal("LEAD_FORMS")}
+                    className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      (campaignState.leadForms?.length || 0) > 0
+                        ? "bg-rose-50 border-rose-300 text-rose-900 shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
+                    }`}
+                  >
+                    <span>+ Lead forms</span>
+                    {(campaignState.leadForms?.length || 0) > 0 && (
+                      <span className="bg-rose-200 text-rose-900 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
+                        {campaignState.leadForms?.length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveAssetModal("BRAND_GUIDELINES")}
+                    className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      (campaignState.callouts?.length || 0) > 0
+                        ? "bg-teal-50 border-teal-300 text-teal-900 shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
+                    }`}
+                  >
+                    <span>+ Callouts</span>
+                    {(campaignState.callouts?.length || 0) > 0 && (
+                      <span className="bg-teal-200 text-teal-900 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
+                        {campaignState.callouts?.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Quick Display Badges of Configured Extension Assets */}
+                {((campaignState.callouts?.length || 0) > 0 || (campaignState.structuredSnippets?.length || 0) > 0 || (campaignState.promotions?.length || 0) > 0) && (
+                  <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                    {/* Callouts list */}
+                    {(campaignState.callouts?.length || 0) > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Callouts:</span>
+                        {campaignState.callouts?.map((co, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-teal-50 border border-teal-200 text-teal-800 text-[10px] flex items-center gap-1 font-medium">
+                            <span>{co}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(p => ({ ...p, callouts: (p.callouts || []).filter((_, i) => i !== idx) }))}
+                              className="text-slate-400 hover:text-rose-600 transition-colors"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Snippets list */}
+                    {(campaignState.structuredSnippets?.length || 0) > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Snippets:</span>
+                        {campaignState.structuredSnippets?.map((sn, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-800 text-[10px] flex items-center gap-1 font-medium">
+                            <span><strong>{sn.header}:</strong> {sn.values.join(", ")}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(p => ({ ...p, structuredSnippets: (p.structuredSnippets || []).filter((_, i) => i !== idx) }))}
+                              className="text-slate-400 hover:text-rose-600 transition-colors"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Promotions list */}
+                    {(campaignState.promotions?.length || 0) > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Deals:</span>
+                        {campaignState.promotions?.map((pr, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] flex items-center gap-1 font-medium">
+                            <span>{pr.promotionTarget} ({pr.percentOff ? `${pr.percentOff}% off` : pr.moneyAmountOff ? `₹${pr.moneyAmountOff} off` : "Discount"})</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(p => ({ ...p, promotions: (p.promotions || []).filter((_, i) => i !== idx) }))}
+                              className="text-slate-400 hover:text-rose-600 transition-colors"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -14085,6 +14863,32 @@ export default function AiGuidedCampaignPage() {
                   </div>
                 </div>
               )}
+
+              {/* Sitelinks Section */}
+              {pendingAiSuggestions.proposedState?.sitelinks && pendingAiSuggestions.proposedState.sitelinks.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <Link2 className="h-3.5 w-3.5 text-indigo-600" />
+                    Suggested Sitelinks ({pendingAiSuggestions.proposedState.sitelinks.length})
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                    {pendingAiSuggestions.proposedState.sitelinks.map((s, i) => (
+                      <div key={i} className="p-2.5 rounded-xl bg-white border border-slate-200/80 space-y-1 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-indigo-600 truncate">{s.text}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{s.text.length}/25</span>
+                        </div>
+                        {(s.desc1 || s.desc2) && (
+                          <p className="text-[10px] text-slate-500 line-clamp-1">
+                            {[s.desc1, s.desc2].filter(Boolean).join(" • ")}
+                          </p>
+                        )}
+                        <p className="text-[9px] text-slate-400 font-mono truncate">{s.url}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer Actions */}
@@ -14210,6 +15014,1297 @@ export default function AiGuidedCampaignPage() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sitelinks Modal (100% Parity with Manual Sales Performance Max) ── */}
+      {isSitelinkModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">
+                  {editingSitelinkIndex !== null ? "Edit sitelink" : "Create sitelink"}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Add custom links to send customers to specific pages on your website.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSitelinkModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-slate-800 text-xs">
+                  Sitelink {editingSitelinkIndex !== null ? editingSitelinkIndex + 1 : (campaignState.sitelinks?.length || 0) + 1}
+                </h4>
+                <span className="text-[10px] text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                  Ad Extension
+                </span>
+              </div>
+
+              {/* Sitelink Text */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="block text-slate-700 font-semibold">Sitelink text</label>
+                  <span className="text-[10px] text-slate-400 font-mono">{sitelinkText.length} / 25</span>
+                </div>
+                <input
+                  type="text"
+                  value={sitelinkText}
+                  onChange={(e) => setSitelinkText(e.target.value)}
+                  maxLength={25}
+                  placeholder='e.g. "About Us", "Special Offers", "Track Order"'
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              {/* Description line 1 */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="block text-slate-700 font-semibold">Description line 1 (recommended)</label>
+                  <span className="text-[10px] text-slate-400 font-mono">{sitelinkDesc1.length} / 35</span>
+                </div>
+                <input
+                  type="text"
+                  value={sitelinkDesc1}
+                  onChange={(e) => setSitelinkDesc1(e.target.value)}
+                  maxLength={35}
+                  placeholder='e.g. "Discover high-quality products"'
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              {/* Description line 2 */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="block text-slate-700 font-semibold">Description line 2 (recommended)</label>
+                  <span className="text-[10px] text-slate-400 font-mono">{sitelinkDesc2.length} / 35</span>
+                </div>
+                <input
+                  type="text"
+                  value={sitelinkDesc2}
+                  onChange={(e) => setSitelinkDesc2(e.target.value)}
+                  maxLength={35}
+                  placeholder='e.g. "Free shipping & best price guarantee"'
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              {/* Final URL */}
+              <div className="space-y-1">
+                <label className="block text-slate-700 font-semibold">Final URL</label>
+                <input
+                  type="url"
+                  value={sitelinkUrl}
+                  onChange={(e) => setSitelinkUrl(e.target.value)}
+                  placeholder="https://www.example.com/offers"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              {/* Sitelink URL options (Collapsible) */}
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowSitelinkUrlOptions(!showSitelinkUrlOptions)}
+                  className="flex items-center gap-1.5 text-slate-700 font-semibold hover:text-indigo-600 cursor-pointer transition-colors"
+                >
+                  {showSitelinkUrlOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  <span>Sitelink URL options</span>
+                </button>
+
+                {showSitelinkUrlOptions && (
+                  <div className="mt-3 space-y-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 animate-in fade-in duration-150">
+                    <div className="space-y-1">
+                      <label className="block text-slate-700 font-semibold">Tracking template</label>
+                      <input
+                        type="text"
+                        value={sitelinkTracking}
+                        onChange={(e) => setSitelinkTracking(e.target.value)}
+                        placeholder="https://www.tracking.example/?url={lpurl}&id=5"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-slate-700 font-semibold">Final URL suffix</label>
+                      <input
+                        type="text"
+                        value={sitelinkSuffix}
+                        onChange={(e) => setSitelinkSuffix(e.target.value)}
+                        placeholder="param1=value1&param2=value2"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-slate-700 font-semibold">Custom parameters</label>
+                      {sitelinkCustomParams.map((param, idx) => (
+                        <div key={param.id} className="flex items-center gap-2">
+                          <span className="text-slate-500 font-mono">{'{_'}</span>
+                          <input
+                            type="text"
+                            value={param.name}
+                            onChange={(e) => {
+                              const updated = [...sitelinkCustomParams];
+                              updated[idx].name = e.target.value;
+                              setSitelinkCustomParams(updated);
+                            }}
+                            placeholder="Name"
+                            className="w-1/3 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs"
+                          />
+                          <span className="text-slate-500 font-mono">{'}'} =</span>
+                          <input
+                            type="text"
+                            value={param.value}
+                            onChange={(e) => {
+                              const updated = [...sitelinkCustomParams];
+                              updated[idx].value = e.target.value;
+                              setSitelinkCustomParams(updated);
+                            }}
+                            placeholder="Value"
+                            className="w-1/3 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSitelinkCustomParams(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-slate-400 hover:text-rose-500 p-1"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setSitelinkCustomParams(prev => [...prev, { id: Date.now().toString(), name: "", value: "" }])}
+                        className="text-indigo-600 font-bold hover:underline text-[11px] cursor-pointer"
+                      >
+                        + Add custom parameter
+                      </button>
+                    </div>
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={useSitelinkMobileUrl}
+                          onChange={(e) => setUseSitelinkMobileUrl(e.target.checked)}
+                          className="rounded text-indigo-600 h-4 w-4"
+                        />
+                        <span className="text-slate-700 font-semibold">Use a different final URL for mobile</span>
+                      </label>
+                      {useSitelinkMobileUrl && (
+                        <input
+                          type="text"
+                          value={sitelinkMobileUrl}
+                          onChange={(e) => setSitelinkMobileUrl(e.target.value)}
+                          placeholder="https://m.example.com/offers"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Advanced options (Start/End Date and Schedule) */}
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowSitelinkAdvancedOptions(!showSitelinkAdvancedOptions)}
+                  className="flex items-center gap-1.5 text-slate-700 font-semibold hover:text-indigo-600 cursor-pointer transition-colors"
+                >
+                  {showSitelinkAdvancedOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  <span>Advanced options (Scheduling)</span>
+                </button>
+
+                {showSitelinkAdvancedOptions && (
+                  <div className="mt-3 space-y-4 p-3.5 bg-slate-50 rounded-xl border border-slate-200 animate-in fade-in duration-150">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="block text-slate-700 font-semibold">Start date</label>
+                        <input
+                          type="date"
+                          value={sitelinkSchedules[0]?.startDate || ""}
+                          min={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            if (sitelinkSchedules.length === 0) {
+                              setSitelinkSchedules([{ id: "s-1", day: "All days", start: "00:00", end: "23:45", startDate: e.target.value, endDate: "" }]);
+                            } else {
+                              const updated = [...sitelinkSchedules];
+                              updated[0].startDate = e.target.value;
+                              setSitelinkSchedules(updated);
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-medium"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-slate-700 font-semibold">End date</label>
+                        <input
+                          type="date"
+                          value={sitelinkSchedules[0]?.endDate || ""}
+                          min={sitelinkSchedules[0]?.startDate || new Date().toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            if (sitelinkSchedules.length === 0) {
+                              setSitelinkSchedules([{ id: "s-1", day: "All days", start: "00:00", end: "23:45", startDate: "", endDate: e.target.value }]);
+                            } else {
+                              const updated = [...sitelinkSchedules];
+                              updated[0].endDate = e.target.value;
+                              setSitelinkSchedules(updated);
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-slate-700 font-semibold">Days and hours</label>
+                      {sitelinkSchedules.map((sched, idx) => {
+                        const isInvalidTime = sched.start >= sched.end && sched.end !== "00:00";
+                        const dayOpts = [
+                          "All days", "Mondays - Fridays", "Saturdays - Sundays",
+                          "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"
+                        ];
+                        const timeOpts = [
+                          "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00",
+                          "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00",
+                          "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00", "23:45"
+                        ];
+                        return (
+                          <div key={sched.id} className="space-y-1">
+                            <div className={`flex flex-wrap items-center gap-2 bg-white p-2 rounded-lg border ${isInvalidTime ? 'border-rose-300' : 'border-slate-200'}`}>
+                              <select
+                                value={sched.day}
+                                onChange={(e) => {
+                                  const updated = [...sitelinkSchedules];
+                                  updated[idx].day = e.target.value;
+                                  setSitelinkSchedules(updated);
+                                }}
+                                className="bg-slate-50 border border-slate-200 rounded flex-1 px-2 py-1 text-xs text-slate-900 font-medium"
+                              >
+                                {dayOpts.map((d, i) => <option key={i} value={d}>{d}</option>)}
+                              </select>
+                              <select
+                                value={sched.start}
+                                onChange={(e) => {
+                                  const updated = [...sitelinkSchedules];
+                                  updated[idx].start = e.target.value;
+                                  setSitelinkSchedules(updated);
+                                }}
+                                className="bg-slate-50 border border-slate-200 rounded w-20 px-1 py-1 text-xs text-slate-900 font-mono"
+                              >
+                                {timeOpts.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                              </select>
+                              <span className="text-slate-500 text-[10px]">to</span>
+                              <select
+                                value={sched.end}
+                                onChange={(e) => {
+                                  const updated = [...sitelinkSchedules];
+                                  updated[idx].end = e.target.value;
+                                  setSitelinkSchedules(updated);
+                                }}
+                                className="bg-slate-50 border border-slate-200 rounded w-20 px-1 py-1 text-xs text-slate-900 font-mono"
+                              >
+                                {timeOpts.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                              </select>
+                              {sitelinkSchedules.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSitelinkSchedules(prev => prev.filter((_, i) => i !== idx))}
+                                  className="p-1 text-slate-400 hover:text-rose-500 cursor-pointer"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                            {isInvalidTime && <p className="text-[10px] text-rose-500 font-semibold px-1">End time must be after start time.</p>}
+                          </div>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => setSitelinkSchedules(prev => [...prev, { id: `ss-${Date.now()}`, day: "All days", start: "00:00", end: "23:45", startDate: prev[0]?.startDate || "", endDate: prev[0]?.endDate || "" }])}
+                        className="text-indigo-600 font-bold hover:underline text-[11px] block cursor-pointer"
+                      >
+                        + Add schedule
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex justify-between items-center pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                disabled={!sitelinkText.trim() || !sitelinkUrl.trim()}
+                onClick={() => {
+                  let cleanUrl = sitelinkUrl.trim();
+                  if (cleanUrl && !cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+                    cleanUrl = `https://${cleanUrl}`;
+                  }
+                  const newEntry = {
+                    text: sitelinkText.trim(),
+                    desc1: sitelinkDesc1.trim() || undefined,
+                    desc2: sitelinkDesc2.trim() || undefined,
+                    url: cleanUrl,
+                    mobileUrl: useSitelinkMobileUrl ? sitelinkMobileUrl.trim() : undefined,
+                    tracking: sitelinkTracking.trim() || undefined,
+                    suffix: sitelinkSuffix.trim() || undefined,
+                    customParams: sitelinkCustomParams.filter(p => p.name.trim() && p.value.trim()),
+                    schedules: sitelinkSchedules
+                  };
+
+                  if (editingSitelinkIndex !== null) {
+                    setCampaignState(prev => {
+                      const updated = [...(prev.sitelinks || [])];
+                      updated[editingSitelinkIndex] = newEntry as any;
+                      return { ...prev, sitelinks: updated };
+                    });
+                  } else {
+                    setCampaignState(prev => ({
+                      ...prev,
+                      sitelinks: [...(prev.sitelinks || []), newEntry as any]
+                    }));
+                  }
+                  // Reset form for next entry
+                  setEditingSitelinkIndex(null);
+                  setSitelinkText("");
+                  setSitelinkDesc1("");
+                  setSitelinkDesc2("");
+                  setSitelinkUrl(campaignState.website || "");
+                  setSitelinkMobileUrl("");
+                  setUseSitelinkMobileUrl(false);
+                  setSitelinkTracking("");
+                  setSitelinkSuffix("");
+                  setSitelinkCustomParams([]);
+                  setSitelinkSchedules([]);
+                  setShowSitelinkUrlOptions(false);
+                  setShowSitelinkAdvancedOptions(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Save & Add Another</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSitelinkModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (sitelinkText.trim() && sitelinkUrl.trim()) {
+                      let cleanUrl = sitelinkUrl.trim();
+                      if (cleanUrl && !cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+                        cleanUrl = `https://${cleanUrl}`;
+                      }
+                      const newEntry = {
+                        text: sitelinkText.trim(),
+                        desc1: sitelinkDesc1.trim() || undefined,
+                        desc2: sitelinkDesc2.trim() || undefined,
+                        url: cleanUrl,
+                        mobileUrl: useSitelinkMobileUrl ? sitelinkMobileUrl.trim() : undefined,
+                        tracking: sitelinkTracking.trim() || undefined,
+                        suffix: sitelinkSuffix.trim() || undefined,
+                        customParams: sitelinkCustomParams.filter(p => p.name.trim() && p.value.trim()),
+                        schedules: sitelinkSchedules
+                      };
+                      if (editingSitelinkIndex !== null) {
+                        setCampaignState(prev => {
+                          const updated = [...(prev.sitelinks || [])];
+                          updated[editingSitelinkIndex] = newEntry as any;
+                          return { ...prev, sitelinks: updated };
+                        });
+                      } else {
+                        setCampaignState(prev => ({
+                          ...prev,
+                          sitelinks: [...(prev.sitelinks || []), newEntry as any]
+                        }));
+                      }
+                    }
+                    setIsSitelinkModalOpen(false);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs shadow-md shadow-indigo-500/20 cursor-pointer transition-all flex items-center gap-1.5"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Save Sitelink</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── More Asset Types Modal: Promotions ── */}
+      {activeAssetModal === "PROMOTIONS" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Add promotions to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level promotions: Add special offers and discount deals to this campaign.</p>
+              </div>
+              <button type="button" onClick={() => setActiveAssetModal(null)} className="text-slate-500 hover:text-slate-900 cursor-pointer"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Occasion</label>
+                  <select
+                    value={promoOccasion}
+                    onChange={(e) => setPromoOccasion(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    {[
+                      "None", "New Year's", "Valentine's Day", "Easter", "Mother's Day", "Father's Day",
+                      "Labor Day", "Back to school", "Halloween", "Black Friday", "Cyber Monday", "Christmas", "Boxing Day"
+                    ].map((occ, i) => (
+                      <option key={i} value={occ}>{occ}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Language</label>
+                  <select
+                    value={promoLanguage}
+                    onChange={(e) => setPromoLanguage(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    {["English", "Hindi", "Spanish", "French", "German", "Portuguese", "Italian", "Dutch", "Russian", "Japanese", "Arabic"].map((lang, i) => (
+                      <option key={i} value={lang}>{lang}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Currency</label>
+                  <select
+                    value={promoCurrency}
+                    onChange={(e) => setPromoCurrency(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
+                  >
+                    {["INR", "USD", "EUR", "GBP", "AED", "AUD", "CAD", "SGD", "JPY"].map((curr, i) => (
+                      <option key={i} value={curr}>{curr}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Promotion type</label>
+                  <select
+                    value={promoType}
+                    onChange={(e) => setPromoType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    <option value="Monetary discount">Monetary discount</option>
+                    <option value="Percent discount">Percent discount</option>
+                    <option value="Up to monetary discount">Up to monetary discount</option>
+                    <option value="Up to percent discount">Up to percent discount</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Discount Amount / Percent</label>
+                  <input
+                    type="number"
+                    value={promoAmountValue}
+                    onChange={(e) => setPromoAmountValue(e.target.value)}
+                    placeholder={promoType.includes("Percent") ? "e.g. 20 (for 20% off)" : "e.g. 500 (for ₹500 off)"}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Item / Product Name</label>
+                  <input
+                    type="text"
+                    maxLength={30}
+                    value={promoItem}
+                    onChange={(e) => setPromoItem(e.target.value)}
+                    placeholder="e.g. Running Shoes, Annual Subscription"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                  <span className="text-[10px] text-slate-500 block mt-0.5">{promoItem.length} / 30 characters</span>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Final URL</label>
+                  <input
+                    type="url"
+                    value={promoFinalUrl}
+                    onChange={(e) => setPromoFinalUrl(e.target.value)}
+                    placeholder={campaignState.website || "https://www.example.com/promo"}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Promotion details</label>
+                  <select
+                    value={promoDetailsType}
+                    onChange={(e) => setPromoDetailsType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    <option value="None">None</option>
+                    <option value="On orders over">On orders over</option>
+                    <option value="Promo code">Promo code</option>
+                  </select>
+                </div>
+                <div>
+                  {promoDetailsType !== "None" && (
+                    <>
+                      <label className="block text-slate-700 font-semibold mb-1">
+                        {promoDetailsType === "On orders over" ? "Minimum Order Amount" : "Promo Code (Alphanumeric)"}
+                      </label>
+                      <input
+                        type="text"
+                        value={promoDetailsValue}
+                        onChange={(e) => setPromoDetailsValue(e.target.value)}
+                        placeholder={promoDetailsType === "On orders over" ? "e.g. 1999" : "e.g. FESTIVE20"}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveAssetModal(null)}
+                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = promoItem.trim() || "Special Offer";
+                  const cleanUrl = promoFinalUrl.trim() || campaignState.website || "https://example.com";
+                  const isPct = promoType.includes("Percent");
+                  const amt = Number(promoAmountValue) || (isPct ? 15 : 200);
+                  const newPromo = {
+                    promotionTarget: target,
+                    finalUrl: cleanUrl,
+                    occasion: promoOccasion !== "None" ? promoOccasion : undefined,
+                    percentOff: isPct ? amt : undefined,
+                    moneyAmountOff: !isPct ? amt : undefined,
+                    currencyCode: promoCurrency,
+                    languageCode: promoLanguage,
+                    promotionCode: promoDetailsType === "Promo code" ? promoDetailsValue.trim() : undefined
+                  };
+                  setCampaignState(prev => ({
+                    ...prev,
+                    promotions: [...(prev.promotions || []), newPromo]
+                  }));
+                  setActiveAssetModal(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
+              >
+                Save Promotion
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── More Asset Types Modal: Prices ── */}
+      {activeAssetModal === "PRICES" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Add prices to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Showcase your products or services and link people directly to the offerings that interest them.</p>
+              </div>
+              <button type="button" onClick={() => setActiveAssetModal(null)} className="text-slate-500 hover:text-slate-900 cursor-pointer"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Language</label>
+                  <select
+                    value={priceLanguage}
+                    onChange={(e) => setPriceLanguage(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    {["English", "Hindi", "Spanish", "French", "German", "Portuguese", "Japanese", "Arabic"].map((lang, i) => (
+                      <option key={i} value={lang}>{lang}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Type</label>
+                  <select
+                    value={priceType}
+                    onChange={(e) => setPriceType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    {["Brands", "Events", "Locations", "Neighborhoods", "Product categories", "Product tiers", "Service categories", "Service tiers", "Services"].map((t, i) => (
+                      <option key={i} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Currency</label>
+                  <select
+                    value={priceCurrency}
+                    onChange={(e) => setPriceCurrency(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
+                  >
+                    {["INR", "USD", "EUR", "GBP", "AED", "AUD", "CAD", "SGD"].map((curr, i) => (
+                      <option key={i} value={curr}>{curr}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Price qualifier</label>
+                <select
+                  value={priceQualifier}
+                  onChange={(e) => setPriceQualifier(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                >
+                  <option value="No qualifier">No qualifier</option>
+                  <option value="From">From</option>
+                  <option value="Up to">Up to</option>
+                  <option value="Average">Average</option>
+                </select>
+              </div>
+
+              {/* Price Items List */}
+              <div className="space-y-3 pt-2 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-semibold text-slate-800">Price items (Offerings)</h5>
+                  <button
+                    type="button"
+                    onClick={() => setPriceItems(prev => [...prev, { id: `pi-${Date.now()}`, header: "", amount: "", unit: "No units", description: "", finalUrl: "", mobileFinalUrl: "" }])}
+                    className="text-indigo-600 font-bold hover:underline cursor-pointer"
+                  >
+                    + Add item
+                  </button>
+                </div>
+
+                {priceItems.map((item, idx) => (
+                  <div key={item.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 relative">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-700 text-xs">Item {idx + 1}</span>
+                      {priceItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setPriceItems(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Header (max 25)</label>
+                        <input
+                          type="text"
+                          maxLength={25}
+                          value={item.header}
+                          onChange={(e) => {
+                            const updated = [...priceItems];
+                            updated[idx].header = e.target.value;
+                            setPriceItems(updated);
+                          }}
+                          placeholder="e.g. Starter Plan"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Price ({priceCurrency})</label>
+                        <input
+                          type="number"
+                          value={item.amount}
+                          onChange={(e) => {
+                            const updated = [...priceItems];
+                            updated[idx].amount = e.target.value;
+                            setPriceItems(updated);
+                          }}
+                          placeholder="499"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Unit</label>
+                        <select
+                          value={item.unit}
+                          onChange={(e) => {
+                            const updated = [...priceItems];
+                            updated[idx].unit = e.target.value;
+                            setPriceItems(updated);
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900"
+                        >
+                          <option value="No units">No units</option>
+                          <option value="Per hour">Per hour</option>
+                          <option value="Per day">Per day</option>
+                          <option value="Per week">Per week</option>
+                          <option value="Per month">Per month</option>
+                          <option value="Per year">Per year</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Description (max 25)</label>
+                        <input
+                          type="text"
+                          maxLength={25}
+                          value={item.description}
+                          onChange={(e) => {
+                            const updated = [...priceItems];
+                            updated[idx].description = e.target.value;
+                            setPriceItems(updated);
+                          }}
+                          placeholder="e.g. All basic features"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Final URL</label>
+                        <input
+                          type="url"
+                          value={item.finalUrl}
+                          onChange={(e) => {
+                            const updated = [...priceItems];
+                            updated[idx].finalUrl = e.target.value;
+                            setPriceItems(updated);
+                          }}
+                          placeholder={campaignState.website || "https://example.com/pricing"}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono text-slate-900"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveAssetModal(null)}
+                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const validItems = priceItems
+                    .filter(pi => pi.header.trim())
+                    .map(pi => ({
+                      header: pi.header.trim(),
+                      description: pi.description.trim() || undefined,
+                      amount: Number(pi.amount) || 100,
+                      currencyCode: priceCurrency,
+                      unit: pi.unit !== "No units" ? pi.unit : undefined,
+                      finalUrl: pi.finalUrl.trim() || campaignState.website || "https://example.com"
+                    }));
+                  if (validItems.length > 0) {
+                    setCampaignState(prev => ({
+                      ...prev,
+                      prices: [...(prev.prices || []), ...validItems]
+                    }));
+                  }
+                  setActiveAssetModal(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
+              >
+                Save Prices
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── More Asset Types Modal: Messages (WhatsApp / Messenger / Zalo) ── */}
+      {activeAssetModal === "APPS" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Add messages to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Enable prospects to directly message your WhatsApp, Messenger, or business chat from your ads.</p>
+              </div>
+              <button type="button" onClick={() => setActiveAssetModal(null)} className="text-slate-500 hover:text-slate-900 cursor-pointer"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1.5">Select message platform</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: "WhatsApp", label: "WhatsApp", icon: "💬" },
+                    { key: "Messenger", label: "Messenger", icon: "⚡" },
+                    { key: "Zalo", label: "Zalo", icon: "🔵" }
+                  ].map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => setMsgPlatform(p.key as any)}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                        msgPlatform === p.key
+                          ? "border-indigo-600 bg-indigo-50/50 text-indigo-900 font-bold shadow-xs"
+                          : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-white"
+                      }`}
+                    >
+                      <span className="text-lg">{p.icon}</span>
+                      <span className="text-xs">{p.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    {msgPlatform === "WhatsApp" ? "WhatsApp Phone Number (with Country Code)" : `${msgPlatform} Page / User Handle`}
+                  </label>
+                  <input
+                    type="text"
+                    value={msgCustomUrlName}
+                    onChange={(e) => setMsgCustomUrlName(e.target.value)}
+                    placeholder={msgPlatform === "WhatsApp" ? "+919876543210" : "mybusiness"}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Starter message</label>
+                  <textarea
+                    rows={2}
+                    maxLength={140}
+                    value={msgStarterMessage}
+                    onChange={(e) => setMsgStarterMessage(e.target.value)}
+                    placeholder="Hi, I'm interested in your services and would like more details."
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900"
+                  />
+                  <span className="text-[10px] text-slate-500 block text-right font-mono">{msgStarterMessage.length} / 140</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] text-slate-600 font-semibold mb-1">Call-to-action</label>
+                    <select
+                      value={msgCallToAction}
+                      onChange={(e) => setMsgCallToAction(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900"
+                    >
+                      {["Contact us", "Get quote", "Get offer", "Get started", "Learn more", "Chat now"].map((cta, idx) => (
+                        <option key={idx} value={cta}>{cta}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-600 font-semibold mb-1">CTA description</label>
+                    <input
+                      type="text"
+                      maxLength={30}
+                      value={msgCtaDescription}
+                      onChange={(e) => setMsgCtaDescription(e.target.value)}
+                      placeholder="Fast reply in minutes"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveAssetModal(null)}
+                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const newMsg = {
+                    platform: msgPlatform,
+                    customUrlName: msgCustomUrlName.trim() || undefined,
+                    starterMessage: msgStarterMessage.trim() || undefined,
+                    callToAction: msgCallToAction,
+                    ctaDescription: msgCtaDescription.trim() || undefined
+                  };
+                  setCampaignState(prev => ({
+                    ...prev,
+                    messages: [...(prev.messages || []), newMsg]
+                  }));
+                  setActiveAssetModal(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
+              >
+                Save Message
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── More Asset Types Modal: Structured Snippets ── */}
+      {activeAssetModal === "SNIPPETS" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Create structured snippet</h3>
+                <p className="text-[11px] text-slate-500">Highlight specific aspects of your products and services below your ad.</p>
+              </div>
+              <button type="button" onClick={() => setActiveAssetModal(null)} className="text-slate-500 hover:text-slate-900 cursor-pointer"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Header Language</label>
+                  <select
+                    value={snippetLanguage}
+                    onChange={(e) => setSnippetLanguage(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    {["English", "Hindi", "Spanish", "French", "German", "Portuguese", "Japanese", "Arabic"].map((lang, idx) => (
+                      <option key={idx} value={lang}>{lang}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Select header type</label>
+                  <select
+                    value={snippetHeaderType}
+                    onChange={(e) => setSnippetHeaderType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
+                  >
+                    {["Amenities", "Brands", "Courses", "Degree programs", "Destinations", "Featured hotels", "Insurance coverage", "Models", "Neighborhoods", "Service catalog", "Shows", "Styles", "Types"].map((ht, idx) => (
+                      <option key={idx} value={ht}>{ht}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Dynamic Values */}
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <label className="block text-slate-700 font-semibold">Values (Minimum 3 recommended, max 25 chars each)</label>
+                {snippetValues.map((val, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      maxLength={25}
+                      value={val}
+                      onChange={(e) => {
+                        const updated = [...snippetValues];
+                        updated[idx] = e.target.value;
+                        setSnippetValues(updated);
+                      }}
+                      placeholder={`Value ${idx + 1}`}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:bg-white"
+                    />
+                    <span className="text-[10px] text-slate-400 font-mono w-10 text-right">{val.length}/25</span>
+                    {snippetValues.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => setSnippetValues(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setSnippetValues(prev => [...prev, ""])}
+                  className="inline-flex items-center gap-1 text-indigo-600 font-bold hover:underline text-xs pt-1 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add value</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveAssetModal(null)}
+                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const cleanedVals = snippetValues.map(v => v.trim()).filter(Boolean);
+                  if (cleanedVals.length > 0) {
+                    setCampaignState(prev => ({
+                      ...prev,
+                      structuredSnippets: [...(prev.structuredSnippets || []), { header: snippetHeaderType, values: cleanedVals }]
+                    }));
+                  }
+                  setActiveAssetModal(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
+              >
+                Save Structured Snippet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── More Asset Types Modal: Lead Forms ── */}
+      {activeAssetModal === "LEAD_FORMS" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Add a lead form to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Collect qualified leads directly when people interact with your ads.</p>
+              </div>
+              <button type="button" onClick={() => setActiveAssetModal(null)} className="text-slate-500 hover:text-slate-900 cursor-pointer"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2.5">
+                <h4 className="font-bold text-slate-800 text-xs">Form details</h4>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Headline (max 30)</label>
+                  <input
+                    type="text"
+                    maxLength={30}
+                    value={lfHeadline}
+                    onChange={(e) => setLfHeadline(e.target.value)}
+                    placeholder="e.g. Get a Free Consultation"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Business name (max 25)</label>
+                  <input
+                    type="text"
+                    maxLength={25}
+                    value={lfBusinessName}
+                    onChange={(e) => setLfBusinessName(e.target.value)}
+                    placeholder={campaignState.businessName || "Your Company"}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Description (max 200)</label>
+                  <textarea
+                    rows={2}
+                    maxLength={200}
+                    value={lfDescription}
+                    onChange={(e) => setLfDescription(e.target.value)}
+                    placeholder="Fill out the form below and our specialists will reach out to you within 24 hours."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Privacy Policy URL</label>
+                  <input
+                    type="url"
+                    value={lfPrivacyPolicyUrl}
+                    onChange={(e) => setLfPrivacyPolicyUrl(e.target.value)}
+                    placeholder={campaignState.website ? `${campaignState.website}/privacy` : "https://example.com/privacy"}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Contact Questions checkboxes */}
+              <div className="pt-2 border-t border-slate-200 space-y-2">
+                <h5 className="font-semibold text-slate-700">Contact information fields</h5>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.keys(lfContactFields).map((field) => (
+                    <label key={field} className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer hover:bg-white">
+                      <input
+                        type="checkbox"
+                        checked={lfContactFields[field]}
+                        onChange={(e) => setLfContactFields(prev => ({ ...prev, [field]: e.target.checked }))}
+                        className="rounded text-indigo-600 h-3.5 w-3.5"
+                      />
+                      <span className="text-slate-800 font-medium text-[11px]">{field}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveAssetModal(null)}
+                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const newLeadForm = {
+                    headline: lfHeadline.trim() || "Contact Our Team",
+                    businessName: lfBusinessName.trim() || campaignState.businessName || "Business",
+                    description: lfDescription.trim() || "We will contact you soon.",
+                    privacyPolicyUrl: lfPrivacyPolicyUrl.trim() || (campaignState.website ? `${campaignState.website}/privacy` : "https://example.com/privacy"),
+                    callToActionType: lfAdCta,
+                    postSubmitHeadline: lfSubHeadline,
+                    postSubmitDescription: lfSubDescription
+                  };
+                  setCampaignState(prev => ({
+                    ...prev,
+                    leadForms: [...(prev.leadForms || []), newLeadForm]
+                  }));
+                  setActiveAssetModal(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
+              >
+                Save Lead Form
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── More Asset Types Modal: Callouts ── */}
+      {activeAssetModal === "BRAND_GUIDELINES" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Add callouts to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Highlight unique selling points (e.g. Free Shipping, 24/7 Support, Verified Quality) in your ads.</p>
+              </div>
+              <button type="button" onClick={() => setActiveAssetModal(null)} className="text-slate-500 hover:text-slate-900 cursor-pointer"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h4 className="font-semibold text-slate-800">Add callout text (max 25 characters each)</h4>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    maxLength={25}
+                    placeholder="e.g. Free Shipping Over ₹999"
+                    value={newCalloutInput}
+                    onChange={(e) => setNewCalloutInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newCalloutInput.trim()) {
+                        e.preventDefault();
+                        setModalCalloutTexts(prev => [...prev, newCalloutInput.trim()]);
+                        setNewCalloutInput("");
+                      }
+                    }}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newCalloutInput.trim()) {
+                        setModalCalloutTexts(prev => [...prev, newCalloutInput.trim()]);
+                        setNewCalloutInput("");
+                      }
+                    }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold cursor-pointer transition-all"
+                  >
+                    Add
+                  </button>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">{newCalloutInput.length} / 25 characters</span>
+              </div>
+
+              {/* Callouts to be added */}
+              {modalCalloutTexts.length > 0 && (
+                <div className="space-y-1.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Callouts ready to add:</span>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {modalCalloutTexts.map((txt, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 font-medium">
+                        <span>{txt}</span>
+                        <button
+                          type="button"
+                          onClick={() => setModalCalloutTexts(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-slate-400 hover:text-rose-500 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveAssetModal(null)}
+                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  let finalCallouts = [...modalCalloutTexts];
+                  if (newCalloutInput.trim()) {
+                    finalCallouts.push(newCalloutInput.trim());
+                  }
+                  if (finalCallouts.length > 0) {
+                    setCampaignState(prev => ({
+                      ...prev,
+                      callouts: Array.from(new Set([...(prev.callouts || []), ...finalCallouts]))
+                    }));
+                  }
+                  setModalCalloutTexts([]);
+                  setNewCalloutInput("");
+                  setActiveAssetModal(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
+              >
+                Save Callouts
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -630,6 +630,106 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
           }
         }
 
+        // Promotions (PromotionAsset)
+        const validPromotions = Array.isArray(promotions) ? promotions : [];
+        for (const promo of validPromotions) {
+          const target = (promo.promotionTarget || promo.item || "").trim();
+          const promoUrl = (promo.finalUrl || promo.url || safeFinalUrl).trim();
+          if (target && promoUrl) {
+            try {
+              const promoBody: any = {
+                promotionTarget: GoogleAdsBaseService.cleanAdText(target, 30),
+                languageCode: promo.languageCode || "en"
+              };
+              if (promo.occasion && promo.occasion !== "None") {
+                promoBody.occasion = promo.occasion;
+              }
+              if (promo.percentOff) {
+                promoBody.percentOff = Math.round(Number(promo.percentOff) * 10000);
+              } else if (promo.moneyAmountOff) {
+                promoBody.moneyAmountOff = {
+                  currencyCode: promo.currencyCode || "INR",
+                  amountMicros: String(Math.round(Number(promo.moneyAmountOff) * 1_000_000))
+                };
+              }
+              if (promo.promotionCode) {
+                promoBody.promotionCode = String(promo.promotionCode).trim();
+              }
+              const pRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+                operations: [{
+                  create: {
+                    name: `Promo - ${target.slice(0, 20)} - ${Date.now()}`,
+                    type: "PROMOTION",
+                    promotionAsset: promoBody,
+                    finalUrls: [GoogleAdsBaseService.cleanUrl(promoUrl)]
+                  }
+                }]
+              }, { headers });
+              const assetRef = pRes.data?.results?.[0]?.resourceName;
+              if (assetRef) {
+                campaignAssetOperations.push({
+                  create: {
+                    campaign: campaignRef,
+                    asset: assetRef,
+                    fieldType: "PROMOTION",
+                    status: "ENABLED"
+                  }
+                });
+              }
+            } catch (pErr: any) {
+              console.warn("[SalesPerformanceMaxService] Promotion asset creation skipped:", pErr?.message || pErr);
+            }
+          }
+        }
+
+        // Prices (PriceAsset)
+        const validPrices = Array.isArray(prices) ? prices : [];
+        for (const pr of validPrices) {
+          const priceHeader = (pr.header || "").trim();
+          const prFinalUrl = (pr.finalUrl || safeFinalUrl).trim();
+          if (priceHeader) {
+            try {
+              const priceAssetBody: any = {
+                type: pr.type || "PRODUCT_CATEGORIES",
+                priceQualifier: pr.qualifier || "UNSPECIFIED",
+                languageCode: pr.languageCode || "en",
+                priceOfferings: [{
+                  header: GoogleAdsBaseService.cleanAdText(priceHeader, 25),
+                  description: GoogleAdsBaseService.cleanAdText(pr.description || priceHeader, 25),
+                  finalUrls: [GoogleAdsBaseService.cleanUrl(prFinalUrl)],
+                  price: {
+                    currencyCode: pr.currencyCode || "INR",
+                    amountMicros: String(Math.round(Number(pr.amount || 100) * 1_000_000))
+                  },
+                  unit: pr.unit || "UNSPECIFIED"
+                }]
+              };
+              const prRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+                operations: [{
+                  create: {
+                    name: `Price - ${priceHeader.slice(0, 20)} - ${Date.now()}`,
+                    type: "PRICE",
+                    priceAsset: priceAssetBody
+                  }
+                }]
+              }, { headers });
+              const assetRef = prRes.data?.results?.[0]?.resourceName;
+              if (assetRef) {
+                campaignAssetOperations.push({
+                  create: {
+                    campaign: campaignRef,
+                    asset: assetRef,
+                    fieldType: "PRICE",
+                    status: "ENABLED"
+                  }
+                });
+              }
+            } catch (prErr: any) {
+              console.warn("[SalesPerformanceMaxService] Price asset creation skipped:", prErr?.message || prErr);
+            }
+          }
+        }
+
         if (campaignAssetOperations.length > 0) {
           await axios.post(`${ADS_BASE}/customers/${cid}/campaignAssets:mutate`, {
             operations: campaignAssetOperations

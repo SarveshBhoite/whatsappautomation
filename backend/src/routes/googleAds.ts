@@ -1,6 +1,7 @@
 import { Router } from "express";
 import prisma from "../utils/prisma";
 import { GoogleAdsService } from "../services/googleAdsService";
+import { GoogleAdsBaseService } from "../services/googleAds/shared/GoogleAdsBaseService";
 import axios from "axios";
 import { GoogleAdsAiAssistantService } from "../services/googleAds/GoogleAdsAiAssistantService";
 
@@ -539,6 +540,48 @@ router.put("/campaigns/:id", async (req, res) => {
           } catch (bErr: any) {
             console.warn("[updateCampaign] updateBudget error:", bErr.message);
           }
+        }
+      }
+
+      // Sync updated locations (Cities, Regions, and Proximity Radius) to Google Ads API
+      if (geoTargets !== undefined) {
+        try {
+          const locList = Array.isArray(geoTargets)
+            ? geoTargets
+            : typeof geoTargets === "object" && geoTargets !== null
+              ? (Array.isArray((geoTargets as any).locations) ? (geoTargets as any).locations : [geoTargets])
+              : [geoTargets];
+
+          // 1. Remove existing location/proximity criteria to prevent duplicates and stale locations
+          try {
+            const { headers } = await GoogleAdsService.getAdsHeaders(orgId, cid);
+            const ADS_BASE = "https://googleads.googleapis.com/v24";
+            const searchRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:search`, {
+              query: `SELECT campaign_criterion.resource_name, campaign_criterion.type FROM campaign_criterion WHERE campaign.id = ${campaign.googleAdsCampaignId} AND campaign_criterion.type IN ('LOCATION', 'PROXIMITY')`
+            }, { headers });
+
+            const rows = searchRes.data?.results || [];
+            if (rows.length > 0) {
+              const removeOps = rows.map((r: any) => ({
+                remove: r.campaignCriterion.resourceName
+              }));
+              await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, {
+                operations: removeOps
+              }, { headers });
+            }
+          } catch (cleanErr: any) {
+            console.warn("[updateCampaign] Notice: Cleaning prior geo criteria:", cleanErr?.response?.data || cleanErr.message);
+          }
+
+          // 2. Add new location targets (Supports City, Region, Geo Constants, or Radius/Proximity targeting)
+          await GoogleAdsBaseService.mutateCampaignGeoAndLanguageCriteria(
+            orgId,
+            cid,
+            resourceName,
+            { locations: locList }
+          );
+        } catch (geoErr: any) {
+          console.warn("[updateCampaign] Geo target sync error:", geoErr?.response?.data || geoErr.message);
         }
       }
     }

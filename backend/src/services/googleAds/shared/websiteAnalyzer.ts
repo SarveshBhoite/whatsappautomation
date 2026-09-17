@@ -3,6 +3,11 @@ import * as url from "url";
 import * as dns from "dns/promises";
 import * as net from "net";
 
+export interface DiscoveredLink {
+  text: string;
+  url: string;
+}
+
 export interface WebsiteAnalysisResult {
   success: boolean;
   url: string;
@@ -10,6 +15,7 @@ export interface WebsiteAnalysisResult {
   description?: string;
   headings?: string[];
   mainTextSnippet?: string;
+  discoveredLinks?: DiscoveredLink[];
   error?: string;
 }
 
@@ -185,13 +191,69 @@ export async function analyzeWebsiteUrl(targetUrl: string): Promise<WebsiteAnaly
       mainTextSnippet = "";
     }
 
+    // Extract internal navigation links (sitelink candidates)
+    const discoveredLinks: DiscoveredLink[] = [];
+    try {
+      const parsedBase = new url.URL(cleanedUrl);
+      const linkRegex = /<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+      let linkMatch;
+      const seenUrls = new Set<string>();
+
+      while ((linkMatch = linkRegex.exec(html)) !== null && discoveredLinks.length < 15) {
+        const rawHref = linkMatch[1].trim();
+        const rawText = linkMatch[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+        if (
+          !rawText ||
+          rawText.length < 3 ||
+          rawText.length > 30 ||
+          isBotChallenge(rawText) ||
+          /^(login|sign in|sign up|register|cart|checkout|privacy policy|terms|cookie)/i.test(rawText)
+        ) {
+          continue;
+        }
+
+        // Resolve absolute URL
+        let resolvedUrl: string;
+        try {
+          resolvedUrl = new url.URL(rawHref, cleanedUrl).toString();
+          const parsedResolved = new url.URL(resolvedUrl);
+          // Only internal links on same hostname (or www vs non-www)
+          const baseDomain = parsedBase.hostname.replace(/^www\./, "");
+          const targetDomain = parsedResolved.hostname.replace(/^www\./, "");
+          if (baseDomain !== targetDomain) {
+            continue;
+          }
+          // Remove hash, trailing slashes for uniqueness comparison
+          const normalized = resolvedUrl.replace(/#.*$/, "").replace(/\/+$/, "");
+          const normalizedBase = cleanedUrl.replace(/#.*$/, "").replace(/\/+$/, "");
+          if (normalized === normalizedBase || seenUrls.has(normalized)) {
+            continue;
+          }
+          // Avoid common asset / file extensions
+          if (/\.(jpg|jpeg|png|gif|svg|pdf|zip|css|js)$/i.test(parsedResolved.pathname)) {
+            continue;
+          }
+
+          seenUrls.add(normalized);
+          discoveredLinks.push({
+            text: rawText,
+            url: resolvedUrl
+          });
+        } catch {
+          continue;
+        }
+      }
+    } catch {}
+
     return {
       success: true,
       url: targetUrl,
       title,
       description,
       headings,
-      mainTextSnippet
+      mainTextSnippet,
+      discoveredLinks
     };
   } catch (err: any) {
     return {
