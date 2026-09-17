@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../utils/prisma";
 import { GoogleAdsService } from "../services/googleAdsService";
 import axios from "axios";
+import { GoogleAdsAiAssistantService } from "../services/googleAds/GoogleAdsAiAssistantService";
 
 const router = Router();
 const DEFAULT_ORG_ID = "demo-org-123";
@@ -1310,18 +1311,14 @@ Return ONLY a raw JSON object (no markdown, no explanation):
   "callouts": ["...", "..."]
 }`;
 
-    const response = await axios.post(
-      GROQ_API_URL,
-      {
-        model: "openai/gpt-oss-120b",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.65,
-        max_tokens: 1500
-      },
-      { headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_KEY}` } }
-    );
+    const result = await GoogleAdsAiAssistantService.executeGroqChat({
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.65,
+      max_tokens: 1500,
+      response_format: { type: "json_object" }
+    });
 
-    const raw = response.data?.choices?.[0]?.message?.content || "{}";
+    const raw = result.content || "{}";
     const cleaned = raw.replace(/```json\n?/gi, "").replace(/```\n?/gi, "").trim();
     const parsed = JSON.parse(cleaned);
 
@@ -1361,13 +1358,13 @@ Focus on: commercial intent, local search, problem-solving queries.
 Return ONLY a JSON array of strings (no markdown):
 ["keyword1", "\\"phrase match\\"", "[exact match]", ...]`;
 
-    const response = await axios.post(
-      GROQ_API_URL,
-      { model: "openai/gpt-oss-120b", messages: [{ role: "user", content: prompt }], temperature: 0.5, max_tokens: 800 },
-      { headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_KEY}` } }
-    );
+    const result = await GoogleAdsAiAssistantService.executeGroqChat({
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.5,
+      max_tokens: 800
+    });
 
-    const raw = response.data?.choices?.[0]?.message?.content || "[]";
+    const raw = result.content || "[]";
     const cleaned = raw.replace(/```json\n?/gi, "").replace(/```\n?/gi, "").trim();
     const keywords = JSON.parse(cleaned);
 
@@ -1421,24 +1418,14 @@ Return ONLY a JSON object:
   "descriptions": ["Description 1", "Description 2", "Description 3", "Description 4", "Description 5"]
 }`;
 
-        const response = await axios.post(
-          GROQ_API_URL,
-          {
-            model: "openai/gpt-oss-120b",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.7,
-            max_tokens: 800
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`
-            },
-            timeout: 5000
-          }
-        );
+        const result = await GoogleAdsAiAssistantService.executeGroqChat({
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.7,
+          max_tokens: 800,
+          response_format: { type: "json_object" }
+        });
 
-        const raw = response.data?.choices?.[0]?.message?.content || "{}";
+        const raw = result.content || "{}";
         const cleaned = raw.replace(/```json\n?/gi, "").replace(/```\n?/gi, "").trim();
         copyData = JSON.parse(cleaned);
       } catch (aiErr: any) {
@@ -1516,13 +1503,14 @@ Return ONLY a JSON object:
   "negativeKeywords": ["..."]
 }`;
 
-    const response = await axios.post(
-      GROQ_API_URL,
-      { model: "openai/gpt-oss-120b", messages: [{ role: "user", content: prompt }], temperature: 0.4, max_tokens: 1200 },
-      { headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_KEY}` } }
-    );
+    const result = await GoogleAdsAiAssistantService.executeGroqChat({
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.4,
+      max_tokens: 1200,
+      response_format: { type: "json_object" }
+    });
 
-    const raw = response.data?.choices?.[0]?.message?.content || "{}";
+    const raw = result.content || "{}";
     const cleaned = raw.replace(/```json\n?/gi, "").replace(/```\n?/gi, "").trim();
     const analysis = JSON.parse(cleaned);
 

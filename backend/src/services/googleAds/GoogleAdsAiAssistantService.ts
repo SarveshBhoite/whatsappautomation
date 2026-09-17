@@ -309,12 +309,240 @@ export function reconcileCampaignStateBackend(state: CampaignState): CampaignSta
 }
 
 export class GoogleAdsAiAssistantService {
-  private static getGroqKey(): string {
-    const key = process.env.GROQ_KEY || process.env.GROQ_API_KEY || "";
-    if (!key) {
-      console.warn("[GoogleAdsAiAssistantService] Warning: GROQ_KEY / GROQ_API_KEY is not configured in backend environment.");
+  private static activeKeyIndex = 0;
+
+  /**
+   * Retrieves all available Groq API keys configured in environment.
+   * Supports GROQ_KEY, GROQ_API_KEY, and GROQ_API_KEY_1 through GROQ_API_KEY_20.
+   */
+  public static getGroqKeys(): string[] {
+    const keys: string[] = [];
+    const main = process.env.GROQ_KEY || process.env.GROQ_API_KEY;
+    if (main && main.trim()) {
+      keys.push(main.trim().replace(/['"]/g, ""));
     }
-    return key;
+    for (let i = 1; i <= 20; i++) {
+      const k = process.env[`GROQ_API_KEY_${i}`];
+      if (k && k.trim()) {
+        const clean = k.trim().replace(/['"]/g, "");
+        if (!keys.includes(clean)) {
+          keys.push(clean);
+        }
+      }
+    }
+    if (keys.length === 0) {
+      console.warn("[GoogleAdsAiAssistantService] Warning: No GROQ keys found in environment.");
+      keys.push("");
+    }
+    return keys;
+  }
+
+  /**
+   * Executes a Groq Chat Completion with automatic multi-key rotation and model fallback.
+   */
+  public static async executeGroqChat(
+    payload: {
+      messages: Array<{ role: string; content: string }>;
+      temperature?: number;
+      max_tokens?: number;
+      response_format?: { type: string };
+    },
+    preferredModels?: string[]
+  ): Promise<{ content: string; model: string }> {
+    const candidateModels = preferredModels || [
+      "groq/compound",
+      "groq/compound-mini",
+      "openai/gpt-oss-20b",
+      "qwen/qwen3.8-27b",
+      "openai/gpt-oss-120b"
+    ];
+
+    const groqKeys = this.getGroqKeys();
+    const numKeys = groqKeys.length;
+    let lastErr: any = null;
+
+    for (let kOffset = 0; kOffset < numKeys; kOffset++) {
+      const keyIdx = (this.activeKeyIndex + kOffset) % numKeys;
+      const currentKey = groqKeys[keyIdx];
+      if (!currentKey) continue;
+
+      for (const model of candidateModels) {
+        try {
+          const body: any = {
+            model,
+            messages: payload.messages,
+            temperature: payload.temperature ?? 0.2,
+            max_tokens: payload.max_tokens ?? 1000
+          };
+          if (payload.response_format) {
+            body.response_format = payload.response_format;
+          }
+
+          const response = await axios.post(
+            GROQ_API_URL,
+            body,
+            {
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${currentKey}`
+              },
+              timeout: 15000
+            }
+          );
+
+          const content = response.data?.choices?.[0]?.message?.content || "";
+          if (content && (payload.response_format?.type !== "json_object" || content.trim().startsWith("{") || content.trim().startsWith("["))) {
+            this.activeKeyIndex = keyIdx;
+            return { content, model };
+          }
+        } catch (mErr: any) {
+          lastErr = mErr;
+          const errMsg = mErr?.response?.data?.error?.message || mErr.message || "";
+          const status = mErr?.response?.status;
+          console.warn(`[AI-GUIDED Groq] Key #${keyIdx + 1} Model ${model} failed: ${errMsg}`);
+
+          const isRateLimit = status === 429 ||
+            errMsg.toLowerCase().includes("tokens per minute") ||
+            errMsg.toLowerCase().includes("tpm") ||
+            errMsg.toLowerCase().includes("rpm") ||
+            errMsg.toLowerCase().includes("rate limit") ||
+            errMsg.toLowerCase().includes("quota") ||
+            errMsg.toLowerCase().includes("request too large");
+
+          if (isRateLimit) {
+            console.warn(`[AI-GUIDED Groq] Key #${keyIdx + 1} reached quota/limit. Rotating to next Groq key...`);
+            break; // Immediately try next key in pool
+          }
+        }
+      }
+    }
+
+    throw lastErr || new Error("All Groq keys and models failed to generate response.");
+  }
+
+  /**
+   * Compacts campaign state specifically for LLM prompt injection.
+   * Strips out massive base64 image strings, giant metadata, and empty fields
+   * while keeping 100% of all Google Ads configuration parameters intact.
+   */
+  public static sanitizeStateForPrompt(state: CampaignState): any {
+    if (!state) return {};
+    const clone: any = { ...state };
+
+    // Cap creative text arrays to avoid feeding giant repetitive arrays into the prompt
+    if (Array.isArray(clone.headlines) && clone.headlines.length > 5) {
+      clone.headlines = clone.headlines.slice(0, 5);
+      clone.totalHeadlinesCount = state.headlines?.length;
+    }
+    if (Array.isArray(clone.descriptions) && clone.descriptions.length > 3) {
+      clone.descriptions = clone.descriptions.slice(0, 3);
+      clone.totalDescriptionsCount = state.descriptions?.length;
+    }
+    if (Array.isArray(clone.keywords) && clone.keywords.length > 8) {
+      clone.keywords = clone.keywords.slice(0, 8);
+      clone.totalKeywordsCount = state.keywords?.length;
+    }
+
+    // Sanitize images to keep only URLs / names (strip base64 data)
+    if (Array.isArray(clone.images)) {
+      clone.images = clone.images.map((img: any) => {
+        if (typeof img === "string") {
+          return img.startsWith("data:") ? "[Uploaded Image Asset]" : img;
+        }
+        return {
+          name: img?.name || "image",
+          fieldType: img?.fieldType || "MARKETING_IMAGE",
+          url: (img?.url && !img.url.startsWith("data:")) ? img.url : "[Uploaded Image Asset]"
+        };
+      });
+    }
+
+    // Sanitize logos
+    if (Array.isArray(clone.logos)) {
+      clone.logos = clone.logos.map((logo: any) => {
+        if (typeof logo === "string") {
+          return logo.startsWith("data:") ? "[Uploaded Logo Asset]" : logo;
+        }
+        return {
+          name: logo?.name || "logo",
+          fieldType: logo?.fieldType || "LOGO",
+          url: (logo?.url && !logo.url.startsWith("data:")) ? logo.url : "[Uploaded Logo Asset]"
+        };
+      });
+    }
+
+    // Sanitize videos
+    if (Array.isArray(clone.videos)) {
+      clone.videos = clone.videos.map((vid: any) => {
+        if (typeof vid === "string") return vid;
+        return {
+          name: vid?.name || "video",
+          url: vid?.url || "[Attached Video Asset]"
+        };
+      });
+    }
+
+    // Remove redundant nested business object if fields are already top-level
+    if (clone.business && clone.businessName) {
+      delete clone.business;
+    }
+
+    // Remove empty/undefined/null keys to keep JSON compact
+    const compact: any = {};
+    for (const [k, v] of Object.entries(clone)) {
+      if (v === undefined || v === null || v === "") continue;
+      if (Array.isArray(v) && v.length === 0) continue;
+      compact[k] = v;
+    }
+    return compact;
+  }
+
+  /**
+   * Prunes and compacts conversation history so token limits are never exhausted,
+   * while preserving the initial user request and the recent context turns.
+   */
+  public static compactMessagesForPrompt(
+    messages: Array<{ role: "user" | "assistant" | "system"; content: string }>
+  ): Array<{ role: "user" | "assistant" | "system"; content: string }> {
+    if (!Array.isArray(messages) || messages.length === 0) return [];
+
+    const cleanContent = (role: string, content: string): string => {
+      if (!content) return "";
+      if (role === "assistant" && content.length > 350) {
+        return content.substring(0, 350) + "...";
+      }
+      if (role === "user" && content.length > 500) {
+        return content.substring(0, 500) + "...";
+      }
+      return content;
+    };
+
+    if (messages.length <= 3) {
+      return messages.map(m => ({
+        role: m.role,
+        content: cleanContent(m.role, m.content)
+      }));
+    }
+
+    const firstUserMsg = messages.find(m => m.role === "user");
+    const recentMessages = messages.slice(-3);
+
+    const result: Array<{ role: "user" | "assistant" | "system"; content: string }> = [];
+    if (firstUserMsg && !recentMessages.includes(firstUserMsg)) {
+      result.push({
+        role: firstUserMsg.role,
+        content: cleanContent(firstUserMsg.role, firstUserMsg.content)
+      });
+    }
+
+    for (const m of recentMessages) {
+      result.push({
+        role: m.role,
+        content: cleanContent(m.role, m.content)
+      });
+    }
+
+    return result;
   }
 
   /**
@@ -357,7 +585,7 @@ export class GoogleAdsAiAssistantService {
     messages: Array<{ role: "user" | "assistant" | "system"; content: string }>,
     currentState: CampaignState
   ): Promise<AiChatResponse> {
-    const groqKey = this.getGroqKey();
+    const promptState = this.sanitizeStateForPrompt(currentState);
 
     const systemPrompt = `You are an expert Google Ads Strategic Consultant helping a business owner create the ideal Google Ads campaign.
 This software is a multi-business CRM. You must dynamically understand and serve ANY type of business (B2B SaaS, B2C, ecommerce, local physical stores, mobile apps, professional services, dental/medical clinics, educational institutes, digital creators, restaurants, real estate, etc.). NEVER hardcode or restrict yourself to static mappings or any single business type.
@@ -612,63 +840,92 @@ You MUST reply strictly with valid, parseable JSON matching this schema:
 }
 
 Current State from Frontend:
-${JSON.stringify(currentState, null, 2)}
+${JSON.stringify(promptState, null, 2)}
 `;
 
     try {
-      console.log("[AI-GUIDED] AI reasoning started. Input message count:", messages.length);
+      console.log("[AI-GUIDED] AI reasoning started. Total input messages:", messages.length);
+      const compactedMessages = this.compactMessagesForPrompt(messages);
       const apiMessages = [
         { role: "system", content: systemPrompt },
-        ...messages.map(m => ({ role: m.role, content: m.content }))
+        ...compactedMessages.map(m => ({ role: m.role, content: m.content }))
       ];
 
       const candidateModels = [
-        "openai/gpt-oss-120b",
         "groq/compound",
+        "groq/compound-mini",
         "openai/gpt-oss-20b",
         "qwen/qwen3.8-27b",
-        "qwen/qwen3.6-27b"
+        "openai/gpt-oss-120b"
       ];
 
+      const groqKeys = this.getGroqKeys();
+      const numKeys = groqKeys.length;
       let rawContent = "";
       let successfulModel = "";
       let lastErr: any = null;
 
-      for (const model of candidateModels) {
-        try {
-          const response = await axios.post(
-            GROQ_API_URL,
-            {
-              model,
-              messages: apiMessages,
-              temperature: 0.1,
-              max_tokens: 1500,
-              response_format: { type: "json_object" }
-            },
-            {
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${groqKey}`
-              },
-              timeout: 15000
-            }
-          );
+      for (let kOffset = 0; kOffset < numKeys; kOffset++) {
+        const keyIdx = (this.activeKeyIndex + kOffset) % numKeys;
+        const currentKey = groqKeys[keyIdx];
+        if (!currentKey) continue;
 
-          rawContent = response.data?.choices?.[0]?.message?.content || "{}";
-          if (rawContent && rawContent.trim().startsWith("{")) {
-            successfulModel = model;
-            console.log(`[AI-GUIDED] AI reasoning succeeded using model: ${successfulModel}`);
-            break;
+        for (const model of candidateModels) {
+          try {
+            const response = await axios.post(
+              GROQ_API_URL,
+              {
+                model,
+                messages: apiMessages,
+                temperature: 0.1,
+                max_tokens: 1000,
+                response_format: { type: "json_object" }
+              },
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${currentKey}`
+                },
+                timeout: 15000
+              }
+            );
+
+            rawContent = response.data?.choices?.[0]?.message?.content || "{}";
+            if (rawContent && rawContent.trim().startsWith("{")) {
+              successfulModel = model;
+              this.activeKeyIndex = keyIdx;
+              console.log(`[AI-GUIDED] Reasoning succeeded using Groq Key #${keyIdx + 1} and model: ${successfulModel}`);
+              break;
+            }
+          } catch (mErr: any) {
+            lastErr = mErr;
+            const errMsg = mErr?.response?.data?.error?.message || mErr.message || "";
+            const status = mErr?.response?.status;
+            console.warn(`[AI-GUIDED] Key #${keyIdx + 1} with Model ${model} failed (${errMsg})`);
+
+            const isRateLimit = status === 429 ||
+              errMsg.toLowerCase().includes("tokens per minute") ||
+              errMsg.toLowerCase().includes("tpm") ||
+              errMsg.toLowerCase().includes("rpm") ||
+              errMsg.toLowerCase().includes("rate limit") ||
+              errMsg.toLowerCase().includes("quota") ||
+              errMsg.toLowerCase().includes("request too large");
+
+            if (isRateLimit) {
+              console.warn(`[AI-GUIDED] Key #${keyIdx + 1} hit rate limit or token quota. Rotating to next Groq key...`);
+              break; // Switch to next key immediately
+            }
           }
-        } catch (mErr: any) {
-          lastErr = mErr;
-          console.warn(`[AI-GUIDED] Model ${model} failed (${mErr?.response?.data?.error?.message || mErr.message}), trying next candidate...`);
+        }
+
+        if (rawContent && rawContent.trim().startsWith("{")) {
+          break; // Successfully got JSON response
         }
       }
 
       if (!rawContent || !rawContent.trim().startsWith("{")) {
-        console.error(`[AI-GUIDED] All AI candidate models failed. Last failure reason:`, lastErr?.response?.data || lastErr?.message);
-        throw lastErr || new Error("Failed to get JSON response from Groq models");
+        console.error(`[AI-GUIDED] All AI candidate models and Groq keys failed. Last failure reason:`, lastErr?.response?.data || lastErr?.message);
+        throw lastErr || new Error("Failed to get JSON response from Groq models across all configured keys");
       }
       const parsed = JSON.parse(rawContent);
 

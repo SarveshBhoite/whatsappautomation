@@ -184,28 +184,17 @@ Return ONLY JSON matching this format:
   "keywords": ["string"]
 }`;
 
-        const groqRes = await axios.post(
-          "https://api.groq.com/openai/v1/chat/completions",
-          {
-            model: "openai/gpt-oss-120b",
-            messages: [
-              { role: "system", content: "You are an expert Google Ads strategist extracting verified business information and ad copy from website content. Output strictly valid JSON." },
-              { role: "user", content: prompt }
-            ],
-            temperature: 0.1,
-            max_tokens: 1000,
-            response_format: { type: "json_object" }
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${groqKey}`
-            },
-            timeout: 12000
-          }
-        );
+        const groqResult = await GoogleAdsAiAssistantService.executeGroqChat({
+          messages: [
+            { role: "system", content: "You are an expert Google Ads strategist extracting verified business information and ad copy from website content. Output strictly valid JSON." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.1,
+          max_tokens: 1000,
+          response_format: { type: "json_object" }
+        });
 
-        const copyData = JSON.parse(groqRes.data?.choices?.[0]?.message?.content || "{}");
+        const copyData = JSON.parse(groqResult.content || "{}");
         if (copyData.businessName && typeof copyData.businessName === "string" && copyData.businessName.length <= 25) {
           derivedBusinessName = copyData.businessName.trim();
         }
