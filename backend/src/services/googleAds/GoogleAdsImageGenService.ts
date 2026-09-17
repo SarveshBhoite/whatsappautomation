@@ -251,6 +251,18 @@ export class GoogleAdsImageGenService {
 
           if (ikRes.data?.url) {
             finalUrl = ikRes.data.url;
+            if (cfg.fieldType === "LOGO" && finalUrl.includes("ik.imagekit.io")) {
+              const urlParts = finalUrl.split("ik.imagekit.io/");
+              if (urlParts.length === 2) {
+                const endpointAndPath = urlParts[1];
+                const slashIdx = endpointAndPath.indexOf("/");
+                if (slashIdx !== -1) {
+                  const ikEndpoint = endpointAndPath.substring(0, slashIdx);
+                  const path = endpointAndPath.substring(slashIdx + 1);
+                  finalUrl = `https://ik.imagekit.io/${ikEndpoint}/tr:w-500,h-500,fo-auto/${path}`;
+                }
+              }
+            }
           }
         } catch (ikErr: any) {
           console.warn("[GoogleAdsImageGenService] ImageKit upload warning:", ikErr?.message || ikErr);

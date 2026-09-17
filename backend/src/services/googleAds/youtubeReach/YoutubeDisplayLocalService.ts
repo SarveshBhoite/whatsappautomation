@@ -968,8 +968,14 @@ export class YoutubeDisplayLocalService extends GoogleAdsBaseService {
         if (raw.startsWith("customers/") && raw.includes("/assets/")) {
           continue;
         }
-        const isAlreadySquare = typeof logo === "object" && (logo?.aspectRatio === "1:1" || logo?.fieldType === "LOGO");
-        let logoUrl = isAlreadySquare ? raw : toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
+        let logoUrl = raw;
+        if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
+          logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
+        } else if (typeof logo === "object" && (logo?.aspectRatio === "1:1" || logo?.fieldType === "LOGO")) {
+          logoUrl = raw;
+        } else {
+          logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
+        }
         logoUrl = toPollinationsTransform(logoUrl, 500, 500);
         const logoRef = await this.uploadImageAsset(organizationId, customerId, `AwrDisp_Logo_${Date.now()}`, logoUrl);
         if (logoRef && !createdAssets.logoImages.includes(logoRef)) {

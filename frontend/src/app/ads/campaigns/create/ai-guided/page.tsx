@@ -4601,7 +4601,7 @@ export default function AiGuidedCampaignPage() {
           throw new Error("Display campaigns require at least 1 Description (up to 90 chars). Please add a description in the Live Cockpit or ask AI to generate it.");
         }
         const DEFAULT_DISP_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
-        const DEFAULT_DISP_LOGO = "https://ik.imagekit.io/automationjds/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+        const DEFAULT_DISP_LOGO = "https://ik.imagekit.io/automationjds/tr:w-500,h-500,fo-auto/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
         
         let currentImages: any[] = Array.isArray(effectiveState.images) ? [...effectiveState.images] : [];
         if (currentImages.length === 0) {
@@ -4751,7 +4751,7 @@ export default function AiGuidedCampaignPage() {
       const rawMsg = err.message || "Failed to publish campaign to Google Ads.";
       
       if (rawMsg.includes("operations.create.ad.responsive_display_ad.logo_images") || rawMsg.includes("logo_images") || (rawMsg.includes("dimensions of the image are not allowed") && rawMsg.includes("logo"))) {
-        const friendlyMsg = `Google Ads Image Specification Notice: The attached business logo does not match the required 1:1 square aspect ratio or minimum 128x128 pixel dimensions for Responsive Display Ads. Please click the crop icon on your logo in the Cockpit to crop it to a 1:1 square (1200x1200px recommended), or click below to adjust it.`;
+        const friendlyMsg = `Google Ads Image Specification Notice: The attached business logo does not match the required 1:1 square aspect ratio or minimum 128x128 pixel dimensions for Responsive Display Ads. Please click the crop icon on your logo in the Cockpit to crop it to a 1:1 square (minimum 128x128px), or click below to adjust it.`;
         setPublishError(friendlyMsg);
         
         // Automatically open the Image Editor / Cropper for the offending logo if available
