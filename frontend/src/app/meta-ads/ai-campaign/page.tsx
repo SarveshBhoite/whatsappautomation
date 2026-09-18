@@ -51,6 +51,8 @@ import {
   BookOpen,
   Laptop,
   Activity,
+  Repeat,
+  Bookmark,
 } from "lucide-react";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -603,6 +605,59 @@ export default function MetaAIChatbotStudioPage() {
       setIsPublishing(false);
     }
   };
+
+  // ── Meta Graph API GET /{ad-id}/previews & GET /{ad-creative-id}/previews State ──
+  const [metaIframeHtml, setMetaIframeHtml] = useState<string | null>(null);
+  const [loadingMetaIframe, setLoadingMetaIframe] = useState(false);
+
+  // Map active platform tab to Meta ad_format parameter
+  const getMetaAdFormat = (previewPlatform?: string, aspectRatio?: string): string => {
+    if (previewPlatform === "INSTAGRAM_FEED") return "INSTAGRAM_STANDARD";
+    if (previewPlatform === "STORIES_REELS" || aspectRatio === "9:16") return "MOBILE_FULLVIEW_STREAM";
+    if (previewPlatform === "RIGHT_COLUMN") return "DESKTOP_RIGHT_COLUMN";
+    if (previewPlatform === "MESSENGER_FEED") return "MESSENGER_MOBILE_INBOX_MEDIA";
+    return "DESKTOP_FEED_STANDARD";
+  };
+
+  // Fetch Meta Graph API preview whenever ad ID / creative ID or ad_format changes
+  useEffect(() => {
+    const publishedAdId = session?.executionResult?.ad?.id || session?.executionResult?.metaAdId || (session?.draft as any)?.metaAdId;
+    const publishedCreativeId = session?.executionResult?.creative?.id || (session?.draft as any)?.metaCreativeId;
+    const targetId = publishedAdId || publishedCreativeId;
+
+    if (!targetId || !orgId) {
+      setMetaIframeHtml(null);
+      return;
+    }
+
+    const adFormat = getMetaAdFormat(
+      (session?.draft?.creative as any)?.previewPlatform,
+      session?.draft?.creative?.aspectRatio
+    );
+
+    setLoadingMetaIframe(true);
+    fetch(`${BACKEND}/api/meta-ads/ai/conversation/preview?organizationId=${encodeURIComponent(orgId)}&targetId=${encodeURIComponent(targetId)}&ad_format=${encodeURIComponent(adFormat)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.iframeHtml) {
+          setMetaIframeHtml(data.iframeHtml);
+        } else {
+          setMetaIframeHtml(null);
+        }
+      })
+      .catch((err) => {
+        console.warn("[MetaPreview] Error fetching preview HTML:", err);
+        setMetaIframeHtml(null);
+      })
+      .finally(() => setLoadingMetaIframe(false));
+  }, [
+    session?.executionResult?.ad?.id,
+    session?.executionResult?.metaAdId,
+    (session?.draft as any)?.metaCreativeId,
+    (session?.draft?.creative as any)?.previewPlatform,
+    session?.draft?.creative?.aspectRatio,
+    orgId,
+  ]);
 
   // File Upload & Select Ad States
   const [showAdLibraryModal, setShowAdLibraryModal] = useState(false);
@@ -1520,7 +1575,7 @@ export default function MetaAIChatbotStudioPage() {
 
           {/* Scrollable Blueprint Content */}
           <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
-            <div className="space-y-4 text-[13px] text-slate-800 leading-relaxed pt-2 animate-fadeIn border-t border-slate-200 mt-4">
+            <div className="space-y-4 text-[13px] text-slate-800 leading-relaxed animate-fadeIn">
                   
                   {/* ── CAMPAIGN PRE-FLIGHT READINESS & MISSING INFO TRACKER ── */}
                   {(() => {
@@ -1638,15 +1693,141 @@ export default function MetaAIChatbotStudioPage() {
                   })()}
 
                   {/* 1. Live Facebook & Instagram Feed Ad Preview Card */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <h3 className="font-bold text-[13px] text-slate-900 flex items-center gap-1.5">
                         <Sparkles className="h-4 w-4 text-[#1877F2]" />
-                        <span>Live Meta Feed Ad Preview (Interactive)</span>
+                        <span>Live Meta Feed Ad Preview & Format Tools</span>
                       </h3>
-                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                        Zero Placeholders · Ready
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Preview Tools Action Buttons */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const gridEl = document.getElementById("advanced-placement-grid");
+                            if (gridEl) gridEl.scrollIntoView({ behavior: "smooth" });
+                            else alert("Advanced Grid Preview: Showing all placement variations!");
+                          }}
+                          className="px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-all cursor-pointer flex items-center gap-1"
+                          title="Click to view all placement variations in grid"
+                        >
+                          <span>🔍 Advanced preview</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (session) {
+                              handleSendMessage("Generate alternative copy variations and text hooks for my ad");
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200 transition-all cursor-pointer flex items-center gap-1"
+                          title="See how different text combinations or media crops appear"
+                        >
+                          <span>✨ See more variations</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const shareUrl = window.location.href;
+                            navigator.clipboard?.writeText(shareUrl);
+                            alert("📋 Preview Link Copied! Send this link to others for review.");
+                          }}
+                          className="px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer flex items-center gap-1"
+                          title="Generate a link to send previews to others for review"
+                        >
+                          <span>🔗 Share</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Meta Ad Format Selector (Single Media vs Carousel vs Advantage+ Catalogue) */}
+                    <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-600">Select Ad Format:</span>
+                        <span className="text-[10px] text-slate-400 font-medium">Meta Ads Spec</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (session) {
+                              setSession({
+                                ...session,
+                                draft: {
+                                  ...session.draft,
+                                  creative: {
+                                    ...session.draft.creative,
+                                    format: "SINGLE_MEDIA",
+                                  },
+                                },
+                              });
+                            }
+                          }}
+                          className={`p-2 rounded-lg text-left transition-all cursor-pointer border ${
+                            !creative.format || creative.format === "SINGLE_MEDIA"
+                              ? "bg-blue-50/90 border-[#1877F2] text-blue-950 font-bold shadow-2xs"
+                              : "bg-slate-50 border-slate-200/80 text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          <div className="text-[11px] font-bold flex items-center gap-1">
+                            <span>🖼️ Single Image or Video</span>
+                          </div>
+                          <p className="text-[9.5px] text-slate-500 font-normal leading-tight mt-0.5">
+                            Showing a single piece of media with your headline & WhatsApp call to action.
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (session) {
+                              setSession({
+                                ...session,
+                                draft: {
+                                  ...session.draft,
+                                  creative: {
+                                    ...session.draft.creative,
+                                    format: "CAROUSEL",
+                                    carouselCards: creative.carouselCards || [
+                                      { headline: creative.headline || "Special Offer Card 1", mediaUrl: creative.mediaUrl },
+                                      { headline: "Featured Product Card 2", mediaUrl: creative.mediaUrl },
+                                      { headline: "Customer Review Card 3", mediaUrl: creative.mediaUrl },
+                                    ],
+                                  },
+                                },
+                              });
+                            }
+                          }}
+                          className={`p-2 rounded-lg text-left transition-all cursor-pointer border ${
+                            creative.format === "CAROUSEL"
+                              ? "bg-purple-50/90 border-purple-600 text-purple-950 font-bold shadow-2xs"
+                              : "bg-slate-50 border-slate-200/80 text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          <div className="text-[11px] font-bold flex items-center gap-1">
+                            <span>🎠 Carousel (Multi-Card)</span>
+                          </div>
+                          <p className="text-[9.5px] text-slate-500 font-normal leading-tight mt-0.5">
+                            Show 2 or more scrollable images or videos, each with its own headline & link.
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            alert("Advantage+ catalogue ads: Connect Meta Commerce Manager catalogue to auto-drive sales with dynamic product media.");
+                          }}
+                          className="p-2 rounded-lg text-left transition-all cursor-pointer border bg-slate-50 border-slate-200/80 text-slate-400 opacity-80 hover:bg-slate-100 relative group"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold">🛍️ Advantage+ Catalogue</span>
+                            <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">Disabled</span>
+                          </div>
+                          <p className="text-[9.5px] text-slate-400 font-normal leading-tight mt-0.5">
+                            Automatically drives sales by showing relevant catalogue product media to each person.
+                          </p>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Facebook Feed Card Mockup */}
@@ -1701,291 +1882,950 @@ export default function MetaAIChatbotStudioPage() {
                         </div>
                       )}
 
-                      {/* Header */}
-                      <div className="p-3.5 flex items-center justify-between border-b border-slate-100">
-                        <div className="flex items-center gap-2.5">
-                          <div className="h-9 w-9 rounded-full overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0">
-                            <img src={activePage?.picture || "/icon.jpeg"} alt="Page Logo" className="h-full w-full object-cover" />
-                          </div>
-                          <div>
-                            <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                              <span>{pageNameDisplay}</span>
-                              <span className="inline-flex items-center text-[#1877F2]" title="Meta Verified Business">
-                                <ShieldCheck className="h-3.5 w-3.5 fill-[#1877F2] text-white" />
-                              </span>
+                      {/* Placement Platform & Aspect Ratio Selector Controls (Meta Ads Manager Spec) */}
+                      <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 space-y-3 text-[11px] text-white rounded-t-xl">
+                        {/* Platform Selector Tabs (Facebook vs Instagram vs Stories vs Right Column vs All Grid) */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-extrabold text-sky-400 uppercase tracking-widest text-[9.5px]">Platform & Placement Mode:</span>
+                            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                              {[
+                                { id: "ALL_GRID", label: "🌐 All Platforms Grid", icon: "📱", activeBg: "bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-500" },
+                                { id: "FACEBOOK_FEED", label: "Facebook Feed", icon: "📘", activeBg: "bg-[#1877F2]" },
+                                { id: "INSTAGRAM_FEED", label: "Instagram Feed", icon: "📸", activeBg: "bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500" },
+                                { id: "MESSENGER_FEED", label: "Messenger Inbox", icon: "💬", activeBg: "bg-[#0084FF]" },
+                                { id: "WHATSAPP_FEED", label: "WhatsApp Feed", icon: "🟢", activeBg: "bg-[#25D366] text-slate-950" },
+                                { id: "STORIES_REELS", label: "Stories & Reels", icon: "🎬", activeBg: "bg-gradient-to-r from-purple-600 to-pink-600" },
+                                { id: "RIGHT_COLUMN", label: "Right Column", icon: "💻", activeBg: "bg-indigo-600" },
+                              ].map((plat) => {
+                                const isPlatSelected = (creative as any).previewPlatform === plat.id || (!creative.previewPlatform && plat.id === "ALL_GRID");
+                                return (
+                                  <button
+                                    key={plat.id}
+                                    type="button"
+                                    onClick={() => {
+                                      if (session) {
+                                        const autoRatio = plat.id === "STORIES_REELS" ? "9:16" : plat.id === "RIGHT_COLUMN" || plat.id === "INSTAGRAM_FEED" ? "1:1" : creative.aspectRatio || "1:1";
+                                        setSession({
+                                          ...session,
+                                          draft: {
+                                            ...session.draft,
+                                            creative: {
+                                              ...session.draft.creative,
+                                              previewPlatform: plat.id,
+                                              previewSubPlacement: plat.id === "INSTAGRAM_FEED" ? "IG_FEED" : plat.id === "FACEBOOK_FEED" ? "FB_FEED" : undefined,
+                                              aspectRatio: autoRatio,
+                                            },
+                                          },
+                                        });
+                                      }
+                                    }}
+                                    className={`px-2.5 py-1.5 rounded-lg font-bold text-[10.5px] whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                                      isPlatSelected
+                                        ? `${plat.activeBg} text-white font-extrabold ring-2 ring-white/30 scale-[1.02]`
+                                        : "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                                    }`}
+                                  >
+                                    <span>{plat.icon}</span>
+                                    <span>{plat.label}</span>
+                                  </button>
+                                );
+                              })}
                             </div>
-                            <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                              <span>Sponsored</span> · <Globe className="h-2.5 w-2.5" />
+                          </div>
+
+                          {/* Sub-Placement Specific Feed Variations Pill Bar */}
+                          {((creative as any).previewPlatform === "FACEBOOK_FEED" || !(creative as any).previewPlatform) && (creative as any).previewPlatform !== "ALL_GRID" && (
+                            <div className="flex items-center gap-1.5 pt-1.5 overflow-x-auto no-scrollbar border-t border-slate-800">
+                              <span className="text-[9.5px] font-bold text-slate-400 uppercase shrink-0">Feed Surface:</span>
+                              {[
+                                { id: "FB_FEED", label: "Facebook Main Feed" },
+                                { id: "FB_MARKETPLACE", label: "Facebook Marketplace" },
+                                { id: "FB_PROFILE", label: "Facebook Profile Feed" },
+                              ].map((sub) => {
+                                const isSubActive = (creative as any).previewSubPlacement === sub.id || (!(creative as any).previewSubPlacement && sub.id === "FB_FEED");
+                                return (
+                                  <button
+                                    key={sub.id}
+                                    type="button"
+                                    onClick={() => {
+                                      if (session) {
+                                        setSession({
+                                          ...session,
+                                          draft: {
+                                            ...session.draft,
+                                            creative: {
+                                              ...session.draft.creative,
+                                              previewSubPlacement: sub.id,
+                                            },
+                                          },
+                                        });
+                                      }
+                                    }}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                      isSubActive
+                                        ? "bg-[#1877F2] text-white shadow-xs"
+                                        : "bg-slate-800 text-slate-400 hover:text-slate-200"
+                                    }`}
+                                  >
+                                    {sub.label}
+                                  </button>
+                                );
+                              })}
                             </div>
-                          </div>
-                        </div>
-                        <span className="text-slate-400 text-sm">•••</span>
-                      </div>
-
-                      {/* Primary Text / Ad Copy (Editable) */}
-                      <div className="px-4 py-3 text-xs text-slate-800 whitespace-pre-line leading-relaxed border-b border-slate-100 bg-slate-50/30 font-sans relative group">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Primary Text (Ad Copy)</label>
-                        <textarea
-                          rows={3}
-                          value={creative.primaryText || ""}
-                          placeholder="Enter your ad copy / primary text here..."
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (session) {
-                              setSession({
-                                ...session,
-                                draft: {
-                                  ...session.draft,
-                                  creative: {
-                                    ...session.draft.creative,
-                                    primaryText: val,
-                                  },
-                                },
-                              });
-                            }
-                          }}
-                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-sans leading-relaxed resize-y"
-                        />
-                      </div>
-
-                      {/* Aspect Ratio Selector Controls */}
-                      <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200/60 flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-slate-600">Placement Format:</span>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (session) {
-                                setSession({
-                                  ...session,
-                                  draft: {
-                                    ...session.draft,
-                                    creative: {
-                                      ...session.draft.creative,
-                                      aspectRatio: "1:1",
-                                    },
-                                  },
-                                });
-                              }
-                            }}
-                            className={`px-2.5 py-1 rounded-md font-bold transition-all text-[11px] flex items-center gap-1 ${
-                              creative.aspectRatio === "1:1" || !creative.aspectRatio
-                                ? "bg-white text-blue-600 shadow-2xs border border-slate-200"
-                                : "text-slate-500 hover:text-slate-700"
-                            }`}
-                          >
-                            <span>🖼️ 1:1 Feed Post</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (session) {
-                                setSession({
-                                  ...session,
-                                  draft: {
-                                    ...session.draft,
-                                    creative: {
-                                      ...session.draft.creative,
-                                      aspectRatio: "9:16",
-                                    },
-                                  },
-                                });
-                              }
-                            }}
-                            className={`px-2.5 py-1 rounded-md font-bold transition-all text-[11px] flex items-center gap-1 ${
-                              creative.aspectRatio === "9:16"
-                                ? "bg-white text-blue-600 shadow-2xs border border-slate-200"
-                                : "text-slate-500 hover:text-slate-700"
-                            }`}
-                          >
-                            <span>📱 9:16 Story/Reel</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (session) {
-                                setSession({
-                                  ...session,
-                                  draft: {
-                                    ...session.draft,
-                                    creative: {
-                                      ...session.draft.creative,
-                                      aspectRatio: "16:9",
-                                    },
-                                  },
-                                });
-                              }
-                            }}
-                            className={`px-2.5 py-1 rounded-md font-bold transition-all text-[11px] flex items-center gap-1 ${
-                              creative.aspectRatio === "16:9"
-                                ? "bg-white text-blue-600 shadow-2xs border border-slate-200"
-                                : "text-slate-500 hover:text-slate-700"
-                            }`}
-                          >
-                            <span>🖥️ 16:9 Banner</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Visual Banner Area */}
-                      <div className={`relative w-full ${
-                        creative.aspectRatio === "9:16"
-                          ? "aspect-[9/16] min-h-[360px] max-h-[420px]"
-                          : creative.aspectRatio === "16:9"
-                          ? "aspect-[16/9] min-h-[200px] max-h-[250px]"
-                          : creative.aspectRatio === "4:5"
-                          ? "aspect-[4/5] min-h-[300px] max-h-[360px]"
-                          : "aspect-square min-h-[260px] max-h-[300px]"
-                      } bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex flex-col items-center justify-center p-6 text-center text-white overflow-hidden transition-all duration-300 shadow-inner`}>
-                        {attachedFile ? (
-                          attachedFile.type === "IMAGE" ? (
-                            <img src={attachedFile.url} alt="Attached Creative" className="w-full h-full object-cover absolute inset-0" />
-                          ) : (
-                            <video src={attachedFile.url} controls className="w-full h-full object-cover absolute inset-0" />
-                          )
-                        ) : creative.mediaUrl ? (
-                          <img src={creative.mediaUrl} alt="Creative" className="w-full h-full object-cover absolute inset-0" />
-                        ) : (
-                          <div className="relative z-10 flex flex-col items-center gap-2 max-w-md">
-                            <div className="h-10 w-10 rounded-2xl bg-blue-600/80 backdrop-blur-md flex items-center justify-center shadow-lg border border-blue-400/40">
-                              <Sparkles className="h-5 w-5 text-white" />
-                            </div>
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-300">
-                              {pageNameDisplay} · Official Graphic Banner
-                            </span>
-                            <h4 className="text-base font-extrabold text-white leading-snug drop-shadow-md">
-                              {creative.headline || `${pageNameDisplay} Special Offer`}
-                            </h4>
-                            <p className="text-[11px] text-slate-200 line-clamp-2">
-                              {creative.description || `⭐⭐⭐⭐⭐ Visit ${pageNameDisplay} Today • Exclusive Offer`}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Link Bar & Call to Action Button (Editable Headline & Description) */}
-                      <div className="p-3.5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1 space-y-1.5">
-                          <div className="text-[10px] uppercase font-semibold text-slate-400 truncate">
-                            {destination.type === "WHATSAPP"
-                              ? "api.whatsapp.com"
-                              : destination.type === "PHONE_CALL"
-                              ? `tel:${destination.phoneNumber || destination.whatsappPhoneNumber || "9325174465"}`
-                              : destination.type === "INSTANT_FORM" || destination.type === "LEAD_FORM"
-                              ? "facebook.com/forms"
-                              : destination.type === "MESSENGER"
-                              ? `m.me/${activePage?.name?.toLowerCase().replace(/\s+/g, '') || "business"}`
-                              : destination.type === "INSTAGRAM_DM"
-                              ? `ig.me/m/${activePage?.name?.toLowerCase().replace(/\s+/g, '') || "direct"}`
-                              : destination.type === "APP"
-                              ? (destination.appUrl?.replace(/^https?:\/\//, "") || "play.google.com/store/apps")
-                              : destination.type === "SHOP"
-                              ? (destination.shopUrl?.replace(/^https?:\/\//, "") || "shop.facebook.com")
-                              : destination.type === "INSTAGRAM_PROFILE"
-                              ? (destination.instagramProfileUrl?.replace(/^https?:\/\//, "") || `instagram.com/${activePage?.name?.toLowerCase().replace(/\s+/g, '') || "official"}`)
-                              : destination.type === "PAGE_EVENT"
-                              ? "facebook.com/events"
-                              : (destination.destinationUrl?.replace(/^https?:\/\//, "") || "jisnudigital.com")}
-                          </div>
-                          
-                          {/* Headline Input */}
-                          <div>
-                            <label className="block text-[9px] font-bold text-slate-400 uppercase">Headline</label>
-                            <input
-                              type="text"
-                              value={creative.headline || ""}
-                              placeholder="Write a short, punchy headline..."
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (session) {
-                                  setSession({
-                                    ...session,
-                                    draft: {
-                                      ...session.draft,
-                                      creative: {
-                                        ...session.draft.creative,
-                                        headline: val,
-                                      },
-                                    },
-                                  });
-                                }
-                              }}
-                              className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-md px-2.5 py-1 text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-
-                          {/* Description Input */}
-                          <div>
-                            <label className="block text-[9px] font-bold text-slate-400 uppercase">Link Description</label>
-                            <input
-                              type="text"
-                              value={creative.description || ""}
-                              placeholder="Write a short description or social proof..."
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (session) {
-                                  setSession({
-                                    ...session,
-                                    draft: {
-                                      ...session.draft,
-                                      creative: {
-                                        ...session.draft.creative,
-                                        description: val,
-                                      },
-                                    },
-                                  });
-                                }
-                              }}
-                              className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-md px-2.5 py-1 text-[11px] text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-                        </div>
-
-                        <button className="px-4 py-2.5 bg-[#1877F2] hover:bg-[#166FE5] text-white text-xs font-bold rounded-lg shadow-2xs shrink-0 cursor-default flex items-center justify-center gap-1.5 self-end sm:self-center">
-                          {destination.type === "WHATSAPP" ? (
-                            <MessageCircle className="h-3.5 w-3.5" />
-                          ) : destination.type === "PHONE_CALL" ? (
-                            <Phone className="h-3.5 w-3.5" />
-                          ) : destination.type === "INSTANT_FORM" || destination.type === "LEAD_FORM" ? (
-                            <FileText className="h-3.5 w-3.5" />
-                          ) : destination.type === "MESSENGER" ? (
-                            <MessageSquare className="h-3.5 w-3.5" />
-                          ) : destination.type === "INSTAGRAM_DM" ? (
-                            <MessageCircle className="h-3.5 w-3.5 text-pink-300" />
-                          ) : destination.type === "APP" ? (
-                            <Smartphone className="h-3.5 w-3.5" />
-                          ) : destination.type === "SHOP" ? (
-                            <ShoppingBag className="h-3.5 w-3.5" />
-                          ) : destination.type === "INSTAGRAM_PROFILE" ? (
-                            <UserCheck className="h-3.5 w-3.5" />
-                          ) : destination.type === "PAGE_EVENT" ? (
-                            <Calendar className="h-3.5 w-3.5" />
-                          ) : (
-                            <ExternalLink className="h-3.5 w-3.5" />
                           )}
-                          <span>
-                            {destination.type === "WHATSAPP"
-                              ? "WhatsApp Message"
-                              : destination.type === "PHONE_CALL"
-                              ? `Call ${destination.phoneNumber || destination.whatsappPhoneNumber || ""}`
-                              : destination.type === "INSTANT_FORM" || destination.type === "LEAD_FORM"
-                              ? (creative.callToAction?.replace(/_/g, " ") || "Apply Now")
-                              : destination.type === "MESSENGER"
-                              ? "Send Message"
-                              : destination.type === "INSTAGRAM_DM"
-                              ? "Send Message"
-                              : destination.type === "APP"
-                              ? (creative.callToAction?.replace(/_/g, " ") || "Install Now")
-                              : destination.type === "SHOP"
-                              ? (creative.callToAction?.replace(/_/g, " ") || "Shop Now")
-                              : destination.type === "INSTAGRAM_PROFILE"
-                              ? "Visit Profile"
-                              : destination.type === "PAGE_EVENT"
-                              ? "Interested / RSVP"
-                              : (creative.callToAction?.replace(/_/g, " ") || "Learn More")}
-                          </span>
-                        </button>
+
+                          {((creative as any).previewPlatform === "INSTAGRAM_FEED") && (
+                            <div className="flex items-center gap-1.5 pt-1.5 overflow-x-auto no-scrollbar border-t border-slate-800">
+                              <span className="text-[9.5px] font-bold text-slate-400 uppercase shrink-0">Feed Surface:</span>
+                              {[
+                                { id: "IG_FEED", label: "Instagram Main Feed" },
+                                { id: "IG_PROFILE", label: "Instagram Profile Feed" },
+                                { id: "IG_EXPLORE", label: "Instagram Explore" },
+                              ].map((sub) => {
+                                const isSubActive = (creative as any).previewSubPlacement === sub.id || (!(creative as any).previewSubPlacement && sub.id === "IG_FEED");
+                                return (
+                                  <button
+                                    key={sub.id}
+                                    type="button"
+                                    onClick={() => {
+                                      if (session) {
+                                        setSession({
+                                          ...session,
+                                          draft: {
+                                            ...session.draft,
+                                            creative: {
+                                              ...session.draft.creative,
+                                              previewSubPlacement: sub.id,
+                                            },
+                                          },
+                                        });
+                                      }
+                                    }}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                      isSubActive
+                                        ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-xs"
+                                        : "bg-slate-800 text-slate-400 hover:text-slate-200"
+                                    }`}
+                                  >
+                                    {sub.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Aspect Ratio Selector Controls */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                          <span className="font-bold text-slate-300 text-[10px] uppercase tracking-wider">Ad Media Aspect Ratio:</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (session) {
+                                  setSession({
+                                    ...session,
+                                    draft: {
+                                      ...session.draft,
+                                      creative: {
+                                        ...session.draft.creative,
+                                        aspectRatio: "1:1",
+                                      },
+                                    },
+                                  });
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded-md font-bold transition-all text-[10.5px] flex items-center gap-1 cursor-pointer ${
+                                creative.aspectRatio === "1:1" || !creative.aspectRatio
+                                  ? "bg-sky-500 text-white shadow-xs"
+                                  : "bg-slate-800 text-slate-400 hover:text-white"
+                              }`}
+                            >
+                              <span>🖼️ 1:1 Feed Post</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (session) {
+                                  setSession({
+                                    ...session,
+                                    draft: {
+                                      ...session.draft,
+                                      creative: {
+                                        ...session.draft.creative,
+                                        aspectRatio: "9:16",
+                                        previewPlatform: "STORIES_REELS",
+                                      },
+                                    },
+                                  });
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded-md font-bold transition-all text-[10.5px] flex items-center gap-1 cursor-pointer ${
+                                creative.aspectRatio === "9:16"
+                                  ? "bg-purple-500 text-white shadow-xs"
+                                  : "bg-slate-800 text-slate-400 hover:text-white"
+                              }`}
+                            >
+                              <span>📱 9:16 Story/Reel</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (session) {
+                                  setSession({
+                                    ...session,
+                                    draft: {
+                                      ...session.draft,
+                                      creative: {
+                                        ...session.draft.creative,
+                                        aspectRatio: "16:9",
+                                      },
+                                    },
+                                  });
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded-md font-bold transition-all text-[10.5px] flex items-center gap-1 cursor-pointer ${
+                                creative.aspectRatio === "16:9"
+                                  ? "bg-indigo-500 text-white shadow-xs"
+                                  : "bg-slate-800 text-slate-400 hover:text-white"
+                              }`}
+                            >
+                              <span>🖥️ 16:9 Banner</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* ───────────────────────────────────────────────────────────── */}
+                      {/* DYNAMIC METAMOCKUP PLATFORM CARDS (PRODUCTION GRADE DESIGN)  */}
+                      {/* ───────────────────────────────────────────────────────────── */}
+                      {(() => {
+                        const activeMediaUrl = attachedFile?.url || creative.mediaUrl;
+                        const activeMediaType = attachedFile?.type || creative.mediaType || "IMAGE";
+                        const isVideoMedia = activeMediaType === "VIDEO" || (activeMediaUrl && /\.(mp4|webm|mov)$/i.test(activeMediaUrl));
+                        const currentPlat = (creative as any).previewPlatform || "ALL_GRID";
+
+                        // Official Meta Graph API Iframe HTML embedding
+                        if (loadingMetaIframe) {
+                          return (
+                            <div className="bg-white rounded-b-xl p-8 text-center space-y-2 border border-slate-200">
+                              <Loader2 className="h-6 w-6 animate-spin text-[#1877F2] mx-auto" />
+                              <p className="text-xs text-slate-600 font-semibold">Fetching official Meta Graph API Ad Preview HTML...</p>
+                            </div>
+                          );
+                        }
+
+                        if (metaIframeHtml) {
+                          return (
+                            <div className="bg-white rounded-b-xl overflow-hidden shadow-sm border border-slate-200 p-2">
+                              <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-2 flex items-center justify-between px-2">
+                                <span>Official Meta Graph API Live Iframe Render</span>
+                                <span className="bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">v26.0 Graph API</span>
+                              </div>
+                              <div
+                                className="w-full flex justify-center overflow-x-auto min-h-[300px]"
+                                dangerouslySetInnerHTML={{ __html: metaIframeHtml }}
+                              />
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="bg-slate-100 p-3 sm:p-4 rounded-b-xl">
+                            {/* ALL PLATFORMS GRID VIEW (MULTI-PLATFORM COMPARISON) */}
+                            {currentPlat === "ALL_GRID" && (
+                              <div className="space-y-4">
+                                <div className="text-center space-y-1 mb-2">
+                                  <div className="font-extrabold text-sm text-slate-900 flex items-center justify-center gap-1.5">
+                                    <span>🌐 Meta Social Media Multi-Platform Preview Matrix</span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 font-medium">
+                                    Compare exactly how your ad creative and copy render across all Meta social networks simultaneously.
+                                  </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {/* 1. Facebook Feed Card */}
+                                  <div className="space-y-1.5">
+                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
+                                      <span>📘</span>
+                                      <span>Facebook Main Feed</span>
+                                    </div>
+                                    <div className="bg-white rounded-2xl overflow-hidden shadow-md border border-slate-200 text-left font-sans">
+                                      <div className="p-3 flex items-start justify-between border-b border-slate-100">
+                                        <div className="flex items-center gap-2">
+                                          <div className="h-9 w-9 rounded-full overflow-hidden border-2 border-[#1877F2] p-0.5 bg-white shrink-0">
+                                            <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover rounded-full" />
+                                          </div>
+                                          <div>
+                                            <div className="font-extrabold text-slate-900 text-xs flex items-center gap-1">
+                                              <span>{pageNameDisplay}</span>
+                                              <span className="text-[#1877F2] text-[11px]">✓</span>
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                                              <span className="font-bold text-[#1877F2]">Sponsored</span> · <Globe className="h-2.5 w-2.5 text-slate-400" />
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <span className="text-slate-400 text-xs">•••</span>
+                                      </div>
+                                      <div className="px-3 py-2 text-[12px] text-slate-900">
+                                        ✨ {creative.primaryText || "Upgrade your wardrobe with handpicked, premium designs..."}
+                                      </div>
+                                      <div className="relative w-full aspect-square bg-slate-950 flex items-center justify-center overflow-hidden">
+                                        {activeMediaUrl ? (
+                                          isVideoMedia ? <video src={activeMediaUrl} controls className="w-full h-full object-cover" /> : <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
+                                        ) : (
+                                          <div className="p-4 text-center text-white space-y-1 bg-gradient-to-br from-slate-900 to-indigo-950 w-full h-full flex flex-col items-center justify-center">
+                                            <Sparkles className="h-6 w-6 text-sky-400" />
+                                            <span className="text-xs font-bold">{pageNameDisplay}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="p-2.5 bg-[#F0F2F5] border-t border-slate-200/90 flex items-center justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="text-[9px] uppercase font-bold text-slate-500">API.WHATSAPP.COM</div>
+                                          <div className="text-[11.5px] font-extrabold text-slate-900 truncate">
+                                            🔥 {creative.headline || "Aj Creation | Up to 50% OFF"}
+                                          </div>
+                                        </div>
+                                        <button className="px-3 py-1.5 bg-[#1877F2] text-white text-[11px] font-bold rounded-lg shrink-0">Send WhatsApp</button>
+                                      </div>
+                                      <div className="px-3 py-2 border-t border-slate-100 flex items-center justify-around text-[11px] text-slate-500 font-bold">
+                                        <span>👍 Like</span>
+                                        <span>💬 Comment</span>
+                                        <span>Share</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* 2. Instagram Feed Card */}
+                                  <div className="space-y-1.5">
+                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
+                                      <span>📸</span>
+                                      <span>Instagram Main Feed</span>
+                                    </div>
+                                    <div className="bg-white rounded-2xl overflow-hidden shadow-md border border-slate-200 text-left font-sans">
+                                      <div className="p-3 flex items-center justify-between border-b border-slate-100">
+                                        <div className="flex items-center gap-2">
+                                          <div className="h-8 w-8 rounded-full overflow-hidden p-0.5 bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] shrink-0">
+                                            <img src={activePage?.picture || "/icon.jpeg"} alt="Avatar" className="h-full w-full object-cover rounded-full" />
+                                          </div>
+                                          <div>
+                                            <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1">
+                                              <span>{pageNameDisplay.toLowerCase().replace(/\s+/g, '')}</span>
+                                              <span className="bg-[#0095F6] text-white rounded-full text-[7px] h-2.5 w-2.5 flex items-center justify-center font-bold">✓</span>
+                                            </div>
+                                            <div className="text-[9.5px] font-bold text-slate-500">Sponsored · Ad</div>
+                                          </div>
+                                        </div>
+                                        <span className="text-slate-500 text-xs">•••</span>
+                                      </div>
+                                      <div className="relative w-full aspect-square bg-slate-950 flex items-center justify-center overflow-hidden">
+                                        {activeMediaUrl ? (
+                                          isVideoMedia ? <video src={activeMediaUrl} controls className="w-full h-full object-cover" /> : <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
+                                        ) : (
+                                          <div className="p-4 text-center text-white space-y-1 bg-gradient-to-tr from-purple-950 to-pink-950 w-full h-full flex flex-col items-center justify-center">
+                                            <Sparkles className="h-6 w-6 text-pink-400" />
+                                            <span className="text-xs font-bold">{pageNameDisplay}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="px-3 py-2 bg-[#0095F6] text-white flex items-center justify-between cursor-pointer">
+                                        <span className="text-[11px] font-extrabold uppercase truncate">{creative.headline || "Send WhatsApp message"}</span>
+                                        <span className="text-xs">›</span>
+                                      </div>
+                                      <div className="px-3 py-2 flex items-center justify-between text-slate-800">
+                                        <div className="flex gap-3">
+                                          <Heart className="h-4.5 w-4.5 text-rose-500 fill-rose-500" />
+                                          <MessageCircle className="h-4.5 w-4.5" />
+                                          <Send className="h-4.5 w-4.5" />
+                                        </div>
+                                        <Bookmark className="h-4.5 w-4.5" />
+                                      </div>
+                                      <div className="px-3 pb-3 text-[11.5px] text-slate-900">
+                                        <span className="font-extrabold mr-1">{pageNameDisplay.toLowerCase().replace(/\s+/g, '')}</span>
+                                        ✨ {creative.primaryText || "Upgrade your wardrobe..."}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* 3. Messenger Inbox Card */}
+                                  <div className="space-y-1.5">
+                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
+                                      <span>💬</span>
+                                      <span>Messenger Sponsored Message</span>
+                                    </div>
+                                    <div className="bg-white rounded-2xl overflow-hidden shadow-md border border-slate-200 text-left font-sans p-3 space-y-2">
+                                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                        <div className="flex items-center gap-2">
+                                          <div className="h-8 w-8 rounded-full overflow-hidden border border-blue-200 bg-blue-50 shrink-0">
+                                            <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
+                                          </div>
+                                          <div>
+                                            <div className="text-xs font-extrabold text-slate-900">{pageNameDisplay}</div>
+                                            <div className="text-[9px] text-[#0084FF] font-extrabold uppercase">Messenger Ad</div>
+                                          </div>
+                                        </div>
+                                        <span className="text-slate-400 text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 rounded-full">Ad</span>
+                                      </div>
+                                      <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 p-2 space-y-2">
+                                        <div className="relative w-full aspect-[16/9] bg-slate-950 rounded-lg overflow-hidden">
+                                          {activeMediaUrl ? (
+                                            isVideoMedia ? <video src={activeMediaUrl} controls className="w-full h-full object-cover" /> : <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
+                                          ) : (
+                                            <div className="h-full w-full flex items-center justify-center bg-blue-950 text-white"><Sparkles className="h-5 w-5" /></div>
+                                          )}
+                                        </div>
+                                        <div className="text-[12px] font-extrabold text-slate-900">{creative.headline || "Send a message"}</div>
+                                        <button className="w-full py-2 bg-[#0084FF] text-white font-extrabold text-[11px] rounded-lg">Send Message</button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* 4. WhatsApp Status & Feed Card */}
+                                  <div className="space-y-1.5">
+                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
+                                      <span>🟢</span>
+                                      <span>WhatsApp Business Feed Ad</span>
+                                    </div>
+                                    <div className="bg-gradient-to-b from-[#075E54] to-[#054c44] rounded-2xl overflow-hidden shadow-md border border-emerald-900 text-left font-sans text-white p-3 space-y-2.5">
+                                      <div className="flex items-center justify-between border-b border-emerald-600/50 pb-2">
+                                        <div className="flex items-center gap-2">
+                                          <div className="h-8 w-8 rounded-full overflow-hidden border border-white/60 shrink-0">
+                                            <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
+                                          </div>
+                                          <div>
+                                            <div className="text-xs font-extrabold text-white">{pageNameDisplay} ✓</div>
+                                            <div className="text-[9.5px] text-emerald-200">WhatsApp Status Ad</div>
+                                          </div>
+                                        </div>
+                                        <span className="text-[9px] font-extrabold bg-[#25D366] text-slate-950 px-2 py-0.5 rounded-full">Sponsored</span>
+                                      </div>
+                                      <div className="relative w-full aspect-square bg-slate-950 rounded-xl overflow-hidden">
+                                        {activeMediaUrl ? (
+                                          isVideoMedia ? <video src={activeMediaUrl} controls className="w-full h-full object-cover" /> : <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
+                                        ) : (
+                                          <div className="h-full w-full flex items-center justify-center bg-emerald-950 text-white"><Sparkles className="h-6 w-6 text-emerald-400" /></div>
+                                        )}
+                                      </div>
+                                      <button className="w-full py-2.5 bg-[#25D366] text-slate-950 font-extrabold text-[11.5px] rounded-lg flex items-center justify-center gap-1.5">
+                                        <MessageCircle className="h-4 w-4 fill-slate-950 text-[#25D366]" />
+                                        <span>Chat on WhatsApp</span>
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* 5. Stories & Reels Card */}
+                                  <div className="space-y-1.5">
+                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
+                                      <span>🎬</span>
+                                      <span>Instagram & Facebook Stories / Reels</span>
+                                    </div>
+                                    <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-md border-2 border-slate-800 text-left font-sans relative text-white aspect-[9/16] max-h-[380px] mx-auto flex flex-col justify-between p-3">
+                                      {activeMediaUrl ? (
+                                        isVideoMedia ? <video src={activeMediaUrl} controls className="w-full h-full object-cover absolute inset-0 opacity-90" /> : <img src={activeMediaUrl} alt="Story" className="w-full h-full object-cover absolute inset-0 opacity-90" />
+                                      ) : (
+                                        <div className="absolute inset-0 bg-gradient-to-b from-purple-900 to-black flex items-center justify-center p-4 text-center">
+                                          <Sparkles className="h-8 w-8 text-pink-400" />
+                                        </div>
+                                      )}
+                                      <div className="relative z-10 flex items-center justify-between gap-1">
+                                        <div className="flex items-center gap-1.5">
+                                          <div className="h-6 w-6 rounded-full overflow-hidden border border-white/50"><img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" /></div>
+                                          <span className="text-[11px] font-bold">{pageNameDisplay}</span>
+                                          <span className="text-[9px] bg-black/40 px-1.5 py-0.2 rounded text-white font-bold">Sponsored</span>
+                                        </div>
+                                      </div>
+                                      <div className="relative z-10 space-y-1.5 text-center">
+                                        <button className="w-full py-2.5 bg-[#1877F2] text-white font-extrabold text-[11px] rounded-lg flex items-center justify-center gap-1">
+                                          <span>{creative.headline || "Send WhatsApp Message"}</span>
+                                          <ChevronRight className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* 6. Desktop Right Column Card */}
+                                  <div className="space-y-1.5">
+                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
+                                      <span>💻</span>
+                                      <span>Desktop Right Column Ad</span>
+                                    </div>
+                                    <div className="bg-white rounded-xl overflow-hidden shadow-md border border-slate-200 text-left font-sans p-3 space-y-2">
+                                      <div className="text-[9.5px] font-bold text-slate-400 uppercase">Sponsored • Facebook Desktop Right Column</div>
+                                      <div className="flex gap-2.5 items-center">
+                                        <div className="h-14 w-14 bg-slate-900 rounded-lg overflow-hidden shrink-0">
+                                          {activeMediaUrl ? (
+                                            isVideoMedia ? <video src={activeMediaUrl} className="w-full h-full object-cover" /> : <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
+                                          ) : (
+                                            <div className="h-full w-full flex items-center justify-center bg-indigo-900 text-white"><Sparkles className="h-4 w-4" /></div>
+                                          )}
+                                        </div>
+                                        <div className="min-w-0 flex-1 space-y-0.5">
+                                          <div className="text-[11px] font-extrabold text-slate-900 leading-snug line-clamp-2">{creative.headline || "Aj Creation | Special Discount"}</div>
+                                          <div className="text-[9.5px] text-slate-500 font-semibold truncate">api.whatsapp.com</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* CARD 1: FACEBOOK FEED / MARKETPLACE / PROFILE FEED */}
+                            {((creative as any).previewPlatform === "FACEBOOK_FEED") && (
+                              <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-200 text-left font-sans transition-all duration-300 max-w-lg mx-auto">
+                                {/* FB Marketplace Variation */}
+                                {(creative as any).previewSubPlacement === "FB_MARKETPLACE" ? (
+                                  <div className="p-3.5 space-y-2.5 bg-white">
+                                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                      <div className="flex items-center gap-2.5">
+                                        <div className="h-9 w-9 rounded-full overflow-hidden border border-slate-200 bg-slate-50 shrink-0 shadow-2xs">
+                                          <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
+                                        </div>
+                                        <div>
+                                          <div className="font-extrabold text-slate-900 text-xs truncate max-w-[160px]">{pageNameDisplay}</div>
+                                          <div className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Facebook Marketplace Ad</div>
+                                        </div>
+                                      </div>
+                                      <span className="text-slate-400 text-sm cursor-pointer hover:text-slate-600">•••</span>
+                                    </div>
+                                    <div className="relative w-full aspect-square bg-slate-950 rounded-xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200/80">
+                                      {activeMediaUrl ? (
+                                        isVideoMedia ? (
+                                          <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                        ) : (
+                                          <img src={activeMediaUrl} alt="Marketplace Ad" className="w-full h-full object-cover" />
+                                        )
+                                      ) : (
+                                        <div className="p-6 text-center text-white space-y-2 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 w-full h-full flex flex-col items-center justify-center">
+                                          <Sparkles className="h-8 w-8 text-sky-400 mx-auto animate-pulse" />
+                                          <div className="font-extrabold text-xs">Marketplace Listing Creative</div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="pt-1 flex items-center justify-between gap-2">
+                                      <div className="text-xs font-extrabold text-slate-900 truncate">
+                                        🔥 {creative.headline || "Special Offer | Up to 50% OFF"}
+                                      </div>
+                                      <span className="px-3 py-1 bg-blue-50 text-[#1877F2] font-bold text-[11px] rounded-lg shrink-0">View Item</span>
+                                    </div>
+                                  </div>
+                                ) : (creative as any).previewSubPlacement === "FB_PROFILE" ? (
+                                  /* FB Profile Feed Variation */
+                                  <div className="bg-white">
+                                    <div className="p-3.5 flex items-start justify-between border-b border-slate-100">
+                                      <div className="flex items-center gap-2.5">
+                                        <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-blue-500 p-0.5 bg-white shrink-0 shadow-2xs">
+                                          <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover rounded-full" />
+                                        </div>
+                                        <div>
+                                          <div className="font-extrabold text-slate-900 text-[13px] leading-tight">{pageNameDisplay}</div>
+                                          <div className="text-[10.5px] text-slate-500 flex items-center gap-1 mt-0.5 font-medium">
+                                            <span className="font-bold text-blue-600">Sponsored</span> · <Globe className="h-2.5 w-2.5 text-slate-400" />
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-slate-400 text-sm">
+                                        <span className="cursor-pointer hover:text-slate-600">•••</span>
+                                        <span className="cursor-pointer hover:text-slate-600">✕</span>
+                                      </div>
+                                    </div>
+                                    <div className="px-3.5 py-2.5 text-[12.5px] text-slate-800 leading-snug">
+                                      ✨ {creative.primaryText || "Upgrade your wardrobe with handpicked, premium designs..."}
+                                      <span className="text-slate-500 font-semibold cursor-pointer ml-1">...see more</span>
+                                    </div>
+                                    <div className="relative w-full aspect-square bg-slate-950 flex items-center justify-center overflow-hidden border-y border-slate-100">
+                                      {activeMediaUrl ? (
+                                        isVideoMedia ? (
+                                          <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                        ) : (
+                                          <img src={activeMediaUrl} alt="Creative" className="w-full h-full object-cover" />
+                                        )
+                                      ) : (
+                                        <div className="p-6 text-center text-white space-y-2 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 w-full h-full flex flex-col items-center justify-center">
+                                          <Sparkles className="h-8 w-8 text-sky-400 mx-auto" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="p-3 bg-[#F0F2F5] flex items-center justify-between gap-2 border-t border-slate-200/80">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-500">WHATSAPP</div>
+                                        <div className="text-[12.5px] font-extrabold text-slate-900 truncate">
+                                          🔥 {creative.headline || "Aj Creation | Special Discount"}
+                                        </div>
+                                      </div>
+                                      <button className="px-3.5 py-2 bg-[#1877F2] hover:bg-blue-700 text-white text-[12px] font-extrabold rounded-lg shrink-0 flex items-center gap-1.5 shadow-sm">
+                                        <MessageCircle className="h-3.5 w-3.5 fill-white text-transparent" />
+                                        <span>Send WhatsApp</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* FB Main Feed Variation */
+                                  <>
+                                    <div className="p-3.5 flex items-start justify-between bg-white border-b border-slate-100">
+                                      <div className="flex items-center gap-2.5">
+                                        <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-[#1877F2] p-0.5 bg-white shrink-0 shadow-2xs">
+                                          <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover rounded-full" />
+                                        </div>
+                                        <div>
+                                          <div className="font-extrabold text-slate-900 text-[13px] leading-tight flex items-center gap-1">
+                                            <span>{pageNameDisplay}</span>
+                                            <span className="text-[#1877F2] text-[12px]">✓</span>
+                                          </div>
+                                          <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                            <span className="font-bold text-[#1877F2]">Sponsored</span> · <Globe className="h-3 w-3 text-slate-400" />
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-slate-400 text-sm">
+                                        <span className="cursor-pointer hover:text-slate-600">•••</span>
+                                        <span className="cursor-pointer hover:text-slate-600">✕</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="px-3.5 py-2.5 text-[12.5px] text-slate-900 leading-relaxed font-sans">
+                                      <p className="whitespace-pre-line">
+                                        ✨ {creative.primaryText || "Upgrade your wardrobe with handpicked, premium designs crafted for perfection."}
+                                        <span className="text-slate-500 font-semibold cursor-pointer ml-1">...see more</span>
+                                      </p>
+                                    </div>
+
+                                    <div className={`relative w-full ${
+                                      creative.aspectRatio === "9:16"
+                                        ? "aspect-[9/16] min-h-[340px]"
+                                        : creative.aspectRatio === "16:9"
+                                        ? "aspect-[16/9] min-h-[190px]"
+                                        : "aspect-square min-h-[270px]"
+                                    } bg-slate-950 flex items-center justify-center overflow-hidden border-y border-slate-100`}>
+                                      {activeMediaUrl ? (
+                                        isVideoMedia ? (
+                                          <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                        ) : (
+                                          <img src={activeMediaUrl} alt="Creative" className="w-full h-full object-cover" />
+                                        )
+                                      ) : (
+                                        <div className="p-6 text-center text-white space-y-2 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 w-full h-full flex flex-col items-center justify-center">
+                                          <Sparkles className="h-8 w-8 text-sky-400 mx-auto" />
+                                          <div className="font-extrabold text-sm">{pageNameDisplay} Graphic</div>
+                                          <div className="text-xs text-slate-300">{creative.headline || "All Types of AI Solutions for Your Business"}</div>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className="p-3 bg-[#F0F2F5] border-t border-slate-200/90 flex items-center justify-between gap-2.5">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">API.WHATSAPP.COM</div>
+                                        <div className="text-[12.5px] font-extrabold text-slate-900 truncate">
+                                          🔥 {creative.headline || "Aj Creation | Up to 50% OFF New Season"}
+                                        </div>
+                                        {creative.description && (
+                                          <div className="text-[10.5px] text-slate-500 truncate mt-0.5 font-medium">
+                                            {creative.description}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <button className="px-4 py-2 bg-[#1877F2] hover:bg-blue-700 text-white text-[12px] font-extrabold rounded-lg shrink-0 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95">
+                                        {destination.type === "WHATSAPP" ? (
+                                          <MessageCircle className="h-4 w-4 fill-white text-transparent" />
+                                        ) : (
+                                          <ExternalLink className="h-3.5 w-3.5 text-white" />
+                                        )}
+                                        <span>Send WhatsApp</span>
+                                      </button>
+                                    </div>
+
+                                    <div className="px-3.5 py-2.5 border-t border-slate-200/80 bg-white flex items-center justify-around text-[12px] text-slate-600 font-bold">
+                                      <button className="flex items-center gap-1.5 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
+                                        <ThumbsUp className="h-4 w-4 text-[#1877F2]" />
+                                        <span>Like</span>
+                                      </button>
+                                      <button className="flex items-center gap-1.5 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
+                                        <MessageSquare className="h-4 w-4 text-slate-500" />
+                                        <span>Comment</span>
+                                      </button>
+                                      <button className="flex items-center gap-1.5 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
+                                        <Share2 className="h-4 w-4 text-slate-500" />
+                                        <span>Share</span>
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+
+                            {/* CARD 2: INSTAGRAM FEED / PROFILE FEED / EXPLORE */}
+                            {(creative as any).previewPlatform === "INSTAGRAM_FEED" && (
+                              <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-200/90 text-left font-sans transition-all duration-300 max-w-lg mx-auto">
+                                {/* IG Header */}
+                                <div className="p-3.5 flex items-center justify-between bg-white border-b border-slate-100">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="h-9 w-9 rounded-full overflow-hidden p-0.5 bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] shrink-0 shadow-2xs">
+                                      <div className="h-full w-full rounded-full overflow-hidden border-2 border-white">
+                                        <img src={activePage?.picture || "/icon.jpeg"} alt="Avatar" className="h-full w-full object-cover" />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[12.5px] font-extrabold text-slate-900 leading-tight flex items-center gap-1">
+                                        <span>{pageNameDisplay.toLowerCase().replace(/\s+/g, '')}</span>
+                                        <span className="bg-[#0095F6] text-white rounded-full text-[8px] h-3 w-3 flex items-center justify-center font-bold">✓</span>
+                                      </div>
+                                      <div className="text-[10px] font-bold text-slate-500">
+                                        Sponsored · Ad
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <span className="text-slate-600 text-base font-extrabold cursor-pointer hover:text-slate-900">•••</span>
+                                </div>
+
+                                {/* Media Banner */}
+                                <div className="relative w-full aspect-square bg-slate-950 overflow-hidden flex items-center justify-center border-y border-slate-100">
+                                  {activeMediaUrl ? (
+                                    isVideoMedia ? (
+                                      <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                    ) : (
+                                      <img src={activeMediaUrl} alt="IG Post" className="w-full h-full object-cover" />
+                                    )
+                                  ) : (
+                                    <div className="p-6 h-full flex flex-col items-center justify-center text-center text-white space-y-2 bg-gradient-to-tr from-purple-950 via-slate-950 to-pink-950 w-full">
+                                      <Sparkles className="h-8 w-8 text-pink-400 mx-auto" />
+                                      <div className="font-extrabold text-sm">Instagram Feed Ad Banner</div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Native Instagram Call to Action Bar */}
+                                <div className="px-4 py-2.5 bg-[#0095F6] hover:bg-[#0081D6] text-white flex items-center justify-between cursor-pointer transition-colors shadow-2xs">
+                                  <span className="text-[12px] font-extrabold tracking-tight uppercase">
+                                    {creative.headline || "Send WhatsApp message"}
+                                  </span>
+                                  <span className="text-white text-base font-extrabold">›</span>
+                                </div>
+
+                                {/* Reaction Icons Row */}
+                                <div className="px-4 py-2.5 flex items-center justify-between text-slate-800 bg-white">
+                                  <div className="flex items-center gap-4">
+                                    <Heart className="h-5.5 w-5.5 text-rose-500 fill-rose-500 cursor-pointer transition-colors" />
+                                    <MessageCircle className="h-5.5 w-5.5 cursor-pointer hover:text-slate-600" />
+                                    <Send className="h-5.5 w-5.5 cursor-pointer hover:text-slate-600" />
+                                  </div>
+                                  <Bookmark className="h-5.5 w-5.5 cursor-pointer hover:text-slate-600" />
+                                </div>
+
+                                {/* Likes Counter */}
+                                <div className="px-4 text-[11px] font-extrabold text-slate-900">
+                                  Liked by <span className="font-extrabold">media_buyer</span> and <span className="font-extrabold">1,482 others</span>
+                                </div>
+
+                                {/* Caption */}
+                                <div className="px-4 pt-1 pb-3.5 text-[12px] text-slate-900 leading-snug bg-white font-sans">
+                                  <span className="font-extrabold mr-1.5 text-slate-900">{pageNameDisplay.toLowerCase().replace(/\s+/g, '')}</span>
+                                  ✨ {creative.primaryText || "Upgrade your wardrobe with handpicked, premium designs crafted for perfection."}
+                                  <span className="text-slate-400 cursor-pointer ml-1 font-semibold">...more</span>
+                                  <div className="text-[9.5px] uppercase font-bold text-slate-400 mt-1">2 HOURS AGO</div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* CARD 3: MESSENGER INBOX / SPONSORED MESSAGE */}
+                            {(creative as any).previewPlatform === "MESSENGER_FEED" && (
+                              <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-200/90 text-left font-sans p-4 space-y-3.5 transition-all duration-300 max-w-lg mx-auto">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="h-9 w-9 rounded-full overflow-hidden border border-blue-200 bg-blue-50 shrink-0 shadow-2xs">
+                                      <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
+                                    </div>
+                                    <div>
+                                      <div className="text-[12.5px] font-extrabold text-slate-900 leading-tight">
+                                        {pageNameDisplay}
+                                      </div>
+                                      <div className="text-[10px] text-[#0084FF] font-extrabold uppercase tracking-wider">Messenger Sponsored Ad</div>
+                                    </div>
+                                  </div>
+                                  <span className="text-slate-400 text-xs font-bold px-2 py-0.5 bg-slate-100 rounded-full">Ad</span>
+                                </div>
+
+                                {/* Messenger Card Content */}
+                                <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/60 p-2.5 space-y-2.5 shadow-2xs">
+                                  <div className="relative w-full aspect-[16/9] bg-slate-950 rounded-xl overflow-hidden shadow-inner">
+                                    {activeMediaUrl ? (
+                                      isVideoMedia ? (
+                                        <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                      ) : (
+                                        <img src={activeMediaUrl} alt="Messenger Ad" className="w-full h-full object-cover" />
+                                      )
+                                    ) : (
+                                      <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-blue-900 to-indigo-950 text-white p-4 text-center">
+                                        <Sparkles className="h-7 w-7 text-blue-300" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="px-1.5 space-y-1">
+                                    <div className="text-[13px] font-extrabold text-slate-900">
+                                      {creative.headline || "Send a message to our team"}
+                                    </div>
+                                    <p className="text-[11.5px] text-slate-600 line-clamp-2 leading-relaxed">
+                                      {creative.primaryText || "Hi! Click below to chat directly with us on Messenger."}
+                                    </p>
+                                  </div>
+                                  <button className="w-full py-2.5 bg-[#0084FF] hover:bg-[#0073DF] text-white font-extrabold text-[12px] rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98">
+                                    <MessageSquare className="h-4 w-4" />
+                                    <span>Send Message</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* CARD 4: WHATSAPP STATUS & CLICK-TO-WHATSAPP FEED */}
+                            {(creative as any).previewPlatform === "WHATSAPP_FEED" && (
+                              <div className="bg-gradient-to-b from-[#075E54] to-[#054c44] rounded-2xl overflow-hidden shadow-xl border border-emerald-900 text-left font-sans text-white p-4 space-y-3.5 relative transition-all duration-300 max-w-lg mx-auto">
+                                <div className="flex items-center justify-between border-b border-emerald-600/50 pb-2.5">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="h-9 w-9 rounded-full overflow-hidden border-2 border-white/60 bg-white/10 shrink-0 shadow-sm">
+                                      <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
+                                    </div>
+                                    <div>
+                                      <div className="text-[13px] font-extrabold text-white leading-tight flex items-center gap-1">
+                                        <span>{pageNameDisplay}</span>
+                                        <span className="text-[#25D366] text-[12px]">✓</span>
+                                      </div>
+                                      <div className="text-[10.5px] text-emerald-200 font-medium">WhatsApp Business Status & Feed Ad</div>
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-extrabold bg-[#25D366] text-slate-950 px-2.5 py-0.5 rounded-full shadow-2xs">Sponsored</span>
+                                </div>
+
+                                {/* WhatsApp Media Box */}
+                                <div className="relative w-full aspect-square bg-slate-950 rounded-2xl overflow-hidden shadow-inner border border-emerald-700/50">
+                                  {activeMediaUrl ? (
+                                    isVideoMedia ? (
+                                      <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                    ) : (
+                                      <img src={activeMediaUrl} alt="WhatsApp Ad" className="w-full h-full object-cover" />
+                                    )
+                                  ) : (
+                                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-emerald-950 via-slate-950 to-emerald-900 text-white p-4 text-center">
+                                      <Sparkles className="h-9 w-9 text-emerald-400" />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Text & Chat Prompt */}
+                                <div className="bg-[#128C7E]/90 backdrop-blur-md p-3.5 rounded-2xl border border-emerald-500/40 space-y-1.5 shadow-sm">
+                                  <div className="text-[13px] font-extrabold text-white flex items-center gap-1.5">
+                                    <span>💬</span>
+                                    <span>{creative.headline || "Chat with us on WhatsApp"}</span>
+                                  </div>
+                                  <p className="text-[11.5px] text-emerald-50 leading-relaxed font-sans">
+                                    {creative.primaryText || "Tap below to get instant answers, price details, and catalog on WhatsApp!"}
+                                  </p>
+                                </div>
+
+                                <button className="w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-extrabold text-[12.5px] rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98">
+                                  <MessageCircle className="h-4.5 w-4.5 fill-slate-950 text-[#25D366]" />
+                                  <span>Chat on WhatsApp</span>
+                                </button>
+                              </div>
+                            )}
+
+                            {/* CARD 5: STORIES & REELS */}
+                            {(creative as any).previewPlatform === "STORIES_REELS" && (
+                              <div className="bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-800 text-left font-sans relative text-white aspect-[9/16] max-h-[500px] mx-auto flex flex-col justify-between p-4">
+                                {activeMediaUrl ? (
+                                  isVideoMedia ? (
+                                    <video src={activeMediaUrl} controls className="w-full h-full object-cover absolute inset-0 opacity-90" />
+                                  ) : (
+                                    <img src={activeMediaUrl} alt="Story" className="w-full h-full object-cover absolute inset-0 opacity-90" />
+                                  )
+                                ) : (
+                                  <div className="absolute inset-0 bg-gradient-to-b from-indigo-900 via-slate-900 to-black flex items-center justify-center p-6 text-center">
+                                    <div className="space-y-2">
+                                      <Sparkles className="h-10 w-10 text-pink-400 mx-auto" />
+                                      <div className="font-extrabold text-base">{creative.headline || "9:16 Fullscreen Story & Reel"}</div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Top Gradient Overlay */}
+                                <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/80 to-transparent pointer-events-none" />
+
+                                {/* Story Header */}
+                                <div className="relative z-10 space-y-2">
+                                  {/* Story progress bar */}
+                                  <div className="flex gap-1 w-full">
+                                    <div className="h-1 bg-white/80 rounded-full flex-1" />
+                                    <div className="h-1 bg-white/30 rounded-full flex-1" />
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <div className="h-8 w-8 rounded-full overflow-hidden border-2 border-pink-500 shrink-0">
+                                        <img src={activePage?.picture || "/icon.jpeg"} alt="User" className="h-full w-full object-cover" />
+                                      </div>
+                                      <span className="text-xs font-extrabold drop-shadow-md">
+                                        {pageNameDisplay}
+                                      </span>
+                                      <span className="text-[10px] bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-full text-white font-bold border border-white/20">Sponsored</span>
+                                    </div>
+                                    <span className="text-white text-xs cursor-pointer drop-shadow-md">•••</span>
+                                  </div>
+                                </div>
+
+                                {/* Bottom Gradient Overlay */}
+                                <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none" />
+
+                                {/* Story CTA Bottom Bar */}
+                                <div className="relative z-10 space-y-2.5 text-center">
+                                  <div className="bg-black/50 backdrop-blur-md p-3 rounded-xl border border-white/20 text-left">
+                                    <p className="text-[11px] line-clamp-2 text-slate-100 font-medium leading-tight">
+                                      {creative.primaryText || "Upgrade your wardrobe with handpicked, premium designs..."}
+                                    </p>
+                                  </div>
+                                  <button className="w-full py-3 bg-[#1877F2] hover:bg-blue-600 text-white font-extrabold text-xs rounded-xl shadow-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95">
+                                    <span>{creative.headline || "Send WhatsApp Message"}</span>
+                                    <ChevronRight className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* CARD 6: RIGHT COLUMN / AUDIENCE NETWORK */}
+                            {(creative as any).previewPlatform === "RIGHT_COLUMN" && (
+                              <div className="bg-white rounded-xl overflow-hidden shadow-md border border-slate-200/90 text-left font-sans p-3.5 space-y-2 max-w-lg mx-auto">
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                  Sponsored • Desktop Right Column
+                                </div>
+                                <div className="flex gap-3 items-center">
+                                  <div className="h-16 w-16 bg-slate-900 rounded-lg overflow-hidden shrink-0 border border-slate-200">
+                                    {activeMediaUrl ? (
+                                      isVideoMedia ? (
+                                        <video src={activeMediaUrl} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
+                                      )
+                                    ) : (
+                                      <div className="h-full w-full flex items-center justify-center bg-indigo-900 text-white">
+                                        <Sparkles className="h-5 w-5" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 flex-1 space-y-1">
+                                    <div className="text-[12px] font-extrabold text-slate-900 leading-snug line-clamp-2">
+                                      {creative.headline || "Aj Creation | Up to 50% OFF New Season"}
+                                    </div>
+                                    <div className="text-[10.5px] text-slate-500 truncate font-semibold">
+                                      {destination.type === "WHATSAPP" ? "api.whatsapp.com" : "jisnudigital.com"}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* ── INTERACTIVE DESTINATION LIVE PREVIEW MOCKUPS ── */}
                       {/* 1. WhatsApp Pre-filled Greeting Mockup */}

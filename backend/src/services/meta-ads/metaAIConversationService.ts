@@ -947,53 +947,8 @@ export class MetaAIConversationService {
         );
 
         // If the user's message was purely providing their phone number or selecting page number:
-        const isPurePhoneInput = isUsePageNumber || /^\+?[\d\s-]{10,16}$/.test(normalizedUserText.trim());
-        const hasLocationAlready = Boolean(
-          (state.draft.targeting?.locationDescription || (state.draft.targeting?.cities && state.draft.targeting.cities.length > 0)) &&
-          (state.draft.sourceMap["targeting.locationDescription"] || state.draft.sourceMap["targeting.cities"])
-        );
-
-        if (isPurePhoneInput && !hasLocationAlready && (state.draft.destination?.type === "WHATSAPP" || state.draft.destination?.type === "PHONE_CALL")) {
-          const formattedNum = `+91 ${cleanPhone.slice(-10)}`;
-          let locPrompt = `Connected WhatsApp number (${formattedNum}) saved. 📱\n\nWhich city, state, or region would you like to target for this campaign?`;
-          let locOptions = [
-            { label: "📍 All India", value: "ALL_INDIA" },
-            { label: "📍 Mumbai & Pune", value: "Mumbai, Pune" },
-            { label: "📍 Delhi NCR", value: "Delhi" },
-            { label: "🌐 Add Locations in Bulk (Countries, Cities, Pincodes & Radius)", value: "OPEN_BULK_LOCATIONS" },
-          ];
-
-          if (detectedLang.code === "mr") {
-            locPrompt = `व्हॉट्सॲप नंबर (${formattedNum}) नोंदवला आहे. 📱\n\nया मोहिमेसाठी कोणत्या शहरात किंवा भागात जाहिरात दाखवायची आहे?`;
-            locOptions = [
-              { label: "📍 संपूर्ण भारत (All India)", value: "ALL_INDIA" },
-              { label: "📍 मुंबई आणि पुणे", value: "Mumbai, Pune" },
-              { label: "📍 नागपूर", value: "Nagpur" },
-              { label: "🌐 मोठ्या प्रमाणात स्थाने (देश, शहरे, पिनकोड आणि त्रिज्या)", value: "OPEN_BULK_LOCATIONS" },
-            ];
-          } else if (detectedLang.code === "hi") {
-            locPrompt = `व्हाट्सएप नंबर (${formattedNum}) सेव कर लिया गया है। 📱\n\nइस विज्ञापन के लिए किस शहर या क्षेत्र को लक्षित करना चाहते हैं?`;
-            locOptions = [
-              { label: "📍 संपूर्ण भारत (All India)", value: "ALL_INDIA" },
-              { label: "📍 मुंबई और पुणे", value: "Mumbai, Pune" },
-              { label: "📍 दिल्ली एनसीआर", value: "Delhi" },
-              { label: "🌐 बल्क लोकेशन जोड़ें (देश, शहर, पिनकोड व दायरा)", value: "OPEN_BULK_LOCATIONS" },
-            ];
-          }
-
-          state.status = "DRAFTING";
-          state.requiresConfirmation = false;
-          state.conversation.push({
-            id: `msg_ai_${Date.now()}`,
-            sender: "ai",
-            text: locPrompt,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            quickOptions: locOptions,
-          });
-
-          state.validation = MetaCampaignValidationService.validateDraft(state.draft, state.context);
-          return state;
-        }
+        state.validation = MetaCampaignValidationService.validateDraft(state.draft, state.context);
+        return MetaAIConversationService.generateDeterministicNextStep(state, detectedLang, userText);
       }
     }
 
@@ -4528,8 +4483,8 @@ ${state.draft.destination.type === "INSTANT_FORM" || (state.draft.destination.ty
 
     const destType = state.draft.destination?.type;
     const hasPhone = Boolean(
-      (state.draft.destination?.whatsappPhoneNumber && state.draft.destination.whatsappPhoneNumber.length >= 10 && state.draft.sourceMap["destination.whatsappPhoneNumber"]) ||
-      ((state.draft.destination as any)?.phoneNumber && (state.draft.destination as any).phoneNumber.length >= 10 && state.draft.sourceMap["destination.phoneNumber"]) ||
+      (state.draft.destination?.whatsappPhoneNumber && state.draft.destination.whatsappPhoneNumber.length >= 10) ||
+      ((state.draft.destination as any)?.phoneNumber && (state.draft.destination as any).phoneNumber.length >= 10) ||
       state.conversation.some(m => /phone number.*(saved|locked|set)|फोन नंबर.*(नोंदवला|लॉक|सेव्ह)/i.test(m.text))
     );
     const hasUrl = Boolean(state.draft.destination?.destinationUrl && state.draft.sourceMap["destination.destinationUrl"]);

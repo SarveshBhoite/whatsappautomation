@@ -873,4 +873,43 @@ export class MetaAdsCoreService {
       return [];
     }
   }
+
+  /**
+   * Fetch official Meta Graph API Ad Preview HTML snippet
+   * Calls GET /{ad-id}/previews or GET /{ad-creative-id}/previews with ad_format (e.g., DESKTOP_FEED_STANDARD, INSTAGRAM_STANDARD, MOBILE_FEED_STANDARD, STORIES)
+   */
+  static async fetchAdPreview(
+    organizationId: string,
+    targetId: string, // ad_id or creative_id
+    adFormat: string = "DESKTOP_FEED_STANDARD",
+    isCreativeId: boolean = false
+  ): Promise<{ success: boolean; iframeHtml?: string; error?: string }> {
+    try {
+      const config = await this.getConfig(organizationId);
+      const accessToken = config.accessToken || process.env.META_SYSTEM_USER_TOKEN;
+      if (!accessToken) {
+        return { success: false, error: "Meta Access Token is not configured." };
+      }
+
+      const endpoint = `${META_GRAPH_BASE}/${targetId}/previews`;
+      const res = await axios.get(endpoint, {
+        params: {
+          ad_format: adFormat,
+          access_token: accessToken,
+        },
+        timeout: 10000,
+      });
+
+      const previewData = res.data?.data?.[0] || res.data;
+      if (previewData && previewData.body) {
+        return { success: true, iframeHtml: previewData.body };
+      }
+
+      return { success: false, error: "No preview HTML returned from Meta Graph API." };
+    } catch (err: any) {
+      const errMsg = err.response?.data?.error?.message || err.message;
+      console.warn("[MetaAdsCoreService] Ad preview fetch error:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  }
 }

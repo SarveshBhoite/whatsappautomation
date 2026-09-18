@@ -123,6 +123,36 @@ router.post("/ai/conversation/confirm-publish", async (req: Request, res: Respon
   }
 });
 
+/**
+ * GET /api/meta-ads/ai/conversation/preview
+ * Official Meta Graph API Ad Preview Endpoint
+ * Uses GET /{ad-id}/previews or GET /{ad-creative-id}/previews with ad_format (DESKTOP_FEED_STANDARD, INSTAGRAM_STANDARD, etc.)
+ */
+router.get("/ai/conversation/preview", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const targetId = (req.query.targetId || req.query.adId || req.query.creativeId) as string;
+    const adFormat = (req.query.ad_format || req.query.adFormat || "DESKTOP_FEED_STANDARD") as string;
+    const isCreativeId = req.query.isCreativeId === "true";
+
+    if (!targetId) {
+      return res.status(400).json({ success: false, error: "adId or creativeId parameter is required." });
+    }
+
+    const MetaAdsCoreService = require("../../services/meta-ads/metaAdsCoreService").MetaAdsCoreService;
+    const previewResult = await MetaAdsCoreService.fetchAdPreview(orgId, targetId, adFormat, isCreativeId);
+
+    if (previewResult.success) {
+      res.json({ success: true, iframeHtml: previewResult.iframeHtml, adFormat });
+    } else {
+      res.status(400).json({ success: false, error: previewResult.error || "Could not fetch preview from Meta." });
+    }
+  } catch (error: any) {
+    console.error("[AIRoutes] Error fetching ad preview:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 const voiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 /**
