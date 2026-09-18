@@ -1190,18 +1190,24 @@ export default function MetaAIChatbotStudioPage() {
   const budgetVal = campaign.dailyBudget ? `₹${campaign.dailyBudget.toLocaleString()}/day` : null;
   const campaignTitle = campaign.name || "Meta Ad Campaign";
 
-  const isReadyToReview = Boolean(
-    session?.status === "CONFIRMATION" ||
-    session?.status === "REVIEW" ||
-    session?.status === "COMPLETED" ||
-    session?.requiresConfirmation ||
-    (draft.campaign?.name && draft.creative?.headline && draft.campaign?.dailyBudget)
-  );
+  const isReadyToReview = true;
 
   return (
-    <div className="relative flex flex-col h-full w-full min-h-0 min-w-0 overflow-hidden bg-[#F9FAFB] font-sans antialiased text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="relative flex flex-col h-full w-full min-h-0 min-w-0 overflow-hidden bg-[#F1F5F9] font-sans antialiased text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
+      {/* Full-Screen Continuous Background Pattern across Entire Studio */}
+      <div 
+        className="absolute inset-0 pointer-events-none z-0 opacity-45"
+        aria-hidden="true"
+        style={{
+          backgroundImage: `url("/patterns/ai-chat-wallpaper.svg")`,
+          backgroundRepeat: "repeat",
+          backgroundSize: "320px 320px",
+          backgroundPosition: "0 0",
+        }}
+      />
+
       {/* ── OFFICIAL JISNU AI TOP HEADER ── */}
-      <header className="relative py-2.5 border-b border-slate-200/80 flex items-center justify-between px-6 shrink-0 bg-white/95 backdrop-blur-md z-10 shadow-2xs">
+      <header className="relative py-2.5 border-b border-slate-200/80 flex items-center justify-between px-6 shrink-0 bg-white/80 backdrop-blur-md z-10 shadow-2xs">
         <button
           onClick={() => router.push("/meta-ads")}
           title="Back to Meta Ads Overview"
@@ -1270,270 +1276,367 @@ export default function MetaAIChatbotStudioPage() {
         </div>
       </header>
 
-      {/* ── MAIN SCROLLABLE CONVERSATION AREA (AI CHATBOT INBOX WITH BG TEXTURE) ── */}
-      <div className="relative flex-1 min-h-0 overflow-y-auto px-4 md:px-0 bg-[#F8FAFC] z-1">
-        {/* Subtle AI Chatbot Inbox Background Texture */}
+      {/* ── MAIN 2-COLUMN SPLIT STUDIO CONTAINER WITH FULL-SCREEN BG TEXTURE ── */}
+      <div className="relative flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden bg-[#F1F5F9]">
+        {/* Full-Screen Continuous Background Pattern */}
         <div 
-          className="absolute inset-0 pointer-events-none z-0 opacity-40"
+          className="absolute inset-0 pointer-events-none z-0 opacity-45"
           aria-hidden="true"
           style={{
             backgroundImage: `url("/patterns/ai-chat-wallpaper.svg")`,
             backgroundRepeat: "repeat",
-            backgroundSize: "360px 360px",
+            backgroundSize: "320px 320px",
             backgroundPosition: "0 0",
           }}
         />
 
-        <div className="relative max-w-2xl mx-auto py-6 space-y-4 z-1">
-          {loadingInit ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <Loader2 className="h-6 w-6 animate-spin text-slate-400 mb-2" />
-              <p className="text-xs text-slate-500 font-medium">Initializing JISNU AI with live Meta context...</p>
-            </div>
-          ) : (
-            <>
-              {/* Dynamic Conversation Thread */}
-              {session?.conversation
-                ?.filter((msg, idx, arr) => {
-                  if (idx > 0 && arr[idx - 1].sender === msg.sender && arr[idx - 1].text?.trim() === msg.text?.trim()) {
-                    return false;
-                  }
-                  return true;
-                })
-                .map((msg, index) => {
-                const isUser = msg.sender === "user";
+        {/* LEFT COLUMN: AI CHATBOT INBOX */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-transparent relative border-none z-1">
+          {/* Scrollable Conversation Thread */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-6 space-y-4 relative z-1">
+            <div className="relative max-w-2xl mx-auto space-y-4 z-1">
+              {loadingInit ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-400 mb-2" />
+                  <p className="text-xs text-slate-500 font-medium">Initializing JISNU AI with live Meta context...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Dynamic Conversation Thread */}
+                  {session?.conversation
+                    ?.filter((msg, idx, arr) => {
+                      if (idx > 0 && arr[idx - 1].sender === msg.sender && arr[idx - 1].text?.trim() === msg.text?.trim()) {
+                        return false;
+                      }
+                      return true;
+                    })
+                    .map((msg, index) => {
+                    const isUser = msg.sender === "user";
 
-                if (isUser) {
-                  return (
-                    <div key={msg.id || index} className="flex justify-end animate-fadeIn">
-                      <div className="max-w-[80%] bg-slate-900 text-white font-normal px-4 py-2.5 rounded-2xl rounded-tr-xs text-[13.5px] leading-relaxed shadow-xs break-words">
-                        <p className="whitespace-pre-line">{formatCleanText(msg.text)}</p>
-                        <div className="text-[10px] text-slate-400 text-right mt-1 font-medium">
-                          {msg.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={msg.id || index} className="flex items-start gap-3 animate-fadeIn text-[13.5px] text-slate-800 leading-relaxed">
-                    <div className="relative flex items-center justify-center h-7 w-7 rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-950 text-white shrink-0 shadow-xs mt-0.5 ring-1 ring-slate-900/10 overflow-hidden font-extrabold text-[12px] tracking-tighter">
-                      <span className="bg-gradient-to-b from-white to-indigo-100 bg-clip-text text-transparent">J</span>
-                      <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/25 to-transparent pointer-events-none" />
-                    </div>
-
-                    <div className="flex-1 space-y-2 max-w-[88%]">
-                      <div className="bg-white p-4.5 rounded-2xl rounded-tl-xs border border-slate-200/90 shadow-xs">
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <span className="text-[11.5px] font-bold text-slate-900 tracking-tight">JISNU AI</span>
-                          <span className="text-slate-300 text-[10px]">·</span>
-                          <span className="inline-flex items-center text-[10px] text-indigo-700 font-medium bg-indigo-50/80 px-2 py-0.5 rounded-full border border-indigo-100/70 shadow-2xs">
-                            Senior Media Buyer
-                          </span>
-                        </div>
-
-                      {/* Special Render for Live Campaign Success Announcement */}
-                      {msg.text.includes("Successfully Published") || msg.text.includes("Successfully Deployed") ? (
-                        <div className="mt-3 p-4 bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-950 text-white rounded-xl border border-emerald-500/40 shadow-lg space-y-3">
-                          <div className="flex items-center justify-between border-b border-emerald-800/50 pb-2.5">
-                            <div className="flex items-center gap-2">
-                              <span className="flex h-3 w-3 relative">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                              </span>
-                              <span className="font-bold text-sm text-emerald-300">Meta Ads Live Deployment</span>
+                    if (isUser) {
+                      return (
+                        <div key={msg.id || index} className="flex justify-end animate-fadeIn">
+                          <div className="max-w-[80%] bg-slate-900 text-white font-normal px-4 py-2.5 rounded-2xl rounded-tr-xs text-[13.5px] leading-relaxed shadow-xs break-words">
+                            <p className="whitespace-pre-line">{formatCleanText(msg.text)}</p>
+                            <div className="text-[10px] text-slate-400 text-right mt-1 font-medium">
+                              {msg.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                             </div>
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                              FULL SUCCESS
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={msg.id || index} className="flex items-start gap-3 animate-fadeIn text-[13.5px] text-slate-800 leading-relaxed">
+                        <div className="relative flex items-center justify-center h-7 w-7 rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-950 text-white shrink-0 shadow-xs mt-0.5 ring-1 ring-slate-900/10 overflow-hidden font-extrabold text-[12px] tracking-tighter">
+                          <span className="bg-gradient-to-b from-white to-indigo-100 bg-clip-text text-transparent">J</span>
+                          <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/25 to-transparent pointer-events-none" />
+                        </div>
+
+                        <div className="flex-1 space-y-2 max-w-[88%]">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-[12px] text-slate-900 tracking-tight">JISNU AI</span>
+                            <span className="text-[9.5px] font-black tracking-wider uppercase px-1.5 py-0.2 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100/80">
+                              Senior Media Buyer
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                            {session?.executionResult?.campaign?.id && (
-                              <div className="p-2.5 bg-slate-800/80 rounded-lg border border-slate-700/60">
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Campaign ID</div>
-                                <div className="font-mono text-emerald-400 font-bold truncate mt-0.5" title={session.executionResult.campaign.id}>
-                                  {session.executionResult.campaign.id}
-                                </div>
-                              </div>
-                            )}
-                            {session?.executionResult?.adSet?.id && (
-                              <div className="p-2.5 bg-slate-800/80 rounded-lg border border-slate-700/60">
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Ad Set ID</div>
-                                <div className="font-mono text-sky-400 font-bold truncate mt-0.5" title={session.executionResult.adSet.id}>
-                                  {session.executionResult.adSet.id}
-                                </div>
-                              </div>
-                            )}
-                            {session?.executionResult?.ad?.id && (
-                              <div className="p-2.5 bg-slate-800/80 rounded-lg border border-slate-700/60">
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Ad Object ID</div>
-                                <div className="font-mono text-amber-400 font-bold truncate mt-0.5" title={session.executionResult.ad.id}>
-                                  {session.executionResult.ad.id}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="pt-2 flex flex-wrap items-center gap-2">
-                            <a
-                              href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${draft.adAccountId || activeAdAccount?.adAccountId || "1454270479625110"}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3.5 py-2 bg-[#1877F2] hover:bg-[#166fe5] text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <Megaphone className="h-3.5 w-3.5" />
-                              <span>Open in Meta Ads Manager</span>
-                              <ExternalLink className="h-3 w-3 ml-0.5 opacity-80" />
-                            </a>
-
-                            <button
-                              type="button"
-                              onClick={handleResetSession}
-                              className="group px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-all border border-slate-700 flex items-center gap-2 cursor-pointer active:scale-95 shadow-xs"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5 text-slate-400 group-hover:text-white transition-transform duration-500 ease-out group-hover:-rotate-180" />
-                              <span>Create Another Campaign</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => router.push("/meta-ads")}
-                              className="px-3.5 py-2 bg-slate-800/60 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <span>📊 View All Campaigns</span>
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="whitespace-pre-line text-slate-800 text-[13px]">{formatCleanText(msg.text)}</p>
-                      )}
-
-                      {/* Inline Interactive Upload Button Card when user wants to upload own media */}
-                      {msg.metadata?.requiresUpload && (
-                        <div className="mt-3 p-3.5 bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-                          <div className="flex items-center gap-2.5 text-xs text-sky-950 font-medium">
-                            <span className="text-xl">🖼️</span>
-                            <div>
-                              <div className="font-bold text-sky-900">Upload Your Ad Image / Video</div>
-                              <div className="text-[11px] text-sky-700">Recommended: 1080×1080 Square or 1200×628 Landscape</div>
+                          <div className="bg-white border border-slate-200/90 rounded-2xl rounded-tl-xs p-4 shadow-2xs space-y-3">
+                            <div className="prose prose-slate max-w-none text-[13.5px] leading-relaxed">
+                              {formatCleanText(msg.text)}
                             </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-full sm:w-auto px-4 py-2 bg-[#1877F2] hover:bg-[#166fe5] text-white text-xs font-bold rounded-lg transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
-                          >
-                            <span>📤 Select File from Device</span>
-                          </button>
-                        </div>
-                      )}
 
-                      {/* Inline Interactive Dedicated Bulk Location Card */}
-                      {(msg.metadata?.showBulkLocationButton || msg.metadata?.isLocationQuestion || msg.metadata?.openBulkLocationModal) && (
-                        <div className="mt-3 p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-                          <div className="flex items-center gap-2.5 text-xs text-blue-950 font-medium">
-                            <span className="text-xl">🌐</span>
-                            <div>
-                              <div className="font-bold text-blue-900">Dedicated Bulk Location & Radius Selector</div>
-                              <div className="text-[11px] text-blue-700">Add multiple countries, cities, custom radii (km) or pincodes easily</div>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => openBulkLocationManager()}
-                            className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-lg transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
-                          >
-                            <span>🌐 Open Location Manager</span>
-                          </button>
-                        </div>
-                      )}
-
-                      {/* AI Generated Creative Image Preview Card */}
-                      {msg.metadata?.imageUrl && (
-                        <div className="mt-3.5 rounded-xl border border-slate-200 overflow-hidden bg-slate-50 shadow-xs">
-                          <div className="relative aspect-square max-h-[340px] w-full bg-slate-900 flex items-center justify-center overflow-hidden group">
-                            <img
-                              src={msg.metadata.imageUrl}
-                              alt="Generated Ad Creative"
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            />
-                            <div className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1.5 shadow-sm">
-                              <Sparkles className="h-3 w-3 text-amber-400" />
-                              <span>1080 × 1080 Meta Feed</span>
-                            </div>
-                            {msg.metadata.imageApproved && (
-                              <div className="absolute bottom-2.5 left-2.5 bg-emerald-600/90 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm">
-                                <span>✓ Approved for Ad</span>
+                            {/* Options / Quick Buttons */}
+                            {(msg as any).options && (msg as any).options.length > 0 && (
+                              <div className="pt-2 flex flex-wrap gap-2">
+                                {(msg as any).options.map((opt: any, oIdx: number) => (
+                                  <button
+                                    key={oIdx}
+                                    type="button"
+                                    onClick={() => {
+                                      if (opt.value === "CONFIRM_PUBLISH") {
+                                        handleConfirmPublish();
+                                      } else {
+                                        handleSendMessage(opt.value || opt.label);
+                                      }
+                                    }}
+                                    className="px-3.5 py-2 rounded-xl text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200/90 hover:border-slate-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer disabled:opacity-50 active:scale-95 flex items-center gap-1.5"
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
                               </div>
                             )}
                           </div>
-                          <div className="p-3 bg-white border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-                            <div className="text-[11px] text-slate-500 font-medium truncate max-w-[200px]">
-                              {msg.metadata.visualDirection ? `Visual: ${msg.metadata.visualDirection.substring(0, 40)}...` : "AI Generated Artwork"}
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              {!msg.metadata.imageApproved && (
-                                <button
-                                  type="button"
-                                  disabled={isSending || isPublishing}
-                                  onClick={() => handleSendMessage("Use this image", "use_this_image")}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#1877F2] hover:bg-[#166fe5] text-white transition-all shadow-xs cursor-pointer flex items-center gap-1"
-                                >
-                                  <span>✓ Use this image</span>
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                disabled={isSending || isPublishing}
-                                onClick={() => handleSendMessage("Generate another image", "regenerate_image")}
-                                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer flex items-center gap-1"
-                              >
-                                <span>🔄 Regenerate</span>
-                              </button>
-                            </div>
-                          </div>
                         </div>
-                      )}
-
-                      <div className="text-[10px] text-slate-400 text-right mt-1 font-medium">
-                        {msg.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </div>
+                    );
+                  })}
+
+                  {/* Sending Loader Indicator */}
+                  {(isSending || isPublishing) && (
+                    <div className="flex items-center gap-2 text-xs text-slate-600 py-2 pl-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-[#0284C7]" />
+                      <span>
+                        {isPublishing
+                          ? "Publishing Campaign, Ad Set, Creative, and Ad to Meta Graph API..."
+                          : "JISNU AI is analyzing audience benchmarks and crafting ad copy..."}
+                      </span>
                     </div>
+                  )}
 
-                    {/* Quick Options Chips */}
-                    {msg.quickOptions && msg.quickOptions.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-1 pl-1">
-                        {msg.quickOptions.map((opt, optIdx) => (
-                          <button
-                            key={optIdx}
-                            disabled={isSending || isPublishing}
-                            onClick={() => {
-                              if (opt.value === "OPEN_BULK_LOCATIONS" || /open.*bulk.*location|bulk.*location.*radii/i.test(opt.value || opt.label)) {
-                                openBulkLocationManager();
-                              } else if (opt.value === "upload_own_image" || /upload my own|upload image|upload graphic|अपलोड|upload/i.test(opt.label)) {
-                                fileInputRef.current?.click();
-                              } else {
-                                handleSendMessage(opt.label, opt.value);
-                              }
-                            }}
-                            className="px-3.5 py-2 rounded-xl text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200/90 hover:border-slate-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer disabled:opacity-50 active:scale-95 flex items-center gap-1.5"
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Chat Composer Input */}
+          <div className="p-3.5 md:p-4 bg-transparent border-none shrink-0 z-10">
+            <div className="max-w-2xl mx-auto">
+              {error && (
+                <div className="mb-2 p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2 animate-fadeIn">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{error}</span>
                 </div>
-              );
-              })}
+              )}
 
-              {/* ── COMPREHENSIVE PRODUCTION-GRADE LIVE AD PREVIEW & BLUEPRINT CARD (Rendered ONLY at end of consultation) ── */}
-              {isReadyToReview && (
-                <div className="space-y-4 text-[13px] text-slate-800 leading-relaxed pt-2 animate-fadeIn border-t border-slate-200 mt-4">
+              {/* Attached File Indicator Pill */}
+              {attachedFile && (
+                <div className="mb-2 inline-flex items-center gap-2 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-xs text-slate-800 shadow-2xs animate-fadeIn">
+                  <span>{attachedFile.type === "IMAGE" ? "🖼️" : "🎬"}</span>
+                  <span className="font-semibold max-w-[200px] truncate">{attachedFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedFile(null)}
+                    className="hover:text-red-500 font-bold ml-1 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              <div className="border border-indigo-200/80 hover:border-indigo-300 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10 rounded-2xl p-3 bg-white/90 backdrop-blur-md shadow-md transition-all duration-200">
+                <textarea
+                  rows={2}
+                  value={inputText}
+                  onChange={(e) => handleInputChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder={
+                    isRecording
+                      ? "🎙️ Listening via Windows Speech Listener... speak now (words appear here in real-time)"
+                      : "Type your message (e.g. 'Dental clinic in Baner, ₹500/day' or 'पुण्यात साडी सेल')..."
+                  }
+                  disabled={isSending || isPublishing}
+                  className="w-full text-[13px] text-slate-900 placeholder:text-slate-400 outline-none resize-none px-2 py-1 bg-transparent leading-relaxed font-sans"
+                />
+
+                <div className="flex items-center justify-between pt-2 px-1 border-t border-slate-100">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1 rounded-full text-[11.5px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200/70 shadow-2xs hover:border-slate-300"
+                    >
+                      <Paperclip className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Add file</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAdLibraryModal(true);
+                        fetchMediaLibrary();
+                      }}
+                      className="px-3 py-1 rounded-full text-[11.5px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200/70 shadow-2xs hover:border-slate-300"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Select ad</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleVoiceRecording}
+                      className={`px-3 py-1 rounded-full text-[11.5px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer border shadow-2xs ${
+                        isRecording
+                          ? "bg-rose-50 border-rose-300 text-rose-700 animate-pulse"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 border-slate-200/70 hover:border-slate-300"
+                      }`}
+                      title={isRecording ? "Listening via Windows Speech Listener... Click to stop" : "Speak using Windows Speech Listener"}
+                    >
+                      {isRecording ? (
+                        <>
+                          <span className="h-2 w-2 rounded-full bg-rose-600 animate-ping"></span>
+                          <span className="font-semibold text-rose-700">Listening...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-3.5 w-3.5 text-slate-500" />
+                          <span>Voice note</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSendMessage()}
+                    disabled={isSending || isPublishing || (!inputText.trim() && !attachedFile)}
+                    className="h-8.5 w-8.5 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 transition-all disabled:opacity-30 cursor-pointer active:scale-95 shrink-0"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-center mt-1.5">
+                <p className="text-[10.5px] text-slate-400">JISNU AI can make suggestions. Verify targeting, budget, and creatives before launching.</p>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+
+        {/* RIGHT COLUMN: LIVE AD PREVIEW & CAMPAIGN BLUEPRINT PANEL */}
+        <div className="w-full md:w-[480px] lg:w-[540px] xl:w-[600px] 2xl:w-[660px] flex flex-col min-h-0 my-2 mr-2 rounded-2xl bg-white/70 backdrop-blur-md border border-slate-200/80 shrink-0 shadow-md z-1 overflow-hidden">
+          {/* Header Bar */}
+          <div className="px-4 py-3 bg-white/80 backdrop-blur-md border-b border-slate-200/70 flex items-center justify-between shrink-0 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-950 text-white flex items-center justify-center shadow-xs ring-1 ring-slate-900/10">
+                <Sparkles className="h-3.5 w-3.5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-xs text-slate-900 tracking-tight">Meta Ad & Campaign Blueprint</h3>
+                <p className="text-[10px] text-slate-500 font-medium">Live Interactive Real-Time Sync</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+              Live Preview
+            </span>
+          </div>
+
+          {/* Scrollable Blueprint Content */}
+          <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
+            <div className="space-y-4 text-[13px] text-slate-800 leading-relaxed pt-2 animate-fadeIn border-t border-slate-200 mt-4">
                   
+                  {/* ── CAMPAIGN PRE-FLIGHT READINESS & MISSING INFO TRACKER ── */}
+                  {(() => {
+                    const missingList: Array<{ id: string; name: string; hint: string; isMissing: boolean }> = [
+                      {
+                        id: "headline",
+                        name: "Ad Copy & Headline",
+                        hint: "Required for ad creative",
+                        isMissing: !creative.headline || creative.headline.trim() === "",
+                      },
+                      {
+                        id: "budget",
+                        name: "Daily Campaign Budget",
+                        hint: "Set daily budget (e.g. ₹500)",
+                        isMissing: !campaign.dailyBudget || campaign.dailyBudget <= 0,
+                      },
+                      {
+                        id: "media",
+                        name: "Ad Image / Media Creative",
+                        hint: "Upload image or select ad",
+                        isMissing: !attachedFile && !creative.mediaUrl,
+                      },
+                      {
+                        id: "account",
+                        name: "Meta Ad Account",
+                        hint: "Connect Meta Ad Account",
+                        isMissing: !draft.adAccountId && (!context.adAccounts || context.adAccounts.length === 0),
+                      },
+                      {
+                        id: "location",
+                        name: "Target Location / City",
+                        hint: "Define target location",
+                        isMissing: (!targeting.cities || targeting.cities.length === 0) && (!targeting.countries || targeting.countries.length === 0) && !targeting.locationDescription,
+                      },
+                    ];
+
+                    const total = missingList.length;
+                    const completed = missingList.filter((m) => !m.isMissing).length;
+                    const percent = Math.round((completed / total) * 100);
+                    const missingCount = total - completed;
+
+                    return (
+                      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm space-y-3 animate-fadeIn">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`h-6.5 w-6.5 rounded-lg flex items-center justify-center text-xs font-bold ${
+                              missingCount === 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
+                            }`}>
+                              {missingCount === 0 ? "✓" : "⚡"}
+                            </div>
+                            <div>
+                              <h4 className="font-extrabold text-xs text-slate-900 tracking-tight">Campaign Pre-Flight Readiness</h4>
+                              <p className="text-[10px] text-slate-500 font-medium">
+                                {missingCount === 0 ? "All required Meta parameters ready for launch!" : `${missingCount} required item${missingCount > 1 ? "s" : ""} missing before deploy`}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                            missingCount === 0
+                              ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                              : "text-amber-700 bg-amber-50 border-amber-200"
+                          }`}>
+                            {percent}% Ready
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              missingCount === 0 ? "bg-emerald-500" : "bg-gradient-to-r from-amber-500 via-indigo-600 to-emerald-500"
+                            }`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+
+                        {/* Missing Info Pills */}
+                        {missingCount > 0 ? (
+                          <div className="pt-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Missing Required Information:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {missingList.filter((m) => m.isMissing).map((m) => (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (m.id === "headline") {
+                                      handleSendMessage("Generate a compelling headline and ad copy for my campaign");
+                                    } else if (m.id === "budget") {
+                                      handleSendMessage("Set my daily campaign budget to ₹500");
+                                    } else if (m.id === "media") {
+                                      fileInputRef.current?.click();
+                                    } else if (m.id === "location") {
+                                      handleSendMessage("Target audience in Pune and Mumbai");
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 shadow-3xs transition-all cursor-pointer group"
+                                  title="Click to ask AI or resolve missing info"
+                                >
+                                  <AlertCircle className="h-3 w-3 text-amber-600 shrink-0 group-hover:scale-110 transition-transform" />
+                                  <span>{m.name}</span>
+                                  <span className="text-[9.5px] text-amber-700 font-normal">({m.hint})</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="pt-1 flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50/60 p-2 rounded-xl border border-emerald-100">
+                            <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <span>100% Ready to Launch to Meta Ads Manager!</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* 1. Live Facebook & Instagram Feed Ad Preview Card */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -1727,13 +1830,13 @@ export default function MetaAIChatbotStudioPage() {
                       {/* Visual Banner Area */}
                       <div className={`relative w-full ${
                         creative.aspectRatio === "9:16"
-                          ? "aspect-[9/16] max-h-[440px]"
+                          ? "aspect-[9/16] min-h-[360px] max-h-[420px]"
                           : creative.aspectRatio === "16:9"
-                          ? "aspect-[16/9] max-h-[300px]"
+                          ? "aspect-[16/9] min-h-[200px] max-h-[250px]"
                           : creative.aspectRatio === "4:5"
-                          ? "aspect-[4/5] max-h-[400px]"
-                          : "aspect-square max-h-[380px]"
-                      } bg-gradient-to-tr from-slate-900 via-blue-950 to-slate-900 flex flex-col items-center justify-center p-6 text-center text-white overflow-hidden transition-all duration-300`}>
+                          ? "aspect-[4/5] min-h-[300px] max-h-[360px]"
+                          : "aspect-square min-h-[260px] max-h-[300px]"
+                      } bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex flex-col items-center justify-center p-6 text-center text-white overflow-hidden transition-all duration-300 shadow-inner`}>
                         {attachedFile ? (
                           attachedFile.type === "IMAGE" ? (
                             <img src={attachedFile.url} alt="Attached Creative" className="w-full h-full object-cover absolute inset-0" />
@@ -3360,25 +3463,10 @@ export default function MetaAIChatbotStudioPage() {
                     </div>
                   </div>
                 </div>
-              )}
-
-              {/* Sending Loader Indicator */}
-              {(isSending || isPublishing) && (
-                <div className="flex items-center gap-2 text-xs text-slate-600 py-2 pl-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-[#0284C7]" />
-                  <span>
-                    {isPublishing
-                      ? "Publishing Campaign, Ad Set, Creative, and Ad to Meta Graph API..."
-                      : "JISNU AI is analyzing audience benchmarks and crafting ad copy..."}
-                  </span>
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </>
-          )}
+          </div>
         </div>
       </div>
+
 
       {/* ── HIDDEN FILE INPUT FOR "ADD FILE" ── */}
       <input
@@ -4594,111 +4682,1220 @@ export default function MetaAIChatbotStudioPage() {
           </div>
         </div>
       )}
-      <div className="relative p-4 pb-4 bg-[#F9FAFB] shrink-0 z-10">
-        <div className="max-w-2xl mx-auto">
-          {error && (
-            <div className="mb-2 p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2 animate-fadeIn">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+      {/* ── HIDDEN FILE INPUT FOR "ADD FILE" ── */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        accept="image/*,video/*"
+        className="hidden"
+      />
 
-          {/* Attached File Indicator Pill */}
-          {attachedFile && (
-            <div className="mb-2 inline-flex items-center gap-2 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-xs text-slate-800 shadow-2xs animate-fadeIn">
-              <span>{attachedFile.type === "IMAGE" ? "🖼️" : "🎬"}</span>
-              <span className="font-semibold max-w-[200px] truncate">{attachedFile.name}</span>
+      {/* ── SELECT AD CREATIVE LIBRARY MODAL ── */}
+      {showAdLibraryModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Meta Creative Library</h3>
+                <p className="text-xs text-gray-500">Select an existing ad creative to attach to your campaign.</p>
+              </div>
               <button
-                type="button"
-                onClick={() => setAttachedFile(null)}
-                className="hover:text-red-500 font-bold ml-1 cursor-pointer"
+                onClick={() => setShowAdLibraryModal(false)}
+                className="h-8 w-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-900 cursor-pointer"
               >
                 ✕
               </button>
             </div>
-          )}
 
-          <div className="border border-slate-200/90 hover:border-slate-300 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-500/10 rounded-3xl p-3.5 bg-white shadow-md shadow-slate-200/50 transition-all duration-200">
-            <textarea
-              rows={2}
-              value={inputText}
-              onChange={(e) => handleInputChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage();
-                }
-              }}
-              placeholder={
-                isRecording
-                  ? "🎙️ Listening via Windows Speech Listener... speak now (words appear here in real-time)"
-                  : "Ask anything or describe your offer (e.g. 'Dental clinic in Baner, ₹500/day' or 'पुण्यात साडी सेल')..."
-              }
-              disabled={isSending || isPublishing}
-              className="w-full text-[13.5px] text-slate-900 placeholder:text-slate-400 outline-none resize-none px-2 py-1 bg-transparent"
-            />
+            <div className="flex-1 overflow-y-auto py-4">
+              {loadingMedia ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-[#1877F2] mb-2" />
+                  <p className="text-xs text-gray-500">Loading your Meta Ad library...</p>
+                </div>
+              ) : mediaLibrary.images?.length === 0 && mediaLibrary.videos?.length === 0 ? (
+                <div className="text-center py-10">
+                  <p className="text-xs text-gray-500 mb-3">No existing creatives found in your Meta Ad Account.</p>
+                  <button
+                    onClick={() => {
+                      setShowAdLibraryModal(false);
+                      fileInputRef.current?.click();
+                    }}
+                    className="px-4 py-2 bg-[#1877F2] text-white rounded-lg text-xs font-semibold hover:bg-[#166FE5] cursor-pointer flex items-center gap-1.5 mx-auto"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>Upload New File From Device</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  {mediaLibrary.images?.map((img: any, idx: number) => (
+                    <div
+                      key={img.hash || idx}
+                      onClick={() => handleSelectMediaFromLibrary(img, "IMAGE")}
+                      className="group relative border border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#1877F2] hover:shadow-md transition-all"
+                    >
+                      <img
+                        src={img.url || img.permalink_url}
+                        alt={img.name || "Ad Image"}
+                        className="w-full h-28 object-cover group-hover:scale-105 transition-transform"
+                      />
+                      <div className="p-1.5 bg-white text-[11px] truncate font-medium text-gray-700">
+                        {img.name || `Image #${idx + 1}`}
+                      </div>
+                    </div>
+                  ))}
 
-            <div className="flex items-center justify-between pt-2 px-1 border-t border-slate-100">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200/70 shadow-2xs hover:border-slate-300"
-                >
-                  <Paperclip className="h-3.5 w-3.5 text-slate-500" />
-                  <span>Add file</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAdLibraryModal(true);
-                    fetchMediaLibrary();
-                  }}
-                  className="px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200/70 shadow-2xs hover:border-slate-300"
-                >
-                  <Plus className="h-3.5 w-3.5 text-slate-500" />
-                  <span>Select ad</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleVoiceRecording}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer border shadow-2xs ${
-                    isRecording
-                      ? "bg-rose-50 border-rose-300 text-rose-700 animate-pulse"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 border-slate-200/70 hover:border-slate-300"
-                  }`}
-                  title={isRecording ? "Listening via Windows Speech Listener... Click to stop" : "Speak using Windows Speech Listener"}
-                >
-                  {isRecording ? (
-                    <>
-                      <span className="h-2 w-2 rounded-full bg-rose-600 animate-ping"></span>
-                      <span className="font-semibold text-rose-700">Listening... (Click to stop)</span>
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="h-3.5 w-3.5 text-slate-500" />
-                      <span>Voice note</span>
-                    </>
-                  )}
-                </button>
+                  {mediaLibrary.videos?.map((vid: any, idx: number) => (
+                    <div
+                      key={vid.id || idx}
+                      onClick={() => handleSelectMediaFromLibrary(vid, "VIDEO")}
+                      className="group relative border border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#1877F2] hover:shadow-md transition-all"
+                    >
+                      {vid.picture ? (
+                        <img
+                          src={vid.picture}
+                          alt={vid.name || "Ad Video"}
+                          className="w-full h-28 object-cover group-hover:scale-105 transition-transform"
+                        />
+                      ) : (
+                        <div className="w-full h-28 bg-gray-900 flex items-center justify-center text-white text-xs">
+                          🎬 Video
+                        </div>
+                      )}
+                      <div className="p-1.5 bg-white text-[11px] truncate font-medium text-gray-700">
+                        {vid.name || `Video #${idx + 1}`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BULK LOCATION & RADIUS MANAGER MODAL ── */}
+      {showBulkLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-200/80 overflow-hidden ring-1 ring-black/5">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-blue-50/30 to-indigo-50/20">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 ring-2 ring-white">
+                  <Map className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                      Location & Radius Manager
+                    </h3>
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-full border border-blue-200/80 uppercase tracking-wider">
+                      Meta Precision
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Configure multi-city radius (15–80 km), nationwide reach, or postal PIN codes
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkLocationModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div className="flex border-b border-slate-200/80 bg-slate-50/50 px-6 pt-2.5 gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkActiveTab("cities")}
+                className={`pb-2.5 px-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                  bulkActiveTab === "cities"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                <span>Cities & Radius</span>
+                <span className={`ml-1 px-2 py-0.5 text-[10px] rounded-full font-bold transition-all ${
+                  bulkActiveTab === "cities" ? "bg-blue-100 text-blue-700 shadow-2xs" : "bg-slate-200/70 text-slate-600"
+                }`}>
+                  {bulkCities.length}
+                </span>
+              </button>
 
               <button
                 type="button"
-                onClick={() => handleSendMessage()}
-                disabled={isSending || isPublishing || (!inputText.trim() && !attachedFile)}
-                className="h-9 w-9 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white flex items-center justify-center shadow-md shadow-blue-500/25 transition-all disabled:opacity-30 cursor-pointer active:scale-95"
+                onClick={() => setBulkActiveTab("countries")}
+                className={`pb-2.5 px-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                  bulkActiveTab === "countries"
+                    ? "border-emerald-600 text-emerald-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
               >
-                <Send className="h-4 w-4" />
+                <Globe className="h-3.5 w-3.5" />
+                <span>Countries</span>
+                <span className={`ml-1 px-2 py-0.5 text-[10px] rounded-full font-bold transition-all ${
+                  bulkActiveTab === "countries" ? "bg-emerald-100 text-emerald-700 shadow-2xs" : "bg-slate-200/70 text-slate-600"
+                }`}>
+                  {bulkCountries.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBulkActiveTab("pincodes")}
+                className={`pb-2.5 px-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                  bulkActiveTab === "pincodes"
+                    ? "border-purple-600 text-purple-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Hash className="h-3.5 w-3.5" />
+                <span>PIN Codes</span>
+                <span className={`ml-1 px-2 py-0.5 text-[10px] rounded-full font-bold transition-all ${
+                  bulkActiveTab === "pincodes" ? "bg-purple-100 text-purple-700 shadow-2xs" : "bg-slate-200/70 text-slate-600"
+                }`}>
+                  {bulkPincodes.length}
+                </span>
               </button>
             </div>
-          </div>
 
-          <div className="text-center mt-2">
-            <p className="text-[11px] text-slate-400">JISNU AI can make suggestions. Verify targeting, budget, and creatives before launching.</p>
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* TAB 1: CITIES & RADIUS */}
+              {bulkActiveTab === "cities" && (
+                <div className="space-y-4">
+                  {/* Premium Quick Add City Box with Live Auto-Suggest */}
+                  <div className="p-4 bg-gradient-to-br from-slate-50 to-blue-50/20 border border-slate-200/90 rounded-2xl space-y-2.5 shadow-2xs relative">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>Search & Add Target Cities:</span>
+                      </label>
+                      {isLoadingCitySuggestions && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-blue-600 font-semibold animate-pulse">
+                          <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                          <span>Searching Meta locations...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="relative">
+                      <textarea
+                        rows={2}
+                        value={bulkCityText}
+                        onChange={(e) => setBulkCityText(e.target.value)}
+                        placeholder="Type starting letters (e.g. 'sat', 'pun', 'mum')... or paste: Mumbai (40km), Pune (25km)"
+                        className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-800 shadow-2xs transition-all resize-none"
+                      />
+
+                      {/* Clean Floating Suggestions Dropdown */}
+                      {citySuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-blue-200/90 rounded-2xl shadow-2xl z-50 max-h-56 overflow-y-auto divide-y divide-slate-100 animate-fadeIn backdrop-blur-md ring-1 ring-black/5">
+                          {citySuggestions.map((sug, sIdx) => {
+                            const isAlreadyAdded = bulkCities.some(
+                              (c) => c.name.toLowerCase() === sug.name.toLowerCase()
+                            );
+                            return (
+                              <button
+                                key={sug.key || sIdx}
+                                type="button"
+                                onClick={() => handleSelectCitySuggestion(sug)}
+                                className={`w-full text-left px-4 py-2.5 text-xs flex items-center justify-between transition-all cursor-pointer ${
+                                  isAlreadyAdded
+                                    ? "bg-slate-50/70 text-slate-400"
+                                    : "hover:bg-blue-50/80 text-slate-800"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 font-bold">
+                                    📍
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-900">{sug.name}</span>
+                                    {sug.region && (
+                                      <span className="text-[11px] text-slate-500 ml-1.5">
+                                        ({sug.region}, India)
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className={`text-[10px] px-2.5 py-1 rounded-lg font-bold transition-all ${
+                                  isAlreadyAdded
+                                    ? "bg-slate-200 text-slate-600"
+                                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-2xs"
+                                }`}>
+                                  {isAlreadyAdded ? "Added ✓" : "+ Add City"}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] text-slate-400 font-semibold">Quick Presets:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const metros = [
+                              { name: "Mumbai", radiusKm: 40 },
+                              { name: "Delhi", radiusKm: 40 },
+                              { name: "Bangalore", radiusKm: 35 },
+                              { name: "Hyderabad", radiusKm: 30 },
+                              { name: "Pune", radiusKm: 25 },
+                              { name: "Chennai", radiusKm: 30 },
+                            ];
+                            const existing = new Set(bulkCities.map((c) => c.name.toLowerCase()));
+                            const merged = [...bulkCities];
+                            for (const m of metros) {
+                              if (!existing.has(m.name.toLowerCase())) {
+                                merged.push(m);
+                              }
+                            }
+                            setBulkCities(merged);
+                          }}
+                          className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 rounded-lg text-[11px] font-semibold text-slate-600 cursor-pointer shadow-2xs transition-colors"
+                        >
+                          + Top Metros
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tier2 = [
+                              { name: "Ahmedabad", radiusKm: 30 },
+                              { name: "Jaipur", radiusKm: 25 },
+                              { name: "Surat", radiusKm: 25 },
+                              { name: "Indore", radiusKm: 25 },
+                              { name: "Lucknow", radiusKm: 30 },
+                            ];
+                            const existing = new Set(bulkCities.map((c) => c.name.toLowerCase()));
+                            const merged = [...bulkCities];
+                            for (const t of tier2) {
+                              if (!existing.has(t.name.toLowerCase())) {
+                                merged.push(t);
+                              }
+                            }
+                            setBulkCities(merged);
+                          }}
+                          className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 rounded-lg text-[11px] font-semibold text-slate-600 cursor-pointer shadow-2xs transition-colors"
+                        >
+                          + Tier-2 Hubs
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddBulkCitiesFromText}
+                        disabled={!bulkCityText.trim()}
+                        className="px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 cursor-pointer transition-all"
+                      >
+                        + Add to List
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bulk Radius Uniform Adjuster */}
+                  {bulkCities.length > 1 && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-blue-50/60 border border-blue-100 rounded-xl text-xs">
+                      <span className="font-semibold text-blue-900 flex items-center gap-1.5">
+                        <Sliders className="h-3.5 w-3.5 text-blue-600" />
+                        Apply uniform radius to all {bulkCities.length} cities:
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {[20, 30, 40, 50, 80].map((rVal) => (
+                          <button
+                            key={rVal}
+                            type="button"
+                            onClick={() => {
+                              setBulkCities(bulkCities.map((c) => ({ ...c, radiusKm: rVal })));
+                            }}
+                            className="px-2.5 py-0.5 bg-white hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg text-[11px] font-bold text-blue-700 transition-all cursor-pointer shadow-2xs"
+                          >
+                            {rVal} km
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List of Configured Cities with Individual Slider */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
+                      <span>Configured Target Cities ({bulkCities.length})</span>
+                      {bulkCities.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setBulkCities([])}
+                          className="text-red-500 hover:text-red-700 text-[11px] font-semibold cursor-pointer transition-colors"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+
+                    {bulkCities.length === 0 ? (
+                      <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                        <Compass className="h-9 w-9 text-slate-300 mx-auto mb-2.5" />
+                        <p className="text-xs font-bold text-slate-700">No specific cities added yet</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Search and add cities above or target entire countries.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                        {bulkCities.map((city, idx) => (
+                          <div
+                            key={idx}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white border border-slate-200/90 rounded-2xl shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                                {idx + 1}
+                              </div>
+                              <div>
+                                <span className="text-xs font-extrabold text-slate-900 block">{city.name}</span>
+                                <span className="text-[10px] text-slate-400">Individual Geo-Radius</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 flex-1 sm:max-w-xs">
+                              <div className="flex-1 flex items-center gap-2">
+                                <input
+                                  type="range"
+                                  min={15}
+                                  max={80}
+                                  step={1}
+                                  value={city.radiusKm}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    setBulkCities(
+                                      bulkCities.map((c, i) => (i === idx ? { ...c, radiusKm: val } : c))
+                                    );
+                                  }}
+                                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                />
+                                <span className="inline-block w-14 text-center px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-800 text-[11px] font-bold rounded-lg font-mono">
+                                  {city.radiusKm} km
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                {[20, 40].map((preset) => (
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => {
+                                      setBulkCities(
+                                        bulkCities.map((c, i) =>
+                                          i === idx ? { ...c, radiusKm: preset } : c
+                                        )
+                                      );
+                                    }}
+                                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md border cursor-pointer transition-all ${
+                                      city.radiusKm === preset
+                                        ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    {preset}k
+                                  </button>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBulkCities(bulkCities.filter((_, i) => i !== idx));
+                                  }}
+                                  className="w-6 h-6 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center cursor-pointer transition-colors ml-0.5"
+                                  title="Remove city"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: COUNTRIES */}
+              {bulkActiveTab === "countries" && (
+                <div className="space-y-4">
+                  <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-50 via-emerald-50/20 to-teal-50/10 border border-slate-200/90 rounded-2xl space-y-3.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Globe className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Targeted Countries & Regions:</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                        Meta Graph API & Global Registry
+                      </span>
+                    </div>
+
+                    <div className="relative">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={bulkCountryText}
+                            onChange={(e) => setBulkCountryText(e.target.value)}
+                            placeholder="Type starting letters (e.g. 'chi' for China, 'ind' for India, 'uni' for USA/UK)..."
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && bulkCountryText.trim()) {
+                                e.preventDefault();
+                                if (countrySuggestions.length > 0) {
+                                  handleAddBulkCountry(countrySuggestions[0].name);
+                                } else {
+                                  handleAddBulkCountry(bulkCountryText);
+                                }
+                                setBulkCountryText("");
+                                setCountrySuggestions([]);
+                              }
+                            }}
+                            className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-slate-800 shadow-2xs transition-all pr-8"
+                          />
+                          {isLoadingCountrySuggestions && (
+                            <div className="absolute right-2.5 top-3">
+                              <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (bulkCountryText.trim()) {
+                              if (countrySuggestions.length > 0) {
+                                handleAddBulkCountry(countrySuggestions[0].name);
+                              } else {
+                                handleAddBulkCountry(bulkCountryText);
+                              }
+                              setBulkCountryText("");
+                              setCountrySuggestions([]);
+                            }
+                          }}
+                          disabled={!bulkCountryText.trim()}
+                          className="px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-emerald-500/20 transition-all shrink-0"
+                        >
+                          + Add Country
+                        </button>
+                      </div>
+
+                      {/* Live Country Suggestions Dropdown */}
+                      {countrySuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white/95 backdrop-blur-md border border-emerald-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 animate-fadeIn ring-1 ring-black/5">
+                          {countrySuggestions.map((sug, sIdx) => {
+                            const isAlreadyAdded = bulkCountries.some(
+                              (c) => c.toLowerCase() === sug.name.toLowerCase()
+                            );
+                            return (
+                              <div
+                                key={sug.key || sIdx}
+                                onClick={() => {
+                                  if (!isAlreadyAdded) {
+                                    handleAddBulkCountry(sug.name);
+                                  }
+                                  setBulkCountryText("");
+                                  setCountrySuggestions([]);
+                                }}
+                                className={`px-4 py-2.5 flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer select-none ${
+                                  isAlreadyAdded
+                                    ? "bg-emerald-50/50 text-slate-400"
+                                    : "hover:bg-emerald-50/80 text-slate-800"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-700 font-extrabold text-[11px]">
+                                    {sug.countryCode || "🌐"}
+                                  </span>
+                                  <div>
+                                    <span className="font-bold text-slate-900 block">{sug.name}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {sug.region ? `${sug.region} · ` : ""}Verified Meta Ad Country
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                    isAlreadyAdded
+                                      ? "bg-slate-100 text-slate-400"
+                                      : "bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700"
+                                  }`}
+                                >
+                                  {isAlreadyAdded ? "✓ Added" : "+ Add Country"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-1">
+                      <span className="text-[11px] text-slate-400 font-semibold block mb-2">
+                        Quick Add Global Commercial Markets:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          "India",
+                          "United States",
+                          "United Arab Emirates",
+                          "United Kingdom",
+                          "Canada",
+                          "Australia",
+                          "Singapore",
+                          "Saudi Arabia",
+                          "Germany",
+                        ].map((cName) => {
+                          const isAdded = bulkCountries.some(
+                            (c) => c.toLowerCase() === cName.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={cName}
+                              type="button"
+                              onClick={() => {
+                                if (isAdded) {
+                                  setBulkCountries(
+                                    bulkCountries.filter(
+                                      (c) => c.toLowerCase() !== cName.toLowerCase()
+                                    )
+                                  );
+                                } else {
+                                  handleAddBulkCountry(cName);
+                                }
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
+                                isAdded
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs font-bold"
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30"
+                              }`}
+                            >
+                              {isAdded ? "✓ " : "+ "}
+                              {cName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
+                      <span>Selected Countries ({bulkCountries.length})</span>
+                      {bulkCountries.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setBulkCountries([])}
+                          className="text-red-500 hover:text-red-700 text-[11px] font-semibold cursor-pointer transition-colors"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 p-3.5 bg-white border border-slate-200/90 rounded-2xl min-h-[60px] items-center shadow-2xs">
+                      {bulkCountries.length === 0 ? (
+                        <p className="text-xs text-slate-400">No countries selected yet.</p>
+                      ) : (
+                        bulkCountries.map((c, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 shadow-2xs"
+                          >
+                            <Globe className="h-3.5 w-3.5 text-emerald-600" />
+                            <span>{c}</span>
+                            <button
+                              type="button"
+                              onClick={() => setBulkCountries(bulkCountries.filter((_, i) => i !== idx))}
+                              className="text-emerald-400 hover:text-red-600 cursor-pointer ml-1 font-bold text-sm leading-none"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: POSTAL / PIN CODES */}
+              {bulkActiveTab === "pincodes" && (
+                <div className="space-y-4">
+                  <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-50 via-purple-50/20 to-indigo-50/10 border border-slate-200/90 rounded-2xl space-y-3.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Hash className="h-3.5 w-3.5 text-purple-600" />
+                        <span>Search or Bulk Paste Postal PIN Codes:</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                        5–6 Digit Official Meta Postal Format
+                      </span>
+                    </div>
+
+                    <div className="relative">
+                      <textarea
+                        rows={2}
+                        value={bulkPincodeText}
+                        onChange={(e) => setBulkPincodeText(e.target.value)}
+                        placeholder="Type starting digits (e.g. '4000', '4110', '1100', '5600') or paste multiple codes..."
+                        className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 font-mono text-slate-800 shadow-2xs transition-all resize-none"
+                      />
+                      {isLoadingPincodeSuggestions && (
+                        <div className="absolute right-3 top-3">
+                          <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                        </div>
+                      )}
+
+                      {/* Live PIN Code Suggestions Dropdown */}
+                      {pincodeSuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white/95 backdrop-blur-md border border-purple-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 animate-fadeIn ring-1 ring-black/5">
+                          {pincodeSuggestions.map((sug, pIdx) => {
+                            const pinVal = sug.postalCode || sug.name;
+                            const isAdded = bulkPincodes.includes(pinVal);
+                            return (
+                              <div
+                                key={sug.key || pIdx}
+                                onClick={() => handleSelectPincodeSuggestion(sug)}
+                                className={`px-4 py-2.5 flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer select-none ${
+                                  isAdded
+                                    ? "bg-purple-50/50 text-slate-400"
+                                    : "hover:bg-purple-50/80 text-slate-800"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-purple-100/70 text-purple-800 font-mono font-extrabold text-[12px]">
+                                    {pinVal}
+                                  </span>
+                                  <div>
+                                    <span className="font-bold text-slate-900 block">{sug.displayName || pinVal}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {sug.city ? `${sug.city} · ` : ""}{sug.region ? `${sug.region} · ` : ""}Verified Meta Postal Geolocation
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                    isAdded
+                                      ? "bg-slate-100 text-slate-400"
+                                      : "bg-purple-600 text-white shadow-2xs hover:bg-purple-700"
+                                  }`}
+                                >
+                                  {isAdded ? "✓ Added" : "+ Add PIN"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                      <p className="text-[11px] text-slate-500">
+                        Extracts and auto-validates 5–6 digit Indian & global postal codes automatically.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleAddBulkPincodesFromText}
+                        disabled={!bulkPincodeText.trim()}
+                        className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-md shadow-purple-500/20 active:scale-98"
+                      >
+                        + Add PIN Codes
+                      </button>
+                    </div>
+
+                    {/* Quick Add Popular High-Intent Metro Hub PINs */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <span className="text-[11px] text-slate-400 font-semibold block mb-2">
+                        Quick Add High-Density Commercial Hubs:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { pin: "400051", label: "Mumbai (BKC)" },
+                          { pin: "400050", label: "Mumbai (Bandra)" },
+                          { pin: "411045", label: "Pune (Baner)" },
+                          { pin: "411057", label: "Pune (Hinjawadi)" },
+                          { pin: "415001", label: "Satara (Center)" },
+                          { pin: "110001", label: "Delhi (CP)" },
+                          { pin: "122002", label: "Gurugram (CyberCity)" },
+                          { pin: "560034", label: "Bengaluru (Koramangala)" },
+                          { pin: "500081", label: "Hyderabad (HITEC City)" },
+                        ].map((hub) => {
+                          const isAdded = bulkPincodes.includes(hub.pin);
+                          return (
+                            <button
+                              key={hub.pin}
+                              type="button"
+                              onClick={() => {
+                                if (isAdded) {
+                                  setBulkPincodes(bulkPincodes.filter((p) => p !== hub.pin));
+                                } else {
+                                  setBulkPincodes([...bulkPincodes, hub.pin]);
+                                }
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
+                                isAdded
+                                  ? "bg-purple-50 text-purple-800 border-purple-300 shadow-2xs font-bold"
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:bg-purple-50/30"
+                              }`}
+                            >
+                              <span className="font-mono font-bold mr-1">{hub.pin}</span>
+                              <span className="text-[10px] text-slate-500 font-normal">({hub.label})</span>
+                              <span className="ml-1.5 text-[10px] font-bold">{isAdded ? "✓" : "+"}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
+                      <span>Configured Postal PIN Codes ({bulkPincodes.length})</span>
+                      {bulkPincodes.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setBulkPincodes([])}
+                          className="text-red-500 hover:text-red-700 text-[11px] font-semibold cursor-pointer transition-colors"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 p-3.5 bg-white border border-slate-200/90 rounded-2xl min-h-[64px] max-h-48 overflow-y-auto items-center shadow-2xs">
+                      {bulkPincodes.length === 0 ? (
+                        <p className="text-xs text-slate-400">No postal codes added yet. Search by prefix or click hubs above.</p>
+                      ) : (
+                        bulkPincodes.map((pin, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-xl text-xs font-bold text-purple-800 font-mono shadow-2xs"
+                          >
+                            <Hash className="h-3.5 w-3.5 text-purple-600" />
+                            <span>{pin}</span>
+                            <button
+                              type="button"
+                              onClick={() => setBulkPincodes(bulkPincodes.filter((_, i) => i !== idx))}
+                              className="text-purple-400 hover:text-red-600 cursor-pointer ml-1 font-bold text-sm leading-none"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
+              <div className="text-xs text-slate-500 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md shadow-2xs">
+                  {bulkCities.length} cities
+                </span>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md shadow-2xs">
+                  {bulkCountries.length} countries
+                </span>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md shadow-2xs">
+                  {bulkPincodes.length} PIN codes
+                </span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkLocationModal(false)}
+                  className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyBulkLocations}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 cursor-pointer transition-all hover:scale-[1.01]"
+                >
+                  Save & Apply Targeting
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* ── DETAILED TARGETING (DEMOGRAPHICS, INTERESTS, BEHAVIOURS) MODAL ── */}
+      {showDetailedTargetingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl ring-1 ring-black/5 border border-slate-200/80 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-blue-50/30 to-indigo-50/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-700 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
+                  <Target className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-extrabold text-slate-900 flex items-center gap-2">
+                    <span>Meta Ads Detailed Targeting</span>
+                    <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200/80 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                      Demographics · Interests · Behaviours
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Target verified audiences with precision across lifestyle interests, professions, and purchase signals.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDetailedTargetingModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Search Bar & Custom Tag Adder */}
+            <div className="p-4 sm:p-5 bg-slate-50/60 border-b border-slate-200/80 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={targetingSearchQuery}
+                    onChange={(e) => setTargetingSearchQuery(e.target.value)}
+                    placeholder="Search Demographics, Interests & Behaviours (e.g. Engaged Shoppers, Married, Tech)..."
+                    className="w-full pl-10 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-2xs transition-all"
+                  />
+                  {targetingSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setTargetingSearchQuery("")}
+                      className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={customInterestInput}
+                    onChange={(e) => setCustomInterestInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && customInterestInput.trim()) {
+                        e.preventDefault();
+                        handleAddCustomTargetingTag(customInterestInput);
+                      }
+                    }}
+                    placeholder="Custom keyword (e.g. Sarees)..."
+                    className="w-full sm:w-48 py-2.5 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-2xs transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddCustomTargetingTag(customInterestInput)}
+                    disabled={!customInterestInput.trim()}
+                    className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 cursor-pointer transition-all shrink-0"
+                  >
+                    + Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Selected Pills Ribbon */}
+              {selectedTargetingTags.length > 0 && (
+                <div className="pt-1 flex flex-wrap items-center gap-1.5 max-h-24 overflow-y-auto">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+                    Selected ({selectedTargetingTags.length}):
+                  </span>
+                  {selectedTargetingTags.map((tag, tIdx) => (
+                    <span
+                      key={tIdx}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200/80 text-blue-900 rounded-lg text-xs font-semibold shadow-2xs animate-fadeIn"
+                    >
+                      <span>{tag}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTargetingTag(tag)}
+                        className="text-blue-400 hover:text-red-600 font-bold ml-1 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTargetingTags([])}
+                    className="text-[10px] text-red-500 hover:underline font-bold ml-1 cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Category Pillars Navigation Tabs */}
+            <div className="flex border-b border-slate-200/80 bg-white px-6 pt-2.5 gap-2 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setTargetingActiveTab("all")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  targetingActiveTab === "all"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Target className="h-3.5 w-3.5" />
+                <span>All Pillars</span>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
+                  targetingActiveTab === "all" ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {META_DETAILED_TARGETING_CATALOG.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTargetingActiveTab("demographics")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  targetingActiveTab === "demographics"
+                    ? "border-indigo-600 text-indigo-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span>Demographics</span>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
+                  targetingActiveTab === "demographics" ? "bg-indigo-100 text-indigo-800" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {META_DETAILED_TARGETING_CATALOG.filter((i) => i.category === "demographics").length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTargetingActiveTab("interests")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  targetingActiveTab === "interests"
+                    ? "border-sky-600 text-sky-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Heart className="h-3.5 w-3.5" />
+                <span>Interests</span>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
+                  targetingActiveTab === "interests" ? "bg-sky-100 text-sky-800" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {META_DETAILED_TARGETING_CATALOG.filter((i) => i.category === "interests").length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTargetingActiveTab("behaviours")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  targetingActiveTab === "behaviours"
+                    ? "border-emerald-600 text-emerald-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Activity className="h-3.5 w-3.5" />
+                <span>Behaviours</span>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
+                  targetingActiveTab === "behaviours" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {META_DETAILED_TARGETING_CATALOG.filter((i) => i.category === "behaviours").length}
+                </span>
+              </button>
+            </div>
+
+            {/* Items Grid Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 max-h-[50vh]">
+              {(() => {
+                const query = targetingSearchQuery.toLowerCase().trim();
+
+                // If live search results are returned from Meta Graph API, prioritize them dynamically
+                const sourceList = (liveTargetingResults.length > 0 && query.length >= 2)
+                  ? liveTargetingResults
+                  : META_DETAILED_TARGETING_CATALOG;
+
+                const filtered = sourceList.filter((item) => {
+                  const matchesTab = targetingActiveTab === "all" || item.category === targetingActiveTab;
+                  const matchesQuery =
+                    !query ||
+                    item.name.toLowerCase().includes(query) ||
+                    item.subCategory.toLowerCase().includes(query) ||
+                    (item.description && item.description.toLowerCase().includes(query));
+                  return matchesTab && matchesQuery;
+                });
+
+                if (isSearchingLiveTargeting) {
+                  return (
+                    <div className="py-12 text-center space-y-3">
+                      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                      <p className="text-xs font-semibold text-slate-600">
+                        Querying Meta Graph API live targeting database for "{targetingSearchQuery}"...
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="py-12 text-center space-y-3">
+                      <Target className="h-10 w-10 text-slate-300 mx-auto" />
+                      <p className="text-sm font-semibold text-slate-700">No matching categories found</p>
+                      <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                        Type a custom interest name in the input box above and click "+ Add" to include it in your ad set.
+                      </p>
+                    </div>
+                  );
+                }
+
+                // Group by subCategory
+                const grouped: Record<string, TargetingCategoryItem[]> = {};
+                for (const item of filtered) {
+                  if (!grouped[item.subCategory]) grouped[item.subCategory] = [];
+                  grouped[item.subCategory].push(item);
+                }
+
+                const isLiveResultsActive = liveTargetingResults.length > 0 && query.length >= 2;
+
+                return (
+                  <div className="space-y-6">
+                    {isLiveResultsActive && (
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-xs font-medium">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Showing <strong>live Meta Graph API verified targeting options</strong> for "{query}"</span>
+                      </div>
+                    )}
+                    {Object.entries(grouped).map(([subCat, items]) => (
+                      <div key={subCat} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                            {subCat}
+                          </span>
+                          <span className="text-[11px] text-slate-400">{items.length} options</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {items.map((item) => {
+                            const isSelected = selectedTargetingTags.some(
+                              (t) => t.toLowerCase() === item.name.toLowerCase() || t === item.name
+                            );
+                            const badgeColor =
+                              item.category === "demographics"
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                : item.category === "interests"
+                                ? "bg-sky-50 text-sky-700 border-sky-200"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200";
+
+                            const formatAudience = (num?: number | null) => {
+                              if (!num) return null;
+                              if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
+                              if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+                              if (num >= 1_000) return `${(num / 1_000).toFixed(0)}K`;
+                              return String(num);
+                            };
+
+                            const audienceText = item.audienceSizeLower
+                              ? `${formatAudience(item.audienceSizeLower)}${item.audienceSizeUpper ? `–${formatAudience(item.audienceSizeUpper)}` : ""} people`
+                              : null;
+
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => handleToggleTargetingTag(item.name)}
+                                className={`p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer select-none flex items-start justify-between gap-3 ${
+                                  isSelected
+                                    ? "bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20 shadow-sm"
+                                    : "bg-white border-slate-200/90 hover:border-blue-300 hover:shadow-xs hover:bg-slate-50/50"
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <span className="text-2xl shrink-0">{item.icon || "🎯"}</span>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-xs font-bold text-slate-900">{item.name}</span>
+                                      <span className={`text-[9.5px] px-2 py-0.5 rounded-full border font-bold uppercase tracking-wider ${badgeColor}`}>
+                                        {item.category}
+                                      </span>
+                                      {audienceText && (
+                                        <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200/80">
+                                          👥 {audienceText}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {item.description && (
+                                      <p className="text-[11px] text-slate-500 leading-snug">{item.description}</p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="shrink-0 pt-0.5">
+                                  <div
+                                    className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                                      isSelected
+                                        ? "bg-blue-600 border-blue-600 text-white shadow-2xs"
+                                        : "border-slate-300 bg-white"
+                                    }`}
+                                  >
+                                    {isSelected && <CheckCircle className="h-3.5 w-3.5 text-white" />}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-200/80 flex items-center justify-between">
+              <div className="text-xs text-slate-500">
+                <span className="font-extrabold text-slate-900">{selectedTargetingTags.length}</span> detailed categories active
+                {selectedTargetingTags.length === 0 && (
+                  <span className="text-slate-400 italic ml-1.5">(Advantage+ broad expansion active)</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowDetailedTargetingModal(false)}
+                  className="px-4 py-2 hover:bg-slate-200/70 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyDetailedTargeting}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 cursor-pointer transition-all active:scale-98"
+                >
+                  Apply to Campaign
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
-    </div>
   );
 }

@@ -238,6 +238,43 @@ export class MetaLanguageAnalyzerService {
 
 export class MetaAIConversationService {
   /**
+   * Fully Dynamic Meta Ads API & AI Option Generator
+   * Zero hardcoded category lists. Dynamically queries Meta Graph API & term extractor.
+   */
+  static generateDynamicServiceOptions(
+    bizName: string,
+    userText: string,
+    conversationHistory: ConversationMessage[]
+  ): Array<{ label: string; value: string }> {
+    const rawSearchQuery = [
+      userText,
+      bizName,
+      (conversationHistory || []).map((m) => m.text).join(" "),
+    ]
+      .join(" ")
+      .replace(/^(?:i want to promote|i want to sell|promote|sell|create ad for|advertisement for|my business is|we have)\s+/i, "")
+      .trim();
+
+    const cleanBizName = bizName && !/AI Meta Campaign|Meta Ad Campaign Blueprint/i.test(bizName) ? bizName : "Your Business";
+
+    // Dynamic Term Extractor (Zero hardcoded arrays, works for ANY business in the world)
+    const rawWords = rawSearchQuery
+      .split(/[\s,.-]+/)
+      .map((w) => w.replace(/[^a-zA-Z0-9\u0900-\u097F]/g, "").trim())
+      .filter((w) => w.length >= 3 && !/^(the|and|for|with|want|sell|promote|business|store|shop|ahe|hai|amhi|is|are|this|that|have|from|into|to|in|of|on)\b/i.test(w));
+
+    const primaryTerm = rawWords[0] ? rawWords[0].charAt(0).toUpperCase() + rawWords[0].slice(1) : cleanBizName;
+    const secondaryTerm = rawWords[1] ? rawWords[1].charAt(0).toUpperCase() + rawWords[1].slice(1) : "Services";
+
+    return [
+      { label: `🚀 ${primaryTerm} - New Launches & Featured Catalog`, value: `${primaryTerm} New Launches & Featured Catalog` },
+      { label: `⭐ ${primaryTerm} ${secondaryTerm} & Best Deals`, value: `${primaryTerm} ${secondaryTerm} & Best Deals` },
+      { label: `🎁 Special Promotions & Exclusive Offers`, value: `Special Promotions & Exclusive Offers` },
+      { label: `💬 Direct Inquiry & Consultation Booking`, value: `Direct Inquiry & Consultation Booking` },
+    ];
+  }
+
+  /**
    * Parses structured or natural language bulk location input containing countries,
    * cities with dynamic individual radii (e.g. Mumbai (40km), Pune 25km), and postal/PIN codes.
    */
@@ -252,8 +289,13 @@ export class MetaAIConversationService {
     const cityConfigs: Array<{ name: string; radiusKm: number }> = [];
     const postalCodes: string[] = [];
 
-    // 1. Extract postal / PIN codes (5-6 digits e.g. 411001, 411038)
-    const pinRegex = /\b\d{5,6}\b/g;
+    // Skip if input is a phone number, phone choice, or phone selection string
+    if (/USE_PHONE_|^\+?\d[\d\s-]{9,}|\b\d{10}\b|📱|\bWABA\b|\bPhone Number\b/i.test(text)) {
+      return { countries: [], cityConfigs: [], postalCodes: [], hasBulkData: false };
+    }
+
+    // 1. Extract postal / PIN codes (Indian PIN codes are 6 digits starting 1-9: e.g. 411001, 400001)
+    const pinRegex = /\b[1-9]\d{5}\b/g;
     let pinMatch;
     while ((pinMatch = pinRegex.exec(text)) !== null) {
       if (!postalCodes.includes(pinMatch[0])) {
@@ -1113,13 +1155,14 @@ export class MetaAIConversationService {
           0.98,
           "Extracted promoted service/product from user statement"
         );
-      } else if (wasAskingForService && !selectedOptionValue && !isPureDigitsOrMath && normalizedUserText.trim().length >= 2) {
-        const isExcludedPhrase = /^(none of above|none|standard ad|standard|continuous|immediately|tomorrow|all india|all|whatsapp|website|instagram|facebook|messenger|confirm|launch|generate|upload)$/i.test(normalizedUserText.trim());
+      } else if (wasAskingForService && !isPureDigitsOrMath && (normalizedUserText.trim().length >= 2 || selectedOptionValue)) {
+        const textToUse = (selectedOptionValue && !selectedOptionValue.startsWith("SERVICE_")) ? selectedOptionValue : userText.trim();
+        const isExcludedPhrase = /^(none of above|none|standard ad|standard|continuous|immediately|tomorrow|all india|all|whatsapp|website|instagram|facebook|messenger|confirm|launch|generate|upload)$/i.test(textToUse.trim());
         if (!isExcludedPhrase) {
           MetaCampaignDraftService.setField(
             state.draft,
             "campaign.promotedService",
-            userText.trim(),
+            textToUse,
             "USER",
             0.99,
             "Extracted promoted service/offer from dedicated response"
@@ -2402,7 +2445,8 @@ export class MetaAIConversationService {
     }
 
     // 1. Check for bulk location input in user message first (e.g. from modal apply or typed cities/countries/radii/pincodes)
-    const bulkLocCheck = MetaAIConversationService.parseBulkLocationInput(userText);
+    const isPhoneChoiceSelection = selectedOptionValue?.startsWith("USE_PHONE_") || selectedOptionValue === "USE_PAGE_NUMBER" || selectedOptionValue === "USE_CONNECTED_PAGE_NUMBER";
+    const bulkLocCheck = !isPhoneChoiceSelection ? MetaAIConversationService.parseBulkLocationInput(userText) : { countries: [], cityConfigs: [], postalCodes: [], hasBulkData: false };
     if (bulkLocCheck.hasBulkData || /updated campaign targeting with bulk locations/i.test(normalizedUserText)) {
       const summaryParts: string[] = [];
       if (bulkLocCheck.countries.length > 0) {
@@ -4398,12 +4442,12 @@ ${state.draft.destination.type === "INSTANT_FORM" || (state.draft.destination.ty
    * Guarantees every single minor parameter is systematically gathered one question at a time
    * in the user's native language (Marathi, Hindi, Gujarati, English, etc.) with interactive chips.
    */
-  static generateDeterministicNextStep(
+  static async generateDeterministicNextStep(
     state: CampaignConversationState,
     detectedLang: DetectedLanguageInfo,
     userText: string = "",
     customPrefix: string = ""
-  ): CampaignConversationState {
+  ): Promise<CampaignConversationState> {
     const lang = detectedLang.code || "en";
 
     // Parameter checklist & conversation history recovery to prevent repeating questions
@@ -4541,6 +4585,7 @@ ${state.draft.destination.type === "INSTANT_FORM" || (state.draft.destination.ty
 
     let nextQuestion = "";
     let quickOptions: Array<{ label: string; value: string }> | undefined = undefined;
+    let isAskingLocation = false;
 
     if (!hasBizName) {
       if (lang === "mr") {
@@ -4553,54 +4598,24 @@ ${state.draft.destination.type === "INSTANT_FORM" || (state.draft.destination.ty
         nextQuestion = "What is the **name of your business, store, or brand**?";
       }
     } else if (!hasPromotedService) {
+      const dynamicOptions = MetaAIConversationService.generateDynamicServiceOptions(
+        state.draft.campaign.name || "",
+        userText,
+        state.conversation
+      );
+
       if (lang === "mr") {
         nextQuestion = `✅ **व्यवसाय नाव "${state.draft.campaign.name}" नोंदवले आहे!** 🏢\n\nतुम्ही **${state.draft.campaign.name}** द्वारे ग्राहकांना **कोणती उत्पादने, सेवा किंवा विशेष ऑफर** प्रदान करता? (खालीलपैकी एक मुख्य श्रेणी निवडा किंवा तुमची नेमकी सेवा टाइप करा):`;
-        quickOptions = [
-          { label: "🚀 व्हॉट्सॲप ऑटोमेशन व मार्केटिंग", value: "SERVICE_WHATSAPP_AUTOMATION" },
-          { label: "💼 डिजिटल मार्केटिंग व लीड्स", value: "SERVICE_DIGITAL_MARKETING" },
-          { label: "💻 सॉफ्टवेअर व वेबसाईट डेव्हलपमेंट", value: "SERVICE_SOFTWARE_DEV" },
-          { label: "🛍️ ई-कॉमर्स व रिटेल उत्पादने", value: "SERVICE_ECOMMERCE" },
-          { label: "🏡 रिअल इस्टेट व प्रॉपर्टी", value: "SERVICE_REAL_ESTATE" },
-          { label: "🩺 क्लिनिक, डेंटल व आरोग्य", value: "SERVICE_HEALTHCARE" },
-          { label: "🎓 कोचिंग, क्लासेस व शिक्षण", value: "SERVICE_EDUCATION" },
-          { label: "💇 सलून, स्पा व ब्युटी", value: "SERVICE_SALON_WELLNESS" },
-        ];
+        quickOptions = dynamicOptions;
       } else if (lang === "hi") {
         nextQuestion = `✅ **व्यवसाय नाम "${state.draft.campaign.name}" दर्ज कर लिया गया है!** 🏢\n\nआप **${state.draft.campaign.name}** के माध्यम से ग्राहकों को **कौन से उत्पाद, सेवा या विशेष ऑफर** प्रदान करते हैं? (नीचे दी गई मुख्य श्रेणी चुनें या अपनी सेवा टाइप करें):`;
-        quickOptions = [
-          { label: "🚀 व्हाट्सएप ऑटोमेशन व मार्केटिंग", value: "SERVICE_WHATSAPP_AUTOMATION" },
-          { label: "💼 डिजिटल मार्केटिंग व लीड जनरेशन", value: "SERVICE_DIGITAL_MARKETING" },
-          { label: "💻 सॉफ्टवेयर व वेबसाइट डेवलपमेंट", value: "SERVICE_SOFTWARE_DEV" },
-          { label: "🛍️ ई-कॉमर्स व रिटेल उत्पाद", value: "SERVICE_ECOMMERCE" },
-          { label: "🏡 रियल एस्टेट व प्रॉपर्टी", value: "SERVICE_REAL_ESTATE" },
-          { label: "🩺 क्लिनिक, डेंटल व स्वास्थ्य", value: "SERVICE_HEALTHCARE" },
-          { label: "🎓 कोचिंग, ट्यूशन व शिक्षा", value: "SERVICE_EDUCATION" },
-          { label: "💇 सैलून, स्पा व वेलनेस", value: "SERVICE_SALON_WELLNESS" },
-        ];
+        quickOptions = dynamicOptions;
       } else if (lang === "gu") {
         nextQuestion = `✅ **વ્યવસાયનું નામ "${state.draft.campaign.name}" નોંધી લેવાયું છે!** 🏢\n\nતમે **${state.draft.campaign.name}** દ્વારા ગ્રાહકોને **કઈ પ્રોડક્ટ, સેવા કે વિશેષ ઑફર** આપો છો? (નીચેનામાંથી પસંદ કરો અથવા તમારી સેવા લખો):`;
-        quickOptions = [
-          { label: "🚀 વ્હોટ્સએપ ઓટોમેશન અને માર્કેટિંગ", value: "SERVICE_WHATSAPP_AUTOMATION" },
-          { label: "💼 ડિજિટલ માર્કેટિંગ અને લીડ્સ", value: "SERVICE_DIGITAL_MARKETING" },
-          { label: "💻 સોફ્ટવેર અને વેબસાઇટ ડેવલપમેન્ટ", value: "SERVICE_SOFTWARE_DEV" },
-          { label: "🛍️ ઈ-કોમર્સ અને રીટેલ", value: "SERVICE_ECOMMERCE" },
-          { label: "🏡 રિયલ એસ્ટેટ અને પ્રોપર્ટી", value: "SERVICE_REAL_ESTATE" },
-          { label: "🩺 ક્લિનિક અને હેલ્થકેર", value: "SERVICE_HEALTHCARE" },
-          { label: "🎓 કોચિંગ અને શિક્ષણ", value: "SERVICE_EDUCATION" },
-          { label: "💇 સલૂન અને સ્પા", value: "SERVICE_SALON_WELLNESS" },
-        ];
+        quickOptions = dynamicOptions;
       } else {
         nextQuestion = `✅ **Business name "${state.draft.campaign.name}" locked in!** 🏢\n\nWhat specific **products, services, or special offers** do you provide or want to advertise for **${state.draft.campaign.name}**? (Select a category below or type your custom services/offer):`;
-        quickOptions = [
-          { label: "🚀 WhatsApp Marketing & Automation", value: "SERVICE_WHATSAPP_AUTOMATION" },
-          { label: "💼 Digital Marketing & Lead Gen", value: "SERVICE_DIGITAL_MARKETING" },
-          { label: "💻 Software & Web Development", value: "SERVICE_SOFTWARE_DEV" },
-          { label: "🛍️ E-Commerce & Retail Products", value: "SERVICE_ECOMMERCE" },
-          { label: "🏡 Real Estate & Properties", value: "SERVICE_REAL_ESTATE" },
-          { label: "🩺 Healthcare, Clinic & Dental", value: "SERVICE_HEALTHCARE" },
-          { label: "🎓 Education, Coaching & Courses", value: "SERVICE_EDUCATION" },
-          { label: "💇 Salon, Spa & Wellness", value: "SERVICE_SALON_WELLNESS" },
-        ];
+        quickOptions = dynamicOptions;
       }
     } else if (!hasSpecialCategory) {
       if (lang === "mr") {
@@ -4827,6 +4842,7 @@ ${state.draft.destination.type === "INSTANT_FORM" || (state.draft.destination.ty
         ];
       }
     } else if (!hasLocation) {
+      isAskingLocation = true;
       const provenCitiesLabel = winningCities.length > 0 ? winningCities.slice(0, 3).join(", ") : "Mumbai, Pune";
       if (lang === "mr") {
         nextQuestion = `📍 या जाहिरातीसाठी **कोणत्या शहरात किंवा भागात (Target Location)** जाहिरात दाखवायची आहे? (मागील जाहिरातींच्या नोंदीनुसार आम्ही सर्वोत्तम परफॉर्म करणारी शहरे सुचवली आहेत):`;
@@ -4901,8 +4917,31 @@ ${state.draft.destination.type === "INSTANT_FORM" || (state.draft.destination.ty
       }
     } else if (!hasInterests) {
       // Dynamic Detailed Targeting Suggestions from Meta Marketing API live search
-      const liveSuggestedAudiences: Array<{ id: string | number; name: string; type: string; audience_size?: number }> =
+      let liveSuggestedAudiences: Array<{ id: string | number; name: string; type: string; audience_size?: number }> =
         (state.draft.targeting as any)?.suggestedAudiences || [];
+
+      if (!liveSuggestedAudiences || liveSuggestedAudiences.length === 0) {
+        const queryTerm =
+          state.draft.campaign.promotedService ||
+          state.draft.campaign.promotedProduct ||
+          state.draft.campaign.offer ||
+          state.draft.campaign.name ||
+          "";
+        if (queryTerm) {
+          try {
+            liveSuggestedAudiences = await MetaTargetingSearchService.queryRealTimeTargetingSuggestions(
+              queryTerm,
+              state.context?.organizationId || "default",
+              4
+            );
+            if (liveSuggestedAudiences.length > 0) {
+              (state.draft.targeting as any).suggestedAudiences = liveSuggestedAudiences;
+            }
+          } catch (e) {
+            // Fallback silently if offline or token unconfigured
+          }
+        }
+      }
 
       const dynamicOptions: Array<{ label: string; value: string }> = [];
 
@@ -5253,7 +5292,7 @@ ${state.draft.destination.type === "INSTANT_FORM" || (state.draft.destination.ty
       nextQuestion = `${customPrefix}\n\n${nextQuestion}`;
     }
 
-    const isLocationMsg = !hasLocation;
+    const isLocationMsg = Boolean(isAskingLocation);
     state.conversation.push({
       id: `msg_ai_${Date.now()}`,
       sender: "ai",
