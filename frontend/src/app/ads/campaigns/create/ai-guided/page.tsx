@@ -4218,6 +4218,14 @@ export default function AiGuidedCampaignPage() {
     const text = (textToSend || inputVal).trim();
     if (!text || isLoading || isPublishing) return;
 
+    // Immediately guard against double-clicks, rapid Enter keys, or button spamming
+    setIsLoading(true);
+    setPublishError(null);
+    setInputVal("");
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+    }
+
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
 
@@ -4228,7 +4236,7 @@ export default function AiGuidedCampaignPage() {
     // A. Manual URL Detection
     const urlMatch = text.match(/https?:\/\/[^\s]+/i) || text.match(/(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?/i);
     if (urlMatch && urlMatch[0]) {
-      let detectedUrl = urlMatch[0];
+      let detectedUrl = urlMatch[0].replace(/[.,;:!?)]+$/, "");
       if (!detectedUrl.startsWith("http")) {
         detectedUrl = "https://" + detectedUrl;
       }
@@ -4288,10 +4296,10 @@ export default function AiGuidedCampaignPage() {
             website: detectedUrl,
             description: activeState.business?.description || cleanCopyFrontend(analysisData.description, 150) || ""
           },
-          locations: (analysisData.locations && analysisData.locations.length > 0)
+          locations: (analysisData.locations && analysisData.locations.length > 0 && (!activeState.locations || activeState.locations.length === 0 || activeState.locations[0] === "India"))
             ? analysisData.locations
             : activeState.locations,
-          language: (analysisData.language && analysisData.language.trim().length > 0)
+          language: (analysisData.language && (!activeState.language || activeState.language === "All languages"))
             ? (analysisData.language === "en" ? "English" : analysisData.language)
             : activeState.language,
           headlines: (newHeadlines.length > 0)
@@ -4328,9 +4336,9 @@ export default function AiGuidedCampaignPage() {
 
     // B. Manual Budget Detection (e.g., "budget 1000", "₹500 / day", "daily budget 2000", "5000 budget")
     const budgetMatch = text.match(/(?:budget|spend|cost)?\s*(?:of|is|to|=|:)?\s*(?:₹|rs\.?|inr|\$)?\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?)\s*(?:₹|rs\.?|inr|\$|\/day|per day|daily)?/i);
-    const explicitBudgetMatch = text.match(/(?:budget|spend|cost)\s*(?:is|of|to|=|:)?\s*(?:₹|rs\.?|inr|\$)?\s*([0-9]+(?:,[0-9]+)*)/i) ||
+    const explicitBudgetMatch = text.match(/(?:budget|spend|cost|रोज)\s*(?:is|of|to|=|:)?\s*(?:₹|rs\.?|inr|\$)?\s*([0-9]+(?:,[0-9]+)*)/i) ||
                                 text.match(/(?:₹|rs\.?|inr|\$)\s*([0-9]+(?:,[0-9]+)*)/i) ||
-                                text.match(/([0-9]+(?:,[0-9]+)*)\s*(?:₹|rs\.?|inr|\$|\/day|per day|daily budget)/i);
+                                text.match(/([0-9]+(?:,[0-9]+)*)\s*(?:₹|rs\.?|inr|\$|\/day|per day|daily budget|budget|aahe|आहे)/i);
     if (explicitBudgetMatch && explicitBudgetMatch[1]) {
       const parsedBudget = parseFloat(explicitBudgetMatch[1].replace(/,/g, ""));
       if (!isNaN(parsedBudget) && parsedBudget > 0) {
@@ -4339,8 +4347,9 @@ export default function AiGuidedCampaignPage() {
       }
     }
 
-    // C. Manual Business Name (e.g. "business name is X", "company name is X", "business: X")
-    const bizMatch = text.match(/(?:business(?:\s+name)?|company(?:\s+name)?|brand(?:\s+name)?|shop(?:\s+name)?)\s*(?:is|=|:)\s*([a-zA-Z0-9\s&'-]{2,30})/i);
+    // C. Manual Business Name (e.g. "business name is X", "company name is X", "business: X", "I run X, an online...")
+    const bizMatch = text.match(/(?:business(?:\s+name)?|company(?:\s+name)?|brand(?:\s+name)?|shop(?:\s+name)?)\s*(?:is|=|:)\s*([a-zA-Z0-9\s&'-]{2,30})/i) ||
+                     text.match(/(?:I\s+run|I\s+own|we\s+run|for\s+my\s+shop|for\s+my\s+business)\s+([a-zA-Z0-9\s&'-]{2,30}?)(?:\s*,|\s+(?:an|a|which|selling|website|and)|\s*$)/i);
     if (bizMatch && bizMatch[1]) {
       const explicitBiz = bizMatch[1].trim();
       if (explicitBiz && !explicitBiz.toLowerCase().includes("budget") && !explicitBiz.toLowerCase().includes("website")) {
@@ -4350,15 +4359,32 @@ export default function AiGuidedCampaignPage() {
       }
     }
 
-    // D. Manual Locations (e.g. "location is Mumbai", "target India", "locations: Delhi, Mumbai")
-    const locMatch = text.match(/(?:location|locations|target location|city|country)\s*(?:is|are|=|:)\s*([a-zA-Z0-9\s,.-]+)/i);
+    // D. Manual Locations (e.g. "location is Mumbai", "target India", "locations: Delhi, Mumbai", "in Mumbai", "Mumbai target kara", "मुंबई target करा")
+    const locMatch = text.match(/(?:location|locations|target location|city|country)\s*(?:is|are|=|:)\s*([a-zA-Z0-9\s,.-]+)/i) ||
+                     text.match(/(?:^|[.!?\n]\s*|,\s*)([a-zA-Z\u0900-\u097F\s,.-]+?)\s+target\s*(?:kara|करा|karo|करो)?(?:\.|\s|$)/i) ||
+                     text.match(/target\s+([a-zA-Z0-9\u0900-\u097F\s,.-]+?)(?:\s+(?:with|language|daily budget|budget|inr|rs|₹|is|aahe|आहे)|\.|\s*,|\s*$)/i) ||
+                     text.match(/\bin\s+([a-zA-Z\u0900-\u097F\s,.-]+?)(?:\s*,|\s+(?:and|with|language|budget)|\.|\s*$)/i);
     if (locMatch && locMatch[1]) {
-      const rawLocs = locMatch[1].split(/,|and/).map(s => s.trim()).filter(s => s.length > 1 && !s.toLowerCase().includes("budget") && !s.toLowerCase().includes("website"));
+      const rawLocs = locMatch[1]
+        .split(/,|and|\s+आणि\s+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 1 && !s.toLowerCase().includes("budget") && !s.toLowerCase().includes("website") && !s.toLowerCase().includes("language"));
       if (rawLocs.length > 0) {
         activeState.locations = rawLocs;
         setSelectedLocationsList(rawLocs);
         didUserProvideManualValues = true;
       }
+    }
+
+    // E. Manual Language Detection (e.g. "English", "Hindi", "Marathi", "English language theva", "English language ठेवा")
+    const langMatch = text.match(/([a-zA-Z\u0900-\u097F]+)\s+language\s+(?:theva|ठेवा|rakho|रखो)/i) ||
+                      text.match(/\b(English|Hindi|Marathi|Gujarati|Tamil|Telugu|Bengali|Kannada|Malayalam|Punjabi)\b/i) ||
+                      text.match(/(?:language|boli|bhasha|भाषा)\s*(?:is|=|:)?\s*([a-zA-Z\u0900-\u097F]+)/i);
+    if (langMatch && langMatch[1]) {
+      const detectedLang = langMatch[1].trim();
+      const capitalized = detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1).toLowerCase();
+      activeState.language = capitalized;
+      didUserProvideManualValues = true;
     }
 
     // Immediately update Live Campaign Cockpit with user manual inputs
@@ -4539,9 +4565,13 @@ export default function AiGuidedCampaignPage() {
   };
 
   const handleCreateCampaign = async () => {
+    if (isPublishing) return;
     setIsPublishing(true);
     setPublishError(null);
     setPublishSuccess(null);
+
+    // Generate a unique idempotency key for this creation action attempt
+    const idempotencyKey = `idemp_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -4897,7 +4927,8 @@ export default function AiGuidedCampaignPage() {
         },
         body: JSON.stringify({
           customerId,
-          campaignState: effectiveState
+          campaignState: effectiveState,
+          idempotencyKey
         })
       });
 

@@ -95,6 +95,22 @@ router.get("/user-profile", async (req, res) => {
   }
 });
 
+// In-memory cache for analyzed website URLs to prevent redundant re-scraping and duplicate Groq AI calls
+export const urlAnalysisCache = new Map<string, { timestamp: number; data: any }>();
+export const URL_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes in-session cache
+
+export function normalizeWebsiteUrl(raw: string): string {
+  try {
+    const parsed = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+    // Keep pathname and search params if present, strip trailing slash and hash
+    const cleanHost = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    const cleanPath = parsed.pathname.replace(/\/+$/, "");
+    return `${parsed.protocol}//${cleanHost}${cleanPath}${parsed.search}`;
+  } catch {
+    return raw.trim().toLowerCase().replace(/\/+$/, "");
+  }
+}
+
 // POST /api/ads/ai-guided/analyze-url
 router.post("/analyze-url", async (req, res) => {
   const rawUrl = req.body?.url;
@@ -105,6 +121,14 @@ router.post("/analyze-url", async (req, res) => {
       console.warn("[AI-GUIDED] analyze-url failed: missing url in body");
       return res.status(400).json({ error: "URL is required" });
     }
+
+    const normalizedKey = normalizeWebsiteUrl(url);
+    const cached = urlAnalysisCache.get(normalizedKey);
+    if (cached && (Date.now() - cached.timestamp < URL_CACHE_TTL_MS)) {
+      console.log(`[AI-GUIDED] Reusing cached website analysis for: ${url} (0 AI tokens consumed)`);
+      return res.status(200).json({ ...cached.data, cached: true });
+    }
+
     const analysis = await analyzeWebsiteUrl(url);
     if (!analysis.success) {
       console.warn(`[AI-GUIDED] analyze-url returned unsuccessful for ${url}:`, analysis.error);
@@ -466,7 +490,7 @@ Return ONLY JSON matching this format:
         };
       });
 
-    return res.status(200).json({
+    const resultPayload = {
       ...analysis,
       derivedBusinessName: GoogleAdsBaseService.cleanAdText(derivedBusinessName, 25),
       industry,
@@ -484,7 +508,14 @@ Return ONLY JSON matching this format:
       sitelinks: sanitizedSitelinks,
       callouts,
       structuredSnippets
+    };
+
+    urlAnalysisCache.set(normalizedKey, {
+      timestamp: Date.now(),
+      data: resultPayload
     });
+
+    return res.status(200).json(resultPayload);
   } catch (error: any) {
     console.error(`[AI-GUIDED] analyze-url failure for ${url}:`, error.message);
     return res.status(500).json({ error: error.message });
@@ -726,19 +757,68 @@ router.post("/chat", async (req, res) => {
   }
 });
 
+interface IdempotencyRecord {
+  status: "IN_PROGRESS" | "SUCCESS" | "FAILED";
+  result?: any;
+  message?: string;
+  timestamp: number;
+}
+
+// In-memory idempotency cache (TTL: 15 minutes)
+const idempotencyCache = new Map<string, IdempotencyRecord>();
+
+// Periodic cleanup of expired idempotency keys (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of idempotencyCache.entries()) {
+    if (now - record.timestamp > 15 * 60 * 1000) {
+      idempotencyCache.delete(key);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
 // POST /api/ads/ai-guided/create-campaign
 router.post("/create-campaign", async (req, res) => {
+  const idempotencyKey = (req.body?.idempotencyKey || req.headers["x-idempotency-key"] || "") as string;
   try {
     const { customerId, campaignState } = req.body;
     const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
 
-    if (!customerId) {
-      return res.status(400).json({ error: "Missing customerId" });
+    if (idempotencyKey && typeof idempotencyKey === "string" && idempotencyKey.trim()) {
+      const existing = idempotencyCache.get(idempotencyKey.trim());
+      if (existing) {
+        if (existing.status === "SUCCESS") {
+          return res.status(200).json({
+            success: true,
+            message: existing.message || "Campaign already created successfully (idempotent replay).",
+            result: existing.result,
+            isIdempotentReplay: true
+          });
+        }
+        if (existing.status === "IN_PROGRESS") {
+          return res.status(409).json({
+            error: "A campaign creation request with this idempotency key is already in progress. Please wait for completion.",
+            isDuplicateInProgress: true
+          });
+        }
+      }
+      // Register or reset to IN_PROGRESS
+      idempotencyCache.set(idempotencyKey.trim(), {
+        status: "IN_PROGRESS",
+        timestamp: Date.now()
+      });
+    }
+
+    if (!customerId || !/^\d{3}-?\d{3}-?\d{4}$|^\d{10}$/.test(String(customerId).trim())) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
+      return res.status(400).json({ error: "Invalid customerId format. Must be a 10-digit Google Ads Customer ID (e.g. '123-456-7890' or '1234567890')." });
     }
     if (!orgId) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
       return res.status(400).json({ error: "Missing organization ID (x-organization-id header or orgId parameter)" });
     }
     if (!campaignState || !campaignState.campaignType) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
       return res.status(400).json({ error: "Missing campaignState or campaignType" });
     }
 
@@ -1413,12 +1493,28 @@ router.post("/create-campaign", async (req, res) => {
     console.log(JSON.stringify(result, (key, value) => typeof value === "bigint" ? value.toString() : value, 2));
     console.log(`=================================================================\n`);
 
+    if (idempotencyKey && typeof idempotencyKey === "string" && idempotencyKey.trim()) {
+      idempotencyCache.set(idempotencyKey.trim(), {
+        status: "SUCCESS",
+        result,
+        message: `Campaign "${campaignName}" created successfully!`,
+        timestamp: Date.now()
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: `Campaign "${campaignName}" created successfully!`,
       result
     });
   } catch (error: any) {
+    if (idempotencyKey && typeof idempotencyKey === "string" && idempotencyKey.trim()) {
+      // Mark as failed or delete so user can retry upon genuine failure
+      idempotencyCache.set(idempotencyKey.trim(), {
+        status: "FAILED",
+        timestamp: Date.now()
+      });
+    }
     console.error("[AI Guided Campaign Creation Error]:", error?.response?.data || error.message);
     const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
     const errorDetails = error?.response?.data || error.message;
