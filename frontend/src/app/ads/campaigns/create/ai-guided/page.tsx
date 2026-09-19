@@ -72,8 +72,10 @@ import {
   Sparkle,
   ChevronUp,
   Link2,
-  Link
+  Link,
+  Building2
 } from "lucide-react";
+import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 
 export interface BusinessContext {
   name?: string;
@@ -83,6 +85,9 @@ export interface BusinessContext {
   hasApp?: boolean;
   physicalLocation?: boolean;
   ecommerceFeed?: boolean;
+  products?: string[];
+  services?: string[];
+  targetAudience?: string;
 }
 
 export interface CampaignState {
@@ -694,6 +699,7 @@ export default function AiGuidedCampaignPage() {
   const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
   const [urlValidationError, setUrlValidationError] = useState<string | null>(null);
   const [showMissingParamsModal, setShowMissingParamsModal] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
 
   // Mobile View Tab Selection ('chat' | 'cockpit')
   const [mobileActiveTab, setMobileActiveTab] = useState<"chat" | "cockpit">("chat");
@@ -756,6 +762,47 @@ export default function AiGuidedCampaignPage() {
   const [campaignSearchQuery, setCampaignSearchQuery] = useState<string>("");
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState<boolean>(false);
   const [referencedCampaign, setReferencedCampaign] = useState<any | null>(null);
+
+  // Standalone Calendar & Campaign Opportunities State
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState<boolean>(false);
+  const [calendarActiveTab, setCalendarActiveTab] = useState<"opportunities" | "calendar">("opportunities");
+  const [calendarData, setCalendarData] = useState<{
+    opportunities: any[];
+    calendar: any[];
+    currentYear?: number;
+    selectedYear?: number;
+    availableYears?: number[];
+    rollingWindow?: number[];
+  } | null>(null);
+  const [calendarSelectedYear, setCalendarSelectedYear] = useState<number>(new Date().getFullYear());
+  const [isCalendarLoading, setIsCalendarLoading] = useState<boolean>(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [calendarMonthFilter, setCalendarMonthFilter] = useState<string>("All");
+
+  const fetchCalendarOpportunities = async (yearOverride?: number) => {
+    setIsCalendarLoading(true);
+    setCalendarError(null);
+    try {
+      const orgId = typeof window !== "undefined" ? localStorage.getItem("organization_id") || "demo-org-123" : "demo-org-123";
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const targetYear = yearOverride || calendarSelectedYear;
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/calendar-opportunities?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(customerId)}&year=${targetYear}`, {
+        headers: {
+          "x-organization-id": orgId
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load calendar opportunities");
+      setCalendarData(data);
+      if (data.selectedYear) {
+        setCalendarSelectedYear(data.selectedYear);
+      }
+    } catch (err: any) {
+      setCalendarError(err.message || "Could not load calendar");
+    } finally {
+      setIsCalendarLoading(false);
+    }
+  };
 
   // AI Suggestions Review Modal Popup State (For Grok AI recommendations)
   const [isAiSuggestionsModalOpen, setIsAiSuggestionsModalOpen] = useState<boolean>(false);
@@ -994,6 +1041,9 @@ export default function AiGuidedCampaignPage() {
     currencyCode?: string;
   } | null>(null);
 
+  // Approved Business & Marketing Profile Context (GoogleAdsCustomerProfile)
+  const [customerProfile, setCustomerProfile] = useState<any | null>(null);
+
   // Fetch Logged-in User Profile & Auto-fill Campaign Cockpit + Chat Welcome Message
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -1019,6 +1069,7 @@ export default function AiGuidedCampaignPage() {
         const resolvedBizName = profileData.businessName || profileData.accountName || storedOrgName || profileData.organizationName || "";
         const resolvedOrgName = profileData.organizationName || storedOrgName || "";
         const resolvedLocation = profileData.locationName || "India";
+        const prof = profileData.customerProfile || null;
 
         setUserProfile({
           userName: resolvedUserName,
@@ -1030,44 +1081,84 @@ export default function AiGuidedCampaignPage() {
           currencyCode: profileData.currencyCode || "INR"
         });
 
-        // Pre-fill Right Side Campaign Cockpit with login details if fields are empty
+        if (prof) {
+          setCustomerProfile(prof);
+        }
+
+        // Pre-fill Right Side Campaign Cockpit with approved business profile if fields are empty
         setCampaignState(prev => {
           const finalBiz = prev.businessName || resolvedBizName || "";
           const defaultCampaignName = prev.campaignName
             ? prev.campaignName
             : (finalBiz ? generateCampaignName(finalBiz, prev.campaignType) : "");
 
+          const prefilledWebsite = prev.website || profileData.primaryWebsite || "";
+          const prefilledDescription = prev.business?.description || profileData.businessDescription || "";
+          const prefilledProducts = (prev.business?.products && prev.business.products.length > 0)
+            ? prev.business.products
+            : (Array.isArray(profileData.products) ? profileData.products.map((p: any) => typeof p === "string" ? p : p.name).filter(Boolean) : []);
+          const prefilledLocations = (prev.locations && prev.locations.length > 0 && prev.locations[0] !== "") 
+            ? prev.locations 
+            : (Array.isArray(profileData.locations) && profileData.locations.length > 0 ? profileData.locations : [resolvedLocation || "India"]);
+          const prefilledLanguage = prev.language || (prof?.languagesServed?.[0] ? prof.languagesServed[0] : prev.language);
+
           return {
             ...prev,
+            customerProfile: prof || prev.customerProfile,
             businessName: finalBiz,
             campaignName: defaultCampaignName,
+            website: prefilledWebsite,
+            language: prefilledLanguage,
             business: {
               ...(prev.business || {}),
               name: prev.business?.name || finalBiz,
-              description: prev.business?.description || ""
+              description: prefilledDescription,
+              products: prefilledProducts
             },
-            locations: (prev.locations && prev.locations.length > 0 && prev.locations[0] !== "") 
-              ? prev.locations 
-              : (resolvedLocation ? [resolvedLocation] : ["India"])
+            locations: prefilledLocations
           };
         });
 
         // Update Initial AI Welcome Message with personalized user & company greeting
         const welcomeBizText = resolvedBizName || resolvedOrgName;
-        const greetingContent = `Hi ${resolvedUserName}! 👋 Welcome to your Google Ads AI Copilot${welcomeBizText ? ` for **${welcomeBizText}**` : ""}.\n\n` +
-          `I've loaded your connected Google Ads account (${cid ? `ID: \`${cid}\`` : "Active Account"}) and business details.\n\n` +
-          `Tell me about what you'd like to promote today, or choose a starting point below:`;
+        let greetingContent = `Hi ${resolvedUserName}! 👋 Welcome to your Google Ads AI Copilot${welcomeBizText ? ` for **${welcomeBizText}**` : ""}.\n\n`;
+
+        if (prof?.isApproved) {
+          greetingContent += `✅ **Approved Business & Marketing Profile Connected**\n` +
+            `I have loaded your verified business profile (${[prof.industry, prof.businessCategory].filter(Boolean).join(" • ") || "Verified Profile"}), ` +
+            `products/services, target audiences, brand guidelines, and conversion goals.\n\n` +
+            `Tell me what you'd like to promote today, or choose a starting point below:`;
+        } else {
+          greetingContent += `I've loaded your connected Google Ads account (${cid ? `ID: \`${cid}\`` : "Active Account"}).\n\n` +
+            `Tell me about what you'd like to promote today, or choose a starting point below:`;
+        }
+
+        const dynamicSuggestions: string[] = [];
+        if (prof?.products?.length) {
+          const firstProd = typeof prof.products[0] === "string" ? prof.products[0] : prof.products[0].name;
+          if (firstProd) dynamicSuggestions.push(`Promote product: ${firstProd}`);
+        }
+        if (prof?.services?.length && dynamicSuggestions.length < 2) {
+          const firstServ = typeof prof.services[0] === "string" ? prof.services[0] : prof.services[0].name;
+          if (firstServ) dynamicSuggestions.push(`Promote service: ${firstServ}`);
+        }
+        if (profileData.primaryWebsite && dynamicSuggestions.length < 3) {
+          dynamicSuggestions.push(`Create campaign for ${profileData.primaryWebsite}`);
+        } else if (resolvedBizName && dynamicSuggestions.length < 3) {
+          dynamicSuggestions.push(`Promote ${resolvedBizName}`);
+        }
+        if (dynamicSuggestions.length < 4) {
+          dynamicSuggestions.push("I want more leads & phone calls");
+        }
+        if (dynamicSuggestions.length < 5) {
+          dynamicSuggestions.push("What campaign type do you recommend?");
+        }
 
         const welcomeMessage: Message = {
           id: "msg-initial",
           role: "assistant",
           content: greetingContent,
-          suggestions: [
-            resolvedBizName ? `Generate complete campaign for ${resolvedBizName}` : "I want more leads & phone calls",
-            "I want to sell products online",
-            "I have a website URL to analyze",
-            "What campaign type do you recommend?"
-          ],
+          suggestions: dynamicSuggestions,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         };
 
@@ -4412,6 +4503,7 @@ export default function AiGuidedCampaignPage() {
         content: m.content
       }));
 
+      const cid = customerId || "6587355041";
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/chat`, {
         method: "POST",
         headers: {
@@ -4420,7 +4512,9 @@ export default function AiGuidedCampaignPage() {
         },
         body: JSON.stringify({
           messages: historyPayload,
-          campaignState: activeState
+          campaignState: activeState,
+          customerId: cid,
+          customerProfile: customerProfile || activeState.customerProfile || null
         })
       });
 
@@ -4449,6 +4543,7 @@ export default function AiGuidedCampaignPage() {
           const nextState: CampaignState = {
             ...prev,
             ...returnedCs,
+            customerProfile: prev.customerProfile || returnedCs.customerProfile,
             business: {
               ...(prev.business || {}),
               ...(returnedCs.business || {})
@@ -4992,7 +5087,7 @@ export default function AiGuidedCampaignPage() {
     }
     
     const cid = customerId || "6587355041";
-    router.push(`/ads/campaigns/create?customerId=${cid}`);
+    router.push(`/ads/campaigns/create/manual?customerId=${cid}`);
   };
 
   const getCampaignIcon = (type?: string) => {
@@ -5114,6 +5209,382 @@ export default function AiGuidedCampaignPage() {
                 type="button"
                 onClick={() => setShowMissingParamsModal(false)}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Standalone Campaign Calendar & Opportunities Modal ── */}
+      {isCalendarModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-3 sm:p-6 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4 bg-slate-50 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-blue-500/20">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight truncate">
+                    Campaign Calendar &amp; Opportunities
+                  </h3>
+                  <p className="text-[11px] text-slate-500 truncate">
+                    Indian Holiday &amp; Festival Marketing Intelligence {customerId ? `• Customer ID: ${customerId}` : ""}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={fetchCalendarOpportunities}
+                  disabled={isCalendarLoading}
+                  className="p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 transition-all cursor-pointer"
+                  title="Refresh Calendar"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isCalendarLoading ? "animate-spin text-blue-600" : ""}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCalendarModalOpen(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-all cursor-pointer"
+                  title="Close Calendar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Option Tabs Switcher: "New & Fresh Campaign Opportunities" vs "Campaign Calendar" */}
+            <div className="px-5 sm:px-6 py-2.5 bg-white border-b border-slate-200 flex items-center gap-2 shrink-0 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setCalendarActiveTab("opportunities")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  calendarActiveTab === "opportunities"
+                    ? "bg-blue-600 text-white shadow-xs shadow-blue-500/20"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>New &amp; Fresh Campaign Opportunities</span>
+                {calendarData?.opportunities && (
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                      calendarActiveTab === "opportunities"
+                        ? "bg-blue-500 text-white"
+                        : "bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {calendarData.opportunities.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCalendarActiveTab("calendar")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  calendarActiveTab === "calendar"
+                    ? "bg-blue-600 text-white shadow-xs shadow-blue-500/20"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                <span>Campaign Calendar</span>
+                {calendarData?.calendar && (
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                      calendarActiveTab === "calendar"
+                        ? "bg-blue-500 text-white"
+                        : "bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {calendarData.calendar.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 min-h-0 bg-slate-50/50">
+              {isCalendarLoading && (
+                <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-500 text-xs font-medium">
+                  <Loader2 className="h-7 w-7 animate-spin text-blue-600" />
+                  <span>Loading Indian festival &amp; holiday intelligence...</span>
+                </div>
+              )}
+
+              {calendarError && !isCalendarLoading && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-3 font-semibold">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                    <span>{calendarError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={fetchCalendarOpportunities}
+                    className="px-3 py-1 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {!isCalendarLoading && !calendarError && calendarActiveTab === "opportunities" && (
+                <div className="space-y-4">
+                  {/* Informational context header */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div className="text-xs space-y-0.5">
+                      <p className="font-bold text-slate-900">
+                        Seasonal &amp; Festive Campaign Opportunities
+                      </p>
+                      <p className="text-slate-600 text-[11px] leading-relaxed">
+                        Upcoming Indian holidays and festivals matched with the active customer’s approved business profile, industry category, and product/service offerings.
+                      </p>
+                    </div>
+                  </div>
+
+                  {(!calendarData?.opportunities || calendarData.opportunities.length === 0) ? (
+                    <div className="py-14 text-center text-slate-400 text-xs italic">
+                      No upcoming festival campaign opportunities detected in the next 90 days.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {calendarData.opportunities.map((opp: any) => (
+                        <div
+                          key={opp.id}
+                          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:shadow-xs transition-all space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600 block mb-0.5">
+                                {opp.type || "Festival"}
+                              </span>
+                              <h4 className="text-sm font-bold text-slate-900 leading-tight truncate">
+                                {opp.eventName}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <p className="text-[11px] text-slate-500 font-mono">
+                                  {opp.date}
+                                </p>
+                                {opp.year && (
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                    {opp.year}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${
+                                opp.daysRemaining <= 14
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                  : opp.daysRemaining <= 30
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              }`}
+                            >
+                              {opp.daysRemaining === 0
+                                ? "Today"
+                                : opp.daysRemaining === 1
+                                ? "Tomorrow"
+                                : `In ${opp.daysRemaining} days`}
+                            </span>
+                          </div>
+
+                          {/* Campaign Strategy Details */}
+                          <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Recommended Angle</span>
+                              <span className="font-semibold text-slate-800">{opp.campaignTheme}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                                Objective: {opp.suggestedObjective}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold border border-blue-200">
+                                Format: {opp.suggestedCampaignType}
+                              </span>
+                            </div>
+
+                            {opp.opportunityInsight && (
+                              <p className="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
+                                {opp.opportunityInsight}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!isCalendarLoading && !calendarError && calendarActiveTab === "calendar" && (
+                <div className="space-y-4">
+                  {/* Dynamic Rolling 3-Year Selector */}
+                  <div className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                        <Calendar className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-900 block leading-tight">
+                          Marketing Calendar Year
+                        </span>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          Rolling 3-year window ({calendarData?.availableYears ? calendarData.availableYears.join(" • ") : `${calendarSelectedYear} • ${calendarSelectedYear + 1} • ${calendarSelectedYear + 2}`})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Year Selector Pills */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {(calendarData?.availableYears || [new Date().getFullYear(), new Date().getFullYear() + 1, new Date().getFullYear() + 2]).map((yr: number) => (
+                        <button
+                          key={yr}
+                          type="button"
+                          onClick={() => {
+                            setCalendarSelectedYear(yr);
+                            fetchCalendarOpportunities(yr);
+                          }}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            calendarSelectedYear === yr
+                              ? "bg-blue-600 text-white shadow-xs shadow-blue-500/25"
+                              : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80"
+                          }`}
+                        >
+                          {yr}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Month Filter Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                    {[
+                      "All",
+                      "January",
+                      "February",
+                      "March",
+                      "April",
+                      "May",
+                      "June",
+                      "July",
+                      "August",
+                      "September",
+                      "October",
+                      "November",
+                      "December"
+                    ].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setCalendarMonthFilter(m)}
+                        className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer shrink-0 ${
+                          calendarMonthFilter === m
+                            ? "bg-slate-900 text-white shadow-xs"
+                            : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Calendar Events List */}
+                  <div className="space-y-2.5">
+                    {calendarData?.calendar
+                      ?.filter((ev: any) => {
+                        if (ev.year && ev.year !== calendarSelectedYear) return false;
+                        if (calendarMonthFilter === "All") return true;
+                        return ev.month?.toLowerCase().includes(calendarMonthFilter.toLowerCase());
+                      })
+                      .map((item: any) => (
+                        <div
+                          key={item.id}
+                          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-all"
+                        >
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className="px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-center shrink-0 min-w-[70px]">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                                {new Date(item.date + "T00:00:00Z").toLocaleDateString("en-US", { month: "short" })}
+                              </span>
+                              <span className="text-base font-extrabold text-slate-900 leading-none block">
+                                {new Date(item.date + "T00:00:00Z").getDate()}
+                              </span>
+                            </div>
+
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
+                                  {item.eventName}
+                                </h4>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                  {item.type}
+                                </span>
+                                {item.isMovable && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-700 border border-amber-200" title="Dynamically calculated based on Indian lunar astronomical calendar">
+                                    Lunar Calendar
+                                  </span>
+                                )}
+                              </div>
+
+                              {item.extras && (
+                                <p className="text-[11px] text-slate-500 line-clamp-1">
+                                  {item.extras}
+                                </p>
+                              )}
+
+                              <p className="text-[10px] text-slate-400">
+                                {item.relevanceReason}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 sm:text-right">
+                            <span
+                              className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                                item.daysRemaining >= 0 && item.daysRemaining <= 30
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : item.daysRemaining >= 0
+                                  ? "bg-slate-100 text-slate-600 border border-slate-200"
+                                  : "bg-slate-50 text-slate-400 border border-slate-200"
+                              }`}
+                            >
+                              {item.daysRemaining < 0
+                                ? "Past event"
+                                : item.daysRemaining === 0
+                                ? "Today"
+                                : item.daysRemaining === 1
+                                ? "Tomorrow"
+                                : `${item.daysRemaining} days away`}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 shrink-0">
+              <span className="text-[11px]">
+                Powered by free public Indian festival &amp; holiday calendar API
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsCalendarModalOpen(false)}
+                className="px-4 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition-all cursor-pointer"
               >
                 Close
               </button>
@@ -5307,7 +5778,7 @@ export default function AiGuidedCampaignPage() {
                 setPendingExitAction("back");
                 setIsExitPromptOpen(true);
               } else {
-                router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
+                router.push(`/ads/campaigns/create/manual${customerId ? `?customerId=${customerId}` : ""}`);
               }
             }}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer"
@@ -5326,6 +5797,12 @@ export default function AiGuidedCampaignPage() {
             <span className="hidden md:inline px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
               Live Copilot
             </span>
+            {customerProfile?.isApproved && (
+              <span className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs" title={`Approved Profile Connected: ${customerProfile.businessName || 'Business Profile'}`}>
+                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                Profile Connected
+              </span>
+            )}
           </div>
         </div>
 
@@ -5337,7 +5814,7 @@ export default function AiGuidedCampaignPage() {
                 setPendingExitAction("back");
                 setIsExitPromptOpen(true);
               } else {
-                router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
+                router.push(`/ads/campaigns/create/manual${customerId ? `?customerId=${customerId}` : ""}`);
               }
             }}
             className="px-3 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
@@ -5383,6 +5860,18 @@ export default function AiGuidedCampaignPage() {
             <span className="hidden sm:inline">New Session</span>
           </button>
 
+          {customerId && (
+            <button
+              type="button"
+              onClick={() => router.push(`/ads/profile?customerId=${customerId}`)}
+              className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
+              title="View Google Ads Profile and Merchant/App Settings"
+            >
+              <Building2 className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+              <span className="hidden sm:inline">Profile</span>
+            </button>
+          )}
+
           <span className="hidden xs:inline text-xs font-mono text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
             {customerId ? `ID: ${customerId}` : "Google Ads"}
           </span>
@@ -5424,6 +5913,49 @@ export default function AiGuidedCampaignPage() {
 
       {/* ── Main Content Split View (Light Theme) ── */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden bg-slate-100">
+
+        {/* LEFT SIDEBAR NAVIGATION RAIL (Only on Google Ads AI Guided Page) */}
+        <aside className="w-14 sm:w-16 bg-white border-r border-slate-200 flex flex-col items-center py-3.5 gap-3 shrink-0 z-30 shadow-2xs">
+          {/* AI Studio / Chat Mode Button */}
+          <button
+            type="button"
+            onClick={() => setIsCalendarModalOpen(false)}
+            className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+              !isCalendarModalOpen
+                ? "bg-blue-50 text-blue-600 border border-blue-200 shadow-xs"
+                : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            }`}
+            title="AI Campaign Studio"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="text-[9px] font-bold mt-0.5 leading-none">Studio</span>
+          </button>
+
+          {/* Calendar Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsCalendarModalOpen(true);
+              if (!calendarData) {
+                fetchCalendarOpportunities();
+              }
+            }}
+            className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer relative ${
+              isCalendarModalOpen
+                ? "bg-blue-600 text-white shadow-sm shadow-blue-500/25"
+                : "text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 border border-transparent hover:border-blue-200"
+            }`}
+            title="Campaign Calendar & Opportunities"
+          >
+            <Calendar className="h-4 w-4" />
+            <span className="text-[9px] font-bold mt-0.5 leading-none">Calendar</span>
+            {calendarData && calendarData.opportunities?.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center shadow-xs">
+                {calendarData.opportunities.length}
+              </span>
+            )}
+          </button>
+        </aside>
         
         {/* LEFT: AI Interactive Chat Column with Live Preview */}
         <div className={`flex-1 flex-col min-w-0 min-h-0 bg-white border-r border-slate-200 shadow-xs ${
@@ -14564,7 +15096,7 @@ export default function AiGuidedCampaignPage() {
                   const action = pendingExitAction;
                   setPendingExitAction(null);
                   if (action === "back") {
-                    router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
+                    router.push(`/ads/campaigns/create/manual${customerId ? `?customerId=${customerId}` : ""}`);
                   } else if (action === "new_session") {
                     executeResetSession();
                   }
@@ -14584,7 +15116,7 @@ export default function AiGuidedCampaignPage() {
                       setIsExitPromptOpen(false);
                       setPendingExitAction(null);
                       if (action === "back") {
-                        router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
+                        router.push(`/ads/campaigns/create/manual${customerId ? `?customerId=${customerId}` : ""}`);
                       } else if (action === "new_session") {
                         executeResetSession();
                       }

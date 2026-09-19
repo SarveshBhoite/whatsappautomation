@@ -40,6 +40,7 @@
   --radius: 1rem;
 }
 
+/* Tailwind v4 Theme Configuration */
 @theme {
   --font-sans: var(--font-sans), sans-serif;
   --font-display: var(--font-display), sans-serif;
@@ -232,18 +233,81 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
   height: 0 !important;
 }
 
-/* Scrollbar utility classes (hidden across all devices/browsers) */
+/* Scrollbar utility classes */
 .scrollbar-none,
-.scrollbar-thin,
 .no-scrollbar {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
 
 .scrollbar-none::-webkit-scrollbar,
-.scrollbar-thin::-webkit-scrollbar,
 .no-scrollbar::-webkit-scrollbar {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
+}
+
+/* Custom visible vertical scrollbar */
+.custom-vertical-scrollbar,
+.custom-scrollbar {
+  scrollbar-width: thin !important;
+  scrollbar-color: #94a3b8 #f1f5f9 !important;
+  -ms-overflow-style: auto !important;
+  overflow-y: auto !important;
+}
+
+.custom-vertical-scrollbar::-webkit-scrollbar,
+.custom-scrollbar::-webkit-scrollbar {
+  display: block !important;
+  width: 10px !important;
+  height: 10px !important;
+}
+
+.custom-vertical-scrollbar::-webkit-scrollbar-track,
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f8fafc !important;
+  border-left: 1px solid #e2e8f0 !important;
+}
+
+.custom-vertical-scrollbar::-webkit-scrollbar-thumb,
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1 !important;
+  border-radius: 9999px !important;
+  border: 2px solid #f8fafc !important;
+}
+
+.custom-vertical-scrollbar::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8 !important;
+}
+
+.custom-vertical-scrollbar::-webkit-scrollbar-thumb:active,
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background-color: #64748b !important;
+}
+
+/* Thin visible scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin !important;
+  scrollbar-color: #cbd5e1 transparent !important;
+  -ms-overflow-style: auto !important;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  display: block !important;
+  width: 6px !important;
+  height: 6px !important;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1 !important;
+  border-radius: 9999px !important;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8 !important;
 }

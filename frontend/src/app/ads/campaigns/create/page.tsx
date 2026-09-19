@@ -7,8 +7,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   X, HelpCircle, ArrowRight, Check, CheckCircle, Plus, Trash2, PhoneCall,
   Sparkles, Layers, Target, Search, Video, LayoutGrid, ShoppingBag,
-  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, SlidersHorizontal, BarChart3, Link as LinkIcon
+  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, SlidersHorizontal, BarChart3, Link as LinkIcon, Building2
 } from "lucide-react";
+import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 
 interface ObjectiveOption {
   id: string;
@@ -252,6 +253,7 @@ export default function CampaignCreatePage() {
   const [campaignName, setCampaignName] = useState<string>("Sales-Performance Max-1");
   const [showDraftModal, setShowDraftModal] = useState<boolean>(false);
   const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
 
   const handleSaveDraft = async () => {
     setIsSavingDraft(true);
@@ -926,6 +928,17 @@ export default function CampaignCreatePage() {
           <span className="font-mono">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}
           </span>
+          {(customerId || accountInfo?.customerId) && (
+            <button
+              type="button"
+              onClick={() => router.push(`/ads/profile?customerId=${customerId || accountInfo?.customerId || ""}`)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-all cursor-pointer shadow-2xs"
+              title="View Google Ads Profile and Merchant/App Settings"
+            >
+              <Building2 className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+              <span>Google Ads Profile</span>
+            </button>
+          )}
           <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
         </div>
       </header>

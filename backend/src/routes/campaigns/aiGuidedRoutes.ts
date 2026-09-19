@@ -4,6 +4,7 @@ import { GoogleAdsImageGenService } from "../../services/googleAds/GoogleAdsImag
 import { GoogleAdsCampaignValidator } from "../../services/googleAds/shared/GoogleAdsCampaignValidator";
 import { GoogleAdsBaseService } from "../../services/googleAds/shared/GoogleAdsBaseService";
 import { analyzeWebsiteUrl } from "../../services/googleAds/shared/websiteAnalyzer";
+import { CustomerBusinessProfileService } from "../../services/googleAds/CustomerBusinessProfileService";
 import { SalesSearchService } from "../../services/googleAds/sales/SalesSearchService";
 import { SalesPerformanceMaxService } from "../../services/googleAds/sales/SalesPerformanceMaxService";
 import { SalesDisplayService } from "../../services/googleAds/sales/SalesDisplayService";
@@ -34,8 +35,11 @@ import { NoGuidancePerformanceMaxService } from "../../services/googleAds/noGuid
 import { StoreVisitsPerformanceMaxService } from "../../services/googleAds/storeVisits/StoreVisitsPerformanceMaxService";
 import { AppPromotionAppService } from "../../services/googleAds/appPromotion/AppPromotionAppService";
 import axios from "axios";
+import { IndianHolidayService } from "../../services/googleAds/shared/IndianHolidayService";
 
 import prisma from "../../utils/prisma";
+
+import { validateCustomerOwnership } from "../../utils/customerOwnership";
 
 const router = Router();
 
@@ -56,11 +60,12 @@ router.get("/user-profile", async (req, res) => {
       }
     });
 
+    const cleanCid = customerId ? customerId.replace(/-/g, "").trim() : "";
     let currentAccount = null;
-    if (org?.googleAdAccounts && customerId) {
-      currentAccount = org.googleAdAccounts.find((a: any) => a.customerId === customerId.replace(/-/g, ""));
-    }
-    if (!currentAccount && org?.googleAdAccounts?.length) {
+    if (org?.googleAdAccounts && cleanCid) {
+      currentAccount = org.googleAdAccounts.find((a: any) => a.customerId === cleanCid);
+    } else if (!cleanCid && org?.googleAdAccounts?.length) {
+      // Only default to first account if no customerId was specified in request
       currentAccount = org.googleAdAccounts[0];
     }
 
@@ -70,8 +75,101 @@ router.get("/user-profile", async (req, res) => {
     const gmbAccount = org?.gmbConfig?.accountName || "";
     const knowledgeSnippets = org?.aiKnowledgeItems?.map((k: any) => k.content).join("\n") || "";
 
-    const businessName = currentAccount?.name || gmbLocation || orgName || "My Business";
+    // If customerId was requested but not found in accounts, do not leak default account or GMB customerId
+    const resolvedCustomerId = cleanCid
+      ? (currentAccount?.customerId || customerId)
+      : (currentAccount?.customerId || org?.gmbConfig?.googleAdsCustomerId || "");
+
+    const businessName = currentAccount?.name || (cleanCid ? (orgName || "My Business") : (gmbLocation || orgName || "My Business"));
     const userName = firstUser?.name || firstUser?.email?.split("@")[0] || "User";
+
+    // Query customer-scoped approved business profile with ownership validation
+    let savedProfile: any = null;
+    if (cleanCid) {
+      const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+      if (isOwned) {
+        savedProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+      }
+    }
+
+    // Filter only active records (Do NOT expose rejected AI suggestions to AI Guided assistant)
+    const activeProducts = Array.isArray(savedProfile?.products)
+      ? savedProfile.products.filter((p: any) => typeof p === "string" || p.isActive !== false)
+      : [];
+    const activeServices = Array.isArray(savedProfile?.services)
+      ? savedProfile.services.filter((s: any) => typeof s === "string" || s.isActive !== false)
+      : [];
+    const activeTargetAudiences = Array.isArray(savedProfile?.targetAudiences)
+      ? savedProfile.targetAudiences.filter((a: any) => a.isActive !== false)
+      : [];
+    const activeCustomerPersonas = Array.isArray(savedProfile?.customerPersonas)
+      ? savedProfile.customerPersonas.filter((p: any) => p.isActive !== false)
+      : [];
+    const activeLocationRecords = Array.isArray(savedProfile?.locationRecords)
+      ? savedProfile.locationRecords.filter((l: any) => l.isActive !== false)
+      : [];
+    const activeConversionGoals = Array.isArray(savedProfile?.conversionGoals)
+      ? savedProfile.conversionGoals.filter((g: any) => g.isActive !== false)
+      : [];
+    const activeCompetitors = Array.isArray(savedProfile?.competitors)
+      ? savedProfile.competitors.filter((c: any) => c.isActive !== false)
+      : [];
+    const activeSeoKeywords = Array.isArray(savedProfile?.seoKeywords)
+      ? savedProfile.seoKeywords.filter((k: any) => k.isActive !== false)
+      : [];
+    const activeNegativeKeywords = Array.isArray(savedProfile?.negativeKeywords)
+      ? savedProfile.negativeKeywords.filter((nk: any) => nk.isActive !== false)
+      : [];
+    const activeFaqs = Array.isArray(savedProfile?.faqs)
+      ? savedProfile.faqs.filter((f: any) => f.isActive !== false)
+      : [];
+    const activeMediaAssets = Array.isArray(savedProfile?.mediaAssets)
+      ? savedProfile.mediaAssets.filter((m: any) => m.status !== "INACTIVE" && m.legalRightsConfirmed)
+      : [];
+
+    const effectiveLocations = (savedProfile?.locations && Array.isArray(savedProfile.locations) && savedProfile.locations.length > 0)
+      ? savedProfile.locations
+      : (cleanCid && !currentAccount ? [] : (gmbLocation ? [gmbLocation] : ["India"]));
+
+    const customerProfile = savedProfile ? {
+      isApproved: Boolean(savedProfile.isApproved),
+      approvedAt: savedProfile.approvedAt || null,
+      businessName: savedProfile.businessName || businessName,
+      legalBusinessName: savedProfile.legalBusinessName || "",
+      industry: savedProfile.industry || "",
+      businessCategory: savedProfile.businessCategory || "",
+      businessDescription: savedProfile.businessDescription || "",
+      customerType: savedProfile.customerType || "",
+      businessModel: savedProfile.businessModel || "",
+      businessEmail: savedProfile.businessEmail || "",
+      businessPhone: savedProfile.businessPhone || "",
+      whatsappNumber: savedProfile.whatsappNumber || "",
+      businessAddress: savedProfile.businessAddress || "",
+      serviceAreas: savedProfile.serviceAreas || [],
+      languagesServed: savedProfile.languagesServed || [],
+      primaryWebsite: savedProfile.primaryWebsite || "",
+      additionalWebsites: savedProfile.additionalWebsites || [],
+      products: activeProducts,
+      services: activeServices,
+      targetAudience: savedProfile.targetAudience || "",
+      targetAudiences: activeTargetAudiences,
+      customerPersonas: activeCustomerPersonas,
+      locations: effectiveLocations,
+      locationRecords: activeLocationRecords,
+      conversionGoals: activeConversionGoals,
+      brandProfile: savedProfile.brandProfile || null,
+      competitors: activeCompetitors,
+      seoKeywords: activeSeoKeywords,
+      negativeKeywords: activeNegativeKeywords,
+      faqs: activeFaqs,
+      mediaAssets: activeMediaAssets,
+      keyOfferings: savedProfile.keyOfferings || [],
+      hasMerchantAccount: Boolean(savedProfile.hasMerchantAccount),
+      merchantCenterId: savedProfile.merchantCenterId || "",
+      merchantDetails: savedProfile.merchantDetails || null,
+      hasAppAccount: Boolean(savedProfile.hasAppAccount),
+      appDetails: savedProfile.appDetails || []
+    } : null;
 
     res.status(200).json({
       success: true,
@@ -80,10 +178,40 @@ router.get("/user-profile", async (req, res) => {
       userName,
       userEmail: firstUser?.email || "",
       userRole: firstUser?.role || "agent",
-      businessName,
-      locationName: gmbLocation,
-      accountName: gmbAccount,
-      customerId: currentAccount?.customerId || org?.gmbConfig?.googleAdsCustomerId || customerId,
+      businessName: savedProfile?.businessName || businessName,
+      legalBusinessName: savedProfile?.legalBusinessName || "",
+      businessCategory: savedProfile?.businessCategory || "",
+      businessDescription: savedProfile?.businessDescription || "",
+      customerType: savedProfile?.customerType || "",
+      businessModel: savedProfile?.businessModel || "",
+      industry: savedProfile?.industry || "",
+      primaryWebsite: savedProfile?.primaryWebsite || "",
+      additionalWebsites: savedProfile?.additionalWebsites || [],
+      products: activeProducts,
+      services: activeServices,
+      targetAudience: savedProfile?.targetAudience || "",
+      targetAudiences: activeTargetAudiences,
+      customerPersonas: activeCustomerPersonas,
+      keyOfferings: savedProfile?.keyOfferings || [],
+      locations: effectiveLocations,
+      locationRecords: activeLocationRecords,
+      conversionGoals: activeConversionGoals,
+      brandProfile: savedProfile?.brandProfile || null,
+      competitors: activeCompetitors,
+      seoKeywords: activeSeoKeywords,
+      negativeKeywords: activeNegativeKeywords,
+      faqs: activeFaqs,
+      hasMerchantAccount: Boolean(savedProfile?.hasMerchantAccount),
+      merchantCenterId: savedProfile?.merchantCenterId || "",
+      merchantDetails: savedProfile?.merchantDetails || null,
+      hasAppAccount: Boolean(savedProfile?.hasAppAccount),
+      appDetails: savedProfile?.appDetails || [],
+      isProfileApproved: Boolean(savedProfile?.isApproved),
+      approvedAt: savedProfile?.approvedAt || null,
+      customerProfile,
+      locationName: cleanCid && !currentAccount ? "" : gmbLocation,
+      accountName: cleanCid && !currentAccount ? "" : gmbAccount,
+      customerId: resolvedCustomerId,
       currencyCode: currentAccount?.currencyCode || "INR",
       timeZone: currentAccount?.timeZone || "Asia/Kolkata",
       knowledgeSummary: knowledgeSnippets,
@@ -92,6 +220,53 @@ router.get("/user-profile", async (req, res) => {
   } catch (error: any) {
     console.error("[AI-GUIDED] Error fetching user profile:", error);
     res.status(500).json({ error: error.message || "Failed to fetch user profile" });
+  }
+});
+
+// GET /api/ads/ai-guided/calendar-opportunities — Standalone Indian Festival & Holiday Calendar Opportunities
+router.get("/calendar-opportunities", async (req, res) => {
+  try {
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || "demo-org-123") as string;
+    const customerId = (req.query.customerId || "") as string;
+    const cleanCid = customerId ? customerId.replace(/-/g, "").trim() : "";
+    const requestedYear = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+
+    let savedProfile: any = null;
+    if (cleanCid) {
+      const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+      if (!isOwned) {
+        return res.status(403).json({ error: "Access denied. Customer ID does not belong to your organization." });
+      }
+      savedProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+    }
+
+    const activeProducts = Array.isArray(savedProfile?.products)
+      ? savedProfile.products.map((p: any) => typeof p === "string" ? p : p.name).filter(Boolean)
+      : [];
+    const activeServices = Array.isArray(savedProfile?.services)
+      ? savedProfile.services.map((s: any) => typeof s === "string" ? s : s.name).filter(Boolean)
+      : [];
+
+    const customerContext = {
+      businessName: savedProfile?.businessName || "",
+      industry: savedProfile?.industry || "",
+      category: savedProfile?.businessCategory || "",
+      products: activeProducts,
+      services: activeServices,
+      targetAudience: savedProfile?.targetAudience || "",
+      locations: Array.isArray(savedProfile?.locations) ? savedProfile.locations : []
+    };
+
+    const calendarData = await IndianHolidayService.getRollingWindowCalendar(customerContext, requestedYear);
+
+    res.status(200).json({
+      success: true,
+      customerId: cleanCid,
+      ...calendarData
+    });
+  } catch (error: any) {
+    console.error("[AI-GUIDED] Error generating calendar opportunities:", error);
+    res.status(500).json({ error: error.message || "Failed to generate calendar opportunities" });
   }
 });
 
@@ -720,10 +895,93 @@ router.delete("/media-library/:fileId", async (req, res) => {
 // POST /api/ads/ai-guided/chat
 router.post("/chat", async (req, res) => {
   try {
-    const { messages = [], campaignState = {} } = req.body;
+    const { messages = [], campaignState = {}, customerId: bodyCid, customerProfile: bodyProfile } = req.body;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+    const cidParam = (bodyCid || campaignState?.customerId || req.query.customerId || "") as string;
+    const cleanCid = cidParam ? cidParam.replace(/-/g, "").trim() : "";
 
     if (!Array.isArray(messages)) {
       return res.status(400).json({ error: "messages array is required" });
+    }
+
+    let resolvedProfile = bodyProfile || campaignState?.customerProfile || null;
+    // If not provided in request body but we have orgId and cleanCid, resolve with customer ownership isolation
+    if (!resolvedProfile && cleanCid && orgId) {
+      const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+      if (isOwned) {
+        const rawProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+        if (rawProfile) {
+          const activeProducts = Array.isArray(rawProfile.products)
+            ? rawProfile.products.filter((p: any) => typeof p === "string" || p.isActive !== false)
+            : [];
+          const activeServices = Array.isArray(rawProfile.services)
+            ? rawProfile.services.filter((s: any) => typeof s === "string" || s.isActive !== false)
+            : [];
+          const activeTargetAudiences = Array.isArray(rawProfile.targetAudiences)
+            ? rawProfile.targetAudiences.filter((a: any) => a.isActive !== false)
+            : [];
+          const activeCustomerPersonas = Array.isArray(rawProfile.customerPersonas)
+            ? rawProfile.customerPersonas.filter((p: any) => p.isActive !== false)
+            : [];
+          const activeLocationRecords = Array.isArray(rawProfile.locationRecords)
+            ? rawProfile.locationRecords.filter((l: any) => l.isActive !== false)
+            : [];
+          const activeConversionGoals = Array.isArray(rawProfile.conversionGoals)
+            ? rawProfile.conversionGoals.filter((g: any) => g.isActive !== false)
+            : [];
+          const activeCompetitors = Array.isArray(rawProfile.competitors)
+            ? rawProfile.competitors.filter((c: any) => c.isActive !== false)
+            : [];
+          const activeSeoKeywords = Array.isArray(rawProfile.seoKeywords)
+            ? rawProfile.seoKeywords.filter((k: any) => k.isActive !== false)
+            : [];
+          const activeNegativeKeywords = Array.isArray(rawProfile.negativeKeywords)
+            ? rawProfile.negativeKeywords.filter((nk: any) => nk.isActive !== false)
+            : [];
+          const activeFaqs = Array.isArray(rawProfile.faqs)
+            ? rawProfile.faqs.filter((f: any) => f.isActive !== false)
+            : [];
+
+          resolvedProfile = {
+            isApproved: Boolean(rawProfile.isApproved),
+            approvedAt: rawProfile.approvedAt || null,
+            businessName: rawProfile.businessName || "",
+            legalBusinessName: rawProfile.legalBusinessName || "",
+            industry: rawProfile.industry || "",
+            businessCategory: rawProfile.businessCategory || "",
+            businessDescription: rawProfile.businessDescription || "",
+            customerType: rawProfile.customerType || "",
+            businessModel: rawProfile.businessModel || "",
+            businessEmail: rawProfile.businessEmail || "",
+            businessPhone: rawProfile.businessPhone || "",
+            whatsappNumber: rawProfile.whatsappNumber || "",
+            businessAddress: rawProfile.businessAddress || "",
+            serviceAreas: rawProfile.serviceAreas || [],
+            languagesServed: rawProfile.languagesServed || [],
+            primaryWebsite: rawProfile.primaryWebsite || "",
+            additionalWebsites: rawProfile.additionalWebsites || [],
+            products: activeProducts,
+            services: activeServices,
+            targetAudience: rawProfile.targetAudience || "",
+            targetAudiences: activeTargetAudiences,
+            customerPersonas: activeCustomerPersonas,
+            locations: Array.isArray(rawProfile.locations) ? rawProfile.locations : [],
+            locationRecords: activeLocationRecords,
+            conversionGoals: activeConversionGoals,
+            brandProfile: rawProfile.brandProfile || null,
+            competitors: activeCompetitors,
+            seoKeywords: activeSeoKeywords,
+            negativeKeywords: activeNegativeKeywords,
+            faqs: activeFaqs,
+            keyOfferings: rawProfile.keyOfferings || [],
+            hasMerchantAccount: Boolean(rawProfile.hasMerchantAccount),
+            merchantCenterId: rawProfile.merchantCenterId || "",
+            merchantDetails: rawProfile.merchantDetails || null,
+            hasAppAccount: Boolean(rawProfile.hasAppAccount),
+            appDetails: rawProfile.appDetails || []
+          };
+        }
+      }
     }
 
     const lastUserMsg = messages.filter((m: any) => m.role === "user").pop()?.content || "";
@@ -746,7 +1004,7 @@ router.post("/chat", async (req, res) => {
     }
 
     // Normal Google Ads text and campaign strategic advisory via Groq
-    const aiResponse = await GoogleAdsAiAssistantService.processChat(messages, campaignState);
+    const aiResponse = await GoogleAdsAiAssistantService.processChat(messages, campaignState, resolvedProfile);
     return res.status(200).json(aiResponse);
   } catch (error: any) {
     console.error("[AI Guided Route Error]:", error?.message || error);
@@ -820,6 +1078,15 @@ router.post("/create-campaign", async (req, res) => {
     if (!campaignState || !campaignState.campaignType) {
       if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
       return res.status(400).json({ error: "Missing campaignState or campaignType" });
+    }
+
+    // Customer ownership validation before mutation
+    const isOwned = await validateCustomerOwnership(orgId, String(customerId));
+    if (!isOwned) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
     }
 
     const state: CampaignState = campaignState;
@@ -1525,4 +1792,248 @@ router.post("/create-campaign", async (req, res) => {
   }
 });
 
+/**
+ * Helper to get major Indian festivals fallback dataset if external API request fails
+ */
+function getIndianHolidaysFallback(year: number) {
+  return [
+    { date: `${year}-01-01`, eventName: "New Year's Day", type: "Gazetted / Cultural", extras: "First day of Gregorian calendar", month: `January ${year}` },
+    { date: `${year}-01-14`, eventName: "Makar Sankranti / Pongal", type: "Harvest Festival", extras: "Harvest and solar festival celebrated nationwide", month: `January ${year}` },
+    { date: `${year}-01-26`, eventName: "Republic Day", type: "National Holiday", extras: "Honours the date on which Constitution of India came into effect", month: `January ${year}` },
+    { date: `${year}-02-26`, eventName: "Maha Shivaratri", type: "Religious Festival", extras: "Annual festival dedicated to Lord Shiva", month: `February ${year}` },
+    { date: `${year}-03-14`, eventName: "Holi (Festival of Colours)", type: "Major Religious Festival", extras: "Celebration of colours, spring, and triumph of good over evil", month: `March ${year}` },
+    { date: `${year}-03-31`, eventName: "Eid ul-Fitr", type: "Major Religious Festival", extras: "Islamic festival marking the end of Ramadan", month: `March ${year}` },
+    { date: `${year}-04-14`, eventName: "Dr. B.R. Ambedkar Jayanti / Baisakhi", type: "National / Harvest", extras: "Ambedkar Jayanti & Solar New Year harvest festival", month: `April ${year}` },
+    { date: `${year}-05-12`, eventName: "Buddha Purnima", type: "Religious / Gazetted", extras: "Celebration of the birth of Gautama Buddha", month: `May ${year}` },
+    { date: `${year}-06-07`, eventName: "Bakrid / Eid al-Adha", type: "Major Religious Festival", extras: "Feast of the Sacrifice observed by Muslims", month: `June ${year}` },
+    { date: `${year}-08-15`, eventName: "Independence Day", type: "National Holiday", extras: "Commemorates India's independence with widespread promotions & sales", month: `August ${year}` },
+    { date: `${year}-08-27`, eventName: "Ganesh Chaturthi", type: "Major Festival", extras: "10-day festival honouring Lord Ganesha with massive consumer spending", month: `August ${year}` },
+    { date: `${year}-09-05`, eventName: "Janmashtami", type: "Religious Festival", extras: "Celebration of the birth of Lord Krishna", month: `September ${year}` },
+    { date: `${year}-10-02`, eventName: "Mahatma Gandhi Jayanti", type: "National Holiday", extras: "National holiday honouring Mahatma Gandhi", month: `October ${year}` },
+    { date: `${year}-10-11`, eventName: "Dussehra / Vijayadashami", type: "Major Festival", extras: "Triumph of good over evil, high vehicle & electronics purchase season", month: `October ${year}` },
+    { date: `${year}-10-20`, eventName: "Diwali (Deepavali) & Dhanteras", type: "Mega Festive Shopping Season", extras: "Peak Indian retail shopping festival across jewelry, e-commerce, gifts, and real estate", month: `October ${year}` },
+    { date: `${year}-11-05`, eventName: "Guru Nanak Jayanti", type: "Gazetted Holiday", extras: "Gurpurab celebrating the birth of Guru Nanak Dev Ji", month: `November ${year}` },
+    { date: `${year}-12-25`, eventName: "Christmas Day", type: "Gazetted / Cultural", extras: "Celebrated across India with festive retail sales and year-end celebrations", month: `December ${year}` }
+  ];
+}
+
+/**
+ * GET /api/ads/ai-guided/calendar-opportunities
+ * Fetches Indian holidays and festivals from free public API URL in process.env.INDIAN_HOLIDAY_API_URL
+ * Scoped dynamically to the active customer's Business & Marketing Profile context
+ */
+router.get("/calendar-opportunities", async (req, res) => {
+  try {
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || "demo-org-123") as string;
+    const customerId = (req.query.customerId || "") as string;
+    const cleanCid = customerId ? customerId.replace(/-/g, "").trim() : "";
+
+    // 1. Customer ownership validation & isolation
+    if (cleanCid) {
+      const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+      if (!isOwned) {
+        return res.status(403).json({
+          error: "Access denied. The specified Google Ads account is not associated with this organization."
+        });
+      }
+    }
+
+    // 2. Fetch customer's approved Business & Marketing Profile context
+    let customerProfile: any = null;
+    if (cleanCid) {
+      customerProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+    }
+
+    const businessName = customerProfile?.businessName || "Your Business";
+    const industry = customerProfile?.industry || "";
+    const products: any[] = customerProfile?.products || [];
+    const services: any[] = customerProfile?.services || [];
+    const targetAudience = customerProfile?.targetAudience || "";
+
+    // 3. Determine target year and public API endpoint
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const targetYear = Number(req.query.year) || (now.getMonth() === 11 ? currentYear : currentYear);
+    const apiUrl = process.env.INDIAN_HOLIDAY_API_URL || "https://jayantur13.github.io/calendar-bharat/calendar";
+
+    let rawEvents: Array<{ date: string; eventName: string; type: string; extras: string; month: string }> = [];
+
+    // 4. Fetch from free public API
+    try {
+      const fetchUrl = `${apiUrl.replace(/\/$/, "")}/${targetYear}.json`;
+      const response = await axios.get(fetchUrl, { timeout: 6000 });
+      const data = response.data;
+      const yearData = data && typeof data === "object" ? (data[String(targetYear)] || data) : null;
+
+      if (yearData && typeof yearData === "object") {
+        for (const [monthKey, monthObj] of Object.entries(yearData)) {
+          if (monthObj && typeof monthObj === "object") {
+            for (const [dateKey, eventObj] of Object.entries(monthObj as Record<string, any>)) {
+              if (eventObj && typeof eventObj === "object") {
+                const eventName = eventObj.event || eventObj.name || "";
+                const type = eventObj.type || "Observance";
+                const extras = eventObj.extras || "";
+
+                // Parse dateKey: e.g. "January 1, 2025, Wednesday" or "January 26, 2026, Monday"
+                let isoDate = "";
+                try {
+                  const cleanedKey = dateKey.split(",").slice(0, 2).join(","); // "January 1, 2025"
+                  const parsedDate = new Date(cleanedKey);
+                  if (!isNaN(parsedDate.getTime())) {
+                    isoDate = parsedDate.toISOString().split("T")[0];
+                  }
+                } catch {}
+
+                if (!isoDate) {
+                  // Fallback date inference
+                  isoDate = `${targetYear}-01-01`;
+                }
+
+                if (eventName) {
+                  rawEvents.push({
+                    date: isoDate,
+                    eventName: String(eventName).trim(),
+                    type: String(type).trim(),
+                    extras: String(extras).trim(),
+                    month: monthKey
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (apiErr: any) {
+      console.warn(`[calendar-opportunities] External public API failed, applying fallback dataset:`, apiErr?.message);
+    }
+
+    // If external API returned empty or failed, use fallback dataset
+    if (rawEvents.length === 0) {
+      rawEvents = getIndianHolidaysFallback(targetYear);
+    }
+
+    // Sort chronologically
+    rawEvents.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Normalize today date string
+    const todayIso = now.toISOString().split("T")[0];
+
+    // 5. Structure full calendar with customer profile relevance flags
+    const calendar = rawEvents.map((ev, idx) => {
+      const evDate = new Date(ev.date + "T00:00:00Z");
+      const diffDays = Math.ceil((evDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const isUpcoming = diffDays >= 0 && diffDays <= 90;
+
+      // Calculate customer-specific campaign relevance based on approved profile
+      let relevanceReason = "General festive and national observance in India.";
+      let relevanceScore = 1;
+      const lowerEvent = ev.eventName.toLowerCase();
+      const lowerInd = industry.toLowerCase();
+
+      if (lowerEvent.includes("diwali") || lowerEvent.includes("dhanteras") || lowerEvent.includes("deepavali")) {
+        relevanceScore = 5;
+        relevanceReason = `Peak shopping festival across India. Highly relevant for ${businessName} to run promotional deals, discounts, and brand awareness campaigns.`;
+      } else if (lowerEvent.includes("holi") || lowerEvent.includes("navratri") || lowerEvent.includes("dussehra") || lowerEvent.includes("ganesh")) {
+        relevanceScore = 4;
+        relevanceReason = `Major cultural celebration with surging consumer engagement and gifting demand across target demographics.`;
+      } else if (lowerEvent.includes("independence") || lowerEvent.includes("republic") || lowerEvent.includes("new year")) {
+        relevanceScore = 4;
+        relevanceReason = `High-intent holiday weekend ideal for national discount promotions and seasonal customer acquisition.`;
+      } else if (lowerEvent.includes("eid")) {
+        relevanceScore = 4;
+        relevanceReason = `Celebration with significant retail, gifting, apparel, and family gathering consumer spending.`;
+      }
+
+      if (products.length > 0) {
+        relevanceReason += ` Can highlight offerings like ${products.slice(0, 2).map((p: any) => typeof p === "string" ? p : p.name).join(", ")}.`;
+      } else if (services.length > 0) {
+        relevanceReason += ` Can promote services like ${services.slice(0, 2).map((s: any) => typeof s === "string" ? s : s.name).join(", ")}.`;
+      }
+
+      return {
+        id: `cal-${targetYear}-${idx}`,
+        date: ev.date,
+        eventName: ev.eventName,
+        type: ev.type,
+        extras: ev.extras,
+        month: ev.month,
+        daysRemaining: diffDays,
+        isUpcoming,
+        relevanceScore,
+        relevanceReason
+      };
+    });
+
+    // 6. Generate "New & Fresh Campaign Opportunities" for upcoming festivals in next 90 days
+    // (If none upcoming in next 90 days because of year end, show the top festivals of target year)
+    let opportunityEvents = calendar.filter((ev) => ev.daysRemaining >= 0 && ev.daysRemaining <= 90);
+    if (opportunityEvents.length === 0) {
+      opportunityEvents = calendar.filter((ev) => ev.relevanceScore >= 3).slice(0, 8);
+    }
+
+    const opportunities = opportunityEvents.map((op) => {
+      let suggestedObjective = "SALES";
+      let suggestedCampaignType = "PERFORMANCE_MAX";
+      let campaignTheme = `Festive Celebration Promotion`;
+
+      const lowerName = op.eventName.toLowerCase();
+      if (lowerName.includes("diwali") || lowerName.includes("dhanteras")) {
+        suggestedObjective = "SALES";
+        suggestedCampaignType = "PERFORMANCE_MAX";
+        campaignTheme = `Diwali Dhamaka & Festive Offers`;
+      } else if (lowerName.includes("independence") || lowerName.includes("republic")) {
+        suggestedObjective = "WEBSITE_TRAFFIC";
+        suggestedCampaignType = "SEARCH";
+        campaignTheme = `Freedom Mega Sale Promotion`;
+      } else if (lowerName.includes("holi")) {
+        suggestedObjective = "SALES";
+        suggestedCampaignType = "DEMAND_GEN";
+        campaignTheme = `Festival of Colours Celebration`;
+      } else if (lowerName.includes("new year")) {
+        suggestedObjective = "LEADS";
+        suggestedCampaignType = "SEARCH";
+        campaignTheme = `New Year Kickstart Campaign`;
+      } else if (lowerName.includes("navratri") || lowerName.includes("dussehra")) {
+        suggestedObjective = "SALES";
+        suggestedCampaignType = "PERFORMANCE_MAX";
+        campaignTheme = `Navratri & Dussehra Special Showcase`;
+      }
+
+      return {
+        id: `opp-${op.id}`,
+        eventName: op.eventName,
+        date: op.date,
+        daysRemaining: op.daysRemaining,
+        type: op.type,
+        campaignTheme,
+        suggestedObjective,
+        suggestedCampaignType,
+        targetAudience: targetAudience || `Consumers & businesses in India interested in ${op.eventName} offers`,
+        businessProfileMatch: {
+          businessName,
+          industry,
+          matchedOfferings: [...products.slice(0, 2).map((p: any) => typeof p === "string" ? p : p.name), ...services.slice(0, 2).map((s: any) => typeof s === "string" ? s : s.name)]
+        },
+        opportunityInsight: op.relevanceReason
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      customerId: cleanCid,
+      year: targetYear,
+      opportunitiesCount: opportunities.length,
+      calendarCount: calendar.length,
+      opportunities,
+      calendar
+    });
+  } catch (error: any) {
+    console.error("[calendar-opportunities error]:", error?.message);
+    return res.status(500).json({
+      error: error?.message || "Failed to fetch calendar campaign opportunities"
+    });
+  }
+});
+
 export default router;
+

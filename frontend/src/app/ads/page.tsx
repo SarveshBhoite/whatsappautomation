@@ -12,6 +12,7 @@ import {
   Building2, Check, Minus, BadgePercent, ShieldCheck, MessageSquare,
   Copy, ExternalLink, Sliders
 } from "lucide-react";
+import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -476,6 +477,7 @@ interface SettingsTabProps {
   onSelectAccount: (id: string) => void;
   onAccountsRefresh: () => void;
   showToast: (msg: string) => void;
+  onOpenProfile?: () => void;
 }
 
 function SettingsTab({
@@ -484,7 +486,8 @@ function SettingsTab({
   selectedCustomerId,
   onSelectAccount,
   onAccountsRefresh,
-  showToast
+  showToast,
+  onOpenProfile
 }: SettingsTabProps) {
   const [accessibleCids, setAccessibleCids] = useState<string[]>([]);
   const [loadingAccessible, setLoadingAccessible] = useState(false);
@@ -584,6 +587,15 @@ function SettingsTab({
               <p className="text-[11px] text-slate-500 mt-0.5">Please connect or select an account below to view campaign data.</p>
             )}
           </div>
+          {selectedCustomerId && onOpenProfile && (
+            <button
+              onClick={onOpenProfile}
+              className="text-xs px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-all font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <Building2 className="h-3.5 w-3.5 text-blue-600" />
+              Google Ads Profile
+            </button>
+          )}
           <a
             href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads`}
             className="text-xs px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-all font-bold shadow-2xs"
@@ -769,6 +781,7 @@ export default function GoogleAdsPage() {
 
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [accountsLoading, setAccountsLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -1270,7 +1283,18 @@ export default function GoogleAdsPage() {
 
           {selectedCustomerId && (
             <button
-              onClick={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)}
+              onClick={() => router.push(`/ads/profile?customerId=${selectedCustomerId}`)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs"
+              title="View Google Ads Profile and Merchant/App Settings"
+            >
+              <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
+              <span>Google Ads Profile</span>
+            </button>
+          )}
+
+          {selectedCustomerId && (
+            <button
+              onClick={() => router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
               <Plus className="h-4 w-4" /> New Campaign
@@ -1414,7 +1438,7 @@ export default function GoogleAdsPage() {
                     <RefreshCw className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)}
+                    onClick={() => router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`)}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
                   >
                     <Plus className="h-4 w-4" /> New Campaign
@@ -1426,7 +1450,7 @@ export default function GoogleAdsPage() {
                 {campsLoading ? (
                   <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
                 ) : filteredCamps.length === 0 ? (
-                  <EmptyState icon={Megaphone} title="No campaigns" sub="Create your first campaign to start reaching customers." action="Create Campaign" onAction={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)} />
+                  <EmptyState icon={Megaphone} title="No campaigns" sub="Create your first campaign to start reaching customers." action="Create Campaign" onAction={() => router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`)} />
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
@@ -1838,6 +1862,7 @@ export default function GoogleAdsPage() {
               onSelectAccount={handleSelectAccount}
               onAccountsRefresh={() => api(`/accounts?orgId=${orgId}`).then(r => r.json()).then(d => { if (Array.isArray(d)) setAccounts(d); })}
               showToast={showToast}
+              onOpenProfile={() => router.push(`/ads/profile?customerId=${selectedCustomerId}`)}
             />
           )}
         </div>

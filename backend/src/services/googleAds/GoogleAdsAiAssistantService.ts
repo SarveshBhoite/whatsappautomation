@@ -739,6 +739,11 @@ export class GoogleAdsAiAssistantService {
       delete clone.business;
     }
 
+    // Ensure customerProfile context is not redundantly duplicated in campaign state JSON
+    if (clone.customerProfile) {
+      delete clone.customerProfile;
+    }
+
     // Remove empty/undefined/null keys to keep JSON compact
     const compact: any = {};
     for (const [k, v] of Object.entries(clone)) {
@@ -835,7 +840,8 @@ export class GoogleAdsAiAssistantService {
 
   public static async processChat(
     messages: Array<{ role: "user" | "assistant" | "system"; content: string }>,
-    currentState: CampaignState
+    currentState: CampaignState,
+    customerProfile?: any
   ): Promise<AiChatResponse> {
     const lastUserMsgRaw = messages.filter(m => m.role === "user").pop()?.content || "";
     const activeCase = detectCampaignCase(currentState, lastUserMsgRaw);
@@ -846,11 +852,13 @@ export class GoogleAdsAiAssistantService {
     );
 
     const promptState = this.sanitizeStateForPrompt(currentState);
+    const resolvedCustomerProfile = customerProfile || (currentState as any)?.customerProfile || null;
 
     // Modular dynamic prompt built via pure deterministic TypeScript (0 AI tokens)
     const systemPrompt = PromptBuilder.buildCampaignSystemPrompt({
       activeCase,
       campaignState: promptState,
+      customerProfile: resolvedCustomerProfile,
       lastUserMessage: lastUserMsgRaw
     });
 

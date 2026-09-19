@@ -4,6 +4,11 @@ import { GoogleAdsService } from "../services/googleAdsService";
 import { GoogleAdsBaseService } from "../services/googleAds/shared/GoogleAdsBaseService";
 import axios from "axios";
 import { GoogleAdsAiAssistantService } from "../services/googleAds/GoogleAdsAiAssistantService";
+import {
+  CustomerBusinessProfileService,
+  validateMediaAsset,
+  MediaAssetItem
+} from "../services/googleAds/CustomerBusinessProfileService";
 
 const router = Router();
 const DEFAULT_ORG_ID = "demo-org-123";
@@ -14,7 +19,9 @@ const GROQ_KEY = process.env.GROQ_KEY || "";
 const getOrgId = (req: any) => (req.headers?.["x-organization-id"] || req.query?.orgId || req.body?.orgId || DEFAULT_ORG_ID) as string;
 const getCustomerId = (req: any) => (req.query?.customerId || req.body?.customerId || "") as string;
 
-// Mount new isolated campaign routes
+import { requireCustomerOwnership, validateCustomerOwnership } from "../utils/customerOwnership";
+
+// Mount new isolated campaign routes with customer ownership validation
 import salesRoutes from "./campaigns/salesRoutes";
 import leadsRoutes from "./campaigns/leadsRoutes";
 import websiteTrafficRoutes from "./campaigns/websiteTrafficRoutes";
@@ -24,13 +31,13 @@ import storeVisitsRoutes from "./campaigns/storeVisitsRoutes";
 import noGuidanceRoutes from "./campaigns/noGuidanceRoutes";
 import aiGuidedRoutes from "./campaigns/aiGuidedRoutes";
 
-router.use("/campaigns/sales", salesRoutes);
-router.use("/campaigns/leads", leadsRoutes);
-router.use("/campaigns/website-traffic", websiteTrafficRoutes);
-router.use("/campaigns/app-promotion", appPromotionRoutes);
-router.use("/campaigns/youtube-reach", youtubeReachRoutes);
-router.use("/campaigns/store-visits", storeVisitsRoutes);
-router.use("/campaigns/no-guidance", noGuidanceRoutes);
+router.use("/campaigns/sales", requireCustomerOwnership, salesRoutes);
+router.use("/campaigns/leads", requireCustomerOwnership, leadsRoutes);
+router.use("/campaigns/website-traffic", requireCustomerOwnership, websiteTrafficRoutes);
+router.use("/campaigns/app-promotion", requireCustomerOwnership, appPromotionRoutes);
+router.use("/campaigns/youtube-reach", requireCustomerOwnership, youtubeReachRoutes);
+router.use("/campaigns/store-visits", requireCustomerOwnership, storeVisitsRoutes);
+router.use("/campaigns/no-guidance", requireCustomerOwnership, noGuidanceRoutes);
 router.use("/ai-guided", aiGuidedRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -198,11 +205,25 @@ router.post("/select-account", async (req, res) => {
     if (!customerId) return res.status(400).json({ error: "customerId is required" });
     const cidClean = customerId.replace(/-/g, "");
 
-    await prisma.googleBusinessConfig.upsert({
-      where: { organizationId: orgId },
-      update: { googleAdsCustomerId: cidClean },
-      create: { organizationId: orgId, googleAdsCustomerId: cidClean, locationName: "", autoReplyEnabled: false, autoReplyMinRating: 4 }
-    });
+    try {
+      await prisma.googleBusinessConfig.upsert({
+        where: { organizationId: orgId },
+        update: { googleAdsCustomerId: cidClean },
+        create: { organizationId: orgId, googleAdsCustomerId: cidClean, locationName: "", autoReplyEnabled: false, autoReplyMinRating: 4 }
+      });
+    } catch (_err) {
+      const existing = await prisma.googleBusinessConfig.findFirst({ where: { organizationId: orgId } });
+      if (existing) {
+        await prisma.googleBusinessConfig.update({
+          where: { id: existing.id },
+          data: { googleAdsCustomerId: cidClean }
+        });
+      } else {
+        await prisma.googleBusinessConfig.create({
+          data: { organizationId: orgId, googleAdsCustomerId: cidClean, locationName: "", autoReplyEnabled: false, autoReplyMinRating: 4 }
+        });
+      }
+    }
 
     res.status(200).json({ message: "Active account updated successfully", customerId: cidClean });
   } catch (error: any) {
@@ -241,6 +262,394 @@ router.get("/customer-info", async (req, res) => {
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
   }
 });
+
+/**
+ * GET /api/ads/customer-profile — Fetch complete Google Ads Customer Profile
+ * Scoped strictly to the selected customerId:
+ * - Common business info (organizationName, businessName, userName, userEmail, GMB location)
+ * - Google Ads account details (customerId, name, currencyCode, timeZone, status, isManager, optimizationScore)
+ * - Merchant Account: Yes/No (hasMerchantAccount, merchantCenterId)
+ * - App Account: Yes/No (hasAppAccount, appId)
+ */
+router.get("/customer-profile", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId query param is required" });
+    }
+    const cleanCid = rawCid.replace(/-/g, "").trim();
+
+    // Verify ownership before returning profile
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    // 1. Fetch organization & user details
+    const org = await (prisma.organization as any).findUnique({
+      where: { id: orgId },
+      include: {
+        users: { select: { id: true, name: true, email: true, role: true } },
+        gmbConfig: true,
+        aiAgentConfig: true,
+        googleAdAccounts: { where: { customerId: cleanCid } }
+      }
+    });
+
+    const currentAccount = org?.googleAdAccounts?.[0] || null;
+    const firstUser = org?.users?.[0];
+    const orgName = org?.name || "Organization";
+    const gmbLocation = org?.gmbConfig?.locationName || "";
+
+    // 2. Query live Google Ads account details
+    let liveInfo: any = null;
+    try {
+      liveInfo = await GoogleAdsService.getCustomerInfo(orgId, cleanCid);
+    } catch (liveErr: any) {
+      console.warn("[customer-profile] live getCustomerInfo fallback:", liveErr?.message);
+    }
+
+    // 3. Detect Merchant Account (Shopping campaigns / Merchant Center links / local drafts)
+    let hasMerchantAccount = false;
+    let merchantCenterId: string | null = null;
+
+    // Check campaigns in local database for merchantId / shopping
+    const shoppingCampaign = await prisma.googleAdCampaign.findFirst({
+      where: {
+        organizationId: orgId,
+        customerId: cleanCid,
+        OR: [
+          { campaignType: "SHOPPING" },
+          { advertisingChannelType: "SHOPPING" }
+        ]
+      }
+    });
+
+    if (shoppingCampaign) {
+      hasMerchantAccount = true;
+      const draftData: any = shoppingCampaign.audienceSignal || {};
+      if (draftData?.merchantCenterAccount) {
+        merchantCenterId = String(draftData.merchantCenterAccount);
+      }
+    }
+
+    // 4. Detect App Account (App promotion campaigns / Universal App Campaigns)
+    let hasAppAccount = false;
+    let appId: string | null = null;
+
+    const appCampaign = await prisma.googleAdCampaign.findFirst({
+      where: {
+        organizationId: orgId,
+        customerId: cleanCid,
+        OR: [
+          { campaignType: "APP" },
+          { campaignType: "APP_PROMOTION" },
+          { advertisingChannelType: "MULTI_CHANNEL" }
+        ]
+      }
+    });
+
+    if (appCampaign) {
+      hasAppAccount = true;
+      const draftData: any = appCampaign.audienceSignal || {};
+      if (draftData?.appId) {
+        appId = String(draftData.appId);
+      }
+    }
+
+    // 5. Query saved Customer Business & Marketing Profile
+    const savedProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+
+    const businessName = savedProfile?.businessName || currentAccount?.name || liveInfo?.descriptiveName || gmbLocation || orgName || `Account ${cleanCid}`;
+    const accountName = liveInfo?.descriptiveName || currentAccount?.name || `Account ${cleanCid}`;
+    const currencyCode = liveInfo?.currencyCode || currentAccount?.currencyCode || "INR";
+    const timeZone = liveInfo?.timeZone || currentAccount?.timeZone || "Asia/Kolkata";
+    const status = liveInfo?.status || (currentAccount?.isActive ? "ENABLED" : "PAUSED");
+    const isManager = liveInfo?.manager !== undefined ? Boolean(liveInfo.manager) : Boolean(currentAccount?.isManager);
+    const optimizationScore = liveInfo?.optimizationScore ? Number(liveInfo.optimizationScore) : null;
+
+    res.status(200).json({
+      success: true,
+      customerId: cleanCid,
+      formattedCustomerId: cleanCid.length === 10 ? `${cleanCid.slice(0, 3)}-${cleanCid.slice(3, 6)}-${cleanCid.slice(6)}` : cleanCid,
+      accountName,
+      businessName,
+      organizationName: orgName,
+      userName: firstUser?.name || firstUser?.email?.split("@")[0] || "User",
+      userEmail: firstUser?.email || "",
+      userRole: firstUser?.role || "agent",
+      locationName: gmbLocation,
+      currencyCode,
+      timeZone,
+      status,
+      isManager,
+      optimizationScore,
+      // Capabilities: prefer explicit profile configuration, fallback to campaign detection
+      hasMerchantAccount: savedProfile ? Boolean(savedProfile.hasMerchantAccount) : hasMerchantAccount,
+      merchantCenterId: savedProfile?.merchantCenterId || merchantCenterId,
+      merchantDetails: savedProfile?.merchantDetails || null,
+      hasAppAccount: savedProfile ? Boolean(savedProfile.hasAppAccount) : hasAppAccount,
+      appId: appId || savedProfile?.appDetails?.[0]?.appId || null,
+      appDetails: savedProfile?.appDetails || (appId ? [{ id: "app-default", platform: "ANDROID", appId }] : []),
+      // Marketing & Business Profile Fields
+      legalBusinessName: savedProfile?.legalBusinessName || null,
+      businessCategory: savedProfile?.businessCategory || null,
+      customerType: savedProfile?.customerType || null,
+      businessModel: savedProfile?.businessModel || null,
+      businessEmail: savedProfile?.businessEmail || null,
+      businessPhone: savedProfile?.businessPhone || null,
+      whatsappNumber: savedProfile?.whatsappNumber || null,
+      businessAddress: savedProfile?.businessAddress || null,
+      serviceAreas: savedProfile?.serviceAreas || [],
+      languagesServed: savedProfile?.languagesServed || [],
+      primaryWebsite: savedProfile?.primaryWebsite || null,
+      additionalWebsites: savedProfile?.additionalWebsites || [],
+      businessDescription: savedProfile?.businessDescription || null,
+      industry: savedProfile?.industry || null,
+      products: savedProfile?.products || [],
+      services: savedProfile?.services || [],
+      targetAudiences: savedProfile?.targetAudiences || [],
+      customerPersonas: savedProfile?.customerPersonas || [],
+      locationRecords: savedProfile?.locationRecords || [],
+      locationsMaster: savedProfile?.locationRecords || [],
+      conversionGoals: savedProfile?.conversionGoals || [],
+      brandProfile: savedProfile?.brandProfile || null,
+      competitors: savedProfile?.competitors || [],
+      seoKeywords: savedProfile?.seoKeywords || [],
+      negativeKeywords: savedProfile?.negativeKeywords || [],
+      faqs: savedProfile?.faqs || [],
+      aiSuggestions: savedProfile?.aiSuggestions || [],
+      mediaAssets: savedProfile?.mediaAssets || [],
+      targetAudience: savedProfile?.targetAudience || null,
+      keyOfferings: savedProfile?.keyOfferings || [],
+      locations: (savedProfile?.locations && Array.isArray(savedProfile.locations) && savedProfile.locations.length > 0)
+        ? savedProfile.locations
+        : (gmbLocation ? [gmbLocation] : ["India"]),
+      isApproved: Boolean(savedProfile?.isApproved),
+      approvedAt: savedProfile?.approvedAt || null
+    });
+  } catch (error: any) {
+    console.error("[customer-profile] error:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch customer profile" });
+  }
+});
+
+/**
+ * POST /api/ads/customer-profile — Save or Approve Customer Business & Marketing Profile
+ * Body: BusinessProfilePayload
+ */
+router.post("/customer-profile", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    const cleanCid = rawCid.replace(/-/g, "").trim();
+
+    // Verify ownership before modifying profile
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const isApproved = Boolean(req.body.isApproved);
+    const saved = await CustomerBusinessProfileService.saveProfile(orgId, cleanCid, req.body, isApproved);
+    res.status(200).json({ success: true, profile: saved });
+  } catch (error: any) {
+    console.error("[customer-profile POST] error:", error);
+    res.status(400).json({ error: error?.message || "Failed to save profile" });
+  }
+});
+
+/**
+ * POST /api/ads/customer-profile/media/upload — Upload & Validate Creative Media Asset
+ * Body: { customerId, asset: Partial<MediaAssetItem>, file?: string }
+ */
+router.post("/customer-profile/media/upload", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    const cleanCid = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { asset, file } = req.body;
+    if (!asset || typeof asset !== "object") {
+      return res.status(400).json({ error: "Asset metadata is required." });
+    }
+
+    let fileUrl = asset.fileUrl;
+    let thumbnailUrl = asset.thumbnailUrl;
+
+    // Optional: Upload base64 data to ImageKit Cloud Storage if configured
+    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+    if (file && typeof file === "string") {
+      if (file.startsWith("data:") || !file.startsWith("http")) {
+        if (privateKey) {
+          try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("fileName", asset.fileName || `media_${Date.now()}`);
+            formData.append("useUniqueFileName", "true");
+            formData.append("folder", `/google_ads/customers/${cleanCid}/media`);
+            formData.append("tags", `google_ads,profile_media,${(asset.type || "image").toLowerCase()}`);
+
+            const authHeader = Buffer.from(`${privateKey}:`).toString("base64");
+            const ikRes = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData, {
+              headers: { Authorization: `Basic ${authHeader}` }
+            });
+            fileUrl = ikRes.data.url;
+            thumbnailUrl = ikRes.data.thumbnailUrl || ikRes.data.url;
+          } catch (ikErr: any) {
+            console.warn("[customer-profile/media/upload] ImageKit upload error, fallback to data url:", ikErr.message);
+            fileUrl = file;
+          }
+        } else {
+          fileUrl = file;
+        }
+      } else if (file.startsWith("http")) {
+        fileUrl = file;
+      }
+    }
+
+    if (!fileUrl) {
+      return res.status(400).json({ error: "A valid file or file URL is required." });
+    }
+
+    const assetToValidate: Partial<MediaAssetItem> = {
+      ...asset,
+      fileUrl,
+      thumbnailUrl: thumbnailUrl || fileUrl,
+      legalRightsConfirmed: Boolean(asset.legalRightsConfirmed)
+    };
+
+    // Server-side validation
+    const validation = validateMediaAsset(assetToValidate);
+    if (!validation.isValid) {
+      return res.status(400).json({ error: validation.error || "Media asset validation failed." });
+    }
+
+    if (validation.detectedSubtype) {
+      assetToValidate.subtype = validation.detectedSubtype;
+    }
+    if (validation.detectedAspectRatio) {
+      assetToValidate.aspectRatio = validation.detectedAspectRatio;
+    }
+
+    const savedAsset = await CustomerBusinessProfileService.upsertMediaAsset(orgId, cleanCid, assetToValidate);
+    return res.status(200).json({ success: true, asset: savedAsset });
+  } catch (error: any) {
+    console.error("[customer-profile/media/upload POST] error:", error);
+    return res.status(500).json({ error: error?.message || "Failed to upload media asset" });
+  }
+});
+
+/**
+ * DELETE /api/ads/customer-profile/media/:assetId — Delete Media Asset Scoped to Customer
+ */
+router.delete("/customer-profile/media/:assetId", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId || (req.query?.customerId as string);
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    const cleanCid = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { assetId } = req.params;
+    if (!assetId) {
+      return res.status(400).json({ error: "assetId is required" });
+    }
+
+    const success = await CustomerBusinessProfileService.deleteMediaAsset(orgId, cleanCid, assetId);
+    return res.status(200).json({ success });
+  } catch (error: any) {
+    console.error("[customer-profile/media DELETE] error:", error);
+    return res.status(500).json({ error: error?.message || "Failed to delete media asset" });
+  }
+});
+
+/**
+ * PATCH /api/ads/customer-profile/media/:assetId/status — Toggle Media Asset Status (ACTIVE/INACTIVE)
+ */
+router.patch("/customer-profile/media/:assetId/status", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    const cleanCid = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { assetId } = req.params;
+    const { status } = req.body;
+    if (!assetId) {
+      return res.status(400).json({ error: "assetId is required" });
+    }
+
+    const updated = await CustomerBusinessProfileService.toggleMediaAssetStatus(orgId, cleanCid, assetId, status);
+    return res.status(200).json({ success: true, asset: updated });
+  } catch (error: any) {
+    console.error("[customer-profile/media/status PATCH] error:", error);
+    return res.status(500).json({ error: error?.message || "Failed to update media asset status" });
+  }
+});
+
+/**
+ * POST /api/ads/customer-profile/analyze-website — AI Website Analysis & Sub-Page Discovery
+ * Body: { customerId, url, isPrimary, currentProfile }
+ */
+router.post("/customer-profile/analyze-website", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    const cleanCid = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const targetUrl = req.body?.url;
+    if (!targetUrl) {
+      return res.status(400).json({ error: "url is required" });
+    }
+
+    const currentProfileOverride = req.body?.currentProfile;
+    const result = await CustomerBusinessProfileService.analyzeWebsiteAndExtractIntelligence(
+      targetUrl,
+      orgId,
+      cleanCid,
+      currentProfileOverride
+    );
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[customer-profile/analyze-website POST] error:", error);
+    res.status(400).json({ error: error?.message || "Website analysis failed" });
+  }
+});
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BUDGETS
@@ -485,11 +894,14 @@ router.get("/campaigns/drafts", async (req, res) => {
 
     const whereClause: any = { organizationId: orgId, status: "DRAFT" };
     if (cidClean && cidClean !== "default") {
+      // Customer-specific query: ONLY return drafts for this exact customerId
       whereClause.OR = [
         { customerId: cidClean },
-        { customerId: rawCid },
-        { customerId: "default" }
+        { customerId: rawCid }
       ];
+    } else if (cidClean === "default" || rawCid === "default") {
+      // Explicit non-customer default draft query
+      whereClause.customerId = "default";
     }
 
     const drafts = await prisma.googleAdCampaign.findMany({
@@ -529,6 +941,11 @@ router.put("/campaigns/:id", async (req, res) => {
     if (!campaign) return res.status(404).json({ error: "Campaign not found" });
 
     const cid = customerId || campaign.customerId;
+    const isOwned = await validateCustomerOwnership(orgId, cid);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
     if (campaign.googleAdsCampaignId) {
       const resourceName = `customers/${cid}/campaigns/${campaign.googleAdsCampaignId}`;
       await GoogleAdsService.updateCampaign(orgId, cid, resourceName, { name, status, endDate });
@@ -621,6 +1038,11 @@ router.post("/campaign/status", async (req, res) => {
     if (!campaign?.googleAdsCampaignId) return res.status(404).json({ error: "Campaign not found" });
 
     const cid = customerId || campaign.customerId;
+    const isOwned = await validateCustomerOwnership(orgId, cid);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
     const resourceName = `customers/${cid}/campaigns/${campaign.googleAdsCampaignId}`;
     await GoogleAdsService.updateCampaign(orgId, cid, resourceName, { status });
 
@@ -640,6 +1062,11 @@ router.delete("/campaigns/:id", async (req, res) => {
     if (!campaign) return res.status(404).json({ error: "Campaign not found" });
 
     const cid = customerId || campaign.customerId;
+    const isOwned = await validateCustomerOwnership(orgId, cid);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
     if (campaign.googleAdsCampaignId) {
       const resourceName = `customers/${cid}/campaigns/${campaign.googleAdsCampaignId}`;
       await GoogleAdsService.removeCampaign(orgId, cid, resourceName);
@@ -651,6 +1078,7 @@ router.delete("/campaigns/:id", async (req, res) => {
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
   }
 });
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AD GROUPS
