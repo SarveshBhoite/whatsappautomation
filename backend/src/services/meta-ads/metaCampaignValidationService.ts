@@ -166,21 +166,22 @@ export class MetaCampaignValidationService {
     // Validation 2.2: WhatsApp number must be connected with Facebook Page or Meta WABA ID
     if (destType === "WHATSAPP") {
       const cleanDraftPhone = (draft.destination.whatsappPhoneNumber || "").replace(/\D/g, "");
-      const isMatched = context.whatsAppNumbers.some((wn) => {
+      const numbersList = Array.isArray(context.whatsAppNumbers) ? context.whatsAppNumbers : [];
+      const isMatched = numbersList.some((wn) => {
         const cleanWn = (wn.phoneNumber || "").replace(/\D/g, "");
         return cleanWn.endsWith(cleanDraftPhone.slice(-10)) || cleanDraftPhone.endsWith(cleanWn.slice(-10));
       });
 
-      if (cleanDraftPhone && !isMatched && context.whatsAppNumbers.length > 0) {
+      if (cleanDraftPhone && !isMatched && numbersList.length > 0) {
         items.push({
           severity: "ERROR",
           code: "WHATSAPP_NUMBER_NOT_LINKED_TO_WABA",
           field: "destination.whatsappPhoneNumber",
           message: `The WhatsApp number (${draft.destination.whatsappPhoneNumber}) is not linked to your Facebook Page or Meta WABA ID. Meta strictly requires a linked number.`,
           blocking: true,
-          suggestedFix: `Select from your verified connected numbers: ${context.whatsAppNumbers.map((n) => n.phoneNumber).join(", ")}`,
+          suggestedFix: `Select from your verified connected numbers: ${numbersList.map((n) => n.phoneNumber).join(", ")}`,
         });
-      } else if (!cleanDraftPhone && context.whatsAppNumbers.length === 0) {
+      } else if (!cleanDraftPhone && numbersList.length === 0) {
         items.push({
           severity: "ERROR",
           code: "WHATSAPP_NUMBER_UNVERIFIED",

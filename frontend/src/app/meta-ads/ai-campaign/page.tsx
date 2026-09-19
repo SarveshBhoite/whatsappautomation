@@ -53,6 +53,10 @@ import {
   Activity,
   Repeat,
   Bookmark,
+  ChevronDown,
+  Rocket,
+  Pencil,
+  Check,
 } from "lucide-react";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -71,6 +75,7 @@ interface ConversationMessage {
   text: string;
   timestamp: string;
   quickOptions?: Array<{ label: string; value: string; isNotSure?: boolean }>;
+  options?: Array<{ label: string; value: string; isNotSure?: boolean }>;
   metadata?: any;
 }
 
@@ -227,6 +232,165 @@ export default function MetaAIChatbotStudioPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [cityInput, setCityInput] = useState("");
   const [singleCitySuggestions, setSingleCitySuggestions] = useState<Array<{ key: string; name: string; displayName: string; region: string }>>([]);
+
+  // ── DEDICATED EDIT MODAL STATE FOR PRE-FLIGHT CHECKLIST ──
+  const [activeEditModal, setActiveEditModal] = useState<"media" | "headline" | "budget" | "destination" | "account" | "page" | "audience" | null>(null);
+
+  // Local draft states for dedicated section editors
+  const [editHeadline, setEditHeadline] = useState("");
+  const [editPrimaryText, setEditPrimaryText] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editCta, setEditCta] = useState("WHATSAPP_MESSAGE");
+
+  const [editDailyBudget, setEditDailyBudget] = useState<number>(750);
+  const [editIsCbo, setEditIsCbo] = useState(true);
+
+  const [editDestType, setEditDestType] = useState<"WHATSAPP" | "INSTANT_FORM" | "WEBSITE" | "PHONE_CALL">("WHATSAPP");
+  const [editWhatsappPhone, setEditWhatsappPhone] = useState("+91 77099 36965");
+  const [editGreetingMsg, setEditGreetingMsg] = useState("");
+  const [editWebsiteUrl, setEditWebsiteUrl] = useState("");
+
+  const [editAdAccountId, setEditAdAccountId] = useState("");
+  const [editPixelId, setEditPixelId] = useState("");
+
+  const [editPageName, setEditPageName] = useState("");
+  const [editPageId, setEditPageId] = useState("");
+
+  const [editAgeMin, setEditAgeMin] = useState<number>(20);
+  const [editAgeMax, setEditAgeMax] = useState<number>(45);
+  const [editGender, setEditGender] = useState<"ALL" | "MEN" | "WOMEN">("ALL");
+  const [editPlacements, setEditPlacements] = useState<"ADVANTAGE_PLUS" | "MANUAL">("ADVANTAGE_PLUS");
+
+  const openEditModal = (modal: "media" | "headline" | "budget" | "destination" | "account" | "page" | "audience") => {
+    if (!session?.draft) return;
+    const { campaign, creative, targeting, destination } = session.draft;
+    if (modal === "headline") {
+      setEditHeadline(creative.headline || "");
+      setEditPrimaryText(creative.primaryText || "");
+      setEditDescription(creative.description || "");
+      setEditCta(creative.callToAction || "WHATSAPP_MESSAGE");
+    } else if (modal === "budget") {
+      setEditDailyBudget(campaign.dailyBudget || 750);
+      setEditIsCbo(true);
+    } else if (modal === "destination") {
+      setEditDestType((destination.type as any) || "WHATSAPP");
+      setEditWhatsappPhone(destination.whatsappPhoneNumber || "+91 77099 36965");
+      setEditGreetingMsg((creative as any)?.prefilledMessage || `Hi ${campaign.name || "Ak Cars"}, I saw your ad on Facebook and want to know more about ${creative.headline || "your services"}!`);
+      setEditWebsiteUrl(destination.websiteUrl || destination.destinationUrl || "https://");
+    } else if (modal === "account") {
+      setEditAdAccountId(session.draft.adAccountId || activeAdAccount?.adAccountId || "act_1454270479625110");
+      setEditPixelId(session.draft.pixelId || context?.pixelId || "1380912777544016");
+    } else if (modal === "page") {
+      setEditPageName(session.draft.pageName || activePage?.name || "JISNU Digital Solutions Pvt.Ltd");
+      setEditPageId(session.draft.pageId || activePage?.id || "1062234726963242");
+    } else if (modal === "audience") {
+      setEditAgeMin(targeting.ageMin || 20);
+      setEditAgeMax(targeting.ageMax || 45);
+      setEditGender((targeting.gender as any) || "ALL");
+      setEditPlacements(targeting.placements === "MANUAL" ? "MANUAL" : "ADVANTAGE_PLUS");
+    }
+    setActiveEditModal(modal);
+  };
+
+  const handleSaveHeadline = () => {
+    if (!session) return;
+    setSession({
+      ...session,
+      draft: {
+        ...session.draft,
+        creative: {
+          ...session.draft.creative,
+          headline: editHeadline,
+          primaryText: editPrimaryText,
+          description: editDescription,
+          callToAction: editCta,
+        },
+      },
+    });
+    setActiveEditModal(null);
+  };
+
+  const handleSaveBudget = () => {
+    if (!session) return;
+    setSession({
+      ...session,
+      draft: {
+        ...session.draft,
+        campaign: {
+          ...session.draft.campaign,
+          dailyBudget: editDailyBudget,
+        },
+      },
+    });
+    setActiveEditModal(null);
+  };
+
+  const handleSaveDestination = () => {
+    if (!session) return;
+    setSession({
+      ...session,
+      draft: {
+        ...session.draft,
+        destination: {
+          ...session.draft.destination,
+          type: editDestType,
+          whatsappPhoneNumber: editDestType === "WHATSAPP" ? editWhatsappPhone : undefined,
+          websiteUrl: editDestType === "WEBSITE" ? editWebsiteUrl : undefined,
+          destinationUrl: editDestType === "WEBSITE" ? editWebsiteUrl : undefined,
+        },
+        creative: {
+          ...session.draft.creative,
+          callToAction: editDestType === "WHATSAPP" ? "WHATSAPP_MESSAGE" : editDestType === "WEBSITE" ? "LEARN_MORE" : "APPLY_NOW",
+          prefilledMessage: editGreetingMsg,
+        },
+      },
+    });
+    setActiveEditModal(null);
+  };
+
+  const handleSaveAccount = () => {
+    if (!session) return;
+    setSession({
+      ...session,
+      draft: {
+        ...session.draft,
+        adAccountId: editAdAccountId,
+        pixelId: editPixelId,
+      },
+    });
+    setActiveEditModal(null);
+  };
+
+  const handleSavePage = () => {
+    if (!session) return;
+    setSession({
+      ...session,
+      draft: {
+        ...session.draft,
+        pageName: editPageName,
+        pageId: editPageId,
+      },
+    });
+    setActiveEditModal(null);
+  };
+
+  const handleSaveAudience = () => {
+    if (!session) return;
+    setSession({
+      ...session,
+      draft: {
+        ...session.draft,
+        targeting: {
+          ...session.draft.targeting,
+          ageMin: editAgeMin,
+          ageMax: editAgeMax,
+          gender: editGender,
+          placements: editPlacements,
+        },
+      },
+    });
+    setActiveEditModal(null);
+  };
 
   // Debounced search for single city input
   useEffect(() => {
@@ -435,6 +599,8 @@ export default function MetaAIChatbotStudioPage() {
       localStorage.removeItem(`meta_ai_input_draft_${currentOrg}`);
     }
     setInputText("");
+    setAttachedFile(null);
+    setMetaIframeHtml(null);
     setLoadingInit(true);
     try {
       const res = await fetch(`${BACKEND}/api/meta-ads/ai/conversation/init?organizationId=${currentOrg}`);
@@ -763,6 +929,10 @@ export default function MetaAIChatbotStudioPage() {
       updatedSession
     );
   };
+
+  // ── Campaign Pre-Flight Readiness Tracker State ──
+  const [checklistFilter, setChecklistFilter] = useState<"ALL" | "ACTION_NEEDED" | "READY">("ALL");
+  const [isChecklistExpanded, setIsChecklistExpanded] = useState(true);
 
   // ── Bulk Location Management State & Handlers ──
   const [showBulkLocationModal, setShowBulkLocationModal] = useState(false);
@@ -1245,6 +1415,101 @@ export default function MetaAIChatbotStudioPage() {
   const budgetVal = campaign.dailyBudget ? `₹${campaign.dailyBudget.toLocaleString()}/day` : null;
   const campaignTitle = campaign.name || "Meta Ad Campaign";
 
+  // Helper to detect if a string is an age range (e.g. "20 to 45", "18-65") or invalid non-city string
+  const isInvalidLocationName = (loc?: string): boolean => {
+    if (!loc || typeof loc !== "string") return true;
+    const clean = loc.trim();
+    if (/^(?:age|aged|वय|उम्र)?\s*:?\s*\d{1,2}\s*(?:-|to|and|te|se|ते|से)\s*\d{1,2}\s*(?:years?|yrs|वर्ष|साल)?$/i.test(clean)) return true;
+    if (/^\s*\d+\s*$/.test(clean)) return true;
+    if (/^(?:male|female|men|women|all genders|वय|उम्र)\b/i.test(clean)) return true;
+    return false;
+  };
+
+  // Extract clean valid target cities, stripping out any accidentally captured age ranges (like "20 to 45")
+  const rawCities = Array.isArray(targeting.cities) ? targeting.cities : [];
+  let cleanCities = rawCities.filter((c: string) => typeof c === "string" && !isInvalidLocationName(c));
+
+  if (cleanCities.length === 0 && Array.isArray(targeting.cityConfigs) && targeting.cityConfigs.length > 0) {
+    cleanCities = targeting.cityConfigs.map((c: any) => c.name).filter((n: string) => !isInvalidLocationName(n));
+  }
+  if (cleanCities.length === 0 && targeting.singleCity && !isInvalidLocationName(targeting.singleCity)) {
+    cleanCities = [targeting.singleCity];
+  }
+  if (cleanCities.length === 0 && targeting.locationDescription && !isInvalidLocationName(targeting.locationDescription)) {
+    cleanCities = targeting.locationDescription
+      .split(/[,\/&|]\s*|\s+and\s+/i)
+      .map((s: string) => s.trim())
+      .filter((s: string) => !isInvalidLocationName(s));
+  }
+  // If still empty, scan conversation history for any city the user mentioned (e.g. Pune, Mumbai, Baner, etc.)
+  if (cleanCities.length === 0 && Array.isArray(session?.conversation)) {
+    const knownCities = [
+      "Pune", "Mumbai", "Delhi", "Bangalore", "Bengaluru", "Hyderabad", "Kolkata", "Chennai",
+      "Ahmedabad", "Surat", "Jaipur", "Lucknow", "Nagpur", "Nashik", "Indore", "Thane",
+      "Bhopal", "Patna", "Vadodara", "Ghaziabad", "Ludhiana", "Agra", "Faridabad", "Meerut",
+      "Rajkot", "Varanasi", "Srinagar", "Aurangabad", "Chhatrapati Sambhajinagar", "Dhanbad",
+      "Amritsar", "Navi Mumbai", "Kolhapur", "Solapur", "Goa", "Maharashtra", "Baner", "Hinjewadi",
+      "Wakad", "Kothrud", "Hadapsar", "Viman Nagar", "All India"
+    ];
+    for (const m of session.conversation) {
+      if (m.sender === "user" && m.text) {
+        for (const kc of knownCities) {
+          if (new RegExp(`\\b${kc}\\b`, "i").test(m.text)) {
+            if (!cleanCities.includes(kc)) cleanCities.push(kc);
+          }
+        }
+      }
+    }
+  }
+
+  const cleanLocationDesc = cleanCities.length > 0 ? cleanCities.join(", ") : (targeting.countries?.length ? targeting.countries.join(", ") : "");
+  const hasValidLocation = cleanCities.length > 0 || (targeting.countries && targeting.countries.length > 0 && targeting.countries.some((c: string) => !isInvalidLocationName(c)));
+
+  // Auto-heal session if targeting.cities or locationDescription has age ranges like "20 to 45"
+  useEffect(() => {
+    if (session?.draft?.targeting) {
+      const tgt = session.draft.targeting;
+      const invalidCityInDraft = (Array.isArray(tgt.cities) && tgt.cities.some(isInvalidLocationName)) ||
+        (tgt.locationDescription && isInvalidLocationName(tgt.locationDescription));
+      
+      if (invalidCityInDraft) {
+        const ageString = (Array.isArray(tgt.cities) ? tgt.cities.find(isInvalidLocationName) : null) || tgt.locationDescription;
+        const ageMatch = typeof ageString === "string" ? ageString.match(/(\d{1,2})\s*[-_to\s&te]+\s*(\d{1,2})/i) : null;
+        const ageMin = ageMatch ? parseInt(ageMatch[1], 10) : tgt.ageMin;
+        const ageMax = ageMatch ? parseInt(ageMatch[2], 10) : tgt.ageMax;
+
+        setSession((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            draft: {
+              ...prev.draft,
+              targeting: {
+                ...prev.draft.targeting,
+                cities: cleanCities,
+                locationDescription: cleanLocationDesc,
+                ageMin: ageMin || prev.draft.targeting.ageMin,
+                ageMax: ageMax || prev.draft.targeting.ageMax,
+              },
+            },
+          };
+        });
+      }
+    }
+  }, [session?.draft?.targeting?.cities, session?.draft?.targeting?.locationDescription]);
+
+  // Check if user has started interaction / provided input
+  const hasUserMessages = Boolean(session?.conversation?.some((m) => m.sender === "user"));
+  const hasCreativeDetails = Boolean(
+    creative.headline?.trim() ||
+    creative.primaryText?.trim() ||
+    creative.mediaUrl ||
+    attachedFile
+  );
+  const hasCustomBudget = Boolean(campaign.dailyBudget && campaign.dailyBudget > 0);
+  const hasCustomLocations = hasValidLocation;
+  const hasUserGivenInput = hasUserMessages || hasCreativeDetails || hasCustomBudget || hasCustomLocations;
+
   const isReadyToReview = true;
 
   return (
@@ -1402,26 +1667,42 @@ export default function MetaAIChatbotStudioPage() {
                             </div>
 
                             {/* Options / Quick Buttons */}
-                            {(msg as any).options && (msg as any).options.length > 0 && (
-                              <div className="pt-2 flex flex-wrap gap-2">
-                                {(msg as any).options.map((opt: any, oIdx: number) => (
-                                  <button
-                                    key={oIdx}
-                                    type="button"
-                                    onClick={() => {
-                                      if (opt.value === "CONFIRM_PUBLISH") {
-                                        handleConfirmPublish();
-                                      } else {
-                                        handleSendMessage(opt.value || opt.label);
-                                      }
-                                    }}
-                                    className="px-3.5 py-2 rounded-xl text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200/90 hover:border-slate-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer disabled:opacity-50 active:scale-95 flex items-center gap-1.5"
-                                  >
-                                    {opt.label}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
+                            {(() => {
+                              const messageOptions = (msg as any).quickOptions || (msg as any).options || [];
+                              if (!messageOptions || messageOptions.length === 0) return null;
+                              return (
+                                <div className="pt-2.5 mt-2 border-t border-slate-100 space-y-2">
+                                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-indigo-700 tracking-wide">
+                                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+                                    <span>Suggested Options & Ideas (Click to select or use as inspiration):</span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {messageOptions.map((opt: any, oIdx: number) => (
+                                      <button
+                                        key={oIdx}
+                                        type="button"
+                                        onClick={() => {
+                                          if (opt.value === "CONFIRM_PUBLISH" || opt.value === "confirm_and_launch") {
+                                            handleConfirmPublish();
+                                          } else if (opt.value === "OPEN_BULK_LOCATIONS") {
+                                            openBulkLocationManager();
+                                          } else if (opt.value === "upload_own_image") {
+                                            fileInputRef.current?.click();
+                                          } else if (opt.value === "tweak_ad" || opt.value === "EDIT_HEADLINE") {
+                                            openEditModal("headline");
+                                          } else {
+                                            handleSendMessage(opt.value || opt.label);
+                                          }
+                                        }}
+                                        className="px-3.5 py-1.5 rounded-xl text-xs font-medium bg-gradient-to-r from-slate-50 to-indigo-50/50 hover:from-indigo-50 hover:to-blue-50 text-slate-700 hover:text-indigo-900 border border-slate-200/90 hover:border-indigo-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer disabled:opacity-50 active:scale-95 flex items-center gap-1.5 group"
+                                      >
+                                        <span className="group-hover:translate-x-0.5 transition-transform">{opt.label}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1470,6 +1751,8 @@ export default function MetaAIChatbotStudioPage() {
                   </button>
                 </div>
               )}
+
+
 
               <div className="border border-indigo-200/80 hover:border-indigo-300 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10 rounded-2xl p-3 bg-white/90 backdrop-blur-md shadow-md transition-all duration-200">
                 <textarea
@@ -1557,58 +1840,512 @@ export default function MetaAIChatbotStudioPage() {
 
         {/* RIGHT COLUMN: LIVE AD PREVIEW & CAMPAIGN BLUEPRINT PANEL */}
         <div className="w-full md:w-[480px] lg:w-[540px] xl:w-[600px] 2xl:w-[660px] flex flex-col min-h-0 my-2 mr-2 rounded-2xl bg-white/70 backdrop-blur-md border border-slate-200/80 shrink-0 shadow-md z-1 overflow-hidden">
-          {/* Header Bar */}
-          <div className="px-4 py-3 bg-white/80 backdrop-blur-md border-b border-slate-200/70 flex items-center justify-between shrink-0 shadow-2xs">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-950 text-white flex items-center justify-center shadow-xs ring-1 ring-slate-900/10">
-                <Sparkles className="h-3.5 w-3.5" />
+          {/* Master Production Header Bar */}
+          <div className="px-4 py-3 bg-white/95 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between gap-3 shrink-0 shadow-xs">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-8.5 w-8.5 rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 text-white flex items-center justify-center shadow-xs ring-1 ring-slate-900/10 shrink-0 overflow-hidden">
+                {activePage?.picture ? (
+                  <img src={activePage.picture} alt="Avatar" className="h-full w-full object-cover" />
+                ) : (
+                  <Sparkles className="h-4 w-4 text-white" />
+                )}
               </div>
-              <div>
-                <h3 className="font-extrabold text-xs text-slate-900 tracking-tight">Meta Ad & Campaign Blueprint</h3>
-                <p className="text-[10px] text-slate-500 font-medium">Live Interactive Real-Time Sync</p>
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-extrabold text-[13px] text-slate-900 tracking-tight">
+                    Meta Ad Studio & Blueprint
+                  </h3>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 truncate max-w-[170px]" title={`Business: ${pageNameDisplay}`}>
+                    <User className="h-2.5 w-2.5 text-indigo-600 shrink-0" />
+                    <span className="truncate">{pageNameDisplay}</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 font-medium truncate">
+                  <span>Ad Account:</span>
+                  <span className="font-mono font-bold text-slate-700">{activeAdAccount?.adAccountId || draft.adAccountId || "act_1454270479625110"}</span>
+                  <span className="text-slate-300">·</span>
+                  <span>Meta Graph API v26.0</span>
+                </div>
               </div>
             </div>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-              Live Preview
-            </span>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5 shadow-3xs">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live Meta Sync</span>
+              </span>
+            </div>
           </div>
 
           {/* Scrollable Blueprint Content */}
           <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
-            <div className="space-y-4 text-[13px] text-slate-800 leading-relaxed animate-fadeIn">
+            {!hasUserGivenInput ? (
+              /* AWAITING USER INPUT STATE: Do not show live preview, format tools, or campaign blueprint at once */
+              <div className="h-full min-h-[460px] flex flex-col items-center justify-center p-6 text-center space-y-5 animate-fadeIn font-sans">
+                <div className="relative">
+                  <div className="h-16 w-16 rounded-3xl bg-gradient-to-tr from-[#1877F2] via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-xl shadow-indigo-500/20 ring-4 ring-indigo-50">
+                    <Sparkles className="h-8 w-8 animate-pulse" />
+                  </div>
+                  <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[10px] text-white font-bold">
+                    ✓
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 max-w-sm">
+                  <h4 className="font-extrabold text-base text-slate-900 tracking-tight">
+                    Awaiting Your Campaign Details
+                  </h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Live Meta Feed Ad Previews, format tools, and targeting blueprints generate in real-time once you start chatting with JISNU AI.
+                  </p>
+                </div>
+
+                {/* 3 Step Interactive Visual Guidance Cards */}
+                <div className="w-full max-w-sm space-y-2 text-left pt-1">
+                  <div className="p-3 rounded-xl border border-sky-200/90 bg-sky-50/60 flex items-start gap-3">
+                    <div className="h-6 w-6 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 shadow-2xs">
+                      1
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-900">Type Your Product or Service in Chat</div>
+                      <div className="text-[11px] text-slate-500 leading-normal">
+                        e.g. &ldquo;Dental clinic in Baner, ₹500/day&rdquo; or &ldquo;पुण्यात साडी सेल&rdquo;
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl border border-slate-200/80 bg-white/70 flex items-start gap-3">
+                    <div className="h-6 w-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                      2
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-800">Upload Media or Select Ad</div>
+                      <div className="text-[11px] text-slate-500 leading-normal">
+                        Attach your image, flyer or product photo to instantly preview across Facebook & Instagram
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl border border-slate-200/80 bg-white/70 flex items-start gap-3">
+                    <div className="h-6 w-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                      3
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-800">Live Step-by-Step Preview & Launch</div>
+                      <div className="text-[11px] text-slate-500 leading-normal">
+                        Meta Ad cards, hooks, budgets, and targeting blueprint populate only with your entered details
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Action Prompt Chips */}
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSendMessage("I want to run a lead generation campaign for my business")}
+                    className="px-3 py-1.5 bg-[#1877F2] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    <span>🎯 Start Lead Campaign</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 shadow-2xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  >
+                    <ImageIcon className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Upload Ad Media</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 text-[13px] text-slate-800 leading-relaxed animate-fadeIn">
                   
-                  {/* ── CAMPAIGN PRE-FLIGHT READINESS & MISSING INFO TRACKER ── */}
+                  {/* ── PRODUCTION-GRADE CAMPAIGN PRE-FLIGHT READINESS & LAUNCH TRACKER ── */}
                   {(() => {
-                    const missingList: Array<{ id: string; name: string; hint: string; isMissing: boolean }> = [
+                    interface ChecklistItem {
+                      id: string;
+                      name: string;
+                      category: string;
+                      hint: string;
+                      isMissing: boolean;
+                      icon: React.ReactNode;
+                      userValue?: string;
+                      userSubValue?: string;
+                      userBadge?: string;
+                      mediaThumbnail?: string;
+                      actionLabel?: string;
+                      onAction: () => void;
+                      quickChips?: Array<{
+                        label: string;
+                        icon?: string;
+                        onClick: () => void;
+                      }>;
+                    }
+
+                    const activeRadius = targeting.radiusKm || (Array.isArray(targeting.cityConfigs) && targeting.cityConfigs[0]?.radiusKm) || 30;
+                    const avgCpa = Math.round((context as any).accountMetrics?.avgCpa || (context as any).researchAudit?.avgCpa || 16);
+                    const currentDailyBudget = campaign.dailyBudget || 750;
+                    const currentMonthlyBudget = currentDailyBudget * 30;
+                    const estMonthlyLeads = Math.max(12, Math.round(currentMonthlyBudget / (avgCpa || 16)));
+                    const estImpressionsCount = Math.round(currentDailyBudget * 30 * 42);
+
+                    const missingList: ChecklistItem[] = [
+                      {
+                        id: "media",
+                        name: "Ad Image / Media Creative",
+                        category: "Creative Asset",
+                        hint: "Upload image flyer or video creative (1080×1080 Feed / 9:16 Reels) to complete deploy readiness",
+                        isMissing: !attachedFile && !creative.mediaUrl,
+                        icon: <ImageIcon className="h-4 w-4 text-purple-600" />,
+                        userValue: attachedFile
+                          ? (attachedFile.name || "Uploaded Creative File")
+                          : creative.mediaUrl
+                          ? `${creative.mediaType === "VIDEO" ? "Video Creative" : "Image Media Creative"} Linked`
+                          : undefined,
+                        userSubValue: attachedFile
+                          ? `${attachedFile.type === "VIDEO" ? "Video" : "Image"} ready for Meta Feed & Reels · 1080×1080`
+                          : creative.mediaUrl
+                          ? "Synced with Meta Ad Creative Engine · Standard Placements"
+                          : undefined,
+                        mediaThumbnail: attachedFile?.url || creative.mediaUrl,
+                        actionLabel: "+ Upload Media",
+                        onAction: () => openEditModal("media"),
+                        quickChips: [
+                          {
+                            label: "Upload File",
+                            icon: "📤",
+                            onClick: () => fileInputRef.current?.click(),
+                          },
+                          {
+                            label: "Ad Library",
+                            icon: "📁",
+                            onClick: () => {
+                              setShowAdLibraryModal(true);
+                              fetchMediaLibrary();
+                            },
+                          },
+                          {
+                            label: "AI Generate",
+                            icon: "✨",
+                            onClick: () => handleSendMessage("Generate a compelling high-converting ad image for my campaign"),
+                          },
+                        ],
+                      },
                       {
                         id: "headline",
                         name: "Ad Copy & Headline",
-                        hint: "Required for ad creative",
+                        category: "Creative Copy",
+                        hint: "Catchy hook, primary text, and headline for user engagement",
                         isMissing: !creative.headline || creative.headline.trim() === "",
+                        icon: <FileText className="h-4 w-4 text-blue-600" />,
+                        userValue: creative.headline ? `“${creative.headline}”` : undefined,
+                        userSubValue: creative.primaryText
+                          ? `Hook: ${creative.primaryText.slice(0, 80)}${creative.primaryText.length > 80 ? "..." : ""}`
+                          : undefined,
+                        actionLabel: "+ Generate Copy",
+                        onAction: () => openEditModal("headline"),
+                        quickChips: [
+                          {
+                            label: "AI Generate",
+                            icon: "✨",
+                            onClick: () => handleSendMessage("Generate high-converting headlines and primary text ad copy for my business"),
+                          },
+                          {
+                            label: "Offer Hook",
+                            icon: "🔥",
+                            onClick: () => handleSendMessage("Suggest 3 discount or offer hooks for this ad copy"),
+                          },
+                        ],
                       },
                       {
                         id: "budget",
                         name: "Daily Campaign Budget",
-                        hint: "Set daily budget (e.g. ₹500)",
+                        category: "Budget & Pacing",
+                        hint: "Set daily spend (minimum ₹100/day in INR for Meta delivery)",
                         isMissing: !campaign.dailyBudget || campaign.dailyBudget <= 0,
-                      },
-                      {
-                        id: "media",
-                        name: "Ad Image / Media Creative",
-                        hint: "Upload image or select ad",
-                        isMissing: !attachedFile && !creative.mediaUrl,
-                      },
-                      {
-                        id: "account",
-                        name: "Meta Ad Account",
-                        hint: "Connect Meta Ad Account",
-                        isMissing: !draft.adAccountId && (!context.adAccounts || context.adAccounts.length === 0),
+                        icon: <DollarSign className="h-4 w-4 text-emerald-600" />,
+                        userValue: campaign.dailyBudget && campaign.dailyBudget > 0
+                          ? `₹${campaign.dailyBudget.toLocaleString("en-IN")}/day (~₹${(campaign.dailyBudget * 30).toLocaleString("en-IN")}/mo) · Advantage+ CBO`
+                          : undefined,
+                        userSubValue: campaign.dailyBudget && campaign.dailyBudget > 0
+                          ? `Est. ~${estMonthlyLeads.toLocaleString("en-IN")} Leads/Month (@ ~₹${avgCpa} CPA) · ~${estImpressionsCount.toLocaleString("en-IN")} impressions`
+                          : undefined,
+                        actionLabel: "+ Set Budget",
+                        onAction: () => openEditModal("budget"),
+                        quickChips: [
+                          {
+                            label: "₹500/day",
+                            onClick: () => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    campaign: { ...session.draft.campaign, dailyBudget: 500 },
+                                  },
+                                });
+                              }
+                            },
+                          },
+                          {
+                            label: "₹750/day",
+                            onClick: () => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    campaign: { ...session.draft.campaign, dailyBudget: 750 },
+                                  },
+                                });
+                              }
+                            },
+                          },
+                          {
+                            label: "₹1,000/day",
+                            onClick: () => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    campaign: { ...session.draft.campaign, dailyBudget: 1000 },
+                                  },
+                                });
+                              }
+                            },
+                          },
+                          {
+                            label: "₹2,000/day",
+                            onClick: () => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    campaign: { ...session.draft.campaign, dailyBudget: 2000 },
+                                  },
+                                });
+                              }
+                            },
+                          },
+                        ],
                       },
                       {
                         id: "location",
                         name: "Target Location / City",
-                        hint: "Define target location",
-                        isMissing: (!targeting.cities || targeting.cities.length === 0) && (!targeting.countries || targeting.countries.length === 0) && !targeting.locationDescription,
+                        category: "Geo Targeting",
+                        hint: "Define target cities, metro regions, or national radius",
+                        isMissing: !hasValidLocation,
+                        icon: <MapPin className="h-4 w-4 text-rose-600" />,
+                        userValue: cleanCities.length > 0
+                          ? cleanCities.map((c: string) => `${c} (${activeRadius} km)`).join(", ")
+                          : (cleanLocationDesc || (hasValidLocation ? "All India" : undefined)),
+                        userSubValue: cleanCities.length > 0
+                          ? `${cleanCities.length} target location${cleanCities.length > 1 ? "s" : ""} · ${activeRadius} km radius geofence`
+                          : (hasValidLocation ? "Pan-India National Distribution" : undefined),
+                        actionLabel: "+ Add Location",
+                        onAction: () => openBulkLocationManager(),
+                        quickChips: [
+                          {
+                            label: "+ Pune & Mumbai",
+                            onClick: () => handleSendMessage("Target audience in Pune and Mumbai with 30km radius"),
+                          },
+                          {
+                            label: "Pan-India",
+                            icon: "🇮🇳",
+                            onClick: () => handleSendMessage("Set target location to All India"),
+                          },
+                          {
+                            label: "Bulk Manager",
+                            icon: "🗺️",
+                            onClick: () => openBulkLocationManager(),
+                          },
+                        ],
+                      },
+                      {
+                        id: "destination",
+                        name: "Ad Destination & CRM Bot",
+                        category: "Conversion Goal",
+                        hint: "Where leads go when clicking the ad (WhatsApp, Instant Form, Website)",
+                        isMissing: !destination.type || !session?.draft?.sourceMap?.["destination.type"],
+                        icon: <MessageCircle className="h-4 w-4 text-teal-600" />,
+                        userValue: destination.type && session?.draft?.sourceMap?.["destination.type"]
+                          ? (destination.type === "WHATSAPP"
+                              ? "💬 Click-to-WhatsApp (Pre-filled instant greeting)"
+                              : destination.type === "INSTANT_FORM" || destination.type === "LEAD_FORM"
+                              ? "Instant Lead Form"
+                              : destination.type === "WEBSITE"
+                              ? "Website Landing Page"
+                              : destination.type === "PHONE_CALL"
+                              ? "Click to Call"
+                              : destination.type)
+                          : undefined,
+                        userSubValue: destination.type && session?.draft?.sourceMap?.["destination.type"]
+                          ? (destination.type === "WHATSAPP"
+                              ? (destination.whatsappPhoneNumber ? `WABA Target: ${destination.whatsappPhoneNumber}` : "Auto-Linked to CRM WhatsApp Welcome Bot Flow · CTA: SEND_WHATSAPP_MESSAGE")
+                              : destination.websiteUrl || destination.destinationUrl
+                              ? `URL: ${destination.websiteUrl || destination.destinationUrl}`
+                              : "Direct customer inquiries stream to business channel")
+                          : undefined,
+                        actionLabel: "+ Set Destination",
+                        onAction: () => openEditModal("destination"),
+                        quickChips: [
+                          {
+                            label: "WhatsApp",
+                            icon: "💬",
+                            onClick: () => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    destination: { ...session.draft.destination, type: "WHATSAPP" },
+                                    creative: { ...session.draft.creative, callToAction: "WHATSAPP_MESSAGE" },
+                                  },
+                                });
+                              }
+                            },
+                          },
+                          {
+                            label: "Lead Form",
+                            icon: "📋",
+                            onClick: () => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    destination: { ...session.draft.destination, type: "INSTANT_FORM" },
+                                    creative: { ...session.draft.creative, callToAction: "APPLY_NOW" },
+                                  },
+                                });
+                              }
+                            },
+                          },
+                          {
+                            label: "Website",
+                            icon: "🌐",
+                            onClick: () => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    destination: { ...session.draft.destination, type: "WEBSITE" },
+                                    creative: { ...session.draft.creative, callToAction: "LEARN_MORE" },
+                                  },
+                                });
+                              }
+                            },
+                          },
+                        ],
+                      },
+                      {
+                        id: "account",
+                        name: "Meta Ad Account",
+                        category: "Account & Billing",
+                        hint: "Connect or select active Meta Ad Account for billing",
+                        isMissing: !draft.adAccountId && (!context.adAccounts || context.adAccounts.length === 0),
+                        icon: <Building2 className="h-4 w-4 text-indigo-600" />,
+                        userValue: activeAdAccount
+                          ? `${activeAdAccount.name} (${activeAdAccount.adAccountId || activeAdAccount.id})`
+                          : (draft.adAccountId ? `JISNU Digital Solution's Marketing Agency (${draft.adAccountId})` : "JISNU Digital Solution's Marketing Agency (act_1454270479625110)"),
+                        userSubValue: `Currency: ${activeAdAccount?.currency || "INR"} · Verified Meta Business Ad Account`,
+                        actionLabel: "+ Connect Account",
+                        onAction: () => openEditModal("account"),
+                      },
+                      {
+                        id: "page",
+                        name: "Facebook Page & Identity",
+                        category: "Publisher Identity",
+                        hint: "Facebook & Instagram business page identity for publishing",
+                        isMissing: !draft.pageId && !activePage?.id && !draft.pageName && !pageNameDisplay,
+                        icon: <Share2 className="h-4 w-4 text-sky-600" />,
+                        userValue: activePage?.name
+                          ? `${activePage.name} (${activePage.id})`
+                          : pageNameDisplay
+                          ? `${pageNameDisplay} (${draft.pageId || "1062234726963242"})`
+                          : "JISNU Digital Solutions Pvt.Ltd (1062234726963242)",
+                        userSubValue: "Official Meta Business Page · Synced with Instagram Placement",
+                        actionLabel: "+ Select Page",
+                        onAction: () => openEditModal("page"),
+                      },
+                      {
+                        id: "audience",
+                        name: "Demographics & Advantage+ Placements",
+                        category: "Audience & Placements",
+                        hint: "Age range, gender, and automated Meta Advantage+ placement network",
+                        isMissing: !((targeting.ageMin && targeting.ageMax && session?.draft?.sourceMap?.["targeting.ageMin"]) || (targeting.interests && targeting.interests.length > 0 && session?.draft?.sourceMap?.["targeting.interests"]) || session?.draft?.sourceMap?.["targeting.advantagePlusAudience"]),
+                        icon: <Users className="h-4 w-4 text-violet-600" />,
+                        userValue: ((targeting.ageMin && targeting.ageMax && session?.draft?.sourceMap?.["targeting.ageMin"]) || (targeting.interests && targeting.interests.length > 0 && session?.draft?.sourceMap?.["targeting.interests"]) || session?.draft?.sourceMap?.["targeting.advantagePlusAudience"])
+                          ? `Age: ${targeting.ageMin || 20} to ${targeting.ageMax || 45} · Gender: ${targeting.gender === "MEN" ? "Men" : targeting.gender === "WOMEN" ? "Women" : "All Genders"}`
+                          : undefined,
+                        userSubValue: ((targeting.ageMin && targeting.ageMax && session?.draft?.sourceMap?.["targeting.ageMin"]) || (targeting.interests && targeting.interests.length > 0 && session?.draft?.sourceMap?.["targeting.interests"]) || session?.draft?.sourceMap?.["targeting.advantagePlusAudience"])
+                          ? (targeting.interests && targeting.interests.length > 0
+                              ? `🎯 Detailed Signals (${targeting.interests.length}): ${targeting.interests.slice(0, 3).join(", ")}${targeting.interests.length > 3 ? "..." : ""} · Advantage+ Placements`
+                              : "Advantage+ Detailed Targeting (use ai to suggest & add) · Placements (FB & IG Feeds, Reels, Stories)")
+                          : undefined,
+                        actionLabel: "Edit",
+                        onAction: () => openEditModal("audience"),
+                        quickChips: [
+                          {
+                            label: "✨ AI Suggest & Add",
+                            icon: "🎯",
+                            onClick: () => {
+                              handleSendMessage("Suggest and add detailed targeting (demographics, interests & behaviours) for my business");
+                            },
+                          },
+                          {
+                            label: "Age 20–45",
+                            onClick: () => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    targeting: { ...session.draft.targeting, ageMin: 20, ageMax: 45 },
+                                  },
+                                });
+                              }
+                            },
+                          },
+                          {
+                            label: "Age 25–55",
+                            onClick: () => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    targeting: { ...session.draft.targeting, ageMin: 25, ageMax: 55 },
+                                  },
+                                });
+                              }
+                            },
+                          },
+                          {
+                            label: "All Genders",
+                            onClick: () => {
+                              if (session) {
+                                setSession({
+                                  ...session,
+                                  draft: {
+                                    ...session.draft,
+                                    targeting: { ...session.draft.targeting, gender: "ALL" },
+                                  },
+                                });
+                              }
+                            },
+                          },
+                          {
+                            label: "Browse Categories",
+                            icon: "🏷️",
+                            onClick: () => openDetailedTargetingModal(),
+                          },
+                        ],
                       },
                     ];
 
@@ -1617,75 +2354,319 @@ export default function MetaAIChatbotStudioPage() {
                     const percent = Math.round((completed / total) * 100);
                     const missingCount = total - completed;
 
+                    const filteredList = missingList.filter((m) => {
+                      if (checklistFilter === "ACTION_NEEDED") return m.isMissing;
+                      if (checklistFilter === "READY") return !m.isMissing;
+                      return true;
+                    });
+
                     return (
-                      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm space-y-3 animate-fadeIn">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className={`h-6.5 w-6.5 rounded-lg flex items-center justify-center text-xs font-bold ${
-                              missingCount === 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
-                            }`}>
-                              {missingCount === 0 ? "✓" : "⚡"}
+                      <div className="bg-gradient-to-b from-white via-white to-slate-50/70 border border-slate-200/90 rounded-2xl p-4 shadow-sm space-y-3.5 animate-fadeIn">
+                        {/* ── Campaign Identity & Meta Specification Strip ── */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/90 border border-slate-200/80 text-[11px]">
+                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-slate-900 truncate">
+                                {campaignTitle}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded-md bg-sky-100 text-sky-800 font-bold text-[10px]">
+                                v{session?.versionNumber || 2}
+                              </span>
                             </div>
-                            <div>
-                              <h4 className="font-extrabold text-xs text-slate-900 tracking-tight">Campaign Pre-Flight Readiness</h4>
-                              <p className="text-[10px] text-slate-500 font-medium">
-                                {missingCount === 0 ? "All required Meta parameters ready for launch!" : `${missingCount} required item${missingCount > 1 ? "s" : ""} missing before deploy`}
+                            <span className="text-slate-300 hidden sm:inline">·</span>
+                            <span className="text-slate-700 font-bold flex items-center gap-1">
+                              <Target className="h-3 w-3 text-blue-600 shrink-0" />
+                              <span>🎯 {campaign.objective || "OUTCOME_LEADS"}</span>
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              (ODAX Framework)
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                            <span className="text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-3xs">
+                              Special Categories: {campaign.specialAdCategory || "NONE"}
+                            </span>
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/80 shadow-3xs flex items-center gap-1" title="Meta Pixel Dataset">
+                              <Hash className="h-2.5 w-2.5 text-indigo-600" />
+                              <span>Pixel: {draft.pixelId || context?.pixelId || "1380912777544016"}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* ── Top Header Strip ── */}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              className={`h-7 w-7 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                                missingCount === 0
+                                  ? "bg-emerald-100 text-emerald-700 border border-emerald-300/80"
+                                  : "bg-gradient-to-tr from-amber-500 to-amber-600 text-white shadow-amber-500/20"
+                              }`}
+                            >
+                              {missingCount === 0 ? <CheckCircle className="h-4 w-4" /> : <Sparkles className="h-3.5 w-3.5" />}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-extrabold text-xs text-slate-900 tracking-tight flex items-center gap-1.5 truncate">
+                                <span>Campaign Pre-Flight Readiness</span>
+                                <span className="text-[10px] font-bold text-slate-400">({completed}/{total})</span>
+                              </h4>
+                              <p className="text-[11px] text-slate-500 font-medium truncate">
+                                {missingCount === 0
+                                  ? "All 8 production launch parameters verified and ready for deploy!"
+                                  : `${missingCount} critical item${missingCount > 1 ? "s" : ""} needed before live Meta deploy`}
                               </p>
                             </div>
                           </div>
-                          <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
-                            missingCount === 0
-                              ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                              : "text-amber-700 bg-amber-50 border-amber-200"
-                          }`}>
-                            {percent}% Ready
-                          </span>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span
+                              className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full border shadow-3xs ${
+                                missingCount === 0
+                                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                  : "text-amber-800 bg-amber-50 border-amber-200"
+                              }`}
+                            >
+                              {percent}% Ready
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setIsChecklistExpanded(!isChecklistExpanded)}
+                              className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                              title={isChecklistExpanded ? "Collapse checklist" : "Expand checklist"}
+                            >
+                              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isChecklistExpanded ? "rotate-180" : ""}`} />
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Progress Bar */}
+                        {/* ── Progress Bar ── */}
                         <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${
-                              missingCount === 0 ? "bg-emerald-500" : "bg-gradient-to-r from-amber-500 via-indigo-600 to-emerald-500"
+                              missingCount === 0
+                                ? "bg-emerald-500"
+                                : "bg-gradient-to-r from-amber-500 via-indigo-600 to-emerald-500"
                             }`}
                             style={{ width: `${percent}%` }}
                           />
                         </div>
 
-                        {/* Missing Info Pills */}
-                        {missingCount > 0 ? (
-                          <div className="pt-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Missing Required Information:</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {missingList.filter((m) => m.isMissing).map((m) => (
-                                <button
-                                  key={m.id}
-                                  type="button"
-                                  onClick={() => {
-                                    if (m.id === "headline") {
-                                      handleSendMessage("Generate a compelling headline and ad copy for my campaign");
-                                    } else if (m.id === "budget") {
-                                      handleSendMessage("Set my daily campaign budget to ₹500");
-                                    } else if (m.id === "media") {
-                                      fileInputRef.current?.click();
-                                    } else if (m.id === "location") {
-                                      handleSendMessage("Target audience in Pune and Mumbai");
-                                    }
-                                  }}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 shadow-3xs transition-all cursor-pointer group"
-                                  title="Click to ask AI or resolve missing info"
-                                >
-                                  <AlertCircle className="h-3 w-3 text-amber-600 shrink-0 group-hover:scale-110 transition-transform" />
-                                  <span>{m.name}</span>
-                                  <span className="text-[9.5px] text-amber-700 font-normal">({m.hint})</span>
-                                </button>
-                              ))}
+                        {/* ── 100% Launch Banner (Shown when ready to deploy) ── */}
+                        {missingCount === 0 && (
+                          <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="h-8.5 w-8.5 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
+                                <ShieldCheck className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="min-w-0">
+                                <h5 className="font-extrabold text-xs text-white">All 8 Meta Launch Requirements Verified!</h5>
+                                <p className="text-[10.5px] text-emerald-100 truncate">
+                                  Your campaign conforms with Meta Ads Graph API standards.
+                                </p>
+                              </div>
                             </div>
+                            <button
+                              type="button"
+                              onClick={handleConfirmPublish}
+                              disabled={isPublishing}
+                              className="w-full sm:w-auto px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-800 font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 active:scale-95 disabled:opacity-50"
+                            >
+                              {isPublishing ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin text-emerald-700" />
+                                  <span>Publishing...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Rocket className="h-3.5 w-3.5 text-emerald-700" />
+                                  <span>🚀 Launch Live Campaign</span>
+                                </>
+                              )}
+                            </button>
                           </div>
-                        ) : (
-                          <div className="pt-1 flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50/60 p-2 rounded-xl border border-emerald-100">
-                            <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
-                            <span>100% Ready to Launch to Meta Ads Manager!</span>
+                        )}
+
+                        {/* ── Filter Segmented Tabs ── */}
+                        {isChecklistExpanded && (
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                            <div className="inline-flex rounded-lg p-0.5 bg-slate-100/90 border border-slate-200/80 text-[11px] font-semibold">
+                              <button
+                                type="button"
+                                onClick={() => setChecklistFilter("ALL")}
+                                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  checklistFilter === "ALL"
+                                    ? "bg-white text-slate-900 shadow-2xs font-bold"
+                                    : "text-slate-600 hover:text-slate-900"
+                                }`}
+                              >
+                                <span>All Items</span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200/70 text-slate-700 font-bold">
+                                  {total}
+                                </span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setChecklistFilter("ACTION_NEEDED")}
+                                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  checklistFilter === "ACTION_NEEDED"
+                                    ? "bg-white text-amber-800 shadow-2xs font-bold"
+                                    : "text-slate-600 hover:text-slate-900"
+                                }`}
+                              >
+                                <span>Action Needed</span>
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                                    missingCount > 0 ? "bg-amber-100 text-amber-800" : "bg-slate-200/70 text-slate-600"
+                                  }`}
+                                >
+                                  {missingCount}
+                                </span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setChecklistFilter("READY")}
+                                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  checklistFilter === "READY"
+                                    ? "bg-white text-emerald-800 shadow-2xs font-bold"
+                                    : "text-slate-600 hover:text-slate-900"
+                                }`}
+                              >
+                                <span>Ready</span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                                  {completed}
+                                </span>
+                              </button>
+                            </div>
+
+                            <span className="text-[10.5px] text-slate-400 font-medium hidden sm:inline">
+                              {missingCount > 0 ? `${missingCount} pending` : "Ready to launch"}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* ── Checklist Cards List ── */}
+                        {isChecklistExpanded && (
+                          <div className="space-y-2 pt-1">
+                            {filteredList.map((m) => (
+                              <div
+                                key={m.id}
+                                className={`p-3 rounded-xl border transition-all duration-200 ${
+                                  m.isMissing
+                                    ? "bg-amber-50/40 border-amber-200/80 shadow-2xs hover:bg-amber-50/60"
+                                    : "bg-white/95 border-slate-200/90 shadow-2xs hover:border-slate-300"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  {/* Left: Icon or Media Thumbnail + Content */}
+                                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                                    {m.mediaThumbnail && !m.isMissing ? (
+                                      <div className="h-10 w-10 rounded-xl overflow-hidden border border-emerald-300 shrink-0 bg-slate-100 shadow-2xs relative">
+                                        {m.userBadge === "VIDEO" || /\.(mp4|webm|mov)$/i.test(m.mediaThumbnail) ? (
+                                          <video src={m.mediaThumbnail} className="h-full w-full object-cover" />
+                                        ) : (
+                                          <img src={m.mediaThumbnail} alt="Thumbnail" className="h-full w-full object-cover" />
+                                        )}
+                                        <div className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold shadow-xs">
+                                          ✓
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div
+                                        className={`h-8.5 w-8.5 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                                          m.isMissing
+                                            ? "bg-amber-100 text-amber-800 border border-amber-300/80"
+                                            : "bg-emerald-50 text-emerald-800 border border-emerald-200/80"
+                                        }`}
+                                      >
+                                        {m.icon}
+                                      </div>
+                                    )}
+
+                                    {/* Main Info Block */}
+                                    <div className="min-w-0 flex-1 space-y-1">
+                                      {/* Title & Category Badge */}
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-[12.5px] font-bold text-slate-900 tracking-tight">
+                                          {m.name}
+                                        </span>
+                                        <span className="text-[9.5px] px-1.5 py-0.2 rounded-md font-semibold bg-slate-100 text-slate-600 border border-slate-200/70">
+                                          {m.category}
+                                        </span>
+                                        <span
+                                          className={`text-[9.5px] px-2 py-0.2 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 ${
+                                            m.isMissing
+                                              ? "bg-rose-100 text-rose-700 border border-rose-200"
+                                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                          }`}
+                                        >
+                                          {m.isMissing ? "● Missing" : "✓ Ready"}
+                                        </span>
+                                      </div>
+
+                                      {/* User Parameter Value / Content */}
+                                      {m.isMissing ? (
+                                        <p className="text-[11.5px] text-amber-900/90 font-medium leading-relaxed">
+                                          {m.hint}
+                                        </p>
+                                      ) : (
+                                        <div className="space-y-0.5">
+                                          <p className="text-[12px] font-semibold text-slate-800 break-words" title={m.userValue}>
+                                            {m.userValue}
+                                          </p>
+                                          {m.userSubValue && (
+                                            <p className="text-[11px] text-slate-500 font-normal break-words" title={m.userSubValue}>
+                                              {m.userSubValue}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Quick Action Chips */}
+                                      {m.quickChips && m.quickChips.length > 0 && (
+                                        <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                                          {m.quickChips.map((chip, cIdx) => (
+                                            <button
+                                              key={cIdx}
+                                              type="button"
+                                              onClick={chip.onClick}
+                                              className="px-2 py-0.5 rounded-md text-[10.5px] font-medium bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-3xs cursor-pointer transition-all active:scale-95 flex items-center gap-1"
+                                            >
+                                              {chip.icon && <span>{chip.icon}</span>}
+                                              <span>{chip.label}</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Right: Action Button */}
+                                  <div className="shrink-0 flex items-center gap-1.5 self-center">
+                                    {m.isMissing ? (
+                                      <button
+                                        type="button"
+                                        onClick={m.onAction}
+                                        className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-xs hover:shadow-sm transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                                      >
+                                        <span>{m.actionLabel || "+ Add"}</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={m.onAction}
+                                        className="px-2.5 py-1 rounded-lg text-[10.5px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 transition-all cursor-pointer flex items-center gap-1"
+                                        title="Edit parameter"
+                                      >
+                                        <span>Edit</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -1704,14 +2685,25 @@ export default function MetaAIChatbotStudioPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            const gridEl = document.getElementById("advanced-placement-grid");
-                            if (gridEl) gridEl.scrollIntoView({ behavior: "smooth" });
-                            else alert("Advanced Grid Preview: Showing all placement variations!");
+                            if (session) {
+                              const current = (creative as any).previewPlatform || "FACEBOOK_FEED";
+                              const next = current === "FACEBOOK_FEED" ? "INSTAGRAM_FEED" : current === "INSTAGRAM_FEED" ? "WHATSAPP_FEED" : "FACEBOOK_FEED";
+                              setSession({
+                                ...session,
+                                draft: {
+                                  ...session.draft,
+                                  creative: {
+                                    ...session.draft.creative,
+                                    previewPlatform: next,
+                                  },
+                                },
+                              });
+                            }
                           }}
                           className="px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-all cursor-pointer flex items-center gap-1"
-                          title="Click to view all placement variations in grid"
+                          title="Switch to next platform preview"
                         >
-                          <span>🔍 Advanced preview</span>
+                          <span>🔄 Switch Preview</span>
                         </button>
                         <button
                           type="button"
@@ -1890,15 +2882,15 @@ export default function MetaAIChatbotStudioPage() {
                             <span className="font-extrabold text-sky-400 uppercase tracking-widest text-[9.5px]">Platform & Placement Mode:</span>
                             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
                               {[
-                                { id: "ALL_GRID", label: "🌐 All Platforms Grid", icon: "📱", activeBg: "bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-500" },
                                 { id: "FACEBOOK_FEED", label: "Facebook Feed", icon: "📘", activeBg: "bg-[#1877F2]" },
                                 { id: "INSTAGRAM_FEED", label: "Instagram Feed", icon: "📸", activeBg: "bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500" },
-                                { id: "MESSENGER_FEED", label: "Messenger Inbox", icon: "💬", activeBg: "bg-[#0084FF]" },
                                 { id: "WHATSAPP_FEED", label: "WhatsApp Feed", icon: "🟢", activeBg: "bg-[#25D366] text-slate-950" },
                                 { id: "STORIES_REELS", label: "Stories & Reels", icon: "🎬", activeBg: "bg-gradient-to-r from-purple-600 to-pink-600" },
+                                { id: "MESSENGER_FEED", label: "Messenger Inbox", icon: "💬", activeBg: "bg-[#0084FF]" },
                                 { id: "RIGHT_COLUMN", label: "Right Column", icon: "💻", activeBg: "bg-indigo-600" },
                               ].map((plat) => {
-                                const isPlatSelected = (creative as any).previewPlatform === plat.id || (!creative.previewPlatform && plat.id === "ALL_GRID");
+                                const currentSelectedPlat = (creative as any).previewPlatform || "FACEBOOK_FEED";
+                                const isPlatSelected = currentSelectedPlat === plat.id;
                                 return (
                                   <button
                                     key={plat.id}
@@ -2104,7 +3096,7 @@ export default function MetaAIChatbotStudioPage() {
                         const activeMediaUrl = attachedFile?.url || creative.mediaUrl;
                         const activeMediaType = attachedFile?.type || creative.mediaType || "IMAGE";
                         const isVideoMedia = activeMediaType === "VIDEO" || (activeMediaUrl && /\.(mp4|webm|mov)$/i.test(activeMediaUrl));
-                        const currentPlat = (creative as any).previewPlatform || "ALL_GRID";
+                        const currentPlat = (creative as any).previewPlatform || "FACEBOOK_FEED";
 
                         // Official Meta Graph API Iframe HTML embedding
                         if (loadingMetaIframe) {
@@ -2131,697 +3123,541 @@ export default function MetaAIChatbotStudioPage() {
                           );
                         }
 
+                        const hasUserCreative = Boolean(
+                          creative.primaryText?.trim() ||
+                          creative.headline?.trim() ||
+                          creative.mediaUrl ||
+                          attachedFile
+                        );
+
                         return (
                           <div className="bg-slate-100 p-3 sm:p-4 rounded-b-xl">
-                            {/* ALL PLATFORMS GRID VIEW (MULTI-PLATFORM COMPARISON) */}
-                            {currentPlat === "ALL_GRID" && (
-                              <div className="space-y-4">
-                                <div className="text-center space-y-1 mb-2">
-                                  <div className="font-extrabold text-sm text-slate-900 flex items-center justify-center gap-1.5">
-                                    <span>🌐 Meta Social Media Multi-Platform Preview Matrix</span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 font-medium">
-                                    Compare exactly how your ad creative and copy render across all Meta social networks simultaneously.
+                            {/* PROGRESSIVE ONBOARDING STAGE: When user has not provided creative details yet */}
+                            {!hasUserCreative ? (
+                              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm text-center space-y-4 max-w-lg mx-auto animate-fadeIn font-sans">
+                                <div className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-600 flex items-center justify-center mx-auto text-white shadow-md">
+                                  <Sparkles className="h-7 w-7 animate-pulse" />
+                                </div>
+                                <div className="space-y-1">
+                                  <h4 className="font-extrabold text-base text-slate-900 tracking-tight">
+                                    Step-by-Step Live Ad Preview
+                                  </h4>
+                                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                                    Your live ad preview builds automatically step-by-step as you chat with JISNU AI. Nothing is shown until you provide your details.
                                   </p>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {/* 1. Facebook Feed Card */}
-                                  <div className="space-y-1.5">
-                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
-                                      <span>📘</span>
-                                      <span>Facebook Main Feed</span>
+                                <div className="space-y-2.5 text-left pt-2">
+                                  <div className="p-3 rounded-xl border border-sky-200 bg-sky-50/70 flex items-start gap-3 transition-all hover:bg-sky-50">
+                                    <div className="h-6 w-6 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                                      1
                                     </div>
-                                    <div className="bg-white rounded-2xl overflow-hidden shadow-md border border-slate-200 text-left font-sans">
-                                      <div className="p-3 flex items-start justify-between border-b border-slate-100">
-                                        <div className="flex items-center gap-2">
-                                          <div className="h-9 w-9 rounded-full overflow-hidden border-2 border-[#1877F2] p-0.5 bg-white shrink-0">
-                                            <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover rounded-full" />
-                                          </div>
-                                          <div>
-                                            <div className="font-extrabold text-slate-900 text-xs flex items-center gap-1">
-                                              <span>{pageNameDisplay}</span>
-                                              <span className="text-[#1877F2] text-[11px]">✓</span>
-                                            </div>
-                                            <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                                              <span className="font-bold text-[#1877F2]">Sponsored</span> · <Globe className="h-2.5 w-2.5 text-slate-400" />
-                                            </div>
-                                          </div>
-                                        </div>
-                                        <span className="text-slate-400 text-xs">•••</span>
-                                      </div>
-                                      <div className="px-3 py-2 text-[12px] text-slate-900">
-                                        ✨ {creative.primaryText || "Upgrade your wardrobe with handpicked, premium designs..."}
-                                      </div>
-                                      <div className="relative w-full aspect-square bg-slate-950 flex items-center justify-center overflow-hidden">
-                                        {activeMediaUrl ? (
-                                          isVideoMedia ? <video src={activeMediaUrl} controls className="w-full h-full object-cover" /> : <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
-                                        ) : (
-                                          <div className="p-4 text-center text-white space-y-1 bg-gradient-to-br from-slate-900 to-indigo-950 w-full h-full flex flex-col items-center justify-center">
-                                            <Sparkles className="h-6 w-6 text-sky-400" />
-                                            <span className="text-xs font-bold">{pageNameDisplay}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="p-2.5 bg-[#F0F2F5] border-t border-slate-200/90 flex items-center justify-between gap-2">
-                                        <div className="min-w-0 flex-1">
-                                          <div className="text-[9px] uppercase font-bold text-slate-500">API.WHATSAPP.COM</div>
-                                          <div className="text-[11.5px] font-extrabold text-slate-900 truncate">
-                                            🔥 {creative.headline || "Aj Creation | Up to 50% OFF"}
-                                          </div>
-                                        </div>
-                                        <button className="px-3 py-1.5 bg-[#1877F2] text-white text-[11px] font-bold rounded-lg shrink-0">Send WhatsApp</button>
-                                      </div>
-                                      <div className="px-3 py-2 border-t border-slate-100 flex items-center justify-around text-[11px] text-slate-500 font-bold">
-                                        <span>👍 Like</span>
-                                        <span>💬 Comment</span>
-                                        <span>Share</span>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-xs font-bold text-slate-900">Share your Offer or Service in Chat</div>
+                                      <div className="text-[11px] text-slate-500">
+                                        Tell JISNU AI what you are selling or promoting (e.g. &ldquo;Dental clinic in Baner, ₹500/day&rdquo;)
                                       </div>
                                     </div>
                                   </div>
 
-                                  {/* 2. Instagram Feed Card */}
-                                  <div className="space-y-1.5">
-                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
-                                      <span>📸</span>
-                                      <span>Instagram Main Feed</span>
+                                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/80 flex items-start gap-3">
+                                    <div className="h-6 w-6 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                                      2
                                     </div>
-                                    <div className="bg-white rounded-2xl overflow-hidden shadow-md border border-slate-200 text-left font-sans">
-                                      <div className="p-3 flex items-center justify-between border-b border-slate-100">
-                                        <div className="flex items-center gap-2">
-                                          <div className="h-8 w-8 rounded-full overflow-hidden p-0.5 bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] shrink-0">
-                                            <img src={activePage?.picture || "/icon.jpeg"} alt="Avatar" className="h-full w-full object-cover rounded-full" />
-                                          </div>
-                                          <div>
-                                            <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1">
-                                              <span>{pageNameDisplay.toLowerCase().replace(/\s+/g, '')}</span>
-                                              <span className="bg-[#0095F6] text-white rounded-full text-[7px] h-2.5 w-2.5 flex items-center justify-center font-bold">✓</span>
-                                            </div>
-                                            <div className="text-[9.5px] font-bold text-slate-500">Sponsored · Ad</div>
-                                          </div>
-                                        </div>
-                                        <span className="text-slate-500 text-xs">•••</span>
-                                      </div>
-                                      <div className="relative w-full aspect-square bg-slate-950 flex items-center justify-center overflow-hidden">
-                                        {activeMediaUrl ? (
-                                          isVideoMedia ? <video src={activeMediaUrl} controls className="w-full h-full object-cover" /> : <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
-                                        ) : (
-                                          <div className="p-4 text-center text-white space-y-1 bg-gradient-to-tr from-purple-950 to-pink-950 w-full h-full flex flex-col items-center justify-center">
-                                            <Sparkles className="h-6 w-6 text-pink-400" />
-                                            <span className="text-xs font-bold">{pageNameDisplay}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="px-3 py-2 bg-[#0095F6] text-white flex items-center justify-between cursor-pointer">
-                                        <span className="text-[11px] font-extrabold uppercase truncate">{creative.headline || "Send WhatsApp message"}</span>
-                                        <span className="text-xs">›</span>
-                                      </div>
-                                      <div className="px-3 py-2 flex items-center justify-between text-slate-800">
-                                        <div className="flex gap-3">
-                                          <Heart className="h-4.5 w-4.5 text-rose-500 fill-rose-500" />
-                                          <MessageCircle className="h-4.5 w-4.5" />
-                                          <Send className="h-4.5 w-4.5" />
-                                        </div>
-                                        <Bookmark className="h-4.5 w-4.5" />
-                                      </div>
-                                      <div className="px-3 pb-3 text-[11.5px] text-slate-900">
-                                        <span className="font-extrabold mr-1">{pageNameDisplay.toLowerCase().replace(/\s+/g, '')}</span>
-                                        ✨ {creative.primaryText || "Upgrade your wardrobe..."}
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-xs font-bold text-slate-700">Upload Media or Select Ad</div>
+                                      <div className="text-[11px] text-slate-500">
+                                        Add your banner, product photo, or flyer to preview across Facebook and Instagram feeds
                                       </div>
                                     </div>
                                   </div>
 
-                                  {/* 3. Messenger Inbox Card */}
-                                  <div className="space-y-1.5">
-                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
-                                      <span>💬</span>
-                                      <span>Messenger Sponsored Message</span>
+                                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/80 flex items-start gap-3">
+                                    <div className="h-6 w-6 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                                      3
                                     </div>
-                                    <div className="bg-white rounded-2xl overflow-hidden shadow-md border border-slate-200 text-left font-sans p-3 space-y-2">
-                                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                                        <div className="flex items-center gap-2">
-                                          <div className="h-8 w-8 rounded-full overflow-hidden border border-blue-200 bg-blue-50 shrink-0">
-                                            <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
-                                          </div>
-                                          <div>
-                                            <div className="text-xs font-extrabold text-slate-900">{pageNameDisplay}</div>
-                                            <div className="text-[9px] text-[#0084FF] font-extrabold uppercase">Messenger Ad</div>
-                                          </div>
-                                        </div>
-                                        <span className="text-slate-400 text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 rounded-full">Ad</span>
-                                      </div>
-                                      <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 p-2 space-y-2">
-                                        <div className="relative w-full aspect-[16/9] bg-slate-950 rounded-lg overflow-hidden">
-                                          {activeMediaUrl ? (
-                                            isVideoMedia ? <video src={activeMediaUrl} controls className="w-full h-full object-cover" /> : <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
-                                          ) : (
-                                            <div className="h-full w-full flex items-center justify-center bg-blue-950 text-white"><Sparkles className="h-5 w-5" /></div>
-                                          )}
-                                        </div>
-                                        <div className="text-[12px] font-extrabold text-slate-900">{creative.headline || "Send a message"}</div>
-                                        <button className="w-full py-2 bg-[#0084FF] text-white font-extrabold text-[11px] rounded-lg">Send Message</button>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* 4. WhatsApp Status & Feed Card */}
-                                  <div className="space-y-1.5">
-                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
-                                      <span>🟢</span>
-                                      <span>WhatsApp Business Feed Ad</span>
-                                    </div>
-                                    <div className="bg-gradient-to-b from-[#075E54] to-[#054c44] rounded-2xl overflow-hidden shadow-md border border-emerald-900 text-left font-sans text-white p-3 space-y-2.5">
-                                      <div className="flex items-center justify-between border-b border-emerald-600/50 pb-2">
-                                        <div className="flex items-center gap-2">
-                                          <div className="h-8 w-8 rounded-full overflow-hidden border border-white/60 shrink-0">
-                                            <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
-                                          </div>
-                                          <div>
-                                            <div className="text-xs font-extrabold text-white">{pageNameDisplay} ✓</div>
-                                            <div className="text-[9.5px] text-emerald-200">WhatsApp Status Ad</div>
-                                          </div>
-                                        </div>
-                                        <span className="text-[9px] font-extrabold bg-[#25D366] text-slate-950 px-2 py-0.5 rounded-full">Sponsored</span>
-                                      </div>
-                                      <div className="relative w-full aspect-square bg-slate-950 rounded-xl overflow-hidden">
-                                        {activeMediaUrl ? (
-                                          isVideoMedia ? <video src={activeMediaUrl} controls className="w-full h-full object-cover" /> : <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
-                                        ) : (
-                                          <div className="h-full w-full flex items-center justify-center bg-emerald-950 text-white"><Sparkles className="h-6 w-6 text-emerald-400" /></div>
-                                        )}
-                                      </div>
-                                      <button className="w-full py-2.5 bg-[#25D366] text-slate-950 font-extrabold text-[11.5px] rounded-lg flex items-center justify-center gap-1.5">
-                                        <MessageCircle className="h-4 w-4 fill-slate-950 text-[#25D366]" />
-                                        <span>Chat on WhatsApp</span>
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  {/* 5. Stories & Reels Card */}
-                                  <div className="space-y-1.5">
-                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
-                                      <span>🎬</span>
-                                      <span>Instagram & Facebook Stories / Reels</span>
-                                    </div>
-                                    <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-md border-2 border-slate-800 text-left font-sans relative text-white aspect-[9/16] max-h-[380px] mx-auto flex flex-col justify-between p-3">
-                                      {activeMediaUrl ? (
-                                        isVideoMedia ? <video src={activeMediaUrl} controls className="w-full h-full object-cover absolute inset-0 opacity-90" /> : <img src={activeMediaUrl} alt="Story" className="w-full h-full object-cover absolute inset-0 opacity-90" />
-                                      ) : (
-                                        <div className="absolute inset-0 bg-gradient-to-b from-purple-900 to-black flex items-center justify-center p-4 text-center">
-                                          <Sparkles className="h-8 w-8 text-pink-400" />
-                                        </div>
-                                      )}
-                                      <div className="relative z-10 flex items-center justify-between gap-1">
-                                        <div className="flex items-center gap-1.5">
-                                          <div className="h-6 w-6 rounded-full overflow-hidden border border-white/50"><img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" /></div>
-                                          <span className="text-[11px] font-bold">{pageNameDisplay}</span>
-                                          <span className="text-[9px] bg-black/40 px-1.5 py-0.2 rounded text-white font-bold">Sponsored</span>
-                                        </div>
-                                      </div>
-                                      <div className="relative z-10 space-y-1.5 text-center">
-                                        <button className="w-full py-2.5 bg-[#1877F2] text-white font-extrabold text-[11px] rounded-lg flex items-center justify-center gap-1">
-                                          <span>{creative.headline || "Send WhatsApp Message"}</span>
-                                          <ChevronRight className="h-3.5 w-3.5" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* 6. Desktop Right Column Card */}
-                                  <div className="space-y-1.5">
-                                    <div className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1.5 px-1">
-                                      <span>💻</span>
-                                      <span>Desktop Right Column Ad</span>
-                                    </div>
-                                    <div className="bg-white rounded-xl overflow-hidden shadow-md border border-slate-200 text-left font-sans p-3 space-y-2">
-                                      <div className="text-[9.5px] font-bold text-slate-400 uppercase">Sponsored • Facebook Desktop Right Column</div>
-                                      <div className="flex gap-2.5 items-center">
-                                        <div className="h-14 w-14 bg-slate-900 rounded-lg overflow-hidden shrink-0">
-                                          {activeMediaUrl ? (
-                                            isVideoMedia ? <video src={activeMediaUrl} className="w-full h-full object-cover" /> : <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
-                                          ) : (
-                                            <div className="h-full w-full flex items-center justify-center bg-indigo-900 text-white"><Sparkles className="h-4 w-4" /></div>
-                                          )}
-                                        </div>
-                                        <div className="min-w-0 flex-1 space-y-0.5">
-                                          <div className="text-[11px] font-extrabold text-slate-900 leading-snug line-clamp-2">{creative.headline || "Aj Creation | Special Discount"}</div>
-                                          <div className="text-[9.5px] text-slate-500 font-semibold truncate">api.whatsapp.com</div>
-                                        </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-xs font-bold text-slate-700">Review Live Multi-Platform Render</div>
+                                      <div className="text-[11px] text-slate-500">
+                                        Inspect how your exact ad looks across Instagram, Facebook, Stories, and WhatsApp before deploying
                                       </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            )}
 
-                            {/* CARD 1: FACEBOOK FEED / MARKETPLACE / PROFILE FEED */}
-                            {((creative as any).previewPlatform === "FACEBOOK_FEED") && (
-                              <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-200 text-left font-sans transition-all duration-300 max-w-lg mx-auto">
-                                {/* FB Marketplace Variation */}
-                                {(creative as any).previewSubPlacement === "FB_MARKETPLACE" ? (
-                                  <div className="p-3.5 space-y-2.5 bg-white">
-                                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <div className="pt-2 flex items-center justify-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendMessage("Help me write an ad headline and copy for my business")}
+                                    className="px-3.5 py-2 bg-[#1877F2] hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                                  >
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                    <span>Ask JISNU AI to Draft Copy</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 transition-all cursor-pointer flex items-center gap-1.5"
+                                  >
+                                    <ImageIcon className="h-3.5 w-3.5 text-slate-600" />
+                                    <span>Upload Media</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+
+                                {/* CARD 1: FACEBOOK FEED / MARKETPLACE / PROFILE FEED */}
+                                {(!((creative as any).previewPlatform) || (creative as any).previewPlatform === "FACEBOOK_FEED") && (
+                                  <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-200 text-left font-sans transition-all duration-300 max-w-lg mx-auto">
+                                    {/* FB Marketplace Variation */}
+                                    {(creative as any).previewSubPlacement === "FB_MARKETPLACE" ? (
+                                      <div className="p-3.5 space-y-2.5 bg-white">
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                          <div className="flex items-center gap-2.5">
+                                            <div className="h-9 w-9 rounded-full overflow-hidden border border-slate-200 bg-slate-50 shrink-0 shadow-2xs">
+                                              <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
+                                            </div>
+                                            <div>
+                                              <div className="font-extrabold text-slate-900 text-xs truncate max-w-[160px]">{pageNameDisplay}</div>
+                                              <div className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Facebook Marketplace Ad</div>
+                                            </div>
+                                          </div>
+                                          <span className="text-slate-400 text-sm cursor-pointer hover:text-slate-600">•••</span>
+                                        </div>
+                                        <div className="relative w-full aspect-square bg-slate-950 rounded-xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200/80">
+                                          {activeMediaUrl ? (
+                                            isVideoMedia ? (
+                                              <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                            ) : (
+                                              <img src={activeMediaUrl} alt="Marketplace Ad" className="w-full h-full object-cover" />
+                                            )
+                                          ) : (
+                                            <div className="p-6 text-center text-slate-400 space-y-1.5 bg-slate-100 w-full h-full flex flex-col items-center justify-center">
+                                              <ImageIcon className="h-7 w-7 text-slate-400 mx-auto" />
+                                              <div className="text-xs font-semibold text-slate-600">Media creative not provided</div>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="pt-1 flex items-center justify-between gap-2">
+                                          <div className="text-xs font-extrabold text-slate-900 truncate">
+                                            {creative.headline?.trim() || <span className="text-slate-400 font-normal italic text-[11px]">No headline specified</span>}
+                                          </div>
+                                          <span className="px-3 py-1 bg-blue-50 text-[#1877F2] font-bold text-[11px] rounded-lg shrink-0">View Item</span>
+                                        </div>
+                                      </div>
+                                    ) : (creative as any).previewSubPlacement === "FB_PROFILE" ? (
+                                      /* FB Profile Feed Variation */
+                                      <div className="bg-white">
+                                        <div className="p-3.5 flex items-start justify-between border-b border-slate-100">
+                                          <div className="flex items-center gap-2.5">
+                                            <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-blue-500 p-0.5 bg-white shrink-0 shadow-2xs">
+                                              <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover rounded-full" />
+                                            </div>
+                                            <div>
+                                              <div className="font-extrabold text-slate-900 text-[13px] leading-tight">{pageNameDisplay}</div>
+                                              <div className="text-[10.5px] text-slate-500 flex items-center gap-1 mt-0.5 font-medium">
+                                                <span className="font-bold text-blue-600">Sponsored</span> · <Globe className="h-2.5 w-2.5 text-slate-400" />
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-2 text-slate-400 text-sm">
+                                            <span className="cursor-pointer hover:text-slate-600">•••</span>
+                                            <span className="cursor-pointer hover:text-slate-600">✕</span>
+                                          </div>
+                                        </div>
+                                        {creative.primaryText?.trim() ? (
+                                          <div className="px-3.5 py-2.5 text-[12.5px] text-slate-800 leading-snug">
+                                            {creative.primaryText}
+                                          </div>
+                                        ) : (
+                                          <div className="px-3.5 py-2 text-[11.5px] text-slate-400 italic">
+                                            No primary text specified yet
+                                          </div>
+                                        )}
+                                        <div className="relative w-full aspect-square bg-slate-950 flex items-center justify-center overflow-hidden border-y border-slate-100">
+                                          {activeMediaUrl ? (
+                                            isVideoMedia ? (
+                                              <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                            ) : (
+                                              <img src={activeMediaUrl} alt="Creative" className="w-full h-full object-cover" />
+                                            )
+                                          ) : (
+                                            <div className="p-6 text-center text-slate-400 space-y-1.5 bg-slate-100 w-full h-full flex flex-col items-center justify-center">
+                                              <ImageIcon className="h-8 w-8 text-slate-400 mx-auto" />
+                                              <div className="text-xs font-semibold text-slate-600">Upload media in chat to preview image</div>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="p-3 bg-[#F0F2F5] flex items-center justify-between gap-2 border-t border-slate-200/80">
+                                          <div className="min-w-0 flex-1">
+                                            <div className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-500">WHATSAPP</div>
+                                            <div className="text-[12.5px] font-extrabold text-slate-900 truncate">
+                                              {creative.headline?.trim() || <span className="text-slate-400 font-normal italic text-[11px]">No headline specified</span>}
+                                            </div>
+                                          </div>
+                                          <button className="px-3.5 py-2 bg-[#1877F2] hover:bg-blue-700 text-white text-[12px] font-extrabold rounded-lg shrink-0 flex items-center gap-1.5 shadow-sm">
+                                            <MessageCircle className="h-3.5 w-3.5 fill-white text-transparent" />
+                                            <span>Send WhatsApp</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      /* FB Main Feed Variation */
+                                      <>
+                                        <div className="p-3.5 flex items-start justify-between bg-white border-b border-slate-100">
+                                          <div className="flex items-center gap-2.5">
+                                            <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-[#1877F2] p-0.5 bg-white shrink-0 shadow-2xs">
+                                              <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover rounded-full" />
+                                            </div>
+                                            <div>
+                                              <div className="font-extrabold text-slate-900 text-[13px] leading-tight flex items-center gap-1">
+                                                <span>{pageNameDisplay}</span>
+                                                <span className="text-[#1877F2] text-[12px]">✓</span>
+                                              </div>
+                                              <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                                <span className="font-bold text-[#1877F2]">Sponsored</span> · <Globe className="h-3 w-3 text-slate-400" />
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-2 text-slate-400 text-sm">
+                                            <span className="cursor-pointer hover:text-slate-600">•••</span>
+                                            <span className="cursor-pointer hover:text-slate-600">✕</span>
+                                          </div>
+                                        </div>
+
+                                        {creative.primaryText?.trim() ? (
+                                          <div className="px-3.5 py-2.5 text-[12.5px] text-slate-900 leading-relaxed font-sans">
+                                            <p className="whitespace-pre-line">{creative.primaryText}</p>
+                                          </div>
+                                        ) : (
+                                          <div className="px-3.5 py-2 text-[11.5px] text-slate-400 italic">
+                                            No primary text specified yet
+                                          </div>
+                                        )}
+
+                                        <div className={`relative w-full ${
+                                          creative.aspectRatio === "9:16"
+                                            ? "aspect-[9/16] min-h-[340px]"
+                                            : creative.aspectRatio === "16:9"
+                                            ? "aspect-[16/9] min-h-[190px]"
+                                            : "aspect-square min-h-[270px]"
+                                        } bg-slate-950 flex items-center justify-center overflow-hidden border-y border-slate-100`}>
+                                          {activeMediaUrl ? (
+                                            isVideoMedia ? (
+                                              <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                            ) : (
+                                              <img src={activeMediaUrl} alt="Creative" className="w-full h-full object-cover" />
+                                            )
+                                          ) : (
+                                            <div className="p-6 text-center text-slate-400 space-y-1.5 bg-slate-100 w-full h-full flex flex-col items-center justify-center">
+                                              <ImageIcon className="h-8 w-8 text-slate-400 mx-auto" />
+                                              <div className="font-semibold text-xs text-slate-600">Upload media in chat to preview image</div>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        <div className="p-3 bg-[#F0F2F5] border-t border-slate-200/90 flex items-center justify-between gap-2.5">
+                                          <div className="min-w-0 flex-1">
+                                            <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">API.WHATSAPP.COM</div>
+                                            <div className="text-[12.5px] font-extrabold text-slate-900 truncate">
+                                              {creative.headline?.trim() || <span className="text-slate-400 font-normal italic text-[11px]">No headline specified</span>}
+                                            </div>
+                                          </div>
+                                          <button className="px-4 py-2 bg-[#1877F2] hover:bg-blue-700 text-white text-[12px] font-extrabold rounded-lg shrink-0 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95">
+                                            <MessageCircle className="h-4 w-4 fill-white text-transparent" />
+                                            <span>Send WhatsApp</span>
+                                          </button>
+                                        </div>
+
+                                        <div className="px-3.5 py-2.5 border-t border-slate-200/80 bg-white flex items-center justify-around text-[12px] text-slate-600 font-bold">
+                                          <button className="flex items-center gap-1.5 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
+                                            <ThumbsUp className="h-4 w-4 text-[#1877F2]" />
+                                            <span>Like</span>
+                                          </button>
+                                          <button className="flex items-center gap-1.5 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
+                                            <MessageSquare className="h-4 w-4 text-slate-500" />
+                                            <span>Comment</span>
+                                          </button>
+                                          <button className="flex items-center gap-1.5 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
+                                            <Share2 className="h-4 w-4 text-slate-500" />
+                                            <span>Share</span>
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* CARD 2: INSTAGRAM FEED / PROFILE FEED / EXPLORE */}
+                                {(creative as any).previewPlatform === "INSTAGRAM_FEED" && (
+                                  <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-200/90 text-left font-sans transition-all duration-300 max-w-lg mx-auto">
+                                    {/* IG Header */}
+                                    <div className="p-3.5 flex items-center justify-between bg-white border-b border-slate-100">
                                       <div className="flex items-center gap-2.5">
-                                        <div className="h-9 w-9 rounded-full overflow-hidden border border-slate-200 bg-slate-50 shrink-0 shadow-2xs">
+                                        <div className="h-9 w-9 rounded-full overflow-hidden p-0.5 bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] shrink-0 shadow-2xs">
+                                          <div className="h-full w-full rounded-full overflow-hidden border-2 border-white">
+                                            <img src={activePage?.picture || "/icon.jpeg"} alt="Avatar" className="h-full w-full object-cover" />
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="text-[12.5px] font-extrabold text-slate-900 leading-tight flex items-center gap-1">
+                                            <span>{pageNameDisplay.toLowerCase().replace(/\s+/g, '')}</span>
+                                            <span className="bg-[#0095F6] text-white rounded-full text-[8px] h-3 w-3 flex items-center justify-center font-bold">✓</span>
+                                          </div>
+                                          <div className="text-[10px] font-bold text-slate-500">
+                                            Sponsored · Ad
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <span className="text-slate-600 text-base font-extrabold cursor-pointer hover:text-slate-900">•••</span>
+                                    </div>
+
+                                    {/* Media Banner */}
+                                    <div className="relative w-full aspect-square bg-slate-950 overflow-hidden flex items-center justify-center border-y border-slate-100">
+                                      {activeMediaUrl ? (
+                                        isVideoMedia ? (
+                                          <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                        ) : (
+                                          <img src={activeMediaUrl} alt="IG Post" className="w-full h-full object-cover" />
+                                        )
+                                      ) : (
+                                        <div className="p-6 h-full flex flex-col items-center justify-center text-center text-slate-400 space-y-1.5 bg-slate-100 w-full">
+                                          <ImageIcon className="h-8 w-8 text-slate-400 mx-auto" />
+                                          <div className="font-semibold text-xs text-slate-600">Upload media in chat to preview image</div>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Native Instagram Call to Action Bar */}
+                                    <div className="px-4 py-2.5 bg-[#0095F6] hover:bg-[#0081D6] text-white flex items-center justify-between cursor-pointer transition-colors shadow-2xs">
+                                      <span className="text-[12px] font-extrabold tracking-tight uppercase">
+                                        {creative.headline?.trim() || "Send WhatsApp message"}
+                                      </span>
+                                      <span className="text-white text-base font-extrabold">›</span>
+                                    </div>
+
+                                    {/* Reaction Icons Row */}
+                                    <div className="px-4 py-2.5 flex items-center justify-between text-slate-800 bg-white">
+                                      <div className="flex items-center gap-4">
+                                        <Heart className="h-5.5 w-5.5 text-rose-500 fill-rose-500 cursor-pointer transition-colors" />
+                                        <MessageCircle className="h-5.5 w-5.5 cursor-pointer hover:text-slate-600" />
+                                        <Send className="h-5.5 w-5.5 cursor-pointer hover:text-slate-600" />
+                                      </div>
+                                      <Bookmark className="h-5.5 w-5.5 cursor-pointer hover:text-slate-600" />
+                                    </div>
+
+                                    {/* Likes Counter */}
+                                    <div className="px-4 text-[11px] font-extrabold text-slate-900">
+                                      Liked by <span className="font-extrabold">media_buyer</span> and <span className="font-extrabold">1,482 others</span>
+                                    </div>
+
+                                    {/* Caption */}
+                                    <div className="px-4 pt-1 pb-3.5 text-[12px] text-slate-900 leading-snug bg-white font-sans">
+                                      <span className="font-extrabold mr-1.5 text-slate-900">{pageNameDisplay.toLowerCase().replace(/\s+/g, '')}</span>
+                                      {creative.primaryText?.trim() ? creative.primaryText : <span className="text-slate-400 italic">No ad copy entered yet</span>}
+                                      <span className="text-slate-400 cursor-pointer ml-1 font-semibold">...more</span>
+                                      <div className="text-[9.5px] uppercase font-bold text-slate-400 mt-1">2 HOURS AGO</div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* CARD 3: MESSENGER INBOX / SPONSORED MESSAGE */}
+                                {(creative as any).previewPlatform === "MESSENGER_FEED" && (
+                                  <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-200/90 text-left font-sans p-4 space-y-3.5 transition-all duration-300 max-w-lg mx-auto">
+                                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                      <div className="flex items-center gap-2.5">
+                                        <div className="h-9 w-9 rounded-full overflow-hidden border border-blue-200 bg-blue-50 shrink-0 shadow-2xs">
                                           <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
                                         </div>
                                         <div>
-                                          <div className="font-extrabold text-slate-900 text-xs truncate max-w-[160px]">{pageNameDisplay}</div>
-                                          <div className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Facebook Marketplace Ad</div>
-                                        </div>
-                                      </div>
-                                      <span className="text-slate-400 text-sm cursor-pointer hover:text-slate-600">•••</span>
-                                    </div>
-                                    <div className="relative w-full aspect-square bg-slate-950 rounded-xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200/80">
-                                      {activeMediaUrl ? (
-                                        isVideoMedia ? (
-                                          <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
-                                        ) : (
-                                          <img src={activeMediaUrl} alt="Marketplace Ad" className="w-full h-full object-cover" />
-                                        )
-                                      ) : (
-                                        <div className="p-6 text-center text-white space-y-2 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 w-full h-full flex flex-col items-center justify-center">
-                                          <Sparkles className="h-8 w-8 text-sky-400 mx-auto animate-pulse" />
-                                          <div className="font-extrabold text-xs">Marketplace Listing Creative</div>
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="pt-1 flex items-center justify-between gap-2">
-                                      <div className="text-xs font-extrabold text-slate-900 truncate">
-                                        🔥 {creative.headline || "Special Offer | Up to 50% OFF"}
-                                      </div>
-                                      <span className="px-3 py-1 bg-blue-50 text-[#1877F2] font-bold text-[11px] rounded-lg shrink-0">View Item</span>
-                                    </div>
-                                  </div>
-                                ) : (creative as any).previewSubPlacement === "FB_PROFILE" ? (
-                                  /* FB Profile Feed Variation */
-                                  <div className="bg-white">
-                                    <div className="p-3.5 flex items-start justify-between border-b border-slate-100">
-                                      <div className="flex items-center gap-2.5">
-                                        <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-blue-500 p-0.5 bg-white shrink-0 shadow-2xs">
-                                          <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover rounded-full" />
-                                        </div>
-                                        <div>
-                                          <div className="font-extrabold text-slate-900 text-[13px] leading-tight">{pageNameDisplay}</div>
-                                          <div className="text-[10.5px] text-slate-500 flex items-center gap-1 mt-0.5 font-medium">
-                                            <span className="font-bold text-blue-600">Sponsored</span> · <Globe className="h-2.5 w-2.5 text-slate-400" />
+                                          <div className="text-[12.5px] font-extrabold text-slate-900 leading-tight">
+                                            {pageNameDisplay}
                                           </div>
+                                          <div className="text-[10px] text-[#0084FF] font-extrabold uppercase tracking-wider">Messenger Sponsored Ad</div>
                                         </div>
                                       </div>
-                                      <div className="flex items-center gap-2 text-slate-400 text-sm">
-                                        <span className="cursor-pointer hover:text-slate-600">•••</span>
-                                        <span className="cursor-pointer hover:text-slate-600">✕</span>
-                                      </div>
+                                      <span className="text-slate-400 text-xs font-bold px-2 py-0.5 bg-slate-100 rounded-full">Ad</span>
                                     </div>
-                                    <div className="px-3.5 py-2.5 text-[12.5px] text-slate-800 leading-snug">
-                                      ✨ {creative.primaryText || "Upgrade your wardrobe with handpicked, premium designs..."}
-                                      <span className="text-slate-500 font-semibold cursor-pointer ml-1">...see more</span>
-                                    </div>
-                                    <div className="relative w-full aspect-square bg-slate-950 flex items-center justify-center overflow-hidden border-y border-slate-100">
-                                      {activeMediaUrl ? (
-                                        isVideoMedia ? (
-                                          <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+
+                                    {/* Messenger Card Content */}
+                                    <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/60 p-2.5 space-y-2.5 shadow-2xs">
+                                      <div className="relative w-full aspect-[16/9] bg-slate-950 rounded-xl overflow-hidden shadow-inner">
+                                        {activeMediaUrl ? (
+                                          isVideoMedia ? (
+                                            <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                          ) : (
+                                            <img src={activeMediaUrl} alt="Messenger Ad" className="w-full h-full object-cover" />
+                                          )
                                         ) : (
-                                          <img src={activeMediaUrl} alt="Creative" className="w-full h-full object-cover" />
-                                        )
-                                      ) : (
-                                        <div className="p-6 text-center text-white space-y-2 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 w-full h-full flex flex-col items-center justify-center">
-                                          <Sparkles className="h-8 w-8 text-sky-400 mx-auto" />
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="p-3 bg-[#F0F2F5] flex items-center justify-between gap-2 border-t border-slate-200/80">
-                                      <div className="min-w-0 flex-1">
-                                        <div className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-500">WHATSAPP</div>
-                                        <div className="text-[12.5px] font-extrabold text-slate-900 truncate">
-                                          🔥 {creative.headline || "Aj Creation | Special Discount"}
-                                        </div>
+                                          <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400 p-4 text-center">
+                                            <ImageIcon className="h-7 w-7 text-slate-400" />
+                                          </div>
+                                        )}
                                       </div>
-                                      <button className="px-3.5 py-2 bg-[#1877F2] hover:bg-blue-700 text-white text-[12px] font-extrabold rounded-lg shrink-0 flex items-center gap-1.5 shadow-sm">
-                                        <MessageCircle className="h-3.5 w-3.5 fill-white text-transparent" />
-                                        <span>Send WhatsApp</span>
+                                      <div className="px-1.5 space-y-1">
+                                        <div className="text-[13px] font-extrabold text-slate-900">
+                                          {creative.headline?.trim() || <span className="text-slate-400 font-normal italic text-[11.5px]">No headline specified</span>}
+                                        </div>
+                                        <p className="text-[11.5px] text-slate-600 line-clamp-2 leading-relaxed">
+                                          {creative.primaryText?.trim() || <span className="text-slate-400 italic">No primary text specified</span>}
+                                        </p>
+                                      </div>
+                                      <button className="w-full py-2.5 bg-[#0084FF] hover:bg-[#0073DF] text-white font-extrabold text-[12px] rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98">
+                                        <MessageSquare className="h-4 w-4" />
+                                        <span>Send Message</span>
                                       </button>
                                     </div>
                                   </div>
-                                ) : (
-                                  /* FB Main Feed Variation */
-                                  <>
-                                    <div className="p-3.5 flex items-start justify-between bg-white border-b border-slate-100">
+                                )}
+
+                                {/* CARD 4: WHATSAPP STATUS & CLICK-TO-WHATSAPP FEED */}
+                                {(creative as any).previewPlatform === "WHATSAPP_FEED" && (
+                                  <div className="bg-gradient-to-b from-[#075E54] to-[#054c44] rounded-2xl overflow-hidden shadow-xl border border-emerald-900 text-left font-sans text-white p-4 space-y-3.5 relative transition-all duration-300 max-w-lg mx-auto">
+                                    <div className="flex items-center justify-between border-b border-emerald-600/50 pb-2.5">
                                       <div className="flex items-center gap-2.5">
-                                        <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-[#1877F2] p-0.5 bg-white shrink-0 shadow-2xs">
-                                          <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover rounded-full" />
+                                        <div className="h-9 w-9 rounded-full overflow-hidden border-2 border-white/60 bg-white/10 shrink-0 shadow-sm">
+                                          <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
                                         </div>
                                         <div>
-                                          <div className="font-extrabold text-slate-900 text-[13px] leading-tight flex items-center gap-1">
+                                          <div className="text-[13px] font-extrabold text-white leading-tight flex items-center gap-1">
                                             <span>{pageNameDisplay}</span>
-                                            <span className="text-[#1877F2] text-[12px]">✓</span>
+                                            <span className="text-[#25D366] text-[12px]">✓</span>
                                           </div>
-                                          <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                                            <span className="font-bold text-[#1877F2]">Sponsored</span> · <Globe className="h-3 w-3 text-slate-400" />
-                                          </div>
+                                          <div className="text-[10.5px] text-emerald-200 font-medium">WhatsApp Business Status & Feed Ad</div>
                                         </div>
                                       </div>
-                                      <div className="flex items-center gap-2 text-slate-400 text-sm">
-                                        <span className="cursor-pointer hover:text-slate-600">•••</span>
-                                        <span className="cursor-pointer hover:text-slate-600">✕</span>
-                                      </div>
+                                      <span className="text-[10px] font-extrabold bg-[#25D366] text-slate-950 px-2.5 py-0.5 rounded-full shadow-2xs">Sponsored</span>
                                     </div>
 
-                                    <div className="px-3.5 py-2.5 text-[12.5px] text-slate-900 leading-relaxed font-sans">
-                                      <p className="whitespace-pre-line">
-                                        ✨ {creative.primaryText || "Upgrade your wardrobe with handpicked, premium designs crafted for perfection."}
-                                        <span className="text-slate-500 font-semibold cursor-pointer ml-1">...see more</span>
+                                    {/* WhatsApp Media Box */}
+                                    <div className="relative w-full aspect-square bg-slate-950 rounded-2xl overflow-hidden shadow-inner border border-emerald-700/50">
+                                      {activeMediaUrl ? (
+                                        isVideoMedia ? (
+                                          <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
+                                        ) : (
+                                          <img src={activeMediaUrl} alt="WhatsApp Ad" className="w-full h-full object-cover" />
+                                        )
+                                      ) : (
+                                        <div className="h-full w-full flex items-center justify-center bg-emerald-950/60 text-emerald-300 p-4 text-center">
+                                          <ImageIcon className="h-8 w-8 text-emerald-400/60" />
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Text & Chat Prompt */}
+                                    <div className="bg-[#128C7E]/90 backdrop-blur-md p-3.5 rounded-2xl border border-emerald-500/40 space-y-1.5 shadow-sm">
+                                      <div className="text-[13px] font-extrabold text-white flex items-center gap-1.5">
+                                        <span>💬</span>
+                                        <span>{creative.headline?.trim() || "Chat on WhatsApp"}</span>
+                                      </div>
+                                      <p className="text-[11.5px] text-emerald-50 leading-relaxed font-sans">
+                                        {creative.primaryText?.trim() || <span className="text-emerald-200/70 italic">No primary message specified</span>}
                                       </p>
                                     </div>
 
-                                    <div className={`relative w-full ${
-                                      creative.aspectRatio === "9:16"
-                                        ? "aspect-[9/16] min-h-[340px]"
-                                        : creative.aspectRatio === "16:9"
-                                        ? "aspect-[16/9] min-h-[190px]"
-                                        : "aspect-square min-h-[270px]"
-                                    } bg-slate-950 flex items-center justify-center overflow-hidden border-y border-slate-100`}>
-                                      {activeMediaUrl ? (
-                                        isVideoMedia ? (
-                                          <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
-                                        ) : (
-                                          <img src={activeMediaUrl} alt="Creative" className="w-full h-full object-cover" />
-                                        )
+                                    <button className="w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-extrabold text-[12.5px] rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98">
+                                      <MessageCircle className="h-4.5 w-4.5 fill-slate-950 text-[#25D366]" />
+                                      <span>Chat on WhatsApp</span>
+                                    </button>
+                                  </div>
+                                )}
+
+                                {/* CARD 5: STORIES & REELS */}
+                                {(creative as any).previewPlatform === "STORIES_REELS" && (
+                                  <div className="bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-800 text-left font-sans relative text-white aspect-[9/16] max-h-[500px] mx-auto flex flex-col justify-between p-4">
+                                    {activeMediaUrl ? (
+                                      isVideoMedia ? (
+                                        <video src={activeMediaUrl} controls className="w-full h-full object-cover absolute inset-0 opacity-90" />
                                       ) : (
-                                        <div className="p-6 text-center text-white space-y-2 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 w-full h-full flex flex-col items-center justify-center">
-                                          <Sparkles className="h-8 w-8 text-sky-400 mx-auto" />
-                                          <div className="font-extrabold text-sm">{pageNameDisplay} Graphic</div>
-                                          <div className="text-xs text-slate-300">{creative.headline || "All Types of AI Solutions for Your Business"}</div>
+                                        <img src={activeMediaUrl} alt="Story" className="w-full h-full object-cover absolute inset-0 opacity-90" />
+                                      )
+                                    ) : (
+                                      <div className="absolute inset-0 bg-slate-900 flex items-center justify-center p-6 text-center">
+                                        <div className="space-y-1 text-slate-400">
+                                          <ImageIcon className="h-8 w-8 text-slate-500 mx-auto" />
+                                          <div className="font-semibold text-xs text-slate-300">Upload 9:16 media in chat</div>
                                         </div>
-                                      )}
+                                      </div>
+                                    )}
+
+                                    {/* Top Gradient Overlay */}
+                                    <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/80 to-transparent pointer-events-none" />
+
+                                    {/* Story Header */}
+                                    <div className="relative z-10 space-y-2">
+                                      {/* Story progress bar */}
+                                      <div className="flex gap-1 w-full">
+                                        <div className="h-1 bg-white/80 rounded-full flex-1" />
+                                        <div className="h-1 bg-white/30 rounded-full flex-1" />
+                                      </div>
+
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                          <div className="h-8 w-8 rounded-full overflow-hidden border-2 border-pink-500 shrink-0">
+                                            <img src={activePage?.picture || "/icon.jpeg"} alt="User" className="h-full w-full object-cover" />
+                                          </div>
+                                          <span className="text-xs font-extrabold drop-shadow-md">
+                                            {pageNameDisplay}
+                                          </span>
+                                          <span className="text-[10px] bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-full text-white font-bold border border-white/20">Sponsored</span>
+                                        </div>
+                                        <span className="text-white text-xs cursor-pointer drop-shadow-md">•••</span>
+                                      </div>
                                     </div>
 
-                                    <div className="p-3 bg-[#F0F2F5] border-t border-slate-200/90 flex items-center justify-between gap-2.5">
-                                      <div className="min-w-0 flex-1">
-                                        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">API.WHATSAPP.COM</div>
-                                        <div className="text-[12.5px] font-extrabold text-slate-900 truncate">
-                                          🔥 {creative.headline || "Aj Creation | Up to 50% OFF New Season"}
+                                    {/* Bottom Gradient Overlay */}
+                                    <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none" />
+
+                                    {/* Story CTA Bottom Bar */}
+                                    <div className="relative z-10 space-y-2.5 text-center">
+                                      {creative.primaryText?.trim() && (
+                                        <div className="bg-black/50 backdrop-blur-md p-3 rounded-xl border border-white/20 text-left">
+                                          <p className="text-[11px] line-clamp-2 text-slate-100 font-medium leading-tight">
+                                            {creative.primaryText}
+                                          </p>
                                         </div>
-                                        {creative.description && (
-                                          <div className="text-[10.5px] text-slate-500 truncate mt-0.5 font-medium">
-                                            {creative.description}
+                                      )}
+                                      <button className="w-full py-3 bg-[#1877F2] hover:bg-blue-600 text-white font-extrabold text-xs rounded-xl shadow-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95">
+                                        <span>{creative.headline?.trim() || "Send WhatsApp Message"}</span>
+                                        <ChevronRight className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* CARD 6: RIGHT COLUMN / AUDIENCE NETWORK */}
+                                {(creative as any).previewPlatform === "RIGHT_COLUMN" && (
+                                  <div className="bg-white rounded-xl overflow-hidden shadow-md border border-slate-200/90 text-left font-sans p-3.5 space-y-2 max-w-lg mx-auto">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                      Sponsored • Desktop Right Column
+                                    </div>
+                                    <div className="flex gap-3 items-center">
+                                      <div className="h-16 w-16 bg-slate-900 rounded-lg overflow-hidden shrink-0 border border-slate-200">
+                                        {activeMediaUrl ? (
+                                          isVideoMedia ? (
+                                            <video src={activeMediaUrl} className="w-full h-full object-cover" />
+                                          ) : (
+                                            <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
+                                          )
+                                        ) : (
+                                          <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400">
+                                            <ImageIcon className="h-5 w-5" />
                                           </div>
                                         )}
                                       </div>
-                                      <button className="px-4 py-2 bg-[#1877F2] hover:bg-blue-700 text-white text-[12px] font-extrabold rounded-lg shrink-0 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95">
-                                        {destination.type === "WHATSAPP" ? (
-                                          <MessageCircle className="h-4 w-4 fill-white text-transparent" />
-                                        ) : (
-                                          <ExternalLink className="h-3.5 w-3.5 text-white" />
-                                        )}
-                                        <span>Send WhatsApp</span>
-                                      </button>
-                                    </div>
-
-                                    <div className="px-3.5 py-2.5 border-t border-slate-200/80 bg-white flex items-center justify-around text-[12px] text-slate-600 font-bold">
-                                      <button className="flex items-center gap-1.5 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
-                                        <ThumbsUp className="h-4 w-4 text-[#1877F2]" />
-                                        <span>Like</span>
-                                      </button>
-                                      <button className="flex items-center gap-1.5 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
-                                        <MessageSquare className="h-4 w-4 text-slate-500" />
-                                        <span>Comment</span>
-                                      </button>
-                                      <button className="flex items-center gap-1.5 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
-                                        <Share2 className="h-4 w-4 text-slate-500" />
-                                        <span>Share</span>
-                                      </button>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            )}
-
-                            {/* CARD 2: INSTAGRAM FEED / PROFILE FEED / EXPLORE */}
-                            {(creative as any).previewPlatform === "INSTAGRAM_FEED" && (
-                              <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-200/90 text-left font-sans transition-all duration-300 max-w-lg mx-auto">
-                                {/* IG Header */}
-                                <div className="p-3.5 flex items-center justify-between bg-white border-b border-slate-100">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="h-9 w-9 rounded-full overflow-hidden p-0.5 bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] shrink-0 shadow-2xs">
-                                      <div className="h-full w-full rounded-full overflow-hidden border-2 border-white">
-                                        <img src={activePage?.picture || "/icon.jpeg"} alt="Avatar" className="h-full w-full object-cover" />
+                                      <div className="min-w-0 flex-1 space-y-1">
+                                        <div className="text-[12px] font-extrabold text-slate-900 leading-snug line-clamp-2">
+                                          {creative.headline?.trim() || <span className="text-slate-400 font-normal italic text-[11px]">No headline specified</span>}
+                                        </div>
+                                        <div className="text-[10.5px] text-slate-500 truncate font-semibold">
+                                          {destination.type === "WHATSAPP" ? "api.whatsapp.com" : "jisnudigital.com"}
+                                        </div>
                                       </div>
-                                    </div>
-                                    <div>
-                                      <div className="text-[12.5px] font-extrabold text-slate-900 leading-tight flex items-center gap-1">
-                                        <span>{pageNameDisplay.toLowerCase().replace(/\s+/g, '')}</span>
-                                        <span className="bg-[#0095F6] text-white rounded-full text-[8px] h-3 w-3 flex items-center justify-center font-bold">✓</span>
-                                      </div>
-                                      <div className="text-[10px] font-bold text-slate-500">
-                                        Sponsored · Ad
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <span className="text-slate-600 text-base font-extrabold cursor-pointer hover:text-slate-900">•••</span>
-                                </div>
-
-                                {/* Media Banner */}
-                                <div className="relative w-full aspect-square bg-slate-950 overflow-hidden flex items-center justify-center border-y border-slate-100">
-                                  {activeMediaUrl ? (
-                                    isVideoMedia ? (
-                                      <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
-                                    ) : (
-                                      <img src={activeMediaUrl} alt="IG Post" className="w-full h-full object-cover" />
-                                    )
-                                  ) : (
-                                    <div className="p-6 h-full flex flex-col items-center justify-center text-center text-white space-y-2 bg-gradient-to-tr from-purple-950 via-slate-950 to-pink-950 w-full">
-                                      <Sparkles className="h-8 w-8 text-pink-400 mx-auto" />
-                                      <div className="font-extrabold text-sm">Instagram Feed Ad Banner</div>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Native Instagram Call to Action Bar */}
-                                <div className="px-4 py-2.5 bg-[#0095F6] hover:bg-[#0081D6] text-white flex items-center justify-between cursor-pointer transition-colors shadow-2xs">
-                                  <span className="text-[12px] font-extrabold tracking-tight uppercase">
-                                    {creative.headline || "Send WhatsApp message"}
-                                  </span>
-                                  <span className="text-white text-base font-extrabold">›</span>
-                                </div>
-
-                                {/* Reaction Icons Row */}
-                                <div className="px-4 py-2.5 flex items-center justify-between text-slate-800 bg-white">
-                                  <div className="flex items-center gap-4">
-                                    <Heart className="h-5.5 w-5.5 text-rose-500 fill-rose-500 cursor-pointer transition-colors" />
-                                    <MessageCircle className="h-5.5 w-5.5 cursor-pointer hover:text-slate-600" />
-                                    <Send className="h-5.5 w-5.5 cursor-pointer hover:text-slate-600" />
-                                  </div>
-                                  <Bookmark className="h-5.5 w-5.5 cursor-pointer hover:text-slate-600" />
-                                </div>
-
-                                {/* Likes Counter */}
-                                <div className="px-4 text-[11px] font-extrabold text-slate-900">
-                                  Liked by <span className="font-extrabold">media_buyer</span> and <span className="font-extrabold">1,482 others</span>
-                                </div>
-
-                                {/* Caption */}
-                                <div className="px-4 pt-1 pb-3.5 text-[12px] text-slate-900 leading-snug bg-white font-sans">
-                                  <span className="font-extrabold mr-1.5 text-slate-900">{pageNameDisplay.toLowerCase().replace(/\s+/g, '')}</span>
-                                  ✨ {creative.primaryText || "Upgrade your wardrobe with handpicked, premium designs crafted for perfection."}
-                                  <span className="text-slate-400 cursor-pointer ml-1 font-semibold">...more</span>
-                                  <div className="text-[9.5px] uppercase font-bold text-slate-400 mt-1">2 HOURS AGO</div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* CARD 3: MESSENGER INBOX / SPONSORED MESSAGE */}
-                            {(creative as any).previewPlatform === "MESSENGER_FEED" && (
-                              <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-slate-200/90 text-left font-sans p-4 space-y-3.5 transition-all duration-300 max-w-lg mx-auto">
-                                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="h-9 w-9 rounded-full overflow-hidden border border-blue-200 bg-blue-50 shrink-0 shadow-2xs">
-                                      <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
-                                    </div>
-                                    <div>
-                                      <div className="text-[12.5px] font-extrabold text-slate-900 leading-tight">
-                                        {pageNameDisplay}
-                                      </div>
-                                      <div className="text-[10px] text-[#0084FF] font-extrabold uppercase tracking-wider">Messenger Sponsored Ad</div>
-                                    </div>
-                                  </div>
-                                  <span className="text-slate-400 text-xs font-bold px-2 py-0.5 bg-slate-100 rounded-full">Ad</span>
-                                </div>
-
-                                {/* Messenger Card Content */}
-                                <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/60 p-2.5 space-y-2.5 shadow-2xs">
-                                  <div className="relative w-full aspect-[16/9] bg-slate-950 rounded-xl overflow-hidden shadow-inner">
-                                    {activeMediaUrl ? (
-                                      isVideoMedia ? (
-                                        <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
-                                      ) : (
-                                        <img src={activeMediaUrl} alt="Messenger Ad" className="w-full h-full object-cover" />
-                                      )
-                                    ) : (
-                                      <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-blue-900 to-indigo-950 text-white p-4 text-center">
-                                        <Sparkles className="h-7 w-7 text-blue-300" />
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="px-1.5 space-y-1">
-                                    <div className="text-[13px] font-extrabold text-slate-900">
-                                      {creative.headline || "Send a message to our team"}
-                                    </div>
-                                    <p className="text-[11.5px] text-slate-600 line-clamp-2 leading-relaxed">
-                                      {creative.primaryText || "Hi! Click below to chat directly with us on Messenger."}
-                                    </p>
-                                  </div>
-                                  <button className="w-full py-2.5 bg-[#0084FF] hover:bg-[#0073DF] text-white font-extrabold text-[12px] rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98">
-                                    <MessageSquare className="h-4 w-4" />
-                                    <span>Send Message</span>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* CARD 4: WHATSAPP STATUS & CLICK-TO-WHATSAPP FEED */}
-                            {(creative as any).previewPlatform === "WHATSAPP_FEED" && (
-                              <div className="bg-gradient-to-b from-[#075E54] to-[#054c44] rounded-2xl overflow-hidden shadow-xl border border-emerald-900 text-left font-sans text-white p-4 space-y-3.5 relative transition-all duration-300 max-w-lg mx-auto">
-                                <div className="flex items-center justify-between border-b border-emerald-600/50 pb-2.5">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="h-9 w-9 rounded-full overflow-hidden border-2 border-white/60 bg-white/10 shrink-0 shadow-sm">
-                                      <img src={activePage?.picture || "/icon.jpeg"} alt="Logo" className="h-full w-full object-cover" />
-                                    </div>
-                                    <div>
-                                      <div className="text-[13px] font-extrabold text-white leading-tight flex items-center gap-1">
-                                        <span>{pageNameDisplay}</span>
-                                        <span className="text-[#25D366] text-[12px]">✓</span>
-                                      </div>
-                                      <div className="text-[10.5px] text-emerald-200 font-medium">WhatsApp Business Status & Feed Ad</div>
-                                    </div>
-                                  </div>
-                                  <span className="text-[10px] font-extrabold bg-[#25D366] text-slate-950 px-2.5 py-0.5 rounded-full shadow-2xs">Sponsored</span>
-                                </div>
-
-                                {/* WhatsApp Media Box */}
-                                <div className="relative w-full aspect-square bg-slate-950 rounded-2xl overflow-hidden shadow-inner border border-emerald-700/50">
-                                  {activeMediaUrl ? (
-                                    isVideoMedia ? (
-                                      <video src={activeMediaUrl} controls className="w-full h-full object-cover" />
-                                    ) : (
-                                      <img src={activeMediaUrl} alt="WhatsApp Ad" className="w-full h-full object-cover" />
-                                    )
-                                  ) : (
-                                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-emerald-950 via-slate-950 to-emerald-900 text-white p-4 text-center">
-                                      <Sparkles className="h-9 w-9 text-emerald-400" />
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Text & Chat Prompt */}
-                                <div className="bg-[#128C7E]/90 backdrop-blur-md p-3.5 rounded-2xl border border-emerald-500/40 space-y-1.5 shadow-sm">
-                                  <div className="text-[13px] font-extrabold text-white flex items-center gap-1.5">
-                                    <span>💬</span>
-                                    <span>{creative.headline || "Chat with us on WhatsApp"}</span>
-                                  </div>
-                                  <p className="text-[11.5px] text-emerald-50 leading-relaxed font-sans">
-                                    {creative.primaryText || "Tap below to get instant answers, price details, and catalog on WhatsApp!"}
-                                  </p>
-                                </div>
-
-                                <button className="w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-extrabold text-[12.5px] rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98">
-                                  <MessageCircle className="h-4.5 w-4.5 fill-slate-950 text-[#25D366]" />
-                                  <span>Chat on WhatsApp</span>
-                                </button>
-                              </div>
-                            )}
-
-                            {/* CARD 5: STORIES & REELS */}
-                            {(creative as any).previewPlatform === "STORIES_REELS" && (
-                              <div className="bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-800 text-left font-sans relative text-white aspect-[9/16] max-h-[500px] mx-auto flex flex-col justify-between p-4">
-                                {activeMediaUrl ? (
-                                  isVideoMedia ? (
-                                    <video src={activeMediaUrl} controls className="w-full h-full object-cover absolute inset-0 opacity-90" />
-                                  ) : (
-                                    <img src={activeMediaUrl} alt="Story" className="w-full h-full object-cover absolute inset-0 opacity-90" />
-                                  )
-                                ) : (
-                                  <div className="absolute inset-0 bg-gradient-to-b from-indigo-900 via-slate-900 to-black flex items-center justify-center p-6 text-center">
-                                    <div className="space-y-2">
-                                      <Sparkles className="h-10 w-10 text-pink-400 mx-auto" />
-                                      <div className="font-extrabold text-base">{creative.headline || "9:16 Fullscreen Story & Reel"}</div>
                                     </div>
                                   </div>
                                 )}
-
-                                {/* Top Gradient Overlay */}
-                                <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/80 to-transparent pointer-events-none" />
-
-                                {/* Story Header */}
-                                <div className="relative z-10 space-y-2">
-                                  {/* Story progress bar */}
-                                  <div className="flex gap-1 w-full">
-                                    <div className="h-1 bg-white/80 rounded-full flex-1" />
-                                    <div className="h-1 bg-white/30 rounded-full flex-1" />
-                                  </div>
-
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
-                                      <div className="h-8 w-8 rounded-full overflow-hidden border-2 border-pink-500 shrink-0">
-                                        <img src={activePage?.picture || "/icon.jpeg"} alt="User" className="h-full w-full object-cover" />
-                                      </div>
-                                      <span className="text-xs font-extrabold drop-shadow-md">
-                                        {pageNameDisplay}
-                                      </span>
-                                      <span className="text-[10px] bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-full text-white font-bold border border-white/20">Sponsored</span>
-                                    </div>
-                                    <span className="text-white text-xs cursor-pointer drop-shadow-md">•••</span>
-                                  </div>
-                                </div>
-
-                                {/* Bottom Gradient Overlay */}
-                                <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none" />
-
-                                {/* Story CTA Bottom Bar */}
-                                <div className="relative z-10 space-y-2.5 text-center">
-                                  <div className="bg-black/50 backdrop-blur-md p-3 rounded-xl border border-white/20 text-left">
-                                    <p className="text-[11px] line-clamp-2 text-slate-100 font-medium leading-tight">
-                                      {creative.primaryText || "Upgrade your wardrobe with handpicked, premium designs..."}
-                                    </p>
-                                  </div>
-                                  <button className="w-full py-3 bg-[#1877F2] hover:bg-blue-600 text-white font-extrabold text-xs rounded-xl shadow-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95">
-                                    <span>{creative.headline || "Send WhatsApp Message"}</span>
-                                    <ChevronRight className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* CARD 6: RIGHT COLUMN / AUDIENCE NETWORK */}
-                            {(creative as any).previewPlatform === "RIGHT_COLUMN" && (
-                              <div className="bg-white rounded-xl overflow-hidden shadow-md border border-slate-200/90 text-left font-sans p-3.5 space-y-2 max-w-lg mx-auto">
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                  Sponsored • Desktop Right Column
-                                </div>
-                                <div className="flex gap-3 items-center">
-                                  <div className="h-16 w-16 bg-slate-900 rounded-lg overflow-hidden shrink-0 border border-slate-200">
-                                    {activeMediaUrl ? (
-                                      isVideoMedia ? (
-                                        <video src={activeMediaUrl} className="w-full h-full object-cover" />
-                                      ) : (
-                                        <img src={activeMediaUrl} alt="Ad" className="w-full h-full object-cover" />
-                                      )
-                                    ) : (
-                                      <div className="h-full w-full flex items-center justify-center bg-indigo-900 text-white">
-                                        <Sparkles className="h-5 w-5" />
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="min-w-0 flex-1 space-y-1">
-                                    <div className="text-[12px] font-extrabold text-slate-900 leading-snug line-clamp-2">
-                                      {creative.headline || "Aj Creation | Up to 50% OFF New Season"}
-                                    </div>
-                                    <div className="text-[10.5px] text-slate-500 truncate font-semibold">
-                                      {destination.type === "WHATSAPP" ? "api.whatsapp.com" : "jisnudigital.com"}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
+                              </>
                             )}
                           </div>
                         );
@@ -2962,1261 +3798,7 @@ export default function MetaAIChatbotStudioPage() {
                     </div>
                   </div>
 
-                  {/* 2. Structured Campaign Blueprint Card */}
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-[13px] text-slate-900 flex items-center gap-1.5">
-                      <Target className="h-4 w-4 text-[#1877F2]" />
-                      <span>Meta Campaign Configuration & Targeting</span>
-                    </h3>
-
-                    <div className="border border-slate-200/90 rounded-2xl overflow-hidden bg-white text-[12px] shadow-sm divide-y divide-slate-100">
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-start">
-                        <span className="text-slate-500 font-medium">Campaign</span>
-                        <div className="col-span-3 flex items-center justify-between gap-2">
-                          <span className="text-slate-900 font-bold">{campaignTitle}</span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">
-                            Version {session?.versionNumber || 1}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Meta Ad Account & Page Selectors */}
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-center bg-slate-50/70">
-                        <span className="text-slate-500 font-medium">Ad Account</span>
-                        <div className="col-span-3 flex items-center gap-2">
-                          <select
-                            value={draft.adAccountId || activeAdAccount?.adAccountId || ""}
-                            onChange={(e) => {
-                              const newActId = e.target.value;
-                              if (session) {
-                                setSession({
-                                  ...session,
-                                  draft: {
-                                    ...session.draft,
-                                    adAccountId: newActId,
-                                  },
-                                });
-                              }
-                            }}
-                            className="bg-white border border-slate-200 text-slate-900 font-semibold text-[11px] rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs max-w-xs truncate"
-                          >
-                            {context.adAccounts && context.adAccounts.length > 0 ? (
-                              context.adAccounts.map((act: any) => (
-                                <option key={act.adAccountId || act.id} value={act.adAccountId || act.id}>
-                                  {act.name} ({act.adAccountId || act.id})
-                                </option>
-                              ))
-                            ) : (
-                              <option value="1454270479625110">Default Ad Account (1454270479625110)</option>
-                            )}
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-center bg-slate-50/70">
-                        <span className="text-slate-500 font-medium">Facebook Page</span>
-                        <div className="col-span-3 flex items-center gap-2">
-                          <select
-                            value={draft.pageId || activePage?.id || ""}
-                            onChange={(e) => {
-                              const newPageId = e.target.value;
-                              const selectedPageObj = context.pages?.find((p: any) => p.id === newPageId);
-                              if (session) {
-                                setSession({
-                                  ...session,
-                                  draft: {
-                                    ...session.draft,
-                                    pageId: newPageId,
-                                    pageName: selectedPageObj?.name || draft.pageName,
-                                  },
-                                });
-                              }
-                            }}
-                            className="bg-white border border-slate-200 text-slate-900 font-semibold text-[11px] rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs max-w-xs truncate"
-                          >
-                            {context.pages && context.pages.length > 0 ? (
-                              context.pages.map((pg: any) => (
-                                <option key={pg.id} value={pg.id}>
-                                  {pg.name} ({pg.id})
-                                </option>
-                              ))
-                            ) : (
-                              <option value="605330362660142">Default Facebook Page (605330362660142)</option>
-                            )}
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-center">
-                        <span className="text-slate-500 font-medium">Objective</span>
-                        <div className="col-span-3 flex items-center gap-2">
-                          <select
-                            value={campaign.objective || "OUTCOME_LEADS"}
-                            onChange={(e) => {
-                              const newObj = e.target.value;
-                              if (session) {
-                                setSession({
-                                  ...session,
-                                  draft: {
-                                    ...session.draft,
-                                    campaign: {
-                                      ...session.draft.campaign,
-                                      objective: newObj,
-                                    },
-                                  },
-                                });
-                              }
-                            }}
-                            className="bg-slate-50 border border-slate-200 text-slate-900 font-semibold text-[11px] rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                          >
-                            <option value="OUTCOME_LEADS">🎯 OUTCOME_LEADS (Leads, WhatsApp, Instant Forms, Calls)</option>
-                            <option value="OUTCOME_SALES">💰 OUTCOME_SALES (Purchases, Conversions, Meta Shop)</option>
-                            <option value="OUTCOME_TRAFFIC">🚀 OUTCOME_TRAFFIC (Link Clicks, Website Traffic)</option>
-                            <option value="OUTCOME_ENGAGEMENT">💬 OUTCOME_ENGAGEMENT (Messages, Post Engagements)</option>
-                            <option value="OUTCOME_AWARENESS">📢 OUTCOME_AWARENESS (Brand Reach, Impressions)</option>
-                            <option value="OUTCOME_APP_PROMOTION">📱 OUTCOME_APP_PROMOTION (Mobile App Installs)</option>
-                          </select>
-                          <span className="text-[10px] text-slate-500 font-medium">ODAX Framework</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-center">
-                        <span className="text-slate-500 font-medium">Special Categories</span>
-                        <div className="col-span-3 flex items-center gap-2">
-                          <select
-                            value={campaign.specialAdCategory || "NONE"}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (session) {
-                                setSession({
-                                  ...session,
-                                  draft: {
-                                    ...session.draft,
-                                    campaign: {
-                                      ...session.draft.campaign,
-                                      specialAdCategory: val,
-                                    },
-                                  },
-                                });
-                              }
-                            }}
-                            className="bg-slate-50 border border-slate-200 text-slate-900 font-semibold text-[11px] rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                          >
-                            <option value="NONE">NONE (Standard Business / No Category)</option>
-                            <option value="FINANCIAL_PRODUCTS_SERVICES">Financial products and services (Credit, Cards, Loans, Investments, Banking)</option>
-                            <option value="EMPLOYMENT">Employment (Job offers, Internships, Hiring)</option>
-                            <option value="HOUSING">Housing (Property listings, Mortgages, Home insurance)</option>
-                            <option value="ISSUES_ELECTIONS_POLITICS">Social issues, elections or politics (Political figures, Social issues)</option>
-                          </select>
-                          <span className="text-[10px] text-slate-500 italic">Meta Official Requirement</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-center">
-                        <div className="space-y-0.5">
-                          <span className="text-slate-500 font-medium block">Budget</span>
-                          <span className="text-[10px] text-slate-400 font-medium">Advantage+ CBO</span>
-                        </div>
-                        <div className="col-span-3 flex flex-wrap items-center gap-2">
-                          {/* Budget Type Selector */}
-                          <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 text-[11px] font-bold">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (session) {
-                                  setSession({
-                                    ...session,
-                                    draft: {
-                                      ...session.draft,
-                                      campaign: {
-                                        ...session.draft.campaign,
-                                        budgetType: "DAILY",
-                                        dailyBudget: session.draft.campaign?.dailyBudget || 500,
-                                      },
-                                    },
-                                  });
-                                }
-                              }}
-                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                                (campaign as any).budgetType !== "TOTAL" && !campaign.lifetimeBudget
-                                  ? "bg-white text-blue-600 shadow-2xs"
-                                  : "text-slate-600 hover:text-slate-900"
-                              }`}
-                            >
-                              Daily
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (session) {
-                                  const total = (session.draft.campaign?.dailyBudget || 500) * 30;
-                                  setSession({
-                                    ...session,
-                                    draft: {
-                                      ...session.draft,
-                                      campaign: {
-                                        ...session.draft.campaign,
-                                        budgetType: "TOTAL",
-                                        lifetimeBudget: total,
-                                      },
-                                    },
-                                  });
-                                }
-                              }}
-                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                                (campaign as any).budgetType === "TOTAL" || campaign.lifetimeBudget
-                                  ? "bg-white text-blue-600 shadow-2xs"
-                                  : "text-slate-600 hover:text-slate-900"
-                              }`}
-                            >
-                              Lifetime
-                            </button>
-                          </div>
-
-                          {/* Budget Amount Input */}
-                          <div className="relative flex items-center">
-                            <span className="absolute left-2.5 text-slate-500 font-bold text-xs">₹</span>
-                            <input
-                              type="number"
-                              min="100"
-                              step="50"
-                              value={
-                                (campaign as any).budgetType === "TOTAL" || campaign.lifetimeBudget
-                                  ? campaign.lifetimeBudget || ((campaign.dailyBudget || 500) * 30)
-                                  : campaign.dailyBudget || 500
-                              }
-                              onChange={(e) => {
-                                const val = Math.max(100, parseInt(e.target.value) || 100);
-                                if (session) {
-                                  const isLifetime = (session.draft.campaign as any).budgetType === "TOTAL" || Boolean(session.draft.campaign?.lifetimeBudget);
-                                  setSession({
-                                    ...session,
-                                    draft: {
-                                      ...session.draft,
-                                      campaign: {
-                                        ...session.draft.campaign,
-                                        dailyBudget: isLifetime ? Math.round(val / 30) : val,
-                                        lifetimeBudget: isLifetime ? val : val * 30,
-                                      },
-                                    },
-                                  });
-                                }
-                              }}
-                              className="pl-6 pr-2.5 py-1 w-28 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                            <span className="text-[11px] text-slate-500 font-medium ml-1.5">
-                              {(campaign as any).budgetType === "TOTAL" || campaign.lifetimeBudget ? "total (30 days)" : "/day"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Dynamic ROI & Monthly Lead Yield Forecast Card */}
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-start bg-emerald-50/50">
-                        <span className="text-emerald-800 font-bold">ROI Forecast</span>
-                        <div className="col-span-3 space-y-0.5">
-                          <div className="text-xs font-extrabold text-emerald-900 flex items-center gap-1.5">
-                            <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
-                            <span>
-                              Est. ~{Math.max(12, Math.round(((campaign.dailyBudget || 500) * 30) / ((context as any).accountMetrics?.avgCpa || (context as any).researchAudit?.avgCpa || 25)))} Leads/Month (@ ~₹{Math.round((context as any).accountMetrics?.avgCpa || (context as any).researchAudit?.avgCpa || 25)} CPA)
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-emerald-700">
-                            Based on ₹{(campaign.dailyBudget || 500).toLocaleString('en-IN')}/day budget (₹{((campaign.dailyBudget || 500) * 30).toLocaleString('en-IN')}/mo) · ~{Math.round((campaign.dailyBudget || 500) * 30 * 42).toLocaleString('en-IN')} impressions
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Schedule Launch Time Row */}
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-start">
-                        <div className="space-y-0.5">
-                          <span className="text-slate-500 font-medium block">Schedule</span>
-                          <span className="text-[10px] text-slate-400 font-medium">Start & End</span>
-                        </div>
-                        <div className="col-span-3 space-y-2">
-                          <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <span className="text-slate-500 text-[11px] font-medium w-12">Start:</span>
-                            <input
-                              type="datetime-local"
-                              value={
-                                campaign.startTime
-                                  ? new Date(new Date(campaign.startTime).getTime() - new Date().getTimezoneOffset() * 60000)
-                                      .toISOString()
-                                      .slice(0, 16)
-                                  : ""
-                              }
-                              onChange={(e) => {
-                                const dateStr = e.target.value ? new Date(e.target.value).toISOString() : undefined;
-                                if (session) {
-                                  setSession({
-                                    ...session,
-                                    draft: {
-                                      ...session.draft,
-                                      campaign: {
-                                        ...session.draft.campaign,
-                                        startTime: dateStr,
-                                      },
-                                    },
-                                  });
-                                }
-                              }}
-                              className="bg-white border border-slate-200 text-slate-800 text-[11px] font-medium rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                            {!campaign.startTime && (
-                              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                Launch Immediately
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <span className="text-slate-500 text-[11px] font-medium w-12">End:</span>
-                            <input
-                              type="datetime-local"
-                              value={
-                                campaign.endTime
-                                  ? new Date(new Date(campaign.endTime).getTime() - new Date().getTimezoneOffset() * 60000)
-                                      .toISOString()
-                                      .slice(0, 16)
-                                  : ""
-                              }
-                              onChange={(e) => {
-                                const dateStr = e.target.value ? new Date(e.target.value).toISOString() : undefined;
-                                if (session) {
-                                  setSession({
-                                    ...session,
-                                    draft: {
-                                      ...session.draft,
-                                      campaign: {
-                                        ...session.draft.campaign,
-                                        endTime: dateStr,
-                                      },
-                                    },
-                                  });
-                                }
-                              }}
-                              className="bg-white border border-slate-200 text-slate-800 text-[11px] font-medium rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                            {!campaign.endTime && (
-                              <span className="text-[10px] text-slate-500 font-medium">
-                                Ongoing (No end date set)
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Dynamic Meta Destination Section */}
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-start">
-                        <div className="pt-0.5 space-y-1 pr-2">
-                          <span className="text-slate-500 font-medium block">Destination</span>
-                          <select
-                            value={destination.type || "WHATSAPP"}
-                            onChange={(e) => {
-                              const newDest = e.target.value;
-                              if (session) {
-                                setSession({
-                                  ...session,
-                                  draft: {
-                                    ...session.draft,
-                                    destination: {
-                                      ...session.draft.destination,
-                                      type: newDest,
-                                    },
-                                  },
-                                });
-                              }
-                            }}
-                            className="w-full bg-white border border-slate-200 text-slate-800 text-[10px] font-bold rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
-                          >
-                            <option value="WHATSAPP">💬 WhatsApp</option>
-                            <option value="WEBSITE">🌐 Website</option>
-                            <option value="INSTANT_FORM">📝 Instant Form</option>
-                            <option value="PHONE_CALL">📞 Phone Call</option>
-                            <option value="MESSENGER">⚡ Messenger</option>
-                            <option value="INSTAGRAM_DM">📸 Instagram DM</option>
-                            <option value="APP">📱 Mobile App</option>
-                            <option value="SHOP">🛍️ Meta Shop</option>
-                            <option value="INSTAGRAM_PROFILE">👤 Instagram Profile</option>
-                            <option value="PAGE_EVENT">📅 Page Event</option>
-                          </select>
-                        </div>
-                        <div className="col-span-3 space-y-2">
-                          {destination.type === "WEBSITE" ? (
-                            <div className="space-y-1.5">
-                              <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
-                                <Globe className="h-3.5 w-3.5 text-blue-600" />
-                                <span>Website</span>
-                                <span className="text-[10px] text-slate-500 font-normal">· Send people to your website</span>
-                              </div>
-                              <div className="bg-slate-50 border border-slate-200 rounded-md p-2 space-y-1 text-xs">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-slate-500 font-medium">Website URL:</span>
-                                  <span className="font-mono text-blue-600 font-semibold truncate max-w-[200px]">
-                                    {destination.destinationUrl || "https://yourwebsite.com"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-slate-500 font-medium">Display link:</span>
-                                  <span className="font-mono text-slate-700 font-semibold">
-                                    {destination.displayLink || (destination.destinationUrl ? destination.destinationUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '') : "yourwebsite.com")}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between pt-0.5 border-t border-slate-200/60">
-                                  <span className="text-slate-500 font-medium">Browser add-on:</span>
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-white border border-slate-200 text-slate-800">
-                                    {destination.browserAddOn === "CALL" && "📞 Call Button"}
-                                    {destination.browserAddOn === "WHATSAPP" && "💬 WhatsApp Button"}
-                                    {destination.browserAddOn === "MESSENGER" && "⚡ Messenger Button"}
-                                    {(!destination.browserAddOn || destination.browserAddOn === "NONE") && "🚫 None (No button)"}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          ) : destination.type === "INSTANT_FORM" || destination.type === "LEAD_FORM" ? (
-                            <div className="space-y-1.5">
-                              <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
-                                <FileText className="h-3.5 w-3.5 text-indigo-600" />
-                                <span>Instant form (suggested)</span>
-                                <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.2 rounded font-semibold">Meta Native</span>
-                              </div>
-                              <div className="text-[11px] text-slate-600">
-                                Collect people's contact information natively inside Facebook & Instagram feeds.
-                              </div>
-                              <div className="text-[11px] font-medium text-indigo-900 bg-indigo-50/60 border border-indigo-100 rounded px-2 py-1 flex items-center justify-between">
-                                <span>Form: {destination.leadGenFormTitle || `${campaign.name || 'Business'} Instant Lead Form`}</span>
-                                <span className="text-[10px] text-emerald-600 font-bold">✓ Instant Sync</span>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                                <span className="text-[10px] font-semibold text-slate-500 mr-0.5">Form Fields:</span>
-                                {(destination.leadGenFormFields && destination.leadGenFormFields.length > 0
-                                  ? destination.leadGenFormFields
-                                  : ["FULL_NAME", "PHONE", "EMAIL"]
-                                ).map((f: string, fIdx: number) => {
-                                  const fUpper = f.toUpperCase();
-                                  const label =
-                                    fUpper === "FULL_NAME"
-                                      ? "👤 Full Name"
-                                      : fUpper === "PHONE"
-                                      ? "📞 Phone"
-                                      : fUpper === "EMAIL"
-                                      ? "📧 Email"
-                                      : fUpper === "CITY"
-                                      ? "📍 City"
-                                      : f;
-                                  return (
-                                    <span
-                                      key={fIdx}
-                                      className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 shadow-2xs"
-                                    >
-                                      {label}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ) : destination.type === "APP" ? (
-                            <div className="space-y-1.5">
-                              <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
-                                <Smartphone className="h-3.5 w-3.5 text-blue-600" />
-                                <span>Mobile App Install</span>
-                                <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.2 rounded font-semibold">Google Play & App Store</span>
-                              </div>
-                              <div className="text-[11px] text-slate-600">
-                                Send people directly to download or open your mobile app.
-                              </div>
-                              <div className="bg-slate-50 border border-slate-200 rounded-md p-2 space-y-1.5 text-xs">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-slate-500 font-medium shrink-0">App URL:</span>
-                                  <input
-                                    type="text"
-                                    placeholder="https://play.google.com/store/apps/details?id=..."
-                                    value={destination.appUrl || destination.destinationUrl || ""}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      if (session) {
-                                        setSession({
-                                          ...session,
-                                          draft: {
-                                            ...session.draft,
-                                            destination: {
-                                              ...session.draft.destination,
-                                              appUrl: val,
-                                              destinationUrl: val,
-                                            },
-                                          },
-                                        });
-                                      }
-                                    }}
-                                    className="font-mono text-blue-600 font-semibold bg-white border border-slate-200 rounded px-2 py-0.5 text-[11px] w-full focus:outline-none focus:border-blue-500"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          ) : destination.type === "SHOP" ? (
-                            <div className="space-y-1.5">
-                              <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
-                                <ShoppingBag className="h-3.5 w-3.5 text-amber-600" />
-                                <span>Meta Facebook & Instagram Shop</span>
-                                <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.2 rounded font-semibold">Native Commerce</span>
-                              </div>
-                              <div className="text-[11px] text-slate-600">
-                                Direct customers to your Facebook / Instagram storefront with product catalogs.
-                              </div>
-                              <div className="bg-slate-50 border border-slate-200 rounded-md p-2 space-y-1.5 text-xs">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-slate-500 font-medium shrink-0">Shop Link:</span>
-                                  <input
-                                    type="text"
-                                    placeholder="https://shop.facebook.com/..."
-                                    value={destination.shopUrl || destination.destinationUrl || ""}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      if (session) {
-                                        setSession({
-                                          ...session,
-                                          draft: {
-                                            ...session.draft,
-                                            destination: {
-                                              ...session.draft.destination,
-                                              shopUrl: val,
-                                              destinationUrl: val,
-                                            },
-                                          },
-                                        });
-                                      }
-                                    }}
-                                    className="font-mono text-amber-700 font-semibold bg-white border border-slate-200 rounded px-2 py-0.5 text-[11px] w-full focus:outline-none focus:border-amber-500"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          ) : destination.type === "INSTAGRAM_PROFILE" ? (
-                            <div className="space-y-1.5">
-                              <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
-                                <UserCheck className="h-3.5 w-3.5 text-pink-600" />
-                                <span>Instagram Profile Growth</span>
-                                <span className="text-[10px] bg-pink-50 text-pink-700 border border-pink-200 px-1.5 py-0.2 rounded font-semibold">Followers</span>
-                              </div>
-                              <div className="text-[11px] text-slate-600">
-                                Send people to your Instagram profile to follow your brand and watch reels.
-                              </div>
-                              <div className="bg-slate-50 border border-slate-200 rounded-md p-2 space-y-1.5 text-xs">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-slate-500 font-medium shrink-0">Profile Link:</span>
-                                  <input
-                                    type="text"
-                                    placeholder="https://instagram.com/yourhandle"
-                                    value={destination.instagramProfileUrl || (activePage?.name ? `https://instagram.com/${activePage.name.toLowerCase().replace(/\s+/g, '')}` : "")}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      if (session) {
-                                        setSession({
-                                          ...session,
-                                          draft: {
-                                            ...session.draft,
-                                            destination: {
-                                              ...session.draft.destination,
-                                              instagramProfileUrl: val,
-                                            },
-                                          },
-                                        });
-                                      }
-                                    }}
-                                    className="font-mono text-pink-700 font-semibold bg-white border border-slate-200 rounded px-2 py-0.5 text-[11px] w-full focus:outline-none focus:border-pink-500"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          ) : destination.type === "PAGE_EVENT" ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
-                                <Calendar className="h-3.5 w-3.5 text-purple-600" />
-                                <span>Facebook Page Event</span>
-                              </div>
-                              <div className="text-[11px] text-slate-600">
-                                Send people to an official event on your Facebook Page.
-                              </div>
-                              <div className="text-[11px] font-semibold text-purple-900 bg-purple-50 border border-purple-200 rounded px-2 py-1">
-                                📅 {destination.eventName || `${campaign.name || 'Business'} Official Event`}
-                              </div>
-                            </div>
-                          ) : destination.type === "PHONE_CALL" ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
-                                <Phone className="h-3.5 w-3.5 text-emerald-600" />
-                                <span>Direct Phone Call (Call Now)</span>
-                              </div>
-                              <div className="text-[11px] text-slate-600">
-                                People who click your ad will directly call your business phone number:
-                              </div>
-                              <div className="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
-                                📞 {destination.whatsappPhoneNumber || (destination as any).phoneNumber ? (destination.whatsappPhoneNumber || (destination as any).phoneNumber).length === 10 ? `+91 ${destination.whatsappPhoneNumber || (destination as any).phoneNumber}` : `+${destination.whatsappPhoneNumber || (destination as any).phoneNumber}` : "+91 [Set via chat]"}
-                              </div>
-                            </div>
-                          ) : destination.type === "MESSENGER" ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
-                                <MessageSquare className="h-3.5 w-3.5 text-blue-600" />
-                                <span>Facebook Messenger</span>
-                              </div>
-                              <div className="text-[11px] text-slate-600">
-                                Send people into an instant Messenger chat on your Facebook Page.
-                              </div>
-                            </div>
-                          ) : destination.type === "INSTAGRAM_DM" ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
-                                <MessageCircle className="h-3.5 w-3.5 text-pink-600" />
-                                <span>Instagram Direct (DM)</span>
-                              </div>
-                              <div className="text-[11px] text-slate-600">
-                                Send people into direct messaging chat on Instagram.
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              <span className="text-slate-900 font-semibold flex items-center gap-1">
-                                💬 Click-to-WhatsApp (Pre-filled instant greeting)
-                              </span>
-                              {destination.whatsappPhoneNumber && (
-                                <div className="text-[11px] font-mono text-emerald-700 font-bold">
-                                  WhatsApp: +91 {destination.whatsappPhoneNumber}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* WhatsApp Instant Conversations & CRM Bot Auto-Link Badge */}
-                      {(!destination.type || destination.type === "WHATSAPP") && (
-                        <div className="grid grid-cols-4 px-4 py-2.5 items-start bg-sky-50/60">
-                          <span className="text-sky-900 font-semibold">CRM Bot Link</span>
-                          <div className="col-span-3 text-xs space-y-1 text-slate-800">
-                            <div className="font-bold text-sky-900 flex items-center gap-1.5">
-                              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                              <span>Auto-Linked to CRM WhatsApp Welcome Bot Flow</span>
-                            </div>
-                            <div className="text-[11px] text-sky-800">
-                              Leads clicking your ad get auto-greeted and qualified instantly on WhatsApp!
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-start">
-                        <span className="text-slate-500 font-medium pt-0.5">Geo Location</span>
-                        <div className="col-span-3 space-y-2.5">
-                          {/* Countries display */}
-                          {targeting.countries && targeting.countries.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Countries:</span>
-                              {targeting.countries.map((c: string, idx: number) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-xs font-semibold border border-emerald-200 shadow-2xs"
-                                >
-                                  <Globe className="h-3 w-3 text-emerald-600" />
-                                  {c}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Cities with individual radius display */}
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {Array.isArray(targeting.cityConfigs) && targeting.cityConfigs.length > 0 ? (
-                              targeting.cityConfigs.map((cityObj: any, cIdx: number) => (
-                                <span
-                                  key={cIdx}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-900 text-xs font-semibold border border-blue-200 shadow-2xs"
-                                >
-                                  <MapPin className="h-3 w-3 text-blue-600 shrink-0" />
-                                  <span>{cityObj.name}</span>
-                                  <span className="px-1.5 py-0.5 bg-blue-200/80 text-blue-900 text-[10px] font-bold rounded-full">
-                                    {cityObj.radiusKm || 30} km
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const nextConfigs = targeting.cityConfigs.filter((_: any, i: number) => i !== cIdx);
-                                      const nextCities = nextConfigs.map((c: any) => c.name);
-                                      if (session) {
-                                        setSession({
-                                          ...session,
-                                          draft: {
-                                            ...session.draft,
-                                            targeting: {
-                                              ...session.draft.targeting,
-                                              cityConfigs: nextConfigs,
-                                              cities: nextCities,
-                                              locationDescription:
-                                                nextCities.join(", ") ||
-                                                (targeting.countries?.join(", ") || "All India"),
-                                            },
-                                          },
-                                        });
-                                      }
-                                    }}
-                                    className="text-blue-400 hover:text-red-600 ml-0.5 cursor-pointer font-bold text-sm leading-none"
-                                    title="Remove city"
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                              ))
-                            ) : targeting.cities && targeting.cities.length > 0 ? (
-                              targeting.cities.map((city: string, cIdx: number) => {
-                                const cleanCity = city.replace(/^Set\s+/i, "").trim();
-                                return (
-                                  <span
-                                    key={cIdx}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200 shadow-2xs"
-                                  >
-                                    <MapPin className="h-3 w-3 text-blue-600" />
-                                    <span>{cleanCity}</span>
-                                    <span className="px-1.5 py-0.5 bg-blue-200/70 text-blue-800 text-[10px] font-bold rounded-full">
-                                      {targeting.radiusKm || 30} km
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const nextCities = targeting.cities.filter((_: any, i: number) => i !== cIdx);
-                                        if (session) {
-                                          setSession({
-                                            ...session,
-                                            draft: {
-                                              ...session.draft,
-                                              targeting: {
-                                                ...session.draft.targeting,
-                                                cities: nextCities,
-                                                locationDescription: nextCities.join(", ") || "All India",
-                                              },
-                                            },
-                                          });
-                                        }
-                                      }}
-                                      className="text-blue-400 hover:text-red-600 ml-0.5 cursor-pointer font-bold text-sm leading-none"
-                                      title="Remove city"
-                                    >
-                                      ×
-                                    </button>
-                                  </span>
-                                );
-                              })
-                            ) : targeting.locationDescription ? (
-                              targeting.locationDescription.split(/[,&;\/|]\s*|\s+and\s+/i).map((c: string, idx: number) => {
-                                const cleanC = c.replace(/^Set\s+/i, "").trim();
-                                if (!cleanC) return null;
-                                return (
-                                  <span
-                                    key={idx}
-                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200 shadow-2xs"
-                                  >
-                                    <MapPin className="h-3 w-3 text-blue-600" />
-                                    {cleanC}
-                                  </span>
-                                );
-                              })
-                            ) : (
-                              <span className="text-slate-900 font-semibold flex items-center gap-1">
-                                <Globe className="h-3.5 w-3.5 text-slate-500" />
-                                All India
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Postal Codes display */}
-                          {targeting.postalCodes && targeting.postalCodes.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">PIN Codes:</span>
-                              {targeting.postalCodes.map((pin: string, idx: number) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 text-xs font-semibold border border-purple-200 shadow-2xs"
-                                >
-                                  <Hash className="h-3 w-3 text-purple-600" />
-                                  {pin}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Bulk Location Action Bar & Quick Presets */}
-                          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-                            <button
-                              type="button"
-                              onClick={openBulkLocationManager}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[11px] font-semibold rounded-md shadow-2xs cursor-pointer transition-all hover:shadow"
-                            >
-                              <Sliders className="h-3.5 w-3.5" />
-                              <span>Manage Bulk Locations & Radius</span>
-                            </button>
-
-                            <div className="relative flex items-center gap-1">
-                              <input
-                                type="text"
-                                value={cityInput}
-                                placeholder="Add single city..."
-                                onChange={(e) => setCityInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" && cityInput.trim()) {
-                                    e.preventDefault();
-                                    const cur = targeting.cities || [];
-                                    const curConfigs = targeting.cityConfigs || [];
-                                    const cName = cityInput.trim();
-                                    if (!cur.includes(cName)) {
-                                      const nextCities = [...cur, cName];
-                                      const nextConfigs = [...curConfigs, { name: cName, radiusKm: 30 }];
-                                      if (session) {
-                                        setSession({
-                                          ...session,
-                                          draft: {
-                                            ...session.draft,
-                                            targeting: {
-                                              ...session.draft.targeting,
-                                              cities: nextCities,
-                                              cityConfigs: nextConfigs,
-                                              locationDescription: nextCities.join(", "),
-                                            },
-                                          },
-                                        });
-                                      }
-                                    }
-                                    setCityInput("");
-                                    setSingleCitySuggestions([]);
-                                  }
-                                }}
-                                className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[11px] text-slate-800 w-36 focus:outline-none focus:border-blue-500"
-                              />
-
-                              {/* Dropdown for single city input */}
-                              {singleCitySuggestions.length > 0 && (
-                                <div className="absolute left-0 top-full mt-1 bg-white border border-blue-200 rounded-lg shadow-lg z-50 w-56 max-h-48 overflow-y-auto divide-y divide-slate-100">
-                                  {singleCitySuggestions.map((sug, idx) => (
-                                    <button
-                                      key={idx}
-                                      type="button"
-                                      onClick={() => {
-                                        const cur = targeting.cities || [];
-                                        const curConfigs = targeting.cityConfigs || [];
-                                        const cName = sug.name.trim();
-                                        if (!cur.includes(cName)) {
-                                          const nextCities = [...cur, cName];
-                                          const nextConfigs = [...curConfigs, { name: cName, radiusKm: 30 }];
-                                          if (session) {
-                                            setSession({
-                                              ...session,
-                                              draft: {
-                                                ...session.draft,
-                                                targeting: {
-                                                  ...session.draft.targeting,
-                                                  cities: nextCities,
-                                                  cityConfigs: nextConfigs,
-                                                  locationDescription: nextCities.join(", "),
-                                                },
-                                              },
-                                            });
-                                          }
-                                        }
-                                        setCityInput("");
-                                        setSingleCitySuggestions([]);
-                                      }}
-                                      className="w-full text-left px-2.5 py-1.5 text-[11px] hover:bg-blue-50 flex items-center justify-between text-slate-800 cursor-pointer"
-                                    >
-                                      <span className="font-semibold text-slate-900">{sug.name}</span>
-                                      <span className="text-[10px] text-slate-400">{sug.region || "IN"}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (cityInput.trim()) {
-                                    const cur = targeting.cities || [];
-                                    const curConfigs = targeting.cityConfigs || [];
-                                    const cName = cityInput.trim();
-                                    if (!cur.includes(cName)) {
-                                      const nextCities = [...cur, cName];
-                                      const nextConfigs = [...curConfigs, { name: cName, radiusKm: 30 }];
-                                      if (session) {
-                                        setSession({
-                                          ...session,
-                                          draft: {
-                                            ...session.draft,
-                                            targeting: {
-                                              ...session.draft.targeting,
-                                              cities: nextCities,
-                                              cityConfigs: nextConfigs,
-                                              locationDescription: nextCities.join(", "),
-                                            },
-                                          },
-                                        });
-                                      }
-                                    }
-                                    setCityInput("");
-                                    setSingleCitySuggestions([]);
-                                  }
-                                }}
-                                className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded border border-blue-200 cursor-pointer"
-                              >
-                                + Add
-                              </button>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (session) {
-                                  setSession({
-                                    ...session,
-                                    draft: {
-                                      ...session.draft,
-                                      targeting: {
-                                        ...session.draft.targeting,
-                                        locationType: "COUNTRY",
-                                        countries: ["India"],
-                                        cities: [],
-                                        cityConfigs: [],
-                                        postalCodes: [],
-                                        locationDescription: "All India",
-                                      },
-                                    },
-                                  });
-                                }
-                              }}
-                              className="text-[10px] text-slate-500 hover:text-slate-800 underline ml-auto cursor-pointer"
-                            >
-                              Reset to All India
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-start">
-                        <span className="text-slate-500 font-medium pt-1">Demographics</span>
-                        <div className="col-span-3 space-y-2">
-                          <div className="flex flex-wrap items-center gap-3">
-                            {/* Age Range Selectors */}
-                            <div className="flex items-center gap-1 text-xs">
-                              <span className="text-slate-500 text-[11px] font-medium">Age:</span>
-                              <select
-                                value={targeting.ageMin || 18}
-                                disabled={Boolean(campaign.specialAdCategory && campaign.specialAdCategory !== "NONE")}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value);
-                                  if (session) {
-                                    setSession({
-                                      ...session,
-                                      draft: {
-                                        ...session.draft,
-                                        targeting: {
-                                          ...session.draft.targeting,
-                                          ageMin: val,
-                                        },
-                                      },
-                                    });
-                                  }
-                                }}
-                                className="bg-white border border-slate-200 text-slate-800 text-[11px] font-semibold rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
-                              >
-                                {[18, 21, 25, 30, 35, 40, 45, 50].map((a) => (
-                                  <option key={a} value={a}>{a}</option>
-                                ))}
-                              </select>
-                              <span className="text-slate-400 font-bold">to</span>
-                              <select
-                                value={targeting.ageMax || 65}
-                                disabled={Boolean(campaign.specialAdCategory && campaign.specialAdCategory !== "NONE")}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value);
-                                  if (session) {
-                                    setSession({
-                                      ...session,
-                                      draft: {
-                                        ...session.draft,
-                                        targeting: {
-                                          ...session.draft.targeting,
-                                          ageMax: val,
-                                        },
-                                      },
-                                    });
-                                  }
-                                }}
-                                className="bg-white border border-slate-200 text-slate-800 text-[11px] font-semibold rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
-                              >
-                                {[25, 30, 35, 40, 45, 50, 55, 60, 65].map((a) => (
-                                  <option key={a} value={a}>{a === 65 ? "65+" : a}</option>
-                                ))}
-                              </select>
-                            </div>
-
-                            {/* Gender Toggle */}
-                            <div className="flex items-center gap-1">
-                              <span className="text-slate-500 text-[11px] font-medium mr-1">Gender:</span>
-                              <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 text-[10px] font-bold">
-                                {["ALL", "MEN", "WOMEN"].map((g) => {
-                                  const isSelected = (!targeting.gender && g === "ALL") || targeting.gender === g;
-                                  const isSpecial = Boolean(campaign.specialAdCategory && campaign.specialAdCategory !== "NONE");
-                                  return (
-                                    <button
-                                      key={g}
-                                      type="button"
-                                      disabled={isSpecial}
-                                      onClick={() => {
-                                        if (session) {
-                                          setSession({
-                                            ...session,
-                                            draft: {
-                                              ...session.draft,
-                                              targeting: {
-                                                ...session.draft.targeting,
-                                                gender: g,
-                                              },
-                                            },
-                                          });
-                                        }
-                                      }}
-                                      className={`px-2 py-0.5 rounded transition-all ${
-                                        isSelected
-                                          ? "bg-white text-blue-600 shadow-2xs font-extrabold"
-                                          : "text-slate-600 hover:text-slate-900"
-                                      } ${isSpecial ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                                    >
-                                      {g === "ALL" ? "All" : g === "MEN" ? "Men" : "Women"}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-
-                          {Boolean(campaign.specialAdCategory && campaign.specialAdCategory !== "NONE") && (
-                            <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
-                              🔒 Meta Special Ad Category policy requires non-discriminatory targeting (18–65+ & All Genders).
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Advantage+ Detailed Targeting & Interest Tagging */}
-                      <div className="grid grid-cols-4 px-4 py-3 items-start bg-slate-50/50">
-                        <span className="text-slate-500 font-medium pt-1">Advantage+ Targeting</span>
-                        <div className="col-span-3 space-y-2">
-                          <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
-                            <div className="space-y-0.5">
-                              <span className="text-xs font-bold text-slate-900 block">Advantage+ detailed targeting</span>
-                              <span className="text-[10px] text-slate-500 block">Include people who match demographics, interests or behaviours</span>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={targeting.advantagePlusAudience !== false}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  if (session) {
-                                    setSession({
-                                      ...session,
-                                      draft: {
-                                        ...session.draft,
-                                        targeting: {
-                                          ...session.draft.targeting,
-                                          advantagePlusAudience: checked,
-                                        },
-                                      },
-                                    });
-                                  }
-                                }}
-                                className="sr-only peer"
-                              />
-                              <div className="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#1877F2]"></div>
-                            </label>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="font-bold text-slate-700">Demographics, Interests & Behaviours</span>
-                              <button
-                                type="button"
-                                onClick={openDetailedTargetingModal}
-                                className="text-[10px] text-[#1877F2] font-bold cursor-pointer hover:underline flex items-center gap-0.5"
-                              >
-                                <span>Browse Categories</span>
-                                <ChevronRight className="h-3 w-3" />
-                              </button>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5 pt-0.5">
-                              {targeting.interests?.length ? (
-                                targeting.interests.map((tag: string, tIdx: number) => (
-                                  <span key={tIdx} className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-900 text-[11px] font-bold border border-sky-200 shadow-2xs flex items-center gap-1">
-                                    <span>{tag}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const nextInterests = targeting.interests.filter((_: any, i: number) => i !== tIdx);
-                                        if (session) {
-                                          setSession({
-                                            ...session,
-                                            draft: {
-                                              ...session.draft,
-                                              targeting: {
-                                                ...session.draft.targeting,
-                                                interests: nextInterests,
-                                              },
-                                            },
-                                          });
-                                        }
-                                      }}
-                                      className="text-sky-400 hover:text-sky-700 ml-1 cursor-pointer font-bold"
-                                    >
-                                      ×
-                                    </button>
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="text-[11px] text-slate-500 italic">Advantage+ Automated Audience Expansion active</span>
-                              )}
-                            </div>
-
-                            {/* Dynamic 1-Click Interest Recommendations based on user business & niche */}
-                            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Suggested:</span>
-                              {(() => {
-                                const suggestedAudiences: Array<{ id: string | number; name: string }> = (targeting as any)?.suggestedAudiences || [];
-                                const metaApiSuggestions = suggestedAudiences.map((aud) => aud.name);
-
-                                const convText = (session?.conversation || []).map((m: any) => m.text || "").join(" ");
-                                const brandContext = `${campaign.brandName || ""} ${campaign.name || ""} ${campaign.promotedProduct || ""} ${campaign.promotedService || ""} ${campaign.offer || ""} ${convText}`.toLowerCase();
-                                
-                                // Extract dynamic interest keywords directly from live user input & conversation context
-                                const extractedKeywords: string[] = [];
-                                const words = brandContext.split(/\s+/);
-                                for (const word of words) {
-                                  const clean = word.replace(/[^\w\u0900-\u097F]/g, "").trim();
-                                  if (clean.length >= 3 && !/^(with|from|this|that|your|have|more|store|shop|provide|offer|campaign|promote|want|like|need|best|service|product|about|hello|please|give|show|into|them|they|were|been)$/i.test(clean)) {
-                                    const formatted = clean.charAt(0).toUpperCase() + clean.slice(1);
-                                    if (!extractedKeywords.includes(formatted) && extractedKeywords.length < 5) {
-                                      extractedKeywords.push(formatted);
-                                    }
-                                  }
-                                }
-
-                                const dynamicSuggestions: string[] = metaApiSuggestions.length > 0 
-                                  ? metaApiSuggestions 
-                                  : extractedKeywords.length > 0 
-                                  ? extractedKeywords.map(k => `🎯 ${k}`) 
-                                  : ["🎯 Target Audience Interest", "🛒 Engaged Shoppers"];
-
-                                return dynamicSuggestions.map((sug, sIdx) => {
-                                  const isSelected = targeting.interests?.includes(sug);
-                                  return (
-                                    <button
-                                      key={sIdx}
-                                      type="button"
-                                      onClick={() => {
-                                        const cur = targeting.interests || [];
-                                        const next = isSelected ? cur.filter((x: string) => x !== sug) : [...cur, sug];
-                                        if (session) {
-                                          setSession({
-                                            ...session,
-                                            draft: {
-                                              ...session.draft,
-                                              targeting: {
-                                                ...session.draft.targeting,
-                                                interests: next,
-                                              },
-                                            },
-                                          });
-                                        }
-                                      }}
-                                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all border ${
-                                        isSelected
-                                          ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
-                                          : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600"
-                                      }`}
-                                    >
-                                      {isSelected ? `✓ ${sug}` : `+ ${sug}`}
-                                    </button>
-                                  );
-                                });
-                              })()}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-start">
-                        <span className="text-slate-500 font-medium pt-1">Placements</span>
-                        <div className="col-span-3 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-900 font-bold text-xs">
-                              Advantage+ Placements (Recommended)
-                            </span>
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                              AI Auto-Optimized
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {["Facebook Feeds", "Instagram Feeds", "Reels & Stories", "Instagram Explore", "Search Results", "Messenger"].map((p, pIdx) => (
-                              <span key={pIdx} className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                                ✓ {p}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-start">
-                        <span className="text-slate-500 font-medium">Languages</span>
-                        <span className="col-span-3 text-slate-900 font-semibold flex items-center gap-1.5 flex-wrap">
-                          <span>{targeting.languages?.join(", ") || "All Languages (Auto-Adapted)"}</span>
-                          {targeting.locales && targeting.locales.length > 0 && (
-                            <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
-                              Meta AdLocale #{targeting.locales.join(", #")}
-                            </span>
-                          )}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-4 px-4 py-2.5 items-center">
-                        <span className="text-slate-500 font-medium">Pixel Tracking</span>
-                        <div className="col-span-3 flex items-center gap-2">
-                          {context.pixels && context.pixels.length > 0 ? (
-                            <select
-                              value={draft.pixelId || context?.pixelId || context?.pixels?.[0]?.id || ""}
-                              onChange={(e) => {
-                                const newPixId = e.target.value;
-                                if (session) {
-                                  setSession({
-                                    ...session,
-                                    draft: {
-                                      ...session.draft,
-                                      pixelId: newPixId,
-                                    },
-                                  });
-                                }
-                              }}
-                              className="bg-white border border-slate-200 text-slate-800 text-[11px] font-semibold rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
-                            >
-                              {context.pixels.map((pix: any) => (
-                                <option key={pix.id} value={pix.id}>
-                                  {pix.name} (ID: {pix.id})
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="text-slate-900 font-semibold">
-                              {draft.pixelId || context?.pixelId ? `Meta Dataset Pixel (ID: ${draft.pixelId || context?.pixelId})` : "Standard Meta Conversion Dataset"} · Auto UTM Parameters
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 3. Confirmation & Publish Action Card */}
+                  {/* 2. Confirmation & Publish Action Card */}
                   <div className="pt-2">
                     <div className="border border-slate-200/90 rounded-2xl overflow-hidden bg-white shadow-sm">
                       <div className="px-4 py-3 bg-slate-50/80 font-bold text-[13px] text-slate-900 border-b border-slate-200/80 flex items-center justify-between">
@@ -4303,6 +3885,7 @@ export default function MetaAIChatbotStudioPage() {
                     </div>
                   </div>
                 </div>
+              )}
           </div>
         </div>
       </div>
@@ -5522,853 +5105,254 @@ export default function MetaAIChatbotStudioPage() {
           </div>
         </div>
       )}
-      {/* ── HIDDEN FILE INPUT FOR "ADD FILE" ── */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileUpload}
-        accept="image/*,video/*"
-        className="hidden"
-      />
 
-      {/* ── SELECT AD CREATIVE LIBRARY MODAL ── */}
-      {showAdLibraryModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <div>
-                <h3 className="text-base font-bold text-gray-900">Meta Creative Library</h3>
-                <p className="text-xs text-gray-500">Select an existing ad creative to attach to your campaign.</p>
-              </div>
-              <button
-                onClick={() => setShowAdLibraryModal(false)}
-                className="h-8 w-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-900 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* DEDICATED PRE-FLIGHT INTERACTIVE EDIT MODALS                  */}
+      {/* ───────────────────────────────────────────────────────────── */}
 
-            <div className="flex-1 overflow-y-auto py-4">
-              {loadingMedia ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-[#1877F2] mb-2" />
-                  <p className="text-xs text-gray-500">Loading your Meta Ad library...</p>
-                </div>
-              ) : mediaLibrary.images?.length === 0 && mediaLibrary.videos?.length === 0 ? (
-                <div className="text-center py-10">
-                  <p className="text-xs text-gray-500 mb-3">No existing creatives found in your Meta Ad Account.</p>
-                  <button
-                    onClick={() => {
-                      setShowAdLibraryModal(false);
-                      fileInputRef.current?.click();
-                    }}
-                    className="px-4 py-2 bg-[#1877F2] text-white rounded-lg text-xs font-semibold hover:bg-[#166FE5] cursor-pointer flex items-center gap-1.5 mx-auto"
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    <span>Upload New File From Device</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-3">
-                  {mediaLibrary.images?.map((img: any, idx: number) => (
-                    <div
-                      key={img.hash || idx}
-                      onClick={() => handleSelectMediaFromLibrary(img, "IMAGE")}
-                      className="group relative border border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#1877F2] hover:shadow-md transition-all"
-                    >
-                      <img
-                        src={img.url || img.permalink_url}
-                        alt={img.name || "Ad Image"}
-                        className="w-full h-28 object-cover group-hover:scale-105 transition-transform"
-                      />
-                      <div className="p-1.5 bg-white text-[11px] truncate font-medium text-gray-700">
-                        {img.name || `Image #${idx + 1}`}
-                      </div>
-                    </div>
-                  ))}
-
-                  {mediaLibrary.videos?.map((vid: any, idx: number) => (
-                    <div
-                      key={vid.id || idx}
-                      onClick={() => handleSelectMediaFromLibrary(vid, "VIDEO")}
-                      className="group relative border border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#1877F2] hover:shadow-md transition-all"
-                    >
-                      {vid.picture ? (
-                        <img
-                          src={vid.picture}
-                          alt={vid.name || "Ad Video"}
-                          className="w-full h-28 object-cover group-hover:scale-105 transition-transform"
-                        />
-                      ) : (
-                        <div className="w-full h-28 bg-gray-900 flex items-center justify-center text-white text-xs">
-                          🎬 Video
-                        </div>
-                      )}
-                      <div className="p-1.5 bg-white text-[11px] truncate font-medium text-gray-700">
-                        {vid.name || `Video #${idx + 1}`}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── BULK LOCATION & RADIUS MANAGER MODAL ── */}
-      {showBulkLocationModal && (
+      {/* ── 1. AD MEDIA & CREATIVE STUDIO MODAL ── */}
+      {activeEditModal === "media" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-200/80 overflow-hidden ring-1 ring-black/5">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-blue-50/30 to-indigo-50/20">
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 ring-2 ring-white">
-                  <Map className="h-5 w-5" />
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200/80 overflow-hidden ring-1 ring-black/5 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-purple-50/30 to-indigo-50/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+                  <ImageIcon className="h-5 w-5" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
-                      Location & Radius Manager
-                    </h3>
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-full border border-blue-200/80 uppercase tracking-wider">
-                      Meta Precision
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Configure multi-city radius (15–80 km), nationwide reach, or postal PIN codes
-                  </p>
+                  <h3 className="text-base font-extrabold text-slate-900">Ad Creative & Media Studio</h3>
+                  <p className="text-xs text-slate-500">Attach an image or video for Facebook & Instagram placements</p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setShowBulkLocationModal(false)}
-                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+                onClick={() => setActiveEditModal(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex border-b border-slate-200/80 bg-slate-50/50 px-6 pt-2.5 gap-2">
-              <button
-                type="button"
-                onClick={() => setBulkActiveTab("cities")}
-                className={`pb-2.5 px-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-                  bulkActiveTab === "cities"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
+            <div className="p-6 space-y-4">
+              {/* Option 1: Upload from device */}
+              <div
+                onClick={() => {
+                  setActiveEditModal(null);
+                  fileInputRef.current?.click();
+                }}
+                className="p-4 rounded-2xl border border-purple-200/90 bg-purple-50/50 hover:bg-purple-50 hover:border-purple-300 transition-all cursor-pointer flex items-center gap-3.5 group shadow-2xs"
               >
-                <MapPin className="h-3.5 w-3.5" />
-                <span>Cities & Radius</span>
-                <span className={`ml-1 px-2 py-0.5 text-[10px] rounded-full font-bold transition-all ${
-                  bulkActiveTab === "cities" ? "bg-blue-100 text-blue-700 shadow-2xs" : "bg-slate-200/70 text-slate-600"
-                }`}>
-                  {bulkCities.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setBulkActiveTab("countries")}
-                className={`pb-2.5 px-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-                  bulkActiveTab === "countries"
-                    ? "border-emerald-600 text-emerald-600"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                <Globe className="h-3.5 w-3.5" />
-                <span>Countries</span>
-                <span className={`ml-1 px-2 py-0.5 text-[10px] rounded-full font-bold transition-all ${
-                  bulkActiveTab === "countries" ? "bg-emerald-100 text-emerald-700 shadow-2xs" : "bg-slate-200/70 text-slate-600"
-                }`}>
-                  {bulkCountries.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setBulkActiveTab("pincodes")}
-                className={`pb-2.5 px-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-                  bulkActiveTab === "pincodes"
-                    ? "border-purple-600 text-purple-600"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                <Hash className="h-3.5 w-3.5" />
-                <span>PIN Codes</span>
-                <span className={`ml-1 px-2 py-0.5 text-[10px] rounded-full font-bold transition-all ${
-                  bulkActiveTab === "pincodes" ? "bg-purple-100 text-purple-700 shadow-2xs" : "bg-slate-200/70 text-slate-600"
-                }`}>
-                  {bulkPincodes.length}
-                </span>
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-5">
-              {/* TAB 1: CITIES & RADIUS */}
-              {bulkActiveTab === "cities" && (
-                <div className="space-y-4">
-                  {/* Premium Quick Add City Box with Live Auto-Suggest */}
-                  <div className="p-4 bg-gradient-to-br from-slate-50 to-blue-50/20 border border-slate-200/90 rounded-2xl space-y-2.5 shadow-2xs relative">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <span>Search & Add Target Cities:</span>
-                      </label>
-                      {isLoadingCitySuggestions && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-blue-600 font-semibold animate-pulse">
-                          <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                          <span>Searching Meta locations...</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="relative">
-                      <textarea
-                        rows={2}
-                        value={bulkCityText}
-                        onChange={(e) => setBulkCityText(e.target.value)}
-                        placeholder="Type starting letters (e.g. 'sat', 'pun', 'mum')... or paste: Mumbai (40km), Pune (25km)"
-                        className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-800 shadow-2xs transition-all resize-none"
-                      />
-
-                      {/* Clean Floating Suggestions Dropdown */}
-                      {citySuggestions.length > 0 && (
-                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-blue-200/90 rounded-2xl shadow-2xl z-50 max-h-56 overflow-y-auto divide-y divide-slate-100 animate-fadeIn backdrop-blur-md ring-1 ring-black/5">
-                          {citySuggestions.map((sug, sIdx) => {
-                            const isAlreadyAdded = bulkCities.some(
-                              (c) => c.name.toLowerCase() === sug.name.toLowerCase()
-                            );
-                            return (
-                              <button
-                                key={sug.key || sIdx}
-                                type="button"
-                                onClick={() => handleSelectCitySuggestion(sug)}
-                                className={`w-full text-left px-4 py-2.5 text-xs flex items-center justify-between transition-all cursor-pointer ${
-                                  isAlreadyAdded
-                                    ? "bg-slate-50/70 text-slate-400"
-                                    : "hover:bg-blue-50/80 text-slate-800"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 font-bold">
-                                    📍
-                                  </div>
-                                  <div>
-                                    <span className="font-bold text-slate-900">{sug.name}</span>
-                                    {sug.region && (
-                                      <span className="text-[11px] text-slate-500 ml-1.5">
-                                        ({sug.region}, India)
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <span className={`text-[10px] px-2.5 py-1 rounded-lg font-bold transition-all ${
-                                  isAlreadyAdded
-                                    ? "bg-slate-200 text-slate-600"
-                                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-2xs"
-                                }`}>
-                                  {isAlreadyAdded ? "Added ✓" : "+ Add City"}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] text-slate-400 font-semibold">Quick Presets:</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const metros = [
-                              { name: "Mumbai", radiusKm: 40 },
-                              { name: "Delhi", radiusKm: 40 },
-                              { name: "Bangalore", radiusKm: 35 },
-                              { name: "Hyderabad", radiusKm: 30 },
-                              { name: "Pune", radiusKm: 25 },
-                              { name: "Chennai", radiusKm: 30 },
-                            ];
-                            const existing = new Set(bulkCities.map((c) => c.name.toLowerCase()));
-                            const merged = [...bulkCities];
-                            for (const m of metros) {
-                              if (!existing.has(m.name.toLowerCase())) {
-                                merged.push(m);
-                              }
-                            }
-                            setBulkCities(merged);
-                          }}
-                          className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 rounded-lg text-[11px] font-semibold text-slate-600 cursor-pointer shadow-2xs transition-colors"
-                        >
-                          + Top Metros
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const tier2 = [
-                              { name: "Ahmedabad", radiusKm: 30 },
-                              { name: "Jaipur", radiusKm: 25 },
-                              { name: "Surat", radiusKm: 25 },
-                              { name: "Indore", radiusKm: 25 },
-                              { name: "Lucknow", radiusKm: 30 },
-                            ];
-                            const existing = new Set(bulkCities.map((c) => c.name.toLowerCase()));
-                            const merged = [...bulkCities];
-                            for (const t of tier2) {
-                              if (!existing.has(t.name.toLowerCase())) {
-                                merged.push(t);
-                              }
-                            }
-                            setBulkCities(merged);
-                          }}
-                          className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 rounded-lg text-[11px] font-semibold text-slate-600 cursor-pointer shadow-2xs transition-colors"
-                        >
-                          + Tier-2 Hubs
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleAddBulkCitiesFromText}
-                        disabled={!bulkCityText.trim()}
-                        className="px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 cursor-pointer transition-all"
-                      >
-                        + Add to List
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Bulk Radius Uniform Adjuster */}
-                  {bulkCities.length > 1 && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-blue-50/60 border border-blue-100 rounded-xl text-xs">
-                      <span className="font-semibold text-blue-900 flex items-center gap-1.5">
-                        <Sliders className="h-3.5 w-3.5 text-blue-600" />
-                        Apply uniform radius to all {bulkCities.length} cities:
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {[20, 30, 40, 50, 80].map((rVal) => (
-                          <button
-                            key={rVal}
-                            type="button"
-                            onClick={() => {
-                              setBulkCities(bulkCities.map((c) => ({ ...c, radiusKm: rVal })));
-                            }}
-                            className="px-2.5 py-0.5 bg-white hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg text-[11px] font-bold text-blue-700 transition-all cursor-pointer shadow-2xs"
-                          >
-                            {rVal} km
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* List of Configured Cities with Individual Slider */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
-                      <span>Configured Target Cities ({bulkCities.length})</span>
-                      {bulkCities.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setBulkCities([])}
-                          className="text-red-500 hover:text-red-700 text-[11px] font-semibold cursor-pointer transition-colors"
-                        >
-                          Clear All
-                        </button>
-                      )}
-                    </div>
-
-                    {bulkCities.length === 0 ? (
-                      <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                        <Compass className="h-9 w-9 text-slate-300 mx-auto mb-2.5" />
-                        <p className="text-xs font-bold text-slate-700">No specific cities added yet</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Search and add cities above or target entire countries.</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                        {bulkCities.map((city, idx) => (
-                          <div
-                            key={idx}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white border border-slate-200/90 rounded-2xl shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
-                                {idx + 1}
-                              </div>
-                              <div>
-                                <span className="text-xs font-extrabold text-slate-900 block">{city.name}</span>
-                                <span className="text-[10px] text-slate-400">Individual Geo-Radius</span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-3 flex-1 sm:max-w-xs">
-                              <div className="flex-1 flex items-center gap-2">
-                                <input
-                                  type="range"
-                                  min={15}
-                                  max={80}
-                                  step={1}
-                                  value={city.radiusKm}
-                                  onChange={(e) => {
-                                    const val = parseInt(e.target.value, 10);
-                                    setBulkCities(
-                                      bulkCities.map((c, i) => (i === idx ? { ...c, radiusKm: val } : c))
-                                    );
-                                  }}
-                                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                                />
-                                <span className="inline-block w-14 text-center px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-800 text-[11px] font-bold rounded-lg font-mono">
-                                  {city.radiusKm} km
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-1">
-                                {[20, 40].map((preset) => (
-                                  <button
-                                    key={preset}
-                                    type="button"
-                                    onClick={() => {
-                                      setBulkCities(
-                                        bulkCities.map((c, i) =>
-                                          i === idx ? { ...c, radiusKm: preset } : c
-                                        )
-                                      );
-                                    }}
-                                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md border cursor-pointer transition-all ${
-                                      city.radiusKm === preset
-                                        ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
-                                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-                                    }`}
-                                  >
-                                    {preset}k
-                                  </button>
-                                ))}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setBulkCities(bulkCities.filter((_, i) => i !== idx));
-                                  }}
-                                  className="w-6 h-6 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center cursor-pointer transition-colors ml-0.5"
-                                  title="Remove city"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform shrink-0">
+                  <Upload className="h-5 w-5" />
                 </div>
-              )}
-
-              {/* TAB 2: COUNTRIES */}
-              {bulkActiveTab === "countries" && (
-                <div className="space-y-4">
-                  <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-50 via-emerald-50/20 to-teal-50/10 border border-slate-200/90 rounded-2xl space-y-3.5 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Globe className="h-3.5 w-3.5 text-emerald-600" />
-                        <span>Targeted Countries & Regions:</span>
-                      </label>
-                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-                        Meta Graph API & Global Registry
-                      </span>
-                    </div>
-
-                    <div className="relative">
-                      <div className="flex items-center gap-2">
-                        <div className="relative flex-1">
-                          <input
-                            type="text"
-                            value={bulkCountryText}
-                            onChange={(e) => setBulkCountryText(e.target.value)}
-                            placeholder="Type starting letters (e.g. 'chi' for China, 'ind' for India, 'uni' for USA/UK)..."
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && bulkCountryText.trim()) {
-                                e.preventDefault();
-                                if (countrySuggestions.length > 0) {
-                                  handleAddBulkCountry(countrySuggestions[0].name);
-                                } else {
-                                  handleAddBulkCountry(bulkCountryText);
-                                }
-                                setBulkCountryText("");
-                                setCountrySuggestions([]);
-                              }
-                            }}
-                            className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-slate-800 shadow-2xs transition-all pr-8"
-                          />
-                          {isLoadingCountrySuggestions && (
-                            <div className="absolute right-2.5 top-3">
-                              <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-                            </div>
-                          )}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (bulkCountryText.trim()) {
-                              if (countrySuggestions.length > 0) {
-                                handleAddBulkCountry(countrySuggestions[0].name);
-                              } else {
-                                handleAddBulkCountry(bulkCountryText);
-                              }
-                              setBulkCountryText("");
-                              setCountrySuggestions([]);
-                            }
-                          }}
-                          disabled={!bulkCountryText.trim()}
-                          className="px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-emerald-500/20 transition-all shrink-0"
-                        >
-                          + Add Country
-                        </button>
-                      </div>
-
-                      {/* Live Country Suggestions Dropdown */}
-                      {countrySuggestions.length > 0 && (
-                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white/95 backdrop-blur-md border border-emerald-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 animate-fadeIn ring-1 ring-black/5">
-                          {countrySuggestions.map((sug, sIdx) => {
-                            const isAlreadyAdded = bulkCountries.some(
-                              (c) => c.toLowerCase() === sug.name.toLowerCase()
-                            );
-                            return (
-                              <div
-                                key={sug.key || sIdx}
-                                onClick={() => {
-                                  if (!isAlreadyAdded) {
-                                    handleAddBulkCountry(sug.name);
-                                  }
-                                  setBulkCountryText("");
-                                  setCountrySuggestions([]);
-                                }}
-                                className={`px-4 py-2.5 flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer select-none ${
-                                  isAlreadyAdded
-                                    ? "bg-emerald-50/50 text-slate-400"
-                                    : "hover:bg-emerald-50/80 text-slate-800"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-700 font-extrabold text-[11px]">
-                                    {sug.countryCode || "🌐"}
-                                  </span>
-                                  <div>
-                                    <span className="font-bold text-slate-900 block">{sug.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">
-                                      {sug.region ? `${sug.region} · ` : ""}Verified Meta Ad Country
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <span
-                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                                    isAlreadyAdded
-                                      ? "bg-slate-100 text-slate-400"
-                                      : "bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700"
-                                  }`}
-                                >
-                                  {isAlreadyAdded ? "✓ Added" : "+ Add Country"}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-1">
-                      <span className="text-[11px] text-slate-400 font-semibold block mb-2">
-                        Quick Add Global Commercial Markets:
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          "India",
-                          "United States",
-                          "United Arab Emirates",
-                          "United Kingdom",
-                          "Canada",
-                          "Australia",
-                          "Singapore",
-                          "Saudi Arabia",
-                          "Germany",
-                        ].map((cName) => {
-                          const isAdded = bulkCountries.some(
-                            (c) => c.toLowerCase() === cName.toLowerCase()
-                          );
-                          return (
-                            <button
-                              key={cName}
-                              type="button"
-                              onClick={() => {
-                                if (isAdded) {
-                                  setBulkCountries(
-                                    bulkCountries.filter(
-                                      (c) => c.toLowerCase() !== cName.toLowerCase()
-                                    )
-                                  );
-                                } else {
-                                  handleAddBulkCountry(cName);
-                                }
-                              }}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
-                                isAdded
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs font-bold"
-                                  : "bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30"
-                              }`}
-                            >
-                              {isAdded ? "✓ " : "+ "}
-                              {cName}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                    <span>Upload Image or Video from Device</span>
+                    <span className="text-[10px] text-purple-700 font-bold bg-purple-100/80 px-2 py-0.5 rounded-full">Recommended</span>
                   </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
-                      <span>Selected Countries ({bulkCountries.length})</span>
-                      {bulkCountries.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setBulkCountries([])}
-                          className="text-red-500 hover:text-red-700 text-[11px] font-semibold cursor-pointer transition-colors"
-                        >
-                          Clear All
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 p-3.5 bg-white border border-slate-200/90 rounded-2xl min-h-[60px] items-center shadow-2xs">
-                      {bulkCountries.length === 0 ? (
-                        <p className="text-xs text-slate-400">No countries selected yet.</p>
-                      ) : (
-                        bulkCountries.map((c, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 shadow-2xs"
-                          >
-                            <Globe className="h-3.5 w-3.5 text-emerald-600" />
-                            <span>{c}</span>
-                            <button
-                              type="button"
-                              onClick={() => setBulkCountries(bulkCountries.filter((_, i) => i !== idx))}
-                              className="text-emerald-400 hover:text-red-600 cursor-pointer ml-1 font-bold text-sm leading-none"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Supports JPG, PNG (1080×1080 square) or MP4/MOV reels</p>
                 </div>
-              )}
-
-              {/* TAB 3: POSTAL / PIN CODES */}
-              {bulkActiveTab === "pincodes" && (
-                <div className="space-y-4">
-                  <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-50 via-purple-50/20 to-indigo-50/10 border border-slate-200/90 rounded-2xl space-y-3.5 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Hash className="h-3.5 w-3.5 text-purple-600" />
-                        <span>Search or Bulk Paste Postal PIN Codes:</span>
-                      </label>
-                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-                        5–6 Digit Official Meta Postal Format
-                      </span>
-                    </div>
-
-                    <div className="relative">
-                      <textarea
-                        rows={2}
-                        value={bulkPincodeText}
-                        onChange={(e) => setBulkPincodeText(e.target.value)}
-                        placeholder="Type starting digits (e.g. '4000', '4110', '1100', '5600') or paste multiple codes..."
-                        className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 font-mono text-slate-800 shadow-2xs transition-all resize-none"
-                      />
-                      {isLoadingPincodeSuggestions && (
-                        <div className="absolute right-3 top-3">
-                          <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
-                        </div>
-                      )}
-
-                      {/* Live PIN Code Suggestions Dropdown */}
-                      {pincodeSuggestions.length > 0 && (
-                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white/95 backdrop-blur-md border border-purple-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 animate-fadeIn ring-1 ring-black/5">
-                          {pincodeSuggestions.map((sug, pIdx) => {
-                            const pinVal = sug.postalCode || sug.name;
-                            const isAdded = bulkPincodes.includes(pinVal);
-                            return (
-                              <div
-                                key={sug.key || pIdx}
-                                onClick={() => handleSelectPincodeSuggestion(sug)}
-                                className={`px-4 py-2.5 flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer select-none ${
-                                  isAdded
-                                    ? "bg-purple-50/50 text-slate-400"
-                                    : "hover:bg-purple-50/80 text-slate-800"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-purple-100/70 text-purple-800 font-mono font-extrabold text-[12px]">
-                                    {pinVal}
-                                  </span>
-                                  <div>
-                                    <span className="font-bold text-slate-900 block">{sug.displayName || pinVal}</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">
-                                      {sug.city ? `${sug.city} · ` : ""}{sug.region ? `${sug.region} · ` : ""}Verified Meta Postal Geolocation
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <span
-                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                                    isAdded
-                                      ? "bg-slate-100 text-slate-400"
-                                      : "bg-purple-600 text-white shadow-2xs hover:bg-purple-700"
-                                  }`}
-                                >
-                                  {isAdded ? "✓ Added" : "+ Add PIN"}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                      <p className="text-[11px] text-slate-500">
-                        Extracts and auto-validates 5–6 digit Indian & global postal codes automatically.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleAddBulkPincodesFromText}
-                        disabled={!bulkPincodeText.trim()}
-                        className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-md shadow-purple-500/20 active:scale-98"
-                      >
-                        + Add PIN Codes
-                      </button>
-                    </div>
-
-                    {/* Quick Add Popular High-Intent Metro Hub PINs */}
-                    <div className="pt-2 border-t border-slate-100">
-                      <span className="text-[11px] text-slate-400 font-semibold block mb-2">
-                        Quick Add High-Density Commercial Hubs:
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          { pin: "400051", label: "Mumbai (BKC)" },
-                          { pin: "400050", label: "Mumbai (Bandra)" },
-                          { pin: "411045", label: "Pune (Baner)" },
-                          { pin: "411057", label: "Pune (Hinjawadi)" },
-                          { pin: "415001", label: "Satara (Center)" },
-                          { pin: "110001", label: "Delhi (CP)" },
-                          { pin: "122002", label: "Gurugram (CyberCity)" },
-                          { pin: "560034", label: "Bengaluru (Koramangala)" },
-                          { pin: "500081", label: "Hyderabad (HITEC City)" },
-                        ].map((hub) => {
-                          const isAdded = bulkPincodes.includes(hub.pin);
-                          return (
-                            <button
-                              key={hub.pin}
-                              type="button"
-                              onClick={() => {
-                                if (isAdded) {
-                                  setBulkPincodes(bulkPincodes.filter((p) => p !== hub.pin));
-                                } else {
-                                  setBulkPincodes([...bulkPincodes, hub.pin]);
-                                }
-                              }}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
-                                isAdded
-                                  ? "bg-purple-50 text-purple-800 border-purple-300 shadow-2xs font-bold"
-                                  : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:bg-purple-50/30"
-                              }`}
-                            >
-                              <span className="font-mono font-bold mr-1">{hub.pin}</span>
-                              <span className="text-[10px] text-slate-500 font-normal">({hub.label})</span>
-                              <span className="ml-1.5 text-[10px] font-bold">{isAdded ? "✓" : "+"}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
-                      <span>Configured Postal PIN Codes ({bulkPincodes.length})</span>
-                      {bulkPincodes.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setBulkPincodes([])}
-                          className="text-red-500 hover:text-red-700 text-[11px] font-semibold cursor-pointer transition-colors"
-                        >
-                          Clear All
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 p-3.5 bg-white border border-slate-200/90 rounded-2xl min-h-[64px] max-h-48 overflow-y-auto items-center shadow-2xs">
-                      {bulkPincodes.length === 0 ? (
-                        <p className="text-xs text-slate-400">No postal codes added yet. Search by prefix or click hubs above.</p>
-                      ) : (
-                        bulkPincodes.map((pin, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-xl text-xs font-bold text-purple-800 font-mono shadow-2xs"
-                          >
-                            <Hash className="h-3.5 w-3.5 text-purple-600" />
-                            <span>{pin}</span>
-                            <button
-                              type="button"
-                              onClick={() => setBulkPincodes(bulkPincodes.filter((_, i) => i !== idx))}
-                              className="text-purple-400 hover:text-red-600 cursor-pointer ml-1 font-bold text-sm leading-none"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
-              <div className="text-xs text-slate-500 flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md shadow-2xs">
-                  {bulkCities.length} cities
-                </span>
-                <span>·</span>
-                <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md shadow-2xs">
-                  {bulkCountries.length} countries
-                </span>
-                <span>·</span>
-                <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md shadow-2xs">
-                  {bulkPincodes.length} PIN codes
-                </span>
               </div>
+
+              {/* Option 2: Meta Ad Library */}
+              <div
+                onClick={() => {
+                  setActiveEditModal(null);
+                  setShowAdLibraryModal(true);
+                  fetchMediaLibrary();
+                }}
+                className="p-4 rounded-2xl border border-slate-200/90 bg-white hover:bg-slate-50 hover:border-blue-300 transition-all cursor-pointer flex items-center gap-3.5 group shadow-2xs"
+              >
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform shrink-0">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-slate-900">Choose from Meta Ad Account Library</div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Select previously approved image creatives or video assets</p>
+                </div>
+              </div>
+
+              {/* Option 3: Generate with AI */}
+              <div
+                onClick={() => {
+                  setActiveEditModal(null);
+                  handleSendMessage("Generate a compelling high-converting ad image for my campaign");
+                }}
+                className="p-4 rounded-2xl border border-slate-200/90 bg-white hover:bg-sky-50 hover:border-sky-300 transition-all cursor-pointer flex items-center gap-3.5 group shadow-2xs"
+              >
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform shrink-0">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-slate-900">Generate Ad Graphic with JISNU AI</div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Creates studio-quality promotional creative based on your business offer</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-3.5 bg-slate-50/80 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setActiveEditModal(null)}
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 2. AD COPY & HEADLINE EDITOR MODAL ── */}
+      {activeEditModal === "headline" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-200/80 overflow-hidden ring-1 ring-black/5 flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-blue-50/30 to-indigo-50/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Edit Ad Copy & Headline</h3>
+                  <p className="text-xs text-slate-500">Fine-tune your headline, hook, primary text, and CTA button</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveEditModal(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Quick Variations Selector */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">Quick Angle Presets:</label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditHeadline("🚗 Rent a Car Today – No Hidden Fees!");
+                      setEditPrimaryText("Need a car for a day, weekend, or event? Ak Cars offers hassle-free rentals with flexible rates, 24/7 support, and top-condition vehicles. Book now via WhatsApp and get an instant discount!");
+                      setEditDescription("Fast, reliable, and affordable car rentals in Mumbai & Pune.");
+                    }}
+                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
+                  >
+                    <span>🔥 Direct Offer</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditHeadline("⚡ Stop Overpaying for Taxis & Cabs!");
+                      setEditPrimaryText("Tired of cab cancellations and surge pricing? Get clean, reliable self-drive and rental cars at flat daily rates with zero hidden charges. Direct WhatsApp booking with instant confirmation.");
+                      setEditDescription("Transparent Pricing • 100% Guaranteed Fleet");
+                    }}
+                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
+                  >
+                    <span>⚡ Pain Point & Hook</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditHeadline("⭐ 500+ Happy Renters in Mumbai & Pune!");
+                      setEditPrimaryText("See why travelers and families rate Ak Cars 4.9/5 stars for clean, serviced vehicles. From road trips to airport drops, we guarantee the best rates and seamless WhatsApp support.");
+                      setEditDescription("Rated 4.9/5 by 500+ verified customers");
+                    }}
+                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
+                  >
+                    <span>⭐ Social Proof</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Headline */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800">Ad Headline:</label>
+                  <span className="text-[10px] text-slate-400 font-medium">{editHeadline.length}/40 char recommended</span>
+                </div>
+                <input
+                  type="text"
+                  value={editHeadline}
+                  onChange={(e) => setEditHeadline(e.target.value)}
+                  placeholder="e.g. 🚗 Rent a Car Today – No Hidden Fees!"
+                  className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-semibold text-slate-900 shadow-2xs"
+                />
+              </div>
+
+              {/* Primary Text */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800">Primary Text (Hook & Body):</label>
+                  <span className="text-[10px] text-slate-400 font-medium">{editPrimaryText.length} characters</span>
+                </div>
+                <textarea
+                  rows={4}
+                  value={editPrimaryText}
+                  onChange={(e) => setEditPrimaryText(e.target.value)}
+                  placeholder="Explain your offer, key benefits, and why customers should take action..."
+                  className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-normal text-slate-800 shadow-2xs resize-none"
+                />
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-800">Link Description:</label>
+                <input
+                  type="text"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="e.g. Fast, reliable, and affordable car rentals in Mumbai & Pune."
+                  className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-700 shadow-2xs"
+                />
+              </div>
+
+              {/* CTA Selector */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-800">Call To Action Button:</label>
+                <select
+                  value={editCta}
+                  onChange={(e) => setEditCta(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-semibold text-slate-800 shadow-2xs"
+                >
+                  <option value="WHATSAPP_MESSAGE">💬 Send WhatsApp Message (Recommended)</option>
+                  <option value="LEARN_MORE">👉 Learn More</option>
+                  <option value="BOOK_NOW">📅 Book Now</option>
+                  <option value="CONTACT_US">📞 Contact Us</option>
+                  <option value="APPLY_NOW">📋 Apply Now</option>
+                  <option value="GET_QUOTE">💰 Get Quote</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveEditModal(null);
+                  handleSendMessage("Generate alternative copy variations and text hooks for my ad");
+                }}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Ask AI to rewrite</span>
+              </button>
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setShowBulkLocationModal(false)}
-                  className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition-colors"
+                  onClick={() => setActiveEditModal(null)}
+                  className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  onClick={handleApplyBulkLocations}
-                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 cursor-pointer transition-all hover:scale-[1.01]"
+                  onClick={handleSaveHeadline}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 cursor-pointer transition-all active:scale-98"
                 >
-                  Save & Apply Targeting
+                  Save & Apply Copy
                 </button>
               </div>
             </div>
@@ -6376,366 +5360,576 @@ export default function MetaAIChatbotStudioPage() {
         </div>
       )}
 
-      {/* ── DETAILED TARGETING (DEMOGRAPHICS, INTERESTS, BEHAVIOURS) MODAL ── */}
-      {showDetailedTargetingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-3 sm:p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl ring-1 ring-black/5 border border-slate-200/80 overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-blue-50/30 to-indigo-50/20">
+      {/* ── 3. CAMPAIGN BUDGET & PACING MODAL ── */}
+      {activeEditModal === "budget" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200/80 overflow-hidden ring-1 ring-black/5 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-emerald-50/30 to-teal-50/20">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-700 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
-                  <Target className="h-5 w-5" />
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                  <DollarSign className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-[15px] font-extrabold text-slate-900 flex items-center gap-2">
-                    <span>Meta Ads Detailed Targeting</span>
-                    <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200/80 text-[10px] font-bold rounded-full uppercase tracking-wider">
-                      Demographics · Interests · Behaviours
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Target verified audiences with precision across lifestyle interests, professions, and purchase signals.
-                  </p>
+                  <h3 className="text-base font-extrabold text-slate-900">Campaign Budget & ROI Pacing</h3>
+                  <p className="text-xs text-slate-500">Configure daily spend and Advantage+ budget optimization</p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setShowDetailedTargetingModal(false)}
-                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+                onClick={() => setActiveEditModal(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Search Bar & Custom Tag Adder */}
-            <div className="p-4 sm:p-5 bg-slate-50/60 border-b border-slate-200/80 space-y-3">
-              <div className="flex flex-col sm:flex-row gap-2.5">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+            <div className="p-6 space-y-4">
+              {/* Daily Budget Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-800">Daily Spend Amount:</label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-3 text-sm font-bold text-slate-500">₹</span>
                   <input
-                    type="text"
-                    value={targetingSearchQuery}
-                    onChange={(e) => setTargetingSearchQuery(e.target.value)}
-                    placeholder="Search Demographics, Interests & Behaviours (e.g. Engaged Shoppers, Married, Tech)..."
-                    className="w-full pl-10 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-2xs transition-all"
+                    type="number"
+                    min={100}
+                    step={50}
+                    value={editDailyBudget}
+                    onChange={(e) => setEditDailyBudget(Number(e.target.value))}
+                    className="w-full pl-8 pr-16 py-2.5 text-base font-extrabold text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 shadow-2xs"
                   />
-                  {targetingSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setTargetingSearchQuery("")}
-                      className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer p-1"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={customInterestInput}
-                    onChange={(e) => setCustomInterestInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && customInterestInput.trim()) {
-                        e.preventDefault();
-                        handleAddCustomTargetingTag(customInterestInput);
-                      }
-                    }}
-                    placeholder="Custom keyword (e.g. Sarees)..."
-                    className="w-full sm:w-48 py-2.5 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-2xs transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleAddCustomTargetingTag(customInterestInput)}
-                    disabled={!customInterestInput.trim()}
-                    className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 cursor-pointer transition-all shrink-0"
-                  >
-                    + Add
-                  </button>
+                  <span className="absolute right-3.5 top-3 text-xs font-bold text-slate-400">/day</span>
                 </div>
               </div>
 
-              {/* Selected Pills Ribbon */}
-              {selectedTargetingTags.length > 0 && (
-                <div className="pt-1 flex flex-wrap items-center gap-1.5 max-h-24 overflow-y-auto">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mr-1">
-                    Selected ({selectedTargetingTags.length}):
-                  </span>
-                  {selectedTargetingTags.map((tag, tIdx) => (
-                    <span
-                      key={tIdx}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200/80 text-blue-900 rounded-lg text-xs font-semibold shadow-2xs animate-fadeIn"
+              {/* Quick Amount Chips */}
+              <div>
+                <span className="text-[11px] text-slate-500 font-semibold block mb-1.5">Recommended Daily Presets:</span>
+                <div className="grid grid-cols-4 gap-2">
+                  {[500, 750, 1000, 2000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setEditDailyBudget(amt)}
+                      className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        editDailyBudget === amt
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs scale-102"
+                          : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                      }`}
                     >
-                      <span>{tag}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleTargetingTag(tag)}
-                        className="text-blue-400 hover:text-red-600 font-bold ml-1 cursor-pointer"
-                      >
-                        ×
-                      </button>
-                    </span>
+                      ₹{amt}/day
+                    </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTargetingTags([])}
-                    className="text-[10px] text-red-500 hover:underline font-bold ml-1 cursor-pointer"
+                </div>
+              </div>
+
+              {/* Advantage+ CBO Toggle Card */}
+              <div className="p-3.5 rounded-2xl border border-emerald-200/90 bg-emerald-50/50 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                    <span>Advantage+ Campaign Budget (CBO)</span>
+                    <span className="text-[9px] font-extrabold bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded">Meta AI</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800/80 mt-0.5">Automatically distributes budget to highest-converting placements</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={editIsCbo}
+                  onChange={(e) => setEditIsCbo(e.target.checked)}
+                  className="h-4 w-4 text-emerald-600 rounded cursor-pointer"
+                />
+              </div>
+
+              {/* Dynamic ROI Forecast Box */}
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/80 space-y-2">
+                <div className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>Projected Monthly Yield (@ ₹16 CPA):</span>
+                  <span className="text-emerald-700 font-extrabold">~₹{(editDailyBudget * 30).toLocaleString("en-IN")}/month</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-200/70 text-center">
+                  <div className="p-2 bg-white rounded-xl border border-slate-200/80">
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Est. Leads / Mo</span>
+                    <span className="text-sm font-extrabold text-slate-900">~{Math.round((editDailyBudget * 30) / 16).toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="p-2 bg-white rounded-xl border border-slate-200/80">
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Est. Impressions</span>
+                    <span className="text-sm font-extrabold text-slate-900">~{Math.round(editDailyBudget * 30 * 42).toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setActiveEditModal(null)}
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveBudget}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/25 cursor-pointer transition-all active:scale-98"
+              >
+                Save & Apply Budget
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 4. AD DESTINATION & LEAD ROUTING MODAL ── */}
+      {activeEditModal === "destination" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200/80 overflow-hidden ring-1 ring-black/5 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-teal-50/30 to-emerald-50/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-600 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-teal-500/20">
+                  <MessageCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Ad Destination & Lead Routing</h3>
+                  <p className="text-xs text-slate-500">Choose where prospects land when tapping your ad</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveEditModal(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Destination Type Radio Cards */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {[
+                  { id: "WHATSAPP", label: "Click-to-WhatsApp", icon: "💬", desc: "Highest conversion in India" },
+                  { id: "INSTANT_FORM", label: "Instant Lead Form", icon: "📋", desc: "Native on-platform form" },
+                  { id: "WEBSITE", label: "Website Landing Page", icon: "🌐", desc: "Direct traffic to your URL" },
+                  { id: "PHONE_CALL", label: "Click to Call", icon: "📞", desc: "Direct customer dial" },
+                ].map((d) => (
+                  <div
+                    key={d.id}
+                    onClick={() => setEditDestType(d.id as any)}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                      editDestType === d.id
+                        ? "bg-teal-50 border-teal-500 ring-2 ring-teal-500/20 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
                   >
-                    Clear All
-                  </button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{d.icon}</span>
+                      <span className="text-xs font-bold text-slate-900">{d.label}</span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-500 mt-1 leading-tight">{d.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* WhatsApp Specific Controls */}
+              {editDestType === "WHATSAPP" && (
+                <div className="p-4 rounded-2xl border border-teal-200/90 bg-teal-50/50 space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-800">Verified WhatsApp Number:</label>
+                    <select
+                      value={editWhatsappPhone}
+                      onChange={(e) => setEditWhatsappPhone(e.target.value)}
+                      className="w-full text-xs p-2.5 bg-white border border-teal-200 rounded-xl font-bold text-slate-800 shadow-2xs"
+                    >
+                      <option value="+91 77099 36965">+91 77099 36965 (Jisnu Digital Solutions - Verified WABA)</option>
+                      <option value="+1 555-174-6047">+1 555-174-6047 (Test WhatsApp Number)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-800">Pre-Filled Customer Message:</label>
+                    <textarea
+                      rows={2}
+                      value={editGreetingMsg}
+                      onChange={(e) => setEditGreetingMsg(e.target.value)}
+                      placeholder="Hi Ak Cars, I saw your ad on Facebook and want to know more about..."
+                      className="w-full text-xs p-2.5 bg-white border border-teal-200 rounded-xl font-normal text-slate-800 shadow-2xs resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Website Specific Controls */}
+              {editDestType === "WEBSITE" && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800">Destination Website URL:</label>
+                  <input
+                    type="url"
+                    value={editWebsiteUrl}
+                    onChange={(e) => setEditWebsiteUrl(e.target.value)}
+                    placeholder="https://yourwebsite.com/rentals"
+                    className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-medium text-slate-900 shadow-2xs"
+                  />
                 </div>
               )}
             </div>
 
-            {/* Category Pillars Navigation Tabs */}
-            <div className="flex border-b border-slate-200/80 bg-white px-6 pt-2.5 gap-2 overflow-x-auto">
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-2.5">
               <button
                 type="button"
-                onClick={() => setTargetingActiveTab("all")}
-                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                  targetingActiveTab === "all"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
+                onClick={() => setActiveEditModal(null)}
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer"
               >
-                <Target className="h-3.5 w-3.5" />
-                <span>All Pillars</span>
-                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
-                  targetingActiveTab === "all" ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-600"
-                }`}>
-                  {META_DETAILED_TARGETING_CATALOG.length}
-                </span>
+                Cancel
               </button>
-
               <button
                 type="button"
-                onClick={() => setTargetingActiveTab("demographics")}
-                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                  targetingActiveTab === "demographics"
-                    ? "border-indigo-600 text-indigo-600"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
+                onClick={handleSaveDestination}
+                className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-500/25 cursor-pointer transition-all active:scale-98"
               >
-                <Users className="h-3.5 w-3.5" />
-                <span>Demographics</span>
-                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
-                  targetingActiveTab === "demographics" ? "bg-indigo-100 text-indigo-800" : "bg-slate-100 text-slate-600"
-                }`}>
-                  {META_DETAILED_TARGETING_CATALOG.filter((i) => i.category === "demographics").length}
-                </span>
+                Save & Apply Destination
               </button>
+            </div>
+          </div>
+        </div>
+      )}
 
+      {/* ── 5. META AD ACCOUNT & BILLING MODAL ── */}
+      {activeEditModal === "account" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200/80 overflow-hidden ring-1 ring-black/5 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-indigo-50/30 to-blue-50/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Meta Ad Account & Billing</h3>
+                  <p className="text-xs text-slate-500">Connected advertising identity and Meta Pixel tracking</p>
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => setTargetingActiveTab("interests")}
-                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                  targetingActiveTab === "interests"
-                    ? "border-sky-600 text-sky-600"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
+                onClick={() => setActiveEditModal(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer"
               >
-                <Heart className="h-3.5 w-3.5" />
-                <span>Interests</span>
-                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
-                  targetingActiveTab === "interests" ? "bg-sky-100 text-sky-800" : "bg-slate-100 text-slate-600"
-                }`}>
-                  {META_DETAILED_TARGETING_CATALOG.filter((i) => i.category === "interests").length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setTargetingActiveTab("behaviours")}
-                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                  targetingActiveTab === "behaviours"
-                    ? "border-emerald-600 text-emerald-600"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                <Activity className="h-3.5 w-3.5" />
-                <span>Behaviours</span>
-                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
-                  targetingActiveTab === "behaviours" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
-                }`}>
-                  {META_DETAILED_TARGETING_CATALOG.filter((i) => i.category === "behaviours").length}
-                </span>
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Items Grid Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 max-h-[50vh]">
-              {(() => {
-                const query = targetingSearchQuery.toLowerCase().trim();
+            <div className="p-6 space-y-4">
+              <div className="p-3.5 rounded-2xl border border-indigo-200/80 bg-indigo-50/60 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-indigo-950">JISNU Digital Solution's Marketing Agency</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Verified</span>
+                </div>
+                <p className="text-[11px] text-indigo-800/80">Currency: INR (₹) · Timezone: Asia/Kolkata (+05:30)</p>
+              </div>
 
-                // If live search results are returned from Meta Graph API, prioritize them dynamically
-                const sourceList = (liveTargetingResults.length > 0 && query.length >= 2)
-                  ? liveTargetingResults
-                  : META_DETAILED_TARGETING_CATALOG;
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-800">Meta Ad Account ID:</label>
+                <input
+                  type="text"
+                  value={editAdAccountId}
+                  onChange={(e) => setEditAdAccountId(e.target.value)}
+                  placeholder="act_1454270479625110"
+                  className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl font-mono font-bold text-slate-900 shadow-2xs"
+                />
+              </div>
 
-                const filtered = sourceList.filter((item) => {
-                  const matchesTab = targetingActiveTab === "all" || item.category === targetingActiveTab;
-                  const matchesQuery =
-                    !query ||
-                    item.name.toLowerCase().includes(query) ||
-                    item.subCategory.toLowerCase().includes(query) ||
-                    (item.description && item.description.toLowerCase().includes(query));
-                  return matchesTab && matchesQuery;
-                });
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-800">Meta Pixel Dataset ID:</label>
+                <input
+                  type="text"
+                  value={editPixelId}
+                  onChange={(e) => setEditPixelId(e.target.value)}
+                  placeholder="1380912777544016"
+                  className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-slate-700 shadow-2xs"
+                />
+              </div>
+            </div>
 
-                if (isSearchingLiveTargeting) {
-                  return (
-                    <div className="py-12 text-center space-y-3">
-                      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                      <p className="text-xs font-semibold text-slate-600">
-                        Querying Meta Graph API live targeting database for "{targetingSearchQuery}"...
-                      </p>
-                    </div>
-                  );
-                }
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setActiveEditModal(null)}
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAccount}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/25 cursor-pointer transition-all active:scale-98"
+              >
+                Save & Apply Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-                if (filtered.length === 0) {
-                  return (
-                    <div className="py-12 text-center space-y-3">
-                      <Target className="h-10 w-10 text-slate-300 mx-auto" />
-                      <p className="text-sm font-semibold text-slate-700">No matching categories found</p>
-                      <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                        Type a custom interest name in the input box above and click "+ Add" to include it in your ad set.
-                      </p>
-                    </div>
-                  );
-                }
+      {/* ── 6. FACEBOOK PAGE & IDENTITY MODAL ── */}
+      {activeEditModal === "page" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200/80 overflow-hidden ring-1 ring-black/5 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-sky-50/30 to-blue-50/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-600 to-blue-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20">
+                  <Share2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Facebook Page & Identity</h3>
+                  <p className="text-xs text-slate-500">Official publisher branding displayed on your live ad</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveEditModal(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
-                // Group by subCategory
-                const grouped: Record<string, TargetingCategoryItem[]> = {};
-                for (const item of filtered) {
-                  if (!grouped[item.subCategory]) grouped[item.subCategory] = [];
-                  grouped[item.subCategory].push(item);
-                }
+            <div className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-800">Business Page Name:</label>
+                <input
+                  type="text"
+                  value={editPageName}
+                  onChange={(e) => setEditPageName(e.target.value)}
+                  placeholder="e.g. JISNU Digital Solutions Pvt.Ltd"
+                  className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 shadow-2xs"
+                />
+              </div>
 
-                const isLiveResultsActive = liveTargetingResults.length > 0 && query.length >= 2;
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-800">Facebook Page ID:</label>
+                <input
+                  type="text"
+                  value={editPageId}
+                  onChange={(e) => setEditPageId(e.target.value)}
+                  placeholder="1062234726963242"
+                  className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-slate-700 shadow-2xs"
+                />
+              </div>
 
-                return (
-                  <div className="space-y-6">
-                    {isLiveResultsActive && (
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-xs font-medium">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span>Showing <strong>live Meta Graph API verified targeting options</strong> for "{query}"</span>
-                      </div>
-                    )}
-                    {Object.entries(grouped).map(([subCat, items]) => (
-                      <div key={subCat} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                            {subCat}
-                          </span>
-                          <span className="text-[11px] text-slate-400">{items.length} options</span>
-                        </div>
+              <div className="p-3.5 rounded-2xl border border-sky-200/80 bg-sky-50/50 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-sky-950 block">Instagram Placement Linking</span>
+                  <span className="text-[11px] text-sky-800/80">Ads automatically run with your verified Facebook profile on Instagram</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Connected</span>
+              </div>
+            </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {items.map((item) => {
-                            const isSelected = selectedTargetingTags.some(
-                              (t) => t.toLowerCase() === item.name.toLowerCase() || t === item.name
-                            );
-                            const badgeColor =
-                              item.category === "demographics"
-                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                : item.category === "interests"
-                                ? "bg-sky-50 text-sky-700 border-sky-200"
-                                : "bg-emerald-50 text-emerald-700 border-emerald-200";
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setActiveEditModal(null)}
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePage}
+                className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-500/25 cursor-pointer transition-all active:scale-98"
+              >
+                Save & Apply Identity
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-                            const formatAudience = (num?: number | null) => {
-                              if (!num) return null;
-                              if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
-                              if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-                              if (num >= 1_000) return `${(num / 1_000).toFixed(0)}K`;
-                              return String(num);
-                            };
+      {/* ── 7. DEMOGRAPHICS & PLACEMENTS MODAL ── */}
+      {activeEditModal === "audience" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-200/80 overflow-hidden ring-1 ring-black/5 flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-violet-50/30 to-purple-50/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-violet-600 to-purple-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20">
+                  <Users className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Demographics & Advantage+ Placements</h3>
+                  <p className="text-xs text-slate-500">Configure target age, gender distribution, and network delivery</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveEditModal(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
-                            const audienceText = item.audienceSizeLower
-                              ? `${formatAudience(item.audienceSizeLower)}${item.audienceSizeUpper ? `–${formatAudience(item.audienceSizeUpper)}` : ""} people`
-                              : null;
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Age Range Slider / Inputs */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800">Target Age Range:</label>
+                  <span className="text-xs font-extrabold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-lg border border-violet-200">
+                    {editAgeMin} to {editAgeMax} years
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-semibold block uppercase">Min Age</label>
+                    <input
+                      type="number"
+                      min={18}
+                      max={editAgeMax}
+                      value={editAgeMin}
+                      onChange={(e) => setEditAgeMin(Math.min(Number(e.target.value), editAgeMax))}
+                      className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 shadow-2xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-semibold block uppercase">Max Age</label>
+                    <input
+                      type="number"
+                      min={editAgeMin}
+                      max={65}
+                      value={editAgeMax}
+                      onChange={(e) => setEditAgeMax(Math.max(Number(e.target.value), editAgeMin))}
+                      className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 shadow-2xs"
+                    />
+                  </div>
+                </div>
 
-                            return (
-                              <div
-                                key={item.id}
-                                onClick={() => handleToggleTargetingTag(item.name)}
-                                className={`p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer select-none flex items-start justify-between gap-3 ${
-                                  isSelected
-                                    ? "bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20 shadow-sm"
-                                    : "bg-white border-slate-200/90 hover:border-blue-300 hover:shadow-xs hover:bg-slate-50/50"
-                                }`}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <span className="text-2xl shrink-0">{item.icon || "🎯"}</span>
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="text-xs font-bold text-slate-900">{item.name}</span>
-                                      <span className={`text-[9.5px] px-2 py-0.5 rounded-full border font-bold uppercase tracking-wider ${badgeColor}`}>
-                                        {item.category}
-                                      </span>
-                                      {audienceText && (
-                                        <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200/80">
-                                          👥 {audienceText}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {item.description && (
-                                      <p className="text-[11px] text-slate-500 leading-snug">{item.description}</p>
-                                    )}
-                                  </div>
-                                </div>
+                {/* Age Presets */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { label: "18–35 (Youth)", min: 18, max: 35 },
+                    { label: "20–45 (Core)", min: 20, max: 45 },
+                    { label: "25–55 (Affluent)", min: 25, max: 55 },
+                    { label: "18–65 (All Adults)", min: 18, max: 65 },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => {
+                        setEditAgeMin(p.min);
+                        setEditAgeMax(p.max);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
+                        editAgeMin === p.min && editAgeMax === p.max
+                          ? "bg-violet-50 text-violet-800 border-violet-300 font-bold"
+                          : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                                <div className="shrink-0 pt-0.5">
-                                  <div
-                                    className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
-                                      isSelected
-                                        ? "bg-blue-600 border-blue-600 text-white shadow-2xs"
-                                        : "border-slate-300 bg-white"
-                                    }`}
-                                  >
-                                    {isSelected && <CheckCircle className="h-3.5 w-3.5 text-white" />}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
+              {/* Gender Selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-800">Gender Targeting:</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "ALL", label: "All Genders", desc: "Men & Women" },
+                    { id: "MEN", label: "Men Only", desc: "Male audience" },
+                    { id: "WOMEN", label: "Women Only", desc: "Female audience" },
+                  ].map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setEditGender(g.id as any)}
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                        editGender === g.id
+                          ? "bg-violet-600 text-white border-violet-600 shadow-xs scale-101"
+                          : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                      }`}
+                    >
+                      <span className="text-xs font-bold block">{g.label}</span>
+                      <span className={`text-[9.5px] ${editGender === g.id ? "text-violet-100" : "text-slate-400"}`}>{g.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Placements Selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-800">Placement Network:</label>
+                <div className="p-3 rounded-2xl border border-violet-200/90 bg-violet-50/50 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-violet-950 block">Advantage+ Automated Placements</span>
+                    <span className="text-[11px] text-violet-800/80">Meta dynamically delivers across Facebook, Instagram, Reels & Stories</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Recommended</span>
+                </div>
+              </div>
+
+              {/* Detailed Targeting / Interests Shortcut */}
+              <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800">Detailed Interests & Behaviours:</span>
+                  <span className="text-[10px] text-violet-700 bg-violet-100 font-bold px-2 py-0.5 rounded-full">
+                    {session?.draft?.targeting?.interests?.length || selectedTargetingTags.length || 0} active signals
+                  </span>
+                </div>
+
+                {((session?.draft?.targeting?.interests && session.draft.targeting.interests.length > 0) || selectedTargetingTags.length > 0) && (
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-2 bg-white rounded-xl border border-slate-200/80">
+                    {(session?.draft?.targeting?.interests || selectedTargetingTags).map((tag: string) => (
+                      <span key={tag} className="inline-flex items-center gap-1 text-[10.5px] font-semibold bg-violet-50 text-violet-800 px-2.5 py-1 rounded-lg border border-violet-200">
+                        <span>🎯 {tag}</span>
+                      </span>
                     ))}
                   </div>
-                );
-              })()}
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveEditModal(null);
+                      handleSendMessage("Suggest and add detailed targeting (demographics, interests & behaviours) for my business");
+                    }}
+                    className="py-2.5 px-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                    <span>✨ AI Suggest & Add All</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveEditModal(null);
+                      openDetailedTargetingModal();
+                    }}
+                    className="py-2.5 px-3 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all"
+                  >
+                    <Target className="h-3.5 w-3.5 text-blue-600" />
+                    <span>🏷️ Browse Meta Catalog</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-200/80 flex items-center justify-between">
-              <div className="text-xs text-slate-500">
-                <span className="font-extrabold text-slate-900">{selectedTargetingTags.length}</span> detailed categories active
-                {selectedTargetingTags.length === 0 && (
-                  <span className="text-slate-400 italic ml-1.5">(Advantage+ broad expansion active)</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowDetailedTargetingModal(false)}
-                  className="px-4 py-2 hover:bg-slate-200/70 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleApplyDetailedTargeting}
-                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 cursor-pointer transition-all active:scale-98"
-                >
-                  Apply to Campaign
-                </button>
-              </div>
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setActiveEditModal(null)}
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAudience}
+                className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold shadow-md shadow-violet-500/25 cursor-pointer transition-all active:scale-98"
+              >
+                Save & Apply Demographics
+              </button>
             </div>
           </div>
         </div>
       )}
+
       </div>
   );
 }

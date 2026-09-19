@@ -67,7 +67,8 @@ export class MetaAdsResearchService {
    */
   static analyzeAccount(context: MetaAdsContext): AccountPerformanceAudit {
     const campaigns = context.recentCampaigns || [];
-    const activeAccount = context.adAccounts.find(a => a.adAccountId === context.activeAdAccountId) || context.adAccounts[0];
+    const accounts = Array.isArray(context.adAccounts) ? context.adAccounts : [];
+    const activeAccount = accounts.find(a => a.adAccountId === context.activeAdAccountId) || accounts[0];
     const accountName = activeAccount?.name || "Connected Meta Ad Account";
     const currency = activeAccount?.currency || "INR";
 
@@ -173,7 +174,7 @@ export class MetaAdsResearchService {
     } else {
       topCampaign = {
         id: "benchmark_top",
-        name: `${context.pages[0]?.name || 'Business'} High-Yield Lead Gen`,
+        name: `${context.pages?.[0]?.name || 'Business'} High-Yield Lead Gen`,
         objective: "OUTCOME_LEADS",
         spend: 4200,
         results: 74,
@@ -229,7 +230,7 @@ export class MetaAdsResearchService {
     }
 
     // Formulate Best High-Output Strategy
-    const primaryPageName = context.pages[0]?.name || "Your Business";
+    const primaryPageName = context.pages?.[0]?.name || "Your Business";
     const recommendedBudget = 500;
     const expectedCpa = topCampaign && topCampaign.costPerResult > 0 ? Math.min(topCampaign.costPerResult, 65) : 58;
     const expectedMonthlyLeads = Math.round((recommendedBudget * 30) / expectedCpa);
