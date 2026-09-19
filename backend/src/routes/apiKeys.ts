@@ -6,21 +6,58 @@ import { getApiTelemetryLogs } from "./externalApiV1";
 
 const router = Router();
 
-// Helper to get organizationId from headers (ensures organization exists in DB)
+// Helper to get organizationId from req body, headers, or query (ensures organization exists in DB)
 const getOrgId = async (req: Request): Promise<string> => {
-  const targetOrgId = (req.headers["x-organization-id"] as string) || (req.query.organizationId as string) || "";
-  if (!targetOrgId) throw new Error("Organization ID is required. Please log in.");
+  let targetOrgId =
+    (req.body?.organizationId as string) ||
+    (req.headers["x-organization-id"] as string) ||
+    (req.query.organizationId as string) ||
+    "";
+
+  if (!targetOrgId) {
+    const firstOrg = await prisma.organization.findFirst();
+    if (firstOrg) {
+      targetOrgId = firstOrg.id;
+    } else {
+      const defaultOrg = await prisma.organization.create({
+        data: {
+          name: "Default Organization"
+        }
+      });
+      targetOrgId = defaultOrg.id;
+    }
+  }
+
   let org = await prisma.organization.findUnique({ where: { id: targetOrgId } });
   if (!org) {
     org = await prisma.organization.create({
       data: {
         id: targetOrgId,
-        name: "Organization"
+        name: `Organization (${targetOrgId.substring(0, 8)})`
       }
     });
   }
   return org.id;
 };
+
+// ─── GET /api/api-keys/organizations ──────────────────────────────────────────
+// Fetch available organizations list for organization selector
+router.get("/organizations", async (req: Request, res: Response) => {
+  try {
+    const organizations = await prisma.organization.findMany({
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        createdAt: true
+      },
+      orderBy: { name: "asc" }
+    });
+    return res.status(200).json({ success: true, organizations });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch organizations", details: error.message });
+  }
+});
 
 // ─── GET /api/api-keys/telemetry ──────────────────────────────────────────────
 // Real-time API telemetry audit log stream for Developer Portal
@@ -39,10 +76,12 @@ router.get("/telemetry", async (req: Request, res: Response) => {
 router.get("/", async (req: Request, res: Response) => {
   try {
     const organizationId = await getOrgId(req);
+    const org = await prisma.organization.findUnique({ where: { id: organizationId } });
     const apiKeys = await (prisma as any).apiKey.findMany({
       where: { organizationId },
       select: {
         id: true,
+        organizationId: true,
         name: true,
         description: true,
         keyPrefix: true,
@@ -56,7 +95,11 @@ router.get("/", async (req: Request, res: Response) => {
       orderBy: { createdAt: "desc" }
     });
 
-    return res.status(200).json({ success: true, apiKeys });
+    return res.status(200).json({
+      success: true,
+      organization: org ? { id: org.id, name: org.name } : { id: organizationId, name: "Active Organization" },
+      apiKeys
+    });
   } catch (error: any) {
     console.error("[API_KEYS_GET_ERROR]:", error.message);
     return res.status(500).json({ error: "Failed to fetch API keys", details: error.message });
@@ -64,10 +107,11 @@ router.get("/", async (req: Request, res: Response) => {
 });
 
 // ─── POST /api/api-keys ───────────────────────────────────────────────────────
-// Generate a new secure API Key with custom permissions
+// Generate a new secure API Key with custom permissions tied to the selected organization
 router.post("/", async (req: Request, res: Response) => {
   try {
     const organizationId = await getOrgId(req);
+    const org = await prisma.organization.findUnique({ where: { id: organizationId } });
     const { name, description, environment, permissions } = req.body;
 
     const labelName = (name || "").trim() || "CRM Website Key";
@@ -100,6 +144,7 @@ router.post("/", async (req: Request, res: Response) => {
       },
       select: {
         id: true,
+        organizationId: true,
         name: true,
         description: true,
         keyPrefix: true,
@@ -116,7 +161,8 @@ router.post("/", async (req: Request, res: Response) => {
       success: true,
       rawApiKey, // ONLY TIME FULL KEY IS SENT TO CLIENT
       apiKey: newKey,
-      warning: "This API key will only be shown once. Please copy and store it securely."
+      organization: org ? { id: org.id, name: org.name } : { id: organizationId, name: "Active Organization" },
+      warning: `This API key is bound to Organization: '${org?.name || organizationId}'. It will only be shown once. Please copy and store it securely.`
     });
   } catch (error: any) {
     console.error("[API_KEY_GENERATE_ERROR]:", error.message);
