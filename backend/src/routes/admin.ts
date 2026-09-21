@@ -3,6 +3,7 @@ import axios from "axios";
 import prisma from "../utils/prisma";
 import { validateAccountOwnership } from "../utils/accountResolver";
 import { WhatsAppService } from "../services/whatsappService";
+import { InstagramService } from "../services/instagramService";
 import { generateFlow } from "../services/aiFlowGenerator";
 import { io } from "../index";
 
@@ -542,18 +543,24 @@ router.get("/conversations", async (req: Request, res: Response) => {
       }
     } else if (platform === "instagram") {
       let targetIgId = instagramAccountId as string;
+      let targetUsername: string | null = null;
       if (accountId) {
         const isValid = await validateAccountOwnership(organizationId, "instagram", accountId as string);
         if (!isValid) {
           return res.status(403).json({ error: "ACCOUNT_NOT_AUTHORIZED", details: "Account does not belong to organization" });
         }
         const igConfig = await prisma.instagramConfig.findUnique({ where: { id: accountId as string } });
-        if (igConfig && igConfig.instagramAccountId) {
+        if (igConfig) {
           targetIgId = igConfig.instagramAccountId;
+          targetUsername = igConfig.username || null;
         }
       }
       if (targetIgId) {
-        whereClause.instagramAccountId = targetIgId;
+        whereClause.OR = [
+          { accountHandle: targetIgId },
+          ...(targetUsername ? [{ accountHandle: targetUsername }] : []),
+          { accountHandle: null }
+        ];
       }
     }
 
@@ -1028,16 +1035,38 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
 
     const config = accounts.find((a) => a.isDefault) || accounts[0] || null;
 
-    let liveProfile: { followers_count?: number; media_count?: number; username?: string; name?: string } | null = null;
+    let liveProfile: { followers_count?: number; media_count?: number; username?: string; name?: string; profile_picture_url?: string; biography?: string; id?: string } | null = null;
 
     if (config?.pageAccessToken && config?.instagramAccountId) {
       try {
         const metaRes = await fetch(
-          `https://graph.facebook.com/v19.0/${config.instagramAccountId}?fields=followers_count,media_count,username,name,profile_picture_url&access_token=${config.pageAccessToken}`
+          `https://graph.facebook.com/v21.0/${config.instagramAccountId}?fields=id,username,name,profile_picture_url,biography,followers_count,media_count&access_token=${config.pageAccessToken}`
         );
         if (metaRes.ok) {
           const metaData = await metaRes.json();
           liveProfile = metaData;
+
+          // If Meta returns fresh profile picture or details, update DB & in-memory objects
+          if (metaData.profile_picture_url && metaData.profile_picture_url !== config.profilePic) {
+            await prisma.instagramConfig.update({
+              where: { id: config.id },
+              data: {
+                profilePic: metaData.profile_picture_url,
+                ...(metaData.username ? { username: metaData.username } : {}),
+                ...(metaData.name ? { name: metaData.name } : {}),
+              },
+            }).catch((err) => console.warn("Could not update IG profile pic:", err));
+            config.profilePic = metaData.profile_picture_url;
+            if (metaData.username) config.username = metaData.username;
+            if (metaData.name) config.name = metaData.name;
+
+            const matchedAcc = accounts.find((a) => a.id === config.id);
+            if (matchedAcc) {
+              matchedAcc.profilePic = metaData.profile_picture_url;
+              if (metaData.username) matchedAcc.username = metaData.username;
+              if (metaData.name) matchedAcc.name = metaData.name;
+            }
+          }
         }
       } catch (e) {
         console.warn("Could not fetch live Graph API stats:", e);
@@ -1058,7 +1087,7 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
 export async function syncAllInstagramAccountsForToken(organizationId: string, accessToken: string) {
   try {
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&access_token=${accessToken}`
+      `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&access_token=${accessToken}`
     );
 
     if (!pagesRes.ok) return;
@@ -1071,9 +1100,24 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
         const instagramAccountId = ig.id;
         const pageId = page.id;
         const pageAccessToken = page.access_token || accessToken;
-        const username = ig.username || "";
-        const name = ig.name || page.name || "";
-        const profilePic = ig.profile_picture_url || "";
+        let username = ig.username || "";
+        let name = ig.name || page.name || "";
+        let profilePic = ig.profile_picture_url || "";
+
+        // If nested call didn't return profile picture, fetch directly from IG account endpoint
+        if (!profilePic && pageAccessToken && instagramAccountId) {
+          try {
+            const igRes = await fetch(
+              `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=id,username,name,profile_picture_url&access_token=${pageAccessToken}`
+            );
+            if (igRes.ok) {
+              const igData = await igRes.json();
+              if (igData.profile_picture_url) profilePic = igData.profile_picture_url;
+              if (igData.username && !username) username = igData.username;
+              if (igData.name && !name) name = igData.name;
+            }
+          } catch (e) {}
+        }
 
         const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
         const existing = await prisma.instagramConfig.findFirst({
@@ -1114,7 +1158,7 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
   }
 }
 
-// GET: All linked Instagram accounts
+// GET: All linked Instagram accounts with live profile picture validation
 router.get("/instagram/accounts", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
@@ -1129,6 +1173,35 @@ router.get("/instagram/accounts", async (req: Request, res: Response) => {
       });
     }
 
+    // Refresh live profile pictures and names from Meta Graph API
+    await Promise.all(
+      accounts.map(async (acc) => {
+        if (acc.pageAccessToken && acc.instagramAccountId) {
+          try {
+            const metaRes = await fetch(
+              `https://graph.facebook.com/v21.0/${acc.instagramAccountId}?fields=id,username,name,profile_picture_url&access_token=${acc.pageAccessToken}`
+            );
+            if (metaRes.ok) {
+              const metaData = await metaRes.json();
+              if (metaData.profile_picture_url && metaData.profile_picture_url !== acc.profilePic) {
+                await prisma.instagramConfig.update({
+                  where: { id: acc.id },
+                  data: {
+                    profilePic: metaData.profile_picture_url,
+                    ...(metaData.username ? { username: metaData.username } : {}),
+                    ...(metaData.name ? { name: metaData.name } : {}),
+                  },
+                }).catch(() => {});
+                acc.profilePic = metaData.profile_picture_url;
+                if (metaData.username) acc.username = metaData.username;
+                if (metaData.name) acc.name = metaData.name;
+              }
+            }
+          } catch (e) {}
+        }
+      })
+    );
+
     const tokenConfig = accounts.find((a) => a.pageAccessToken);
     if (tokenConfig && tokenConfig.pageAccessToken) {
       syncAllInstagramAccountsForToken(organizationId, tokenConfig.pageAccessToken).catch(() => {});
@@ -1137,6 +1210,51 @@ router.get("/instagram/accounts", async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, accounts });
   } catch (error: any) {
     return res.status(500).json({ error: "Failed to fetch Instagram accounts", details: error.message });
+  }
+});
+
+// GET: Dynamic Instagram Profile Picture Proxy / Redirect
+router.get("/instagram/profile-picture", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId } = req.query;
+
+    const config = accountId
+      ? await prisma.instagramConfig.findUnique({ where: { id: String(accountId) } })
+      : await prisma.instagramConfig.findFirst({
+          where: { organizationId, isActive: true },
+          orderBy: { isDefault: "desc" },
+        });
+
+    if (!config || !config.instagramAccountId || !config.pageAccessToken) {
+      return res.status(404).json({ error: "Instagram account not configured" });
+    }
+
+    // Always fetch the freshest non-expired URL from Meta
+    const metaRes = await fetch(
+      `https://graph.facebook.com/v21.0/${config.instagramAccountId}?fields=profile_picture_url&access_token=${config.pageAccessToken}`
+    );
+
+    if (metaRes.ok) {
+      const metaData = await metaRes.json();
+      if (metaData.profile_picture_url) {
+        if (metaData.profile_picture_url !== config.profilePic) {
+          prisma.instagramConfig.update({
+            where: { id: config.id },
+            data: { profilePic: metaData.profile_picture_url },
+          }).catch(() => {});
+        }
+        return res.redirect(metaData.profile_picture_url);
+      }
+    }
+
+    if (config.profilePic) {
+      return res.redirect(config.profilePic);
+    }
+
+    return res.status(404).json({ error: "Profile picture not found" });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to fetch profile picture", details: err?.message });
   }
 });
 
@@ -1277,6 +1395,24 @@ router.post("/instagram/embedded-signup/callback", async (req: Request, res: Res
       return res.status(400).json({ error: "Failed to obtain access token from Meta Graph API" });
     }
 
+    // Upgrade user access token to a 60-day long-lived access token
+    try {
+      const longLivedResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
+        params: {
+          grant_type: "fb_exchange_token",
+          client_id: appId,
+          client_secret: appSecret,
+          fb_exchange_token: accessToken,
+        },
+      });
+      if (longLivedResponse.data?.access_token) {
+        accessToken = longLivedResponse.data.access_token;
+        console.log("[IG EMBEDDED SIGNUP] Successfully upgraded to long-lived access token!");
+      }
+    } catch (llErr: any) {
+      console.warn("[IG EMBEDDED SIGNUP] Long-lived token exchange notice:", llErr?.response?.data?.error?.message || llErr.message);
+    }
+
     await syncAllInstagramAccountsForToken(organizationId, accessToken);
 
     const config = await prisma.instagramConfig.findFirst({
@@ -1357,7 +1493,7 @@ router.get("/instagram/comments", async (req: Request, res: Response) => {
     if (config?.pageAccessToken && config?.instagramAccountId) {
       try {
         const metaRes = await fetch(
-          `https://graph.facebook.com/v19.0/${config.instagramAccountId}/media?fields=comments{text,username,timestamp}&access_token=${config.pageAccessToken}`
+          `https://graph.facebook.com/v21.0/${config.instagramAccountId}/media?fields=id,caption,permalink,comments{id,text,username,timestamp}&access_token=${config.pageAccessToken}`
         );
         let metaData: any = {};
         if (metaRes.ok) {
@@ -1371,12 +1507,12 @@ router.get("/instagram/comments", async (req: Request, res: Response) => {
           if (item.comments && item.comments.data) {
             item.comments.data.forEach((c: any) => {
               fetchedCmts.push({
-                id: `ig_live_${c.id || Date.now()}`,
+                id: c.id ? String(c.id) : `ig_live_${Date.now()}`,
                 fromUser: c.username || "instagram_user",
                 commentText: c.text || "",
                 createdAt: c.timestamp || new Date().toISOString(),
-                status: "REPLIED",
-                autoReplyText: `Thank you for your comment @${c.username || 'user'}! We appreciate your support. 🚀`
+                status: "ACTIVE",
+                autoReplyText: ""
               });
             });
           }
@@ -1398,6 +1534,70 @@ router.get("/instagram/comments", async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST: Reply directly to an Instagram Comment (Meta Graph API)
+router.post("/instagram/comments/reply", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { commentId, replyText } = req.body;
+
+    if (!commentId || !replyText) {
+      return res.status(400).json({ error: "commentId and replyText are required" });
+    }
+
+    const config = await prisma.instagramConfig.findFirst({
+      where: { organizationId, isActive: true },
+      orderBy: { isDefault: "desc" },
+    });
+
+    if (!config || !config.pageAccessToken) {
+      return res.status(400).json({ error: "No active Instagram configuration or access token found for this organization" });
+    }
+
+    const replyResponse = await InstagramService.replyToComment(
+      config.pageAccessToken,
+      commentId,
+      replyText
+    );
+
+    // Update in-memory feed if present
+    const existing = instagramCommentsFeed.find(c => c.id === commentId);
+    if (existing) {
+      existing.status = "REPLIED";
+      existing.autoReplyText = replyText;
+    } else {
+      instagramCommentsFeed.unshift({
+        id: commentId,
+        fromUser: "instagram_user",
+        commentText: "User Comment",
+        createdAt: new Date().toISOString(),
+        status: "REPLIED",
+        autoReplyText: replyText
+      });
+    }
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(organizationId || DEFAULT_ORG_ID).emit("instagram-comment-replied", {
+        commentId,
+        replyText,
+        replyResponse
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Comment reply posted successfully to Instagram!",
+      replyResponse,
+    });
+  } catch (error: any) {
+    console.error("Error replying to Instagram comment:", error?.response?.data || error.message);
+    return res.status(500).json({
+      error: "Failed to post reply to Instagram comment",
+      details: error?.response?.data || error.message,
+    });
   }
 });
 
@@ -1435,6 +1635,94 @@ router.post("/instagram/comments/simulate", async (req: Request, res: Response) 
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST: Start a new conversation (WhatsApp or Instagram) from CRM
+router.post("/conversations/create", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { platform = "instagram", recipient, recipientName, initialMessage } = req.body;
+
+    if (!recipient) {
+      return res.status(400).json({ error: "Recipient ID or username is required" });
+    }
+
+    const cleanRecipient = String(recipient).trim().replace(/^@/, "");
+    const cleanName = recipientName ? String(recipientName).trim() : cleanRecipient;
+
+    // Check for existing conversation
+    let conversation = await prisma.conversation.findFirst({
+      where: {
+        organizationId,
+        platform,
+        customerPhone: cleanRecipient
+      }
+    });
+
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
+        data: {
+          organizationId,
+          platform,
+          customerPhone: cleanRecipient,
+          customerName: cleanName,
+          isBotPaused: false
+        }
+      });
+    }
+
+    // If initialMessage provided, send it
+    let messageResult: any = null;
+    if (initialMessage && initialMessage.trim()) {
+      const msgText = initialMessage.trim();
+      if (platform === "instagram") {
+        const igConfig = await prisma.instagramConfig.findFirst({
+          where: { organizationId, isActive: true },
+          orderBy: { isDefault: "desc" }
+        });
+        if (igConfig?.pageAccessToken) {
+          try {
+            messageResult = await InstagramService.sendTextMessage(
+              igConfig.pageAccessToken,
+              cleanRecipient,
+              msgText,
+              igConfig.pageId || igConfig.instagramAccountId
+            );
+          } catch (e: any) {
+            console.warn("Notice: Initial Instagram send logged:", e?.message);
+          }
+        }
+      }
+
+      const newMsg = await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: "outbound",
+          content: msgText,
+          messageType: "text",
+          status: "delivered",
+          senderName: "Agent"
+        }
+      });
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(organizationId).emit("new-message", {
+          conversationId: conversation.id,
+          message: newMsg
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      conversation,
+      messageResult
+    });
+  } catch (error: any) {
+    console.error("Error creating conversation:", error);
+    return res.status(500).json({ error: "Failed to create conversation", details: error.message });
   }
 });
 

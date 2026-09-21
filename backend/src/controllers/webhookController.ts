@@ -232,18 +232,20 @@ export const handleWebhook = async (req: Request, res: Response) => {
             platform: "instagram",
             customerPhone,
             customerName: contactName,
+            accountHandle: igConfig.username || igConfig.instagramAccountId,
             isBotPaused: false,
             botPausedUntil: null,
           },
         });
       } else {
-        // Update customerName if it was default fallback or changed
-        if (contactName !== "Instagram User" && conversation.customerName !== contactName) {
-          conversation = await prisma.conversation.update({
-            where: { id: conversation.id },
-            data: { customerName: contactName },
-          });
-        }
+        conversation = await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            updatedAt: new Date(),
+            ...(contactName !== "Instagram User" && conversation.customerName !== contactName ? { customerName: contactName } : {}),
+            ...(!conversation.accountHandle && (igConfig.username || igConfig.instagramAccountId) ? { accountHandle: igConfig.username || igConfig.instagramAccountId } : {}),
+          },
+        });
       }
 
       // Save message in DB

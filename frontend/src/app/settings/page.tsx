@@ -1280,7 +1280,7 @@ print(res.json())`;
       if ((window as any).FB) {
         try {
           (window as any).FB.init({
-            appId: "36702477879366478",
+            appId: process.env.NEXT_PUBLIC_META_APP_ID || "36702477879366478",
             cookie: true,
             xfbml: true,
             version: "v21.0"
@@ -1587,9 +1587,41 @@ print(res.json())`;
     setIgEmbeddedConnecting(true);
     const FB = (window as any).FB;
 
+    // Official Meta Facebook Login scopes for Instagram Graph API
+    // Note: 'instagram_business_*' scopes are only valid on api.instagram.com (Instagram Login).
+    // The facebook.com/dialog/oauth and FB.login endpoints require standard 'instagram_*' scopes:
+    const INSTAGRAM_SCOPES = [
+      "instagram_basic",
+      "instagram_manage_messages",
+      "instagram_manage_comments",
+      "pages_show_list",
+      "pages_read_engagement",
+      "pages_manage_metadata",
+      "pages_messaging",
+      "public_profile",
+      "business_management"
+    ].join(",");
+
+    const configId = process.env.NEXT_PUBLIC_META_INSTAGRAM_CONFIG_ID || "";
+
     // 1. Primary Automated Flow: Native Facebook JS SDK with Instagram scopes
     if (FB && window.location.protocol === "https:") {
       try {
+        const loginOptions: any = {
+          response_type: "code",
+          override_default_response_type: true,
+          // CRITICAL: auth_type="rerequest" forces Meta to show "Choose what you allow"
+          // with Page selector dropdown, Instagram Account selector dropdown, and permissions switches
+          auth_type: "rerequest",
+          return_scopes: true,
+        };
+
+        if (configId) {
+          loginOptions.config_id = configId;
+        } else {
+          loginOptions.scope = INSTAGRAM_SCOPES;
+        }
+
         FB.login(
           (response: any) => {
             console.log("[META INSTAGRAM FB.LOGIN RESPONSE]:", response);
@@ -1599,11 +1631,7 @@ print(res.json())`;
               setIgEmbeddedConnecting(false);
             }
           },
-          {
-            scope: "instagram_basic,instagram_manage_messages,pages_manage_metadata,pages_read_engagement,pages_show_list,public_profile",
-            response_type: "code",
-            override_default_response_type: true,
-          }
+          loginOptions
         );
         return;
       } catch (err) {
@@ -1612,15 +1640,20 @@ print(res.json())`;
     }
 
     // 2. Secondary Automated Flow: OAuth Popup Dialog with auto-polling
-    const appId = "36702477879366478";
+    const appId = process.env.NEXT_PUBLIC_META_APP_ID || "36702477879366478";
     const targetOrigin = window.location.origin.startsWith("https://")
       ? window.location.origin
       : "https://crm.jisnudigital.com";
 
     const redirectUri = encodeURIComponent(`${targetOrigin}/settings?tab=instagram`);
-    const scope = encodeURIComponent("instagram_basic,instagram_manage_messages,pages_manage_metadata,pages_read_engagement,pages_show_list,public_profile");
+    const encodedScopes = encodeURIComponent(INSTAGRAM_SCOPES);
 
-    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
+    let oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&auth_type=rerequest&return_scopes=true`;
+    if (configId) {
+      oauthUrl += `&config_id=${configId}`;
+    } else {
+      oauthUrl += `&scope=${encodedScopes}`;
+    }
 
     const width = 600;
     const height = 750;
@@ -4725,13 +4758,26 @@ print(res.json())`;
                             igAccounts.map((acc) => (
                               <div key={acc.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-white to-slate-50/50 border border-slate-200/90 rounded-2xl text-xs shadow-2xs hover:border-pink-300 transition-all">
                                 <div className="flex items-center gap-3.5">
-                                  {acc.profilePic ? (
-                                    <img src={acc.profilePic} alt="" className="w-10 h-10 rounded-full object-cover border border-pink-200" />
-                                  ) : (
-                                    <div className="relative p-2.5 rounded-xl bg-pink-50 text-pink-600 border border-pink-100/80">
+                                  <div className="relative w-10 h-10 shrink-0">
+                                    {acc.profilePic ? (
+                                      <img
+                                        src={acc.profilePic}
+                                        alt=""
+                                        className="w-10 h-10 rounded-full object-cover border border-pink-200"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = "none";
+                                          const fallback = e.currentTarget.parentElement?.querySelector(".fallback-ig-icon") as HTMLElement;
+                                          if (fallback) fallback.style.display = "flex";
+                                        }}
+                                      />
+                                    ) : null}
+                                    <div
+                                      className="fallback-ig-icon w-10 h-10 rounded-full bg-pink-50 text-pink-600 border border-pink-100/80 items-center justify-center"
+                                      style={{ display: acc.profilePic ? "none" : "flex" }}
+                                    >
                                       <Instagram className="w-5 h-5" />
                                     </div>
-                                  )}
+                                  </div>
                                   <div className="space-y-0.5">
                                     <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                                       <span>{acc.username ? `@${acc.username}` : (acc.name || `IG (${acc.instagramAccountId.slice(-4)})`)}</span>

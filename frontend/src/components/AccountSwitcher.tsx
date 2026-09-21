@@ -24,6 +24,7 @@ interface AccountSwitcherProps {
   onToggleOpen?: () => void;
   className?: string;
   theme?: SwitcherTheme;
+  align?: "left" | "right";
 }
 
 export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
@@ -36,6 +37,7 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
   onToggleOpen,
   className = "",
   theme,
+  align = "left",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -200,26 +202,37 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
         <div className="flex items-center gap-2.5 min-w-0 flex-1 truncate">
           <div className="relative flex items-center justify-center shrink-0">
             {selectedAccount?.avatarUrl ? (
-              <img src={selectedAccount.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover ring-2 ring-slate-200" />
-            ) : (
-              <div className={`p-1.5 rounded-xl border flex items-center justify-center ${themeStyles.iconBox}`}>
-                {getAccountIcon(selectedAccount?.type)}
-              </div>
-            )}
+              <img
+                src={selectedAccount.avatarUrl}
+                alt=""
+                className="w-7 h-7 rounded-full object-cover ring-2 ring-slate-200"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                  const fallback = e.currentTarget.parentElement?.querySelector(".fallback-switcher-icon") as HTMLElement;
+                  if (fallback) fallback.style.display = "flex";
+                }}
+              />
+            ) : null}
+            <div
+              className={`fallback-switcher-icon p-1.5 rounded-xl border items-center justify-center ${themeStyles.iconBox}`}
+              style={{ display: selectedAccount?.avatarUrl ? "none" : "flex" }}
+            >
+              {getAccountIcon(selectedAccount?.type)}
+            </div>
             <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${themeStyles.pulse} ring-2 ring-white animate-pulse`} />
           </div>
 
-          <div className="flex flex-col text-left truncate min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-900 truncate">
-              <span className="truncate">{selectedAccount?.label || title}</span>
+          <div className="flex flex-col justify-center text-left min-w-0 flex-1 py-0.5 gap-0.5 overflow-hidden">
+            <div className="flex items-center gap-1.5 min-w-0 leading-tight">
+              <span className="truncate font-extrabold text-slate-900 text-xs leading-snug">{selectedAccount?.label || title}</span>
               {selectedAccount?.isDefault && (
-                <span className={`px-1.5 py-0.2 text-[9px] font-extrabold tracking-wide border rounded-md shrink-0 ${themeStyles.activeBadge}`}>
+                <span className={`px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide border rounded-md shrink-0 leading-none ${themeStyles.activeBadge}`}>
                   Active
                 </span>
               )}
             </div>
             {selectedAccount?.sublabel && (
-              <span className="text-[10px] text-slate-500 font-mono truncate tracking-tight">
+              <span className="text-[10px] text-slate-500 font-mono truncate tracking-tight leading-snug block">
                 {selectedAccount.sublabel}
               </span>
             )}
@@ -231,69 +244,80 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
 
       {/* Floating Dropdown Modal */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-84 sm:w-96 origin-top-right rounded-2xl bg-white shadow-2xl border border-slate-200/90 ring-1 ring-black/5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
-          {/* Header Bar */}
-          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
-            <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className={`w-3.5 h-3.5 ${themeStyles.sparkle}`} /> Connected Accounts ({accounts.length})
-            </span>
-            <span className={`text-[10px] border px-2.5 py-0.5 rounded-full font-extrabold ${themeStyles.headerBadge}`}>
-              Org Isolated
-            </span>
-          </div>
+        <div className={`absolute ${align === "right" ? "right-0 origin-top-right" : "left-0 origin-top-left"} mt-2 w-84 sm:w-96 rounded-2xl bg-white shadow-2xl border border-slate-200/90 ring-1 ring-black/5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden`}>
+            {/* Header Bar */}
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
+              <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className={`w-3.5 h-3.5 ${themeStyles.sparkle}`} /> Connected Accounts ({accounts.length})
+              </span>
+              <span className={`text-[10px] border px-2.5 py-0.5 rounded-full font-extrabold ${themeStyles.headerBadge}`}>
+                Org Isolated
+              </span>
+            </div>
 
-          {/* Account Items List */}
-          <div className="max-h-72 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
-            {accounts.length === 0 ? (
-              <div className="px-4 py-8 text-center text-xs text-slate-400 space-y-1.5">
-                <p className="font-bold text-slate-600">No linked accounts or IDs</p>
-                <p className="text-[11px] text-slate-500">Click below to link a new account.</p>
-              </div>
-            ) : (
-              accounts.map((acc) => {
-                const isSelected = acc.id === selectedAccountId;
-                return (
-                  <button
-                    key={acc.id}
-                    onClick={() => {
-                      if (activeAccountContext && activeAccountContext.setActiveAccount) {
-                        const plat = (acc.type || "whatsapp") as PlatformType;
-                        activeAccountContext.setActiveAccount(plat, acc.id, {
-                          name: acc.label,
-                          identifier: acc.sublabel,
-                          avatarUrl: acc.avatarUrl,
-                          isDefault: acc.isDefault,
-                        });
-                      }
-                      onSelectAccount(acc.id);
-                      setIsOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between p-3 text-left rounded-xl transition-all duration-150 border cursor-pointer ${
-                      isSelected
-                        ? `${themeStyles.selectedBg} shadow-2xs`
-                        : "bg-white border-transparent hover:bg-slate-50 hover:border-slate-200 text-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      {acc.avatarUrl ? (
-                        <img src={acc.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200 shrink-0" />
-                      ) : (
-                        <div className={`p-2 rounded-xl border flex-shrink-0 ${themeStyles.iconBox}`}>
+            {/* Account Items List */}
+            <div className="max-h-72 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
+              {accounts.length === 0 ? (
+                <div className="px-4 py-8 text-center text-xs text-slate-400 space-y-1.5">
+                  <p className="font-bold text-slate-600">No linked accounts or IDs</p>
+                  <p className="text-[11px] text-slate-500">Click below to link a new account.</p>
+                </div>
+              ) : (
+                accounts.map((acc) => {
+                  const isSelected = acc.id === selectedAccountId;
+                  return (
+                    <button
+                      key={acc.id}
+                      onClick={() => {
+                        if (activeAccountContext && activeAccountContext.setActiveAccount) {
+                          const plat = (acc.type || "whatsapp") as PlatformType;
+                          activeAccountContext.setActiveAccount(plat, acc.id, {
+                            name: acc.label,
+                            identifier: acc.sublabel,
+                            avatarUrl: acc.avatarUrl,
+                            isDefault: acc.isDefault,
+                          });
+                        }
+                        onSelectAccount(acc.id);
+                        setIsOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between p-3 text-left rounded-xl transition-all duration-150 border cursor-pointer ${
+                        isSelected
+                          ? `${themeStyles.selectedBg} shadow-2xs`
+                          : "bg-white border-transparent hover:bg-slate-50 hover:border-slate-200 text-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {acc.avatarUrl ? (
+                          <img
+                            src={acc.avatarUrl}
+                            alt=""
+                            className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200 shrink-0"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                              const fallback = e.currentTarget.parentElement?.querySelector(".fallback-item-icon") as HTMLElement;
+                              if (fallback) fallback.style.display = "flex";
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className={`fallback-item-icon p-2 rounded-xl border flex-shrink-0 ${themeStyles.iconBox}`}
+                          style={{ display: acc.avatarUrl ? "none" : "flex" }}
+                        >
                           {getAccountIcon(acc.type)}
                         </div>
-                      )}
-                      <div className="min-w-0 space-y-0.5 flex-1">
-                        <div className="text-xs font-extrabold text-slate-900 truncate flex items-center justify-between gap-2">
-                          <span className="truncate">{acc.label}</span>
-                          {acc.isDefault && (
-                            <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded-md shrink-0 ${themeStyles.activeBadge}`}>Primary</span>
+                        <div className="min-w-0 flex-1 flex flex-col justify-center py-0.5 gap-0.5 overflow-hidden">
+                          <div className="text-xs font-extrabold text-slate-900 truncate flex items-center justify-between gap-2 leading-tight">
+                            <span className="truncate leading-snug">{acc.label}</span>
+                            {acc.isDefault && (
+                              <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded-md shrink-0 leading-none ${themeStyles.activeBadge}`}>Primary</span>
+                            )}
+                          </div>
+                          {acc.sublabel && (
+                            <span className="text-[10px] text-slate-500 font-mono truncate leading-snug block">{acc.sublabel}</span>
                           )}
                         </div>
-                        {acc.sublabel && (
-                          <div className="text-[10px] text-slate-500 font-mono truncate">{acc.sublabel}</div>
-                        )}
                       </div>
-                    </div>
 
                     {isSelected && (
                       <div className={`p-1 rounded-full text-white shrink-0 ml-2 shadow-xs ${themeStyles.selectedCheck}`}>

@@ -928,6 +928,13 @@ export default function Dashboard() {
     setMobileChatOpen(true); // On mobile, open the chat panel
   };
 
+  // Auto-select first conversation on desktop when conversations list loads if none currently selected
+  useEffect(() => {
+    if (!activeConv && conversations.length > 0 && typeof window !== "undefined" && window.innerWidth >= 640) {
+      handleSelectConversation(conversations[0]);
+    }
+  }, [conversations]);
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim() || !activeConv) return;

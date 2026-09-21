@@ -22,7 +22,7 @@ const getOrgId = (): string => {
     const org = localStorage.getItem("organization_id");
     if (org) return org;
   }
-  return "";
+  return "demo-org-123";
 };
 
 export default function InstagramProfilePage() {
@@ -31,7 +31,10 @@ export default function InstagramProfilePage() {
     media_count?: number;
     username?: string;
     name?: string;
+    profile_picture_url?: string;
+    biography?: string;
   }>({});
+  const [imgError, setImgError] = useState<boolean>(false);
   const [config, setConfig] = useState<{
     instagramAccountId: string;
     accessToken: string;
@@ -44,6 +47,7 @@ export default function InstagramProfilePage() {
 
   const fetchProfileConfig = async () => {
     setRefreshing(true);
+    setImgError(false);
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
         headers: { "x-organization-id": getOrgId() }
@@ -58,6 +62,12 @@ export default function InstagramProfilePage() {
         }
         if (data.liveProfile) {
           setLiveProfile(data.liveProfile);
+        } else if (data.config?.profilePic) {
+          setLiveProfile({
+            profile_picture_url: data.config.profilePic,
+            username: data.config.username,
+            name: data.config.name,
+          });
         } else {
           setLiveProfile({});
         }
@@ -77,7 +87,7 @@ export default function InstagramProfilePage() {
   return (
     <div className="flex-1 bg-slate-50 text-slate-900 flex flex-col font-sans overflow-hidden">
       {/* Header Bar */}
-      <header className="h-16 border-b border-slate-200/90 bg-white px-6 flex items-center justify-between shrink-0 z-20">
+      <header className="h-14 border-b border-slate-200/80 bg-white px-6 flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-pink-50 border border-pink-200 text-pink-600 shadow-2xs">
             <User className="h-5 w-5" />
@@ -112,32 +122,56 @@ export default function InstagramProfilePage() {
         {/* Profile Card Banner */}
         <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-2xl bg-gradient-to-tr from-pink-500 via-purple-500 to-amber-400 p-0.5 shadow-md shadow-pink-500/10 shrink-0">
-                <div className="h-full w-full bg-white rounded-[14px] flex items-center justify-center text-pink-600 font-black text-xl">
-                  {liveProfile.name ? liveProfile.name[0].toUpperCase() : liveProfile.username ? liveProfile.username[0].toUpperCase() : "IG"}
-                </div>
+            <div className="flex items-start sm:items-center gap-4">
+              <div className="h-18 w-18 rounded-2xl bg-gradient-to-tr from-pink-500 via-purple-500 to-amber-400 p-0.5 shadow-md shadow-pink-500/15 shrink-0 overflow-hidden relative">
+                {liveProfile.profile_picture_url && !imgError ? (
+                  <img
+                    src={liveProfile.profile_picture_url}
+                    alt={liveProfile.name || "Instagram Profile"}
+                    className="h-full w-full rounded-[14px] object-cover"
+                    onError={() => setImgError(true)}
+                  />
+                ) : (
+                  <div className="h-full w-full bg-white rounded-[14px] flex items-center justify-center text-pink-600 font-black text-2xl">
+                    {liveProfile.name ? liveProfile.name[0].toUpperCase() : liveProfile.username ? liveProfile.username[0].toUpperCase() : "IG"}
+                  </div>
+                )}
               </div>
-              <div className="space-y-0.5">
-                <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  {liveProfile.name || (config.instagramAccountId ? "Connected Business Account" : "No Instagram Account Linked")}
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-black text-slate-900">
+                    {liveProfile.name || (config.instagramAccountId ? "Connected Business Account" : "No Instagram Account Linked")}
+                  </h2>
                   {liveProfile.username && (
-                    <span className="text-xs font-bold text-pink-600 font-mono">
+                    <a
+                      href={`https://instagram.com/${liveProfile.username}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-pink-600 hover:text-pink-700 bg-pink-50 hover:bg-pink-100/80 border border-pink-200/80 px-2 py-0.5 rounded-full transition-colors font-mono"
+                    >
                       @{liveProfile.username}
-                    </span>
+                      <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
                   )}
-                </h2>
+                </div>
+
+                {liveProfile.biography && (
+                  <p className="text-xs text-slate-600 max-w-xl line-clamp-2 leading-relaxed">
+                    {liveProfile.biography}
+                  </p>
+                )}
+
                 <p className="text-xs text-slate-500">
                   {config.instagramAccountId ? "Official Instagram Business Account connected to CRM Webhook engine" : "Link your Meta Page and Instagram Account in Settings to view metrics."}
                 </p>
                 {config.instagramAccountId && (
-                  <p className="text-[11px] text-slate-400 font-mono pt-1">
+                  <p className="text-[11px] text-slate-400 font-mono pt-0.5">
                     Account ID: <span className="text-slate-700 font-bold">{config.instagramAccountId}</span>
                   </p>
                 )}
               </div>
             </div>
-            <Badge variant={config.instagramAccountId ? "success" : "outline"} className="text-xs">
+            <Badge variant={config.instagramAccountId ? "success" : "outline"} className="text-xs shrink-0">
               {config.instagramAccountId ? "Connected & Verified" : "Not Configured"}
             </Badge>
           </div>
