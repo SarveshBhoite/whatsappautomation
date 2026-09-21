@@ -134,13 +134,66 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
       customerQuery = rawContent;
     }
 
+    // Strip any Meta Ads referral tag for trigger matching
+    let queryForTriggerMatch = customerQuery;
+    if (queryForTriggerMatch.startsWith("[Customer clicked Meta Ad:")) {
+      const closeBracketIndex = queryForTriggerMatch.indexOf("] ");
+      if (closeBracketIndex !== -1) {
+        queryForTriggerMatch = queryForTriggerMatch.substring(closeBracketIndex + 2).trim();
+      }
+    }
+
+    // Helper to normalize strings for robust comparison
+    const normalizeText = (t: string) => (t || "").toLowerCase().replace(/[^\w\s]/gi, " ").replace(/\s+/g, " ").trim();
+    const normalizedCustomerMsg = normalizeText(queryForTriggerMatch);
+
+    // Check if any active Knowledge Item is an EXACT_TRIGGER / isExactMatch
+    const matchedExactItem = allKnowledgeItems.find((item: any) => {
+      if (!item.isExactMatch && item.matchType !== "EXACT_TRIGGER") return false;
+      const phrasesStr = item.triggerPhrases || item.topic || "";
+      const phrases = phrasesStr
+        .split(/[\n,]+/)
+        .map((p: string) => normalizeText(p))
+        .filter(Boolean);
+
+      // Check normalized topic
+      const normTopic = normalizeText(item.topic);
+      if (normTopic && normTopic === normalizedCustomerMsg) return true;
+
+      // Check configured trigger phrases
+      return phrases.some((p: string) => p === normalizedCustomerMsg || normalizedCustomerMsg.includes(p));
+    });
+
+    let replyText = "";
+    let rawAttachIds: string[] = [];
+    let parsedResult: any = {};
+    let isDirectTriggerHit = false;
+
+    if (matchedExactItem) {
+      console.log(`[AI AGENT ENGINE] 🎯 Exact trigger hit for knowledge item: "${matchedExactItem.topic}" (Category: ${matchedExactItem.category})`);
+      replyText = matchedExactItem.content;
+      isDirectTriggerHit = true;
+      if (matchedExactItem.mediaUrl) {
+        rawAttachIds = [matchedExactItem.id];
+      }
+      // Auto-extract lead if category is JOBS or SERVICES
+      if (matchedExactItem.category === "JOBS" || /job|hiring|career/i.test(matchedExactItem.topic)) {
+        parsedResult = {
+          capturedLead: {
+            topic: `Job Application: ${matchedExactItem.topic}`,
+            notes: `Triggered by Meta Ad / Fixed phrase: "${queryForTriggerMatch}"`
+          }
+        };
+      }
+    }
+
     const companyName = conversation.organization.name || "our company";
 
     // Format Full Knowledge Base Context for THIS SPECIFIC ORGANIZATION ONLY
     let knowledgeContextText = "";
     if (allKnowledgeItems.length > 0) {
       knowledgeContextText = allKnowledgeItems.map(k => `
-[KNOWLEDGE TOPIC: ${k.topic}] (Category: ${k.category})
+[KNOWLEDGE TOPIC: ${k.topic}] (Category: ${k.category}${k.isExactMatch ? ' | DIRECT_AD_TRIGGER' : ''})
 Keywords Tagged: ${k.keywords}
 Detailed Information: ${k.content}
 ${k.mediaUrl ? `Media Asset ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.mediaTitle || 'Attachment'}", URL: ${k.mediaUrl})` : 'No media asset attached'}
@@ -149,15 +202,16 @@ ${k.mediaUrl ? `Media Asset ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.med
       knowledgeContextText = `Company Name: ${companyName}. Answer customer questions politely based on your training and offer to have our human team reach out.`;
     }
 
-    // 4. Build Groq AI System Prompt with Dynamic Organization Awareness
-    const groqApiKey = (aiConfig as any)?.groqApiKey?.trim() || process.env.GROQ_KEY;
-    if (!groqApiKey) {
-      console.warn("[AI AGENT ENGINE] GROQ_KEY is missing from configuration & environment.");
-      return;
-    }
-    const currentTimestamp = new Date();
-    const currentDateStr = currentTimestamp.toISOString().split("T")[0];
-    const currentTimeStr = currentTimestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
+    // 4. Build Groq AI System Prompt with Dynamic Organization Awareness (Skip LLM call if exact trigger matched)
+    if (!isDirectTriggerHit) {
+      const groqApiKey = (aiConfig as any)?.groqApiKey?.trim() || process.env.GROQ_KEY;
+      if (!groqApiKey) {
+        console.warn("[AI AGENT ENGINE] GROQ_KEY is missing from configuration & environment.");
+        return;
+      }
+      const currentTimestamp = new Date();
+      const currentDateStr = currentTimestamp.toISOString().split("T")[0];
+      const currentTimeStr = currentTimestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
 
     const systemPrompt = `You are "${agentName}", representing "${companyName}". You are a warm, highly intelligent, and human-like sales, growth and support consultant.
 Current Date & Time in IST: ${currentDateStr} at ${currentTimeStr}.
@@ -186,7 +240,9 @@ Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. W
 7. **AUTOMATIC MULTILINGUAL MATCHING & CONTINUITY (CRITICAL RULE)**:
    - Detect the language of the customer's incoming message (e.g., Hindi, Marathi, Telugu, Tamil, Kannada, Gujarati, Hinglish, English, etc.).
    - Respond strictly in the EXACT SAME LANGUAGE as the user! Maintain this detected language for all subsequent responses throughout the chat history.
-8. **OUTBOUND TEMPLATE, ADS & CAMPAIGN CONTINUITY**:
+8. **OUTBOUND TEMPLATE, ADS & CAMPAIGN CONTINUITY (CRITICAL RULE)**:
+   - Check the recent chat history carefully! If the previous Agent message was a specialized Campaign or Fixed Trigger response (e.g., job hiring invitation, special discount offer, course enrollment, or portfolio showcase), the user's current reply is a DIRECT follow-up to that context!
+   - Continue that EXACT topic naturally (e.g. if the agent previously sent "Yes welcome! We are open to job opportunities...", treat the customer's response as their job application/qualification, ask for their resume or phone number if not yet provided, and NEVER switch context to selling general services).
    - If the customer clicked on a Meta Ad (e.g. contains '[Customer clicked Meta Ad]' or mentions seeing an ad/offer/promotion), immediately welcome them enthusiastically to the promotion:
      "Welcome! You've unlocked our active Meta Ads Special Offer: 50% OFF on all Website & Mobile App Development packages (starting at ₹5,999/-) and 30% OFF on Digital Marketing & SEO! What project can we help you build today to lock in your discount?"
    - If the template offered a preview, catalog, rate card, or brochure, and the customer replies with confirmation (*"Yes send"*, *"Sure"*, *"Send it"*, *"Okay"*), IMMEDIATELY respond warmly and include the matching asset ID in "attachKnowledgeIds".
@@ -420,12 +476,14 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     }
     
     // Support single ID or array of IDs
-    let rawAttachIds: string[] = [];
     if (Array.isArray(parsedResult.attachKnowledgeIds)) {
       rawAttachIds = parsedResult.attachKnowledgeIds;
     } else if (parsedResult.attachKnowledgeId) {
       rawAttachIds = [parsedResult.attachKnowledgeId];
     }
+  } // END OF if (!isDirectTriggerHit)
+  
+  const customerPhone = conversation.customerPhone;
 
     // 6. Collect all matching Knowledge Media Items
     const attachedItems: KnowledgeItem[] = [];

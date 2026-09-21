@@ -1,6 +1,8 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import prisma from "../utils/prisma";
 import axios from "axios";
+import multer from "multer";
+import path from "path";
 
 const router = Router();
 const DEFAULT_ORG_ID = "demo-org-123";
@@ -9,6 +11,87 @@ const DEFAULT_ORG_ID = "demo-org-123";
 const getOrgId = (req: Request): string => {
   return (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
 };
+
+// Memory storage for ImageKit direct cloud upload
+const memoryStorage = multer.memoryStorage();
+const upload = multer({
+  storage: memoryStorage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
+});
+
+// POST /api/ai-agent/upload-media - Upload PDF/Image/Video for AI Knowledge Item
+router.post(
+  "/upload-media",
+  (req: Request, res: Response, next: NextFunction) => {
+    upload.single("file")(req, res, (err: any) => {
+      if (err) {
+        console.error("[AI AGENT UPLOAD MULTER ERROR]:", err.message || err);
+        return res.status(400).json({ error: err.message || "File upload failed" });
+      }
+      next();
+    });
+  },
+  async (req: Request, res: Response) => {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ error: "No media file provided." });
+      }
+
+      const ext = path.extname(file.originalname).toLowerCase().replace(".", "");
+      const mime = file.mimetype.toLowerCase();
+
+      let mediaType: "image" | "document" | "video" = "image";
+      if (mime.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif"].includes(ext)) {
+        mediaType = "image";
+      } else if (mime.startsWith("video/") || ["mp4", "mov", "webm"].includes(ext)) {
+        mediaType = "video";
+      } else {
+        mediaType = "document";
+      }
+
+      const privateKey = process.env.IMAGEKIT_PRIVATE_KEY || "";
+      const urlEndpoint = process.env.IMAGEKIT_URL_ENDPOINT || "";
+
+      if (!privateKey || !urlEndpoint) {
+        return res.status(500).json({
+          error: "Cloud Storage Configuration Error",
+          message: "ImageKit credentials are not configured on server."
+        });
+      }
+
+      const fileBase64 = file.buffer.toString("base64");
+      const cleanFilename = `${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+
+      const formData = new FormData();
+      formData.append("file", fileBase64);
+      formData.append("fileName", cleanFilename);
+      formData.append("useUniqueFileName", "true");
+      formData.append("folder", "/ai-agent-knowledge");
+
+      const authHeader = `Basic ${Buffer.from(`${privateKey}:`).toString("base64")}`;
+      const ikResponse = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData, {
+        headers: { Authorization: authHeader }
+      });
+
+      const publicUrl = ikResponse.data?.url;
+      if (!publicUrl) {
+        return res.status(500).json({ error: "ImageKit Upload Failed", message: "No CDN URL returned." });
+      }
+
+      return res.status(200).json({
+        success: true,
+        mediaUrl: publicUrl,
+        mediaType,
+        filename: cleanFilename,
+        size: file.size
+      });
+    } catch (uploadErr: any) {
+      console.error("[AI AGENT UPLOAD ERROR]:", uploadErr?.response?.data || uploadErr.message);
+      return res.status(500).json({ error: "Failed to upload media file", details: uploadErr.message });
+    }
+  }
+);
 
 // ─── 1. CONFIGURATION & MODE TOGGLE ─────────────────────────────────────────
 
@@ -124,7 +207,7 @@ router.get("/knowledge", async (req: Request, res: Response) => {
 router.post("/knowledge", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { id, category, topic, keywords, content, mediaUrl, mediaType, mediaTitle, isActive } = req.body;
+    const { id, category, topic, keywords, content, mediaUrl, mediaType, mediaTitle, isActive, isExactMatch, matchType, triggerPhrases } = req.body;
 
     if (!topic || !content) {
       return res.status(400).json({ error: "Topic and Content details are required for training." });
@@ -143,6 +226,9 @@ router.post("/knowledge", async (req: Request, res: Response) => {
           mediaType: mediaType || null,
           mediaTitle: mediaTitle || null,
           isActive: isActive !== undefined ? Boolean(isActive) : true,
+          isExactMatch: isExactMatch !== undefined ? Boolean(isExactMatch) : false,
+          matchType: matchType || (isExactMatch ? "EXACT_TRIGGER" : "AI_SEMANTIC"),
+          triggerPhrases: triggerPhrases !== undefined ? triggerPhrases : null,
         },
       });
     } else {
@@ -157,6 +243,9 @@ router.post("/knowledge", async (req: Request, res: Response) => {
           mediaType: mediaType || null,
           mediaTitle: mediaTitle || null,
           isActive: isActive !== undefined ? Boolean(isActive) : true,
+          isExactMatch: isExactMatch !== undefined ? Boolean(isExactMatch) : false,
+          matchType: matchType || (isExactMatch ? "EXACT_TRIGGER" : "AI_SEMANTIC"),
+          triggerPhrases: triggerPhrases !== undefined ? triggerPhrases : null,
         },
       });
     }
@@ -172,6 +261,16 @@ router.post("/knowledge", async (req: Request, res: Response) => {
 router.delete("/knowledge/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
+    const organizationId = getOrgId(req);
+
+    // Enforce that the item belongs to this organization
+    const item = await prisma.aiKnowledgeItem.findFirst({
+      where: { id, organizationId }
+    });
+
+    if (!item) {
+      return res.status(404).json({ error: "Knowledge item not found in this organization" });
+    }
 
     await prisma.aiKnowledgeItem.delete({
       where: { id },
@@ -185,6 +284,15 @@ router.delete("/knowledge/:id", async (req: Request, res: Response) => {
 });
 
 // ─── 3. LIVE AGENT PLAYGROUND / SANDBOX ──────────────────────────────────────
+
+// Helper to normalize text for exact phrase matching
+function normalizeText(text: string): string {
+  return (text || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 // POST: Interactive AI Agent Simulator Endpoint
 router.post("/test-sandbox", async (req: Request, res: Response) => {
@@ -204,6 +312,43 @@ router.post("/test-sandbox", async (req: Request, res: Response) => {
     const items = await prisma.aiKnowledgeItem.findMany({
       where: { organizationId, isActive: true },
     });
+
+    // 1. CHECK FOR EXACT TRIGGER MATCH FIRST (Meta Ads / Fixed Button Clicks)
+    const normalizedUserMsg = normalizeText(userMessage);
+    const matchedExactItem = items.find(item => {
+      if (!item.isExactMatch && item.matchType !== "EXACT_TRIGGER") return false;
+      const phrasesStr = item.triggerPhrases || item.topic || "";
+      const phrases = phrasesStr
+        .split(/[\n,]+/)
+        .map(p => normalizeText(p))
+        .filter(Boolean);
+      
+      // Also check against normalized topic
+      const normalizedTopic = normalizeText(item.topic);
+      if (normalizedTopic && normalizedTopic === normalizedUserMsg) return true;
+
+      return phrases.some(p => p === normalizedUserMsg || normalizedUserMsg.includes(p));
+    });
+
+    if (matchedExactItem) {
+      console.log(`[SANDBOX] 🎯 Exact trigger matched knowledge item: "${matchedExactItem.topic}"`);
+      let attachment = null;
+      if (matchedExactItem.mediaUrl) {
+        attachment = {
+          url: matchedExactItem.mediaUrl,
+          type: matchedExactItem.mediaType || "image",
+          title: matchedExactItem.mediaTitle || matchedExactItem.topic,
+        };
+      }
+      return res.status(200).json({
+        success: true,
+        replyText: matchedExactItem.content,
+        attachment,
+        isExactTrigger: true,
+        matchedTopic: matchedExactItem.topic,
+        capturedLead: matchedExactItem.category === "JOBS" ? { topic: "Job Application (Trigger Match)" } : null,
+      });
+    }
 
     const agentName = config?.agentName || "AI Sales Representative";
     const personalityPrompt = config?.personalityPrompt || "You are a warm human sales consultant.";
@@ -330,7 +475,16 @@ router.get("/leads", async (req: Request, res: Response) => {
 router.patch("/leads/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
+    const organizationId = getOrgId(req);
     const { status, notes, remark } = req.body;
+
+    const existingLead = await prisma.aiCapturedLead.findFirst({
+      where: { id, organizationId }
+    });
+
+    if (!existingLead) {
+      return res.status(404).json({ error: "Lead not found in this organization" });
+    }
 
     const updateData: any = {};
     if (status !== undefined) updateData.status = status;

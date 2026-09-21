@@ -811,6 +811,9 @@ model AiKnowledgeItem {
   mediaType      String?
   mediaTitle     String?
   isActive       Boolean      @default(true)
+  isExactMatch   Boolean      @default(false)
+  matchType      String       @default("AI_SEMANTIC") // "AI_SEMANTIC" | "EXACT_TRIGGER"
+  triggerPhrases String?      // Comma or newline separated trigger phrases for exact matching
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

@@ -56,7 +56,7 @@ interface AiAgentConfig {
 
 interface KnowledgeItem {
   id: string;
-  category: "SERVICES" | "PRICING" | "JOBS" | "PORTFOLIO" | "FAQ" | "OTHER";
+  category: "SERVICES" | "PRICING" | "JOBS" | "PORTFOLIO" | "FAQ" | "AD_TRIGGER" | "OTHER";
   topic: string;
   keywords: string;
   content: string;
@@ -64,6 +64,9 @@ interface KnowledgeItem {
   mediaType?: "image" | "document" | "video" | null;
   mediaTitle?: string | null;
   isActive: boolean;
+  isExactMatch?: boolean;
+  matchType?: "AI_SEMANTIC" | "EXACT_TRIGGER";
+  triggerPhrases?: string | null;
   createdAt: string;
 }
 
@@ -113,6 +116,9 @@ export default function AiAgentPage() {
   const [formTopic, setFormTopic] = useState("");
   const [formKeywords, setFormKeywords] = useState("");
   const [formContent, setFormContent] = useState("");
+  const [formIsExactMatch, setFormIsExactMatch] = useState(false);
+  const [formMatchType, setFormMatchType] = useState<"AI_SEMANTIC" | "EXACT_TRIGGER">("AI_SEMANTIC");
+  const [formTriggerPhrases, setFormTriggerPhrases] = useState("");
   const [formMediaUrl, setFormMediaUrl] = useState("");
   const [formMediaType, setFormMediaType] = useState<"image" | "document" | "video">("image");
   const [formMediaTitle, setFormMediaTitle] = useState("");
@@ -123,6 +129,8 @@ export default function AiAgentPage() {
     role: "user" | "assistant";
     content: string;
     attachment?: { url: string; type: string; title: string };
+    isExactTrigger?: boolean;
+    matchedTopic?: string;
   }>>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [sendingSandbox, setSendingSandbox] = useState(false);
@@ -133,14 +141,35 @@ export default function AiAgentPage() {
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [editingRemarks, setEditingRemarks] = useState<{ [leadId: string]: string }>({});
   const [savingRemarkId, setSavingRemarkId] = useState<string | null>(null);
+  const [currentOrgId, setCurrentOrgId] = useState<string>("");
 
   useEffect(() => {
+    const org = getOrgId();
+    setCurrentOrgId(org);
     fetchConfig();
     fetchKnowledge();
     fetchLeads();
+
+    // Listen for storage or custom events when user changes organization
+    const handleOrgChange = () => {
+      const newOrg = getOrgId();
+      setCurrentOrgId(newOrg);
+      fetchConfig();
+      fetchKnowledge();
+      fetchLeads();
+    };
+
+    window.addEventListener("storage", handleOrgChange);
+    window.addEventListener("organization-switched", handleOrgChange);
+
+    return () => {
+      window.removeEventListener("storage", handleOrgChange);
+      window.removeEventListener("organization-switched", handleOrgChange);
+    };
   }, []);
 
   const fetchConfig = async () => {
+    setLoadingConfig(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/ai-agent/config`, {
         headers: { "x-organization-id": getOrgId() }
@@ -275,6 +304,9 @@ export default function AiAgentPage() {
           topic: formTopic,
           keywords: formKeywords,
           content: formContent,
+          isExactMatch: formIsExactMatch,
+          matchType: formIsExactMatch ? "EXACT_TRIGGER" : formMatchType,
+          triggerPhrases: formTriggerPhrases || null,
           mediaUrl: formMediaUrl || null,
           mediaType: formMediaType || null,
           mediaTitle: formMediaTitle || null,
@@ -296,7 +328,8 @@ export default function AiAgentPage() {
     if (!confirm("Are you sure you want to delete this training item?")) return;
     try {
       const res = await fetch(`${BACKEND_URL}/api/ai-agent/knowledge/${id}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         fetchKnowledge();
@@ -312,6 +345,9 @@ export default function AiAgentPage() {
     setFormTopic("");
     setFormKeywords("");
     setFormContent("");
+    setFormIsExactMatch(false);
+    setFormMatchType("AI_SEMANTIC");
+    setFormTriggerPhrases("");
     setFormMediaUrl("");
     setFormMediaTitle("");
   };
@@ -322,6 +358,9 @@ export default function AiAgentPage() {
     setFormTopic(item.topic);
     setFormKeywords(item.keywords || "");
     setFormContent(item.content);
+    setFormIsExactMatch(item.isExactMatch ?? item.matchType === "EXACT_TRIGGER");
+    setFormMatchType(item.matchType || (item.isExactMatch ? "EXACT_TRIGGER" : "AI_SEMANTIC"));
+    setFormTriggerPhrases(item.triggerPhrases || "");
     setFormMediaUrl(item.mediaUrl || "");
     setFormMediaType((item.mediaType as any) || "image");
     setFormMediaTitle(item.mediaTitle || "");
@@ -356,7 +395,9 @@ export default function AiAgentPage() {
           {
             role: "assistant",
             content: data.replyText,
-            attachment: data.attachment
+            attachment: data.attachment,
+            isExactTrigger: data.isExactTrigger,
+            matchedTopic: data.matchedTopic
           }
         ]);
 
@@ -375,7 +416,10 @@ export default function AiAgentPage() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/ai-agent/leads/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
         body: JSON.stringify({ status })
       });
       if (res.ok) {
@@ -392,7 +436,10 @@ export default function AiAgentPage() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/ai-agent/leads/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
         body: JSON.stringify({ remark: remarkText })
       });
       if (res.ok) {
@@ -503,6 +550,12 @@ export default function AiAgentPage() {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600 animate-pulse shrink-0" />
                 <h1 className="text-base sm:text-2xl font-extrabold tracking-tight text-slate-900 truncate">AI Agent Studio</h1>
+                {currentOrgId && (
+                  <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Org Isolated
+                  </span>
+                )}
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate sm:whitespace-normal">
                 Train your company AI Agent to chat like a real human representative and generate sales leads.
@@ -845,17 +898,17 @@ export default function AiAgentPage() {
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-              {["ALL", "SERVICES", "PRICING", "PORTFOLIO", "JOBS", "FAQ", "OTHER"].map(cat => (
+              {["ALL", "SERVICES", "PRICING", "PORTFOLIO", "JOBS", "FAQ", "AD_TRIGGER", "OTHER"].map(cat => (
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                     selectedCategory === cat
                       ? "bg-purple-600 text-white shadow-xs"
                       : "bg-slate-50 text-slate-600 hover:bg-slate-100"
                   }`}
                 >
-                  {cat}
+                  {cat === "AD_TRIGGER" ? "🎯 Ad Triggers" : cat}
                 </button>
               ))}
 
@@ -907,9 +960,16 @@ export default function AiAgentPage() {
                 <div key={item.id} className="bg-white border border-slate-200 rounded-3xl p-5 flex flex-col justify-between hover:border-purple-300 transition-all shadow-xs hover:shadow-sm">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <Badge variant="brand" className="text-[10px]">
-                        {item.category}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="brand" className="text-[10px]">
+                          {item.category === "AD_TRIGGER" ? "🎯 AD TRIGGER" : item.category}
+                        </Badge>
+                        {(item.isExactMatch || item.matchType === "EXACT_TRIGGER") && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                            ⚡ Exact Trigger
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => openEditModal(item)}
@@ -968,6 +1028,21 @@ export default function AiAgentPage() {
                             />
                           </a>
                         )}
+                      </div>
+                    )}
+
+                    {(item.isExactMatch || item.matchType === "EXACT_TRIGGER") && item.triggerPhrases && (
+                      <div className="pt-2 border-t border-amber-100/80 bg-amber-50/50 p-2 rounded-xl text-[10px] space-y-1">
+                        <span className="font-bold text-amber-900 flex items-center gap-1">
+                          <span>🎯 Exact Trigger Phrases:</span>
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {item.triggerPhrases.split(/[\n,]+/).filter(Boolean).map((p, pIdx) => (
+                            <span key={pIdx} className="bg-white px-2 py-0.5 rounded-md border border-amber-200 text-amber-950 font-medium font-mono text-[9px]">
+                              &quot;{p.trim()}&quot;
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
 
@@ -1030,6 +1105,11 @@ export default function AiAgentPage() {
                           : "bg-white text-slate-900 border border-slate-200 rounded-bl-none space-y-2"
                       }`}
                     >
+                      {msg.isExactTrigger && (
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-extrabold mb-1">
+                          <span>⚡ Fixed Ad Trigger Match: &quot;{msg.matchedTopic}&quot;</span>
+                        </div>
+                      )}
                       <p>{msg.content}</p>
 
                       {msg.attachment && (
@@ -1225,6 +1305,7 @@ export default function AiAgentPage() {
                     <option value="PORTFOLIO">PORTFOLIO &amp; SAMPLES</option>
                     <option value="JOBS">JOBS &amp; CAREERS</option>
                     <option value="FAQ">FAQ &amp; POLICIES</option>
+                    <option value="AD_TRIGGER">🎯 AD CAMPAIGN / BUTTON TRIGGER</option>
                     <option value="OTHER">OTHER</option>
                   </select>
                 </div>
@@ -1235,10 +1316,59 @@ export default function AiAgentPage() {
                     type="text"
                     value={formTopic}
                     onChange={(e) => setFormTopic(e.target.value)}
-                    placeholder="e.g. Next.js Web Development Services"
+                    placeholder="e.g. Meta Ads Job Campaign / React Developer"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-purple-500"
                   />
                 </div>
+              </div>
+
+              {/* EXACT TRIGGER MATCH TOGGLE & SETTINGS */}
+              <div className="bg-amber-50/50 border border-amber-200/80 rounded-2xl p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-extrabold text-amber-950">⚡ Exact Trigger Match (Meta Ads / Button Clicks)</span>
+                      <span className="px-2 py-0.5 text-[9px] font-bold uppercase rounded-full bg-amber-200/80 text-amber-900 border border-amber-300">New Feature</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-normal">
+                      When a customer clicks a Meta Ad with a pre-filled button message (e.g. <i>&quot;Hey can I get more info on this&quot;</i>), the AI will send this fixed response instantly without changing the wording, locking the AI into that exact context for subsequent replies.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                    <input
+                      type="checkbox"
+                      checked={formIsExactMatch}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setFormIsExactMatch(checked);
+                        setFormMatchType(checked ? "EXACT_TRIGGER" : "AI_SEMANTIC");
+                        if (checked && formCategory === "SERVICES") {
+                          setFormCategory("AD_TRIGGER");
+                        }
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                  </label>
+                </div>
+
+                {formIsExactMatch && (
+                  <div className="pt-2 border-t border-amber-200/60 space-y-2">
+                    <label className="block text-xs font-bold text-amber-950">
+                      Incoming Trigger Phrases / Words (Comma or Newline Separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={formTriggerPhrases}
+                      onChange={(e) => setFormTriggerPhrases(e.target.value)}
+                      placeholder="e.g. hey can i get more info on this, i want to apply for the job"
+                      className="w-full bg-white border border-amber-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 font-mono shadow-2xs"
+                    />
+                    <p className="text-[10px] text-amber-800">
+                      💡 Matches case-insensitively and ignores punctuation. If left blank, the <b>Topic Title</b> above will be used as the trigger phrase.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1253,12 +1383,18 @@ export default function AiAgentPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Detailed Answers &amp; Business Data</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {formIsExactMatch ? "Fixed Outbound Message (Exact Message Sent To User)" : "Detailed Answers & Business Data"}
+                </label>
                 <textarea
                   rows={4}
                   value={formContent}
                   onChange={(e) => setFormContent(e.target.value)}
-                  placeholder="Provide complete details, features, specifications, or answers for the AI Agent..."
+                  placeholder={
+                    formIsExactMatch
+                      ? "e.g. Yes welcome! We are currently open for job opportunities in Web Development and SEO. Could you please share your name and resume or portfolio link?"
+                      : "Provide complete details, features, specifications, or answers for the AI Agent..."
+                  }
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-purple-500 leading-relaxed"
                 />
               </div>
