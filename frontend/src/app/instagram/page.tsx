@@ -51,6 +51,7 @@ import "reactflow/dist/style.css";
 import InstagramCommentsPage from "./comments/page";
 import InstagramProfilePage from "./profile/page";
 import { AccountSwitcher, AccountOption } from "../../components/AccountSwitcher";
+import { EmojiPickerPopover } from "../../components/EmojiPickerPopover";
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -286,7 +287,7 @@ const MediaNodeComponent = ({ data }: any) => {
 
 // Configure backend base URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "";
+const DEFAULT_ORG_ID = "demo-org-123";
 
 // TS Interfaces
 interface Message {
@@ -324,9 +325,15 @@ interface WhatsAppConfig {
 }
 
 interface InstagramConfig {
+  id?: string;
   instagramAccountId: string;
   pageId: string;
   pageAccessToken: string;
+  username?: string;
+  name?: string;
+  profilePic?: string;
+  isDefault?: boolean;
+  isActive?: boolean;
 }
 
 export default function Dashboard() {
@@ -382,9 +389,10 @@ export default function Dashboard() {
 
   const getOrgId = () => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("organization_id") || "";
+      const org = localStorage.getItem("organization_id");
+      if (org) return org;
     }
-    return "";
+    return DEFAULT_ORG_ID;
   };
 
   // Instagram Config & Accounts
@@ -718,14 +726,28 @@ export default function Dashboard() {
 
   // 1. WebSocket & Initial Data Fetch
   useEffect(() => {
-    // Connect to WebSocket Server
-    const socket = io(BACKEND_URL);
+    // Connect to WebSocket Server with auto-reconnect & fallback transport
+    const socket = io(BACKEND_URL, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+    });
     socketRef.current = socket;
 
     socket.on("connect", () => {
       console.log("Connected to Real-time WebSocket Server");
       // Join Organization Room
-      socket.emit("join-org", DEFAULT_ORG_ID);
+      const org = getOrgId();
+      socket.emit("join-org", org);
+    });
+
+    socket.on("reconnect", () => {
+      console.log("Reconnected to Real-time WebSocket Server");
+      const org = getOrgId();
+      socket.emit("join-org", org);
+      fetchConversations();
+      fetchIgComments();
     });
 
     // Handle Inbound/Outbound Messages
@@ -737,20 +759,23 @@ export default function Dashboard() {
           if (prev.some((m) => m.id === data.message.id)) return prev;
           return [...prev, data.message];
         });
-
-        // Mark conversation as read in state
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c.id === data.conversationId) {
-              return { ...c, messages: [data.message], updatedAt: new Date().toISOString() };
-            }
-            return c;
-          })
-        );
-      } else {
-        // Reload conversation list
-        fetchConversations();
       }
+
+      // Update conversations list in real-time and sort to top
+      setConversations((prev) => {
+        const exists = prev.some((c) => c.id === data.conversationId);
+        if (!exists) {
+          fetchConversations();
+          return prev;
+        }
+        const updated = prev.map((c) => {
+          if (c.id === data.conversationId) {
+            return { ...c, messages: [data.message], updatedAt: new Date().toISOString() };
+          }
+          return c;
+        });
+        return [...updated].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      });
     });
 
     // Handle Status Updates (Ticks)
@@ -789,13 +814,23 @@ export default function Dashboard() {
       });
     });
 
+    socket.on("instagram-comment-replied", (data: { commentId: string; replyText?: string }) => {
+      setIgComments((prev) =>
+        prev.map((c) =>
+          c.id === data.commentId
+            ? { ...c, status: "REPLIED", autoReplyText: data.replyText || c.autoReplyText }
+            : c
+        )
+      );
+    });
+
     // Initial Fetch
     fetchConversations();
     fetchConfig();
     fetchInstagramConfig();
     fetchGoogleConfig();
     fetchIgComments();
-    fetchActiveFlow("whatsapp");
+    fetchActiveFlow("instagram");
 
     return () => {
       socket.disconnect();
@@ -826,16 +861,27 @@ export default function Dashboard() {
   }, [selectedPlatform, activeTab]);
 
   // 2. HTTP API Calls
-  const fetchConversations = async () => {
+  const fetchConversations = async (accountId?: string) => {
     try {
       setLoadingConversations(true);
-      const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
+      const targetAccount = accountId !== undefined ? accountId : selectedIgAccountId;
+      const queryParams = new URLSearchParams({ platform: "instagram" });
+      if (targetAccount) {
+        queryParams.append("accountId", targetAccount);
+      }
+      const res = await fetch(`${BACKEND_URL}/api/admin/conversations?${queryParams.toString()}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {
         setConversations(data);
+        if (activeConvRef.current) {
+          const freshActive = data.find((c) => c.id === activeConvRef.current?.id);
+          if (freshActive) {
+            setActiveConv(freshActive);
+          }
+        }
       }
     } catch (err) {
       console.warn("Could not fetch conversations:", err);
@@ -932,6 +978,7 @@ export default function Dashboard() {
         },
         body: JSON.stringify({ accountId })
       });
+      fetchConversations(accountId);
     } catch (err) {
       console.warn("Error switching Instagram account:", err);
     }
@@ -1127,6 +1174,13 @@ export default function Dashboard() {
     setMobileChatOpen(true); // On mobile, open the chat panel
   };
 
+  // Auto-select first conversation on desktop when conversations list loads if none currently selected
+  useEffect(() => {
+    if (!activeConv && conversations.length > 0 && typeof window !== "undefined" && window.innerWidth >= 640) {
+      handleSelectConversation(conversations[0]);
+    }
+  }, [conversations]);
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim() || !activeConv) return;
@@ -1243,7 +1297,7 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* TOP SECTION NAVIGATION HEADER */}
-      <header className="px-4 sm:px-6 py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-2xs">
+      <header className="px-4 sm:px-6 py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-30 shadow-2xs relative">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-600 shadow-2xs">
             <Instagram className="h-4 w-4" />
@@ -1261,6 +1315,7 @@ export default function Dashboard() {
           <AccountSwitcher
             title="Instagram ID"
             theme="pink"
+            align="left"
             accounts={igAccounts.map((acc) => ({
               id: acc.id,
               label: acc.username ? `@${acc.username}` : (acc.name || `IG (${acc.instagramAccountId.slice(-4)})`),
@@ -1796,21 +1851,14 @@ export default function Dashboard() {
 
                       {/* EMOJI PICKER POPUP */}
                       {showEmojiPicker && (
-                        <div className="absolute bottom-16 left-4 bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-5 gap-2 shadow-xl z-50 animate-fadeIn">
-                          {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
-                            <button
-                              key={emoji}
-                              type="button"
-                              onClick={() => {
-                                setInputText((prev) => prev + emoji);
-                                setShowEmojiPicker(false);
-                              }}
-                              className="text-lg hover:scale-125 transition-transform p-1.5 cursor-pointer"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
+                        <EmojiPickerPopover
+                          onEmojiSelect={(emoji) => {
+                            setInputText((prev) => prev + emoji);
+                          }}
+                          onClose={() => setShowEmojiPicker(false)}
+                          theme="pink"
+                          className="bottom-16 left-4"
+                        />
                       )}
 
                       {/* MEDIA/PAPERCLIP POPUP */}
@@ -2383,6 +2431,71 @@ export default function Dashboard() {
             </>
           ) : settingsSubTab === "instagram" ? (
             <>
+              {/* Meta Official Instagram Embedded Signup Card */}
+              <div className="bg-gradient-to-br from-pink-950/40 via-slate-900 to-purple-950/40 border border-pink-500/30 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="relative h-12 w-12 rounded-2xl shrink-0 overflow-hidden">
+                      {igConfig.profilePic ? (
+                        <img
+                          src={igConfig.profilePic}
+                          alt=""
+                          className="h-12 w-12 rounded-2xl object-cover border border-pink-500/30"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                            const fallback = e.currentTarget.parentElement?.querySelector(".fallback-ig-box") as HTMLElement;
+                            if (fallback) fallback.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className="fallback-ig-box h-12 w-12 rounded-2xl bg-pink-500/20 border border-pink-500/30 items-center justify-center text-pink-400"
+                        style={{ display: igConfig.profilePic ? "none" : "flex" }}
+                      >
+                        <Instagram className="h-6 w-6" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-extrabold text-base text-slate-100">
+                          {igConfig.username ? `@${igConfig.username}` : (igConfig.name || "Meta Instagram Embedded Signup")}
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/20 text-pink-300 border border-pink-500/30 uppercase">
+                          Official Tech Provider
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {igConfig.instagramAccountId ? "Connected via official Meta Graph API engine" : "Connect your Instagram Business account via official Meta login with full permission and asset selection review."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        window.location.href = "/settings?tab=instagram";
+                      }
+                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-md shadow-pink-600/20 transition-all cursor-pointer"
+                  >
+                    <Instagram className="h-4 w-4" />
+                    <span>Launch Meta Login Flow</span>
+                  </button>
+                </div>
+
+                {igConfig.instagramAccountId && (
+                  <div className="bg-slate-900/80 border border-pink-500/20 rounded-xl p-3 flex items-center justify-between text-xs">
+                    <span className="text-pink-300 font-bold flex items-center gap-2">
+                      <Check className="h-4 w-4" /> Connected to Meta Graph API
+                    </span>
+                    <span className="text-slate-400 font-mono text-[11px]">
+                      IG ID: <strong className="text-slate-200">{igConfig.instagramAccountId}</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+
               {/* Instagram Credentials Form */}
               <form onSubmit={saveInstagramConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
                 <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">

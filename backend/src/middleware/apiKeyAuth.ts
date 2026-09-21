@@ -50,6 +50,43 @@ export async function apiKeyAuth(
       });
     }
 
+    // STRICT RULE: Organization Mismatch Validation
+    // If the client explicitly requests an organization ID that does not match this API Key's bound organization ID, REJECT immediately!
+    const requestedOrgId =
+      (req.headers["x-organization-id"] as string) ||
+      (req.query?.organizationId as string) ||
+      (req.body?.organizationId as string) ||
+      "";
+
+    if (requestedOrgId && requestedOrgId.trim() && requestedOrgId.trim() !== apiKeyRecord.organizationId) {
+      return res.status(403).json({
+        error: "Forbidden - Organization Mismatch",
+        message: `Strict Security Rule Violation: This API key is strictly bound to Organization '${apiKeyRecord.organizationId}'. You cannot make API calls or access resources on behalf of Organization '${requestedOrgId}'.`,
+        boundOrganizationId: apiKeyRecord.organizationId,
+        requestedOrganizationId: requestedOrgId.trim()
+      });
+    }
+
+    // Ensure target organization exists in DB
+    const targetOrg = await prisma.organization.findUnique({
+      where: { id: apiKeyRecord.organizationId },
+      select: { id: true, name: true, status: true }
+    });
+
+    if (!targetOrg) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: `Bound Organization '${apiKeyRecord.organizationId}' no longer exists.`
+      });
+    }
+
+    if (targetOrg.status && targetOrg.status.toUpperCase() !== "ACTIVE") {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: `Bound Organization '${targetOrg.name}' is currently suspended or inactive.`
+      });
+    }
+
     // Update lastUsedAt asynchronously without blocking request
     (prisma as any).apiKey.update({
       where: { id: apiKeyRecord.id },
@@ -58,8 +95,10 @@ export async function apiKeyAuth(
       console.error("[API_KEY_LAST_USED_UPDATE_ERR]:", err.message);
     });
 
+    // STRICT SCOPING: Lock req.organizationId & req.headers to the bound organization ONLY
     req.apiKeyRecord = apiKeyRecord;
     req.organizationId = apiKeyRecord.organizationId;
+    req.headers["x-organization-id"] = apiKeyRecord.organizationId;
 
     next();
   } catch (err: any) {

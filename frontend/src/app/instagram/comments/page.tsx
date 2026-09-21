@@ -40,9 +40,10 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:500
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("organization_id") || "";
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
   }
-  return "";
+  return "demo-org-123";
 };
 
 interface AutomationItem {
@@ -216,15 +217,121 @@ export default function InstagramCommentsPage() {
     }
   };
 
+  // Live Comments & Direct Reply State (instagram_business_manage_comments)
+  const [liveComments, setLiveComments] = useState<any[]>([]);
+  const [loadingLiveComments, setLoadingLiveComments] = useState(false);
+  const [replyTextInputs, setReplyTextInputs] = useState<{ [id: string]: string }>({});
+  const [replyingCommentId, setReplyingCommentId] = useState<string | null>(null);
+  const [simulatingComment, setSimulatingComment] = useState(false);
+
+  const fetchLiveComments = async () => {
+    try {
+      setLoadingLiveComments(true);
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comments`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.comments) {
+          setLiveComments(data.comments);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch live comments:", err);
+    } finally {
+      setLoadingLiveComments(false);
+    }
+  };
+
+  const handleSendCommentReply = async (commentId: string) => {
+    const text = replyTextInputs[commentId]?.trim();
+    if (!text) {
+      alert("Please enter a reply before submitting.");
+      return;
+    }
+    try {
+      setReplyingCommentId(commentId);
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comments/reply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({
+          commentId,
+          replyText: text
+        })
+      });
+      if (res.ok) {
+        setReplyTextInputs(prev => ({ ...prev, [commentId]: "" }));
+        setLiveComments(prev => prev.map(c => c.id === commentId ? { ...c, status: "REPLIED", autoReplyText: text } : c));
+        alert("✓ Comment reply delivered to Instagram successfully!");
+      } else {
+        const errData = await res.json();
+        alert(`Failed to reply to comment: ${errData.error || errData.details || "Unknown error"}`);
+      }
+    } catch (err: any) {
+      alert(`Reply error: ${err.message}`);
+    } finally {
+      setReplyingCommentId(null);
+    }
+  };
+
+  const handleSimulateIncomingComment = async () => {
+    try {
+      setSimulatingComment(true);
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comments/simulate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({
+          fromUser: "demo_customer",
+          commentText: "Could you please send me more information about this product?"
+        })
+      });
+      if (res.ok) {
+        fetchLiveComments();
+      }
+    } catch (err) {
+      console.warn("Error simulating comment:", err);
+    } finally {
+      setSimulatingComment(false);
+    }
+  };
+
   useEffect(() => {
     fetchAutomations();
     fetchMediaList();
+    fetchLiveComments();
 
-    const socket: Socket = io(BACKEND_URL);
-    socket.emit("join-org", getOrgId());
+    const socket: Socket = io(BACKEND_URL, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+    });
 
-    socket.on("instagram-comment-received", () => {
+    socket.on("connect", () => {
+      socket.emit("join-org", getOrgId());
+    });
+
+    socket.on("reconnect", () => {
+      socket.emit("join-org", getOrgId());
+      fetchLiveComments();
       fetchAutomations();
+    });
+
+    socket.on("instagram-comment-received", (data: any) => {
+      fetchAutomations();
+      fetchLiveComments();
+    });
+
+    socket.on("instagram-comment-replied", (data: any) => {
+      if (data?.commentId) {
+        setLiveComments(prev => prev.map(c => c.id === data.commentId ? { ...c, status: "REPLIED", autoReplyText: data.replyText } : c));
+      }
     });
 
     return () => {
@@ -1170,6 +1277,16 @@ export default function InstagramCommentsPage() {
               Automations ({automations.length})
             </button>
             <button
+              onClick={() => {
+                setSubTab("live_feed");
+                fetchLiveComments();
+              }}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${subTab === "live_feed" ? "bg-pink-600 text-white font-bold shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Live Comments & Reply ({liveComments.length})
+            </button>
+            <button
               onClick={() => setSubTab("audit_logs")}
               className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${subTab === "audit_logs" ? "bg-pink-600 text-white font-bold shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
             >
@@ -1527,6 +1644,159 @@ export default function InstagramCommentsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: LIVE POST COMMENTS & DIRECT REPLY */}
+        {subTab === "live_feed" && (
+          <div className="space-y-4">
+            {/* Meta App Review Highlight Notice */}
+            <div className="bg-gradient-to-r from-pink-50 via-white to-purple-50 border border-pink-200 rounded-2xl p-5 shadow-2xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-pink-100 border border-pink-200 flex items-center justify-center text-pink-600 shrink-0">
+                  <MessageSquare className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-sm text-slate-900">
+                      Live Instagram Post Comments & Direct Public Reply
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-pink-100 text-pink-800 border border-pink-200 uppercase">
+                      instagram_business_manage_comments
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    View real-time comments on your connected Instagram business account posts and dispatch live public comment replies via Meta Graph API.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={fetchLiveComments}
+                  disabled={loadingLiveComments}
+                  className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold text-xs rounded-xl shadow-2xs cursor-pointer flex items-center gap-1.5 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loadingLiveComments ? "animate-spin" : ""}`} />
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSimulateIncomingComment}
+                  disabled={simulatingComment}
+                  className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-md shadow-pink-600/20 cursor-pointer flex items-center gap-1.5 transition-all disabled:opacity-50"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {simulatingComment ? "Simulating..." : "Simulate Incoming Comment"}
+                </button>
+              </div>
+            </div>
+
+            {/* Comments List */}
+            {liveComments.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center space-y-3 shadow-2xs">
+                <MessageSquare className="h-8 w-8 text-slate-400 mx-auto" />
+                <h3 className="text-sm font-bold text-slate-800">No Instagram Comments Available</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Comments left by customers on your Instagram business account posts will appear here. Click below to simulate a test comment for your review screencast.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleSimulateIncomingComment}
+                  className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Simulate Test Comment
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {liveComments.map((comment) => {
+                  const isReplied = comment.status === "REPLIED" || Boolean(comment.autoReplyText);
+                  const isReplying = replyingCommentId === comment.id;
+
+                  return (
+                    <div
+                      key={comment.id}
+                      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-3 transition-all hover:border-pink-300"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-0.5">
+                            <div className="h-full w-full bg-white rounded-full flex items-center justify-center text-slate-800 font-extrabold text-xs">
+                              {comment.fromUser ? comment.fromUser[0].toUpperCase() : "U"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-slate-900 text-sm">
+                                @{comment.fromUser}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-800 mt-1 font-medium bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                              "{comment.commentText}"
+                            </p>
+                          </div>
+                        </div>
+
+                        <div>
+                          {isReplied ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> Replied to Instagram
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                              <Clock className="h-3 w-3" /> Awaiting Reply
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Display Reply if already replied */}
+                      {isReplied && comment.autoReplyText && (
+                        <div className="ml-12 p-3 bg-pink-50/70 border border-pink-200 rounded-xl text-xs space-y-1">
+                          <div className="text-[10px] font-bold text-pink-800 uppercase tracking-wider flex items-center gap-1">
+                            <Bot className="h-3 w-3" /> Your Public Reply on Instagram:
+                          </div>
+                          <p className="text-slate-700">{comment.autoReplyText}</p>
+                        </div>
+                      )}
+
+                      {/* Reply Input Box */}
+                      <div className="ml-12 pt-1 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={replyTextInputs[comment.id] || ""}
+                          onChange={(e) =>
+                            setReplyTextInputs({ ...replyTextInputs, [comment.id]: e.target.value })
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSendCommentReply(comment.id);
+                            }
+                          }}
+                          placeholder={isReplied ? "Send an additional reply..." : `Reply publicly to @${comment.fromUser}...`}
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                        />
+                        <button
+                          type="button"
+                          disabled={isReplying || !(replyTextInputs[comment.id] || "").trim()}
+                          onClick={() => handleSendCommentReply(comment.id)}
+                          className="px-4 py-2 bg-pink-600 hover:bg-pink-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5 transition-all"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          {isReplying ? "Sending..." : "Send Reply"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

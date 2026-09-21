@@ -58,7 +58,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
             igConfigs: true,
             ytConfigs: true,
             linkedInConfig: true,
-            aiAgentConfig: true,
+            aiAgentConfigs: true,
           },
         },
       },
@@ -87,7 +87,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     const linkedInConfig = conversation.organization.linkedInConfig;
 
     // Check Platform Checklist for AI Agent Mode vs Static Flow Mode
-    const aiConfig = conversation.organization.aiAgentConfig;
+    const aiConfig: any = conversation.organization?.aiAgentConfigs?.[0];
     let isPlatformAiEnabled = false;
 
     if (isWhatsApp) {

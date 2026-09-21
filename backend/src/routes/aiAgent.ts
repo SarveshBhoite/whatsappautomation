@@ -100,7 +100,7 @@ router.get("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
 
-    let config = await prisma.aiAgentConfig.findUnique({
+    let config = await prisma.aiAgentConfig.findFirst({
       where: { organizationId },
     });
 
@@ -305,7 +305,7 @@ router.post("/test-sandbox", async (req: Request, res: Response) => {
     }
 
     // Fetch Config & Knowledge
-    const config = await prisma.aiAgentConfig.findUnique({
+    const config = await prisma.aiAgentConfig.findFirst({
       where: { organizationId },
     });
 

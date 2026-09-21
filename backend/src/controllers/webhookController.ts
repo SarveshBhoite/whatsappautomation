@@ -232,18 +232,20 @@ export const handleWebhook = async (req: Request, res: Response) => {
             platform: "instagram",
             customerPhone,
             customerName: contactName,
+            accountHandle: igConfig.username || igConfig.instagramAccountId,
             isBotPaused: false,
             botPausedUntil: null,
           },
         });
       } else {
-        // Update customerName if it was default fallback or changed
-        if (contactName !== "Instagram User" && conversation.customerName !== contactName) {
-          conversation = await prisma.conversation.update({
-            where: { id: conversation.id },
-            data: { customerName: contactName },
-          });
-        }
+        conversation = await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            updatedAt: new Date(),
+            ...(contactName !== "Instagram User" && conversation.customerName !== contactName ? { customerName: contactName } : {}),
+            ...(!conversation.accountHandle && (igConfig.username || igConfig.instagramAccountId) ? { accountHandle: igConfig.username || igConfig.instagramAccountId } : {}),
+          },
+        });
       }
 
       // Save message in DB
@@ -483,29 +485,22 @@ export const handleWebhook = async (req: Request, res: Response) => {
         const context = message.context; // Meta context block for quotes: { id, from }
         
         const referral = message.referral; // Meta Ads Click referral: { source_url, source_type, source_id, headline, body, media_type, image_url, video_url }
-        let referralText = "";
-        if (referral) {
-          const headline = referral.headline || "";
-          const bodyText = referral.body || "";
-          referralText = `[Customer clicked Meta Ad: "${headline || bodyText || referral.source_url || 'Meta Ad'}"] `;
-          console.log(`[META ADS REFERRAL DETECTED] Headline: "${headline}", Body: "${bodyText}"`);
-        }
         let content = "";
         let mimeType: string | undefined = undefined;
 
         // Extract message content cleanly based on Meta type
         if (type === "text") {
-          content = (referralText ? referralText : "") + (message.text?.body || "");
+          content = message.text?.body || "";
         } else if (type === "button") {
-          content = (referralText ? referralText : "") + (message.button?.text || message.button?.payload || "");
+          content = message.button?.text || message.button?.payload || "";
         } else if (type === "interactive") {
           const interactiveType = message.interactive?.type;
           if (interactiveType === "button_reply") {
-            content = (referralText ? referralText : "") + (message.interactive.button_reply?.id || message.interactive.button_reply?.title || "");
+            content = message.interactive.button_reply?.id || message.interactive.button_reply?.title || "";
           } else if (interactiveType === "list_reply") {
-            content = (referralText ? referralText : "") + (message.interactive.list_reply?.id || message.interactive.list_reply?.title || "");
+            content = message.interactive.list_reply?.id || message.interactive.list_reply?.title || "";
           } else {
-            content = (referralText ? referralText : "") + "Interactive response";
+            content = "Interactive response";
           }
         } else if (type === "location") {
           const loc = message.location;

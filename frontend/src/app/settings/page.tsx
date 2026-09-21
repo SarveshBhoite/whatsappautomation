@@ -32,13 +32,19 @@ import {
   Store,
   Code,
   Search,
+  Shield,
   ShieldCheck,
   Terminal,
   Activity,
   Mail,
   Copy,
   Download,
-  AlertCircle
+  AlertCircle,
+  Edit3,
+  Trash2,
+  ShieldAlert,
+  Building2,
+  ChevronDown
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -426,6 +432,10 @@ export default function Dashboard() {
   const [selectedYoutubeAccountId, setSelectedYoutubeAccountId] = useState<string>("");
 
   // API Keys Management State
+  const [currentOrg, setCurrentOrg] = useState<{ id: string; name: string } | null>(null);
+  const [allOrgs, setAllOrgs] = useState<{ id: string; name: string }[]>([]);
+  const [showOrgDropdown, setShowOrgDropdown] = useState(false);
+  const orgDropdownRef = useRef<HTMLDivElement>(null);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [loadingApiKeys, setLoadingApiKeys] = useState(false);
   const [showCreateKeyModal, setShowCreateKeyModal] = useState(false);
@@ -439,6 +449,7 @@ export default function Dashboard() {
   const [createdKeyWarning, setCreatedKeyWarning] = useState<string | null>(null);
   const [showRawKeyModal, setShowRawKeyModal] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [viewingKeyModal, setViewingKeyModal] = useState<{ id: string; name: string; keyPrefix: string; fullKey: string } | null>(null);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -499,6 +510,16 @@ export default function Dashboard() {
         window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (orgDropdownRef.current && !orgDropdownRef.current.contains(event.target as Node)) {
+        setShowOrgDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Automatically refetch channel / account details whenever the subtab is selected
@@ -581,7 +602,7 @@ export default function Dashboard() {
 
   const getCodeSnippet = (endpointKey: string, lang: string) => {
     const keyPlaceholder = "your_api_key_here";
-    const baseUrl = "http://localhost:5000/api/v1";
+    const baseUrl = "https://crmapi.jisnudigital.com/api/v1";
 
     if (endpointKey === "auth_test") {
       if (lang === "curl") {
@@ -981,15 +1002,36 @@ print(res.json())`;
     document.body.removeChild(element);
   };
 
-  const fetchApiKeys = async () => {
+  const fetchOrganizationsList = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/api-keys/organizations`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.organizations)) {
+          setAllOrgs(data.organizations);
+        }
+      }
+    } catch (err) {
+      console.error("Fetch organizations list error:", err);
+    }
+  };
+
+  const fetchApiKeys = async (targetOrgId?: string) => {
     try {
       setLoadingApiKeys(true);
-      const res = await fetch(`${BACKEND_URL}/api/api-keys`, {
-        headers: { "x-organization-id": getOrgId() }
+      const activeId = targetOrgId || getOrgId();
+      const res = await fetch(`${BACKEND_URL}/api/api-keys?organizationId=${encodeURIComponent(activeId)}`, {
+        headers: { "x-organization-id": activeId }
       });
       if (res.ok) {
         const data = await res.json();
         setApiKeys(data.apiKeys || []);
+        if (data.organization) {
+          setCurrentOrg(data.organization);
+          if (typeof window !== "undefined" && data.organization.id) {
+            localStorage.setItem("organization_id", data.organization.id);
+          }
+        }
       }
     } catch (err) {
       console.error("Fetch API Keys error:", err);
@@ -1000,6 +1042,7 @@ print(res.json())`;
 
   useEffect(() => {
     if (activeTab === "settings" && settingsSubTab === "api-keys") {
+      fetchOrganizationsList();
       fetchApiKeys();
     }
   }, [activeTab, settingsSubTab]);
@@ -1008,13 +1051,15 @@ print(res.json())`;
     e.preventDefault();
     try {
       setGeneratingKey(true);
+      const activeOrgId = getOrgId();
       const res = await fetch(`${BACKEND_URL}/api/api-keys`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": getOrgId()
+          "x-organization-id": activeOrgId
         },
         body: JSON.stringify({
+          organizationId: activeOrgId,
           name: newKeyName,
           description: newKeyDesc,
           environment: newKeyEnv,
@@ -1026,6 +1071,14 @@ print(res.json())`;
         const data = await res.json();
         setCreatedRawKey(data.rawApiKey);
         setCreatedKeyWarning(data.warning);
+        if (data.apiKey?.id && data.rawApiKey) {
+          try {
+            localStorage.setItem(`crm_raw_key_${data.apiKey.id}`, data.rawApiKey);
+          } catch (e) {}
+        }
+        if (data.organization) {
+          setCurrentOrg(data.organization);
+        }
         setShowCreateKeyModal(false);
         setShowRawKeyModal(true);
         setWizardStep(1);
@@ -1033,7 +1086,7 @@ print(res.json())`;
         setNewKeyDesc("");
         setNewKeyEnv("LIVE");
         setSelectedScopes(["whatsapp_send", "whatsapp_templates", "whatsapp_read"]);
-        fetchApiKeys();
+        fetchApiKeys(activeOrgId);
       } else {
         alert("Failed to generate API Key");
       }
@@ -1227,7 +1280,7 @@ print(res.json())`;
       if ((window as any).FB) {
         try {
           (window as any).FB.init({
-            appId: "36702477879366478",
+            appId: process.env.NEXT_PUBLIC_META_APP_ID || "36702477879366478",
             cookie: true,
             xfbml: true,
             version: "v21.0"
@@ -1534,9 +1587,41 @@ print(res.json())`;
     setIgEmbeddedConnecting(true);
     const FB = (window as any).FB;
 
+    // Official Meta Facebook Login scopes for Instagram Graph API
+    // Note: 'instagram_business_*' scopes are only valid on api.instagram.com (Instagram Login).
+    // The facebook.com/dialog/oauth and FB.login endpoints require standard 'instagram_*' scopes:
+    const INSTAGRAM_SCOPES = [
+      "instagram_basic",
+      "instagram_manage_messages",
+      "instagram_manage_comments",
+      "pages_show_list",
+      "pages_read_engagement",
+      "pages_manage_metadata",
+      "pages_messaging",
+      "public_profile",
+      "business_management"
+    ].join(",");
+
+    const configId = process.env.NEXT_PUBLIC_META_INSTAGRAM_CONFIG_ID || "";
+
     // 1. Primary Automated Flow: Native Facebook JS SDK with Instagram scopes
     if (FB && window.location.protocol === "https:") {
       try {
+        const loginOptions: any = {
+          response_type: "code",
+          override_default_response_type: true,
+          // CRITICAL: auth_type="rerequest" forces Meta to show "Choose what you allow"
+          // with Page selector dropdown, Instagram Account selector dropdown, and permissions switches
+          auth_type: "rerequest",
+          return_scopes: true,
+        };
+
+        if (configId) {
+          loginOptions.config_id = configId;
+        } else {
+          loginOptions.scope = INSTAGRAM_SCOPES;
+        }
+
         FB.login(
           (response: any) => {
             console.log("[META INSTAGRAM FB.LOGIN RESPONSE]:", response);
@@ -1546,11 +1631,7 @@ print(res.json())`;
               setIgEmbeddedConnecting(false);
             }
           },
-          {
-            scope: "instagram_basic,instagram_manage_messages,pages_manage_metadata,pages_read_engagement,pages_show_list,public_profile",
-            response_type: "code",
-            override_default_response_type: true,
-          }
+          loginOptions
         );
         return;
       } catch (err) {
@@ -1559,15 +1640,20 @@ print(res.json())`;
     }
 
     // 2. Secondary Automated Flow: OAuth Popup Dialog with auto-polling
-    const appId = "36702477879366478";
+    const appId = process.env.NEXT_PUBLIC_META_APP_ID || "36702477879366478";
     const targetOrigin = window.location.origin.startsWith("https://")
       ? window.location.origin
       : "https://crm.jisnudigital.com";
 
     const redirectUri = encodeURIComponent(`${targetOrigin}/settings?tab=instagram`);
-    const scope = encodeURIComponent("instagram_basic,instagram_manage_messages,pages_manage_metadata,pages_read_engagement,pages_show_list,public_profile");
+    const encodedScopes = encodeURIComponent(INSTAGRAM_SCOPES);
 
-    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
+    let oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&auth_type=rerequest&return_scopes=true`;
+    if (configId) {
+      oauthUrl += `&config_id=${configId}`;
+    } else {
+      oauthUrl += `&scope=${encodedScopes}`;
+    }
 
     const width = 600;
     const height = 750;
@@ -3389,41 +3475,61 @@ print(res.json())`;
               </h2>
               
               {/* Secondary sub-tabs selector */}
-              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto shadow-2xs gap-1">
+              <div className="flex flex-wrap bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 self-start lg:self-auto shadow-inner gap-1 max-w-full overflow-x-auto">
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("whatsapp")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "whatsapp" ? "bg-white text-emerald-800 shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "whatsapp"
+                      ? "bg-white text-emerald-700 shadow-md border border-slate-200/90"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
                 >
-                  <WhatsApp className="h-3.5 w-3.5" /> WhatsApp Setup
+                  <WhatsApp className="h-4 w-4 text-emerald-600" /> WhatsApp Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("instagram")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "instagram" ? "bg-white text-pink-700 shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "instagram"
+                      ? "bg-white text-pink-700 shadow-md border border-slate-200/90"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
                 >
-                  <Instagram className="h-3.5 w-3.5" /> Instagram Setup
+                  <Instagram className="h-4 w-4 text-pink-600" /> Instagram Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("google")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "google" ? "bg-white text-brand-blue shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "google"
+                      ? "bg-white text-blue-700 shadow-md border border-slate-200/90"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
                 >
-                  <Star className="h-3.5 w-3.5 text-amber-500" /> Google Setup
+                  <Star className="h-4 w-4 text-amber-500 fill-amber-400" /> Google Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("youtube")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "youtube" ? "bg-white text-red-600 shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "youtube"
+                      ? "bg-white text-red-700 shadow-md border border-slate-200/90"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
                 >
-                  <Video className="h-3.5 w-3.5" /> YouTube Setup
+                  <Video className="h-4 w-4 text-red-600" /> YouTube Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("api-keys")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "api-keys" ? "bg-white text-amber-700 shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "api-keys"
+                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
                 >
-                  <Key className="h-3.5 w-3.5 text-amber-600" /> API Keys & Developer
+                  <Key className="h-4 w-4" /> API Keys & Developer
                 </button>
               </div>
             </div>
@@ -3431,31 +3537,35 @@ print(res.json())`;
             {settingsSubTab === "api-keys" ? (
               <div className="w-full space-y-8 animate-fadeIn pb-12">
                 {/* DEVELOPER DASHBOARD HEADER BANNER */}
-                <div className="bg-gradient-to-r from-blue-50 via-slate-50 to-indigo-50 border border-blue-200/80 rounded-3xl p-8 shadow-2xs relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                  <div className="flex items-start gap-5">
-                    <div className="h-14 w-14 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0 shadow-2xs">
-                      <Code className="h-7 w-7 text-blue-600" />
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                  {/* Subtle Background Glow Accent */}
+                  <div className="absolute -right-20 -top-20 w-80 h-80 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+
+                  <div className="flex items-start gap-5 relative z-10">
+                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-blue-500/20">
+                      <Code className="h-7 w-7" />
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-extrabold text-xl text-slate-900 tracking-tight">API Keys & Developer Portal</h3>
-                        <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 uppercase tracking-wider">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h3 className="font-extrabold text-xl md:text-2xl text-white tracking-tight">API Keys & Developer Portal</h3>
+                        <span className="px-3 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase tracking-wider">
                           PRODUCTION v1.0
                         </span>
                       </div>
-                      <p className="text-xs md:text-sm text-slate-600 max-w-3xl leading-relaxed">
+                      <p className="text-xs md:text-sm text-slate-300 max-w-2xl leading-relaxed font-sans">
                         Generate secure API keys, manage fine-grained permissions, explore interactive multi-language code reference, and audit real-time request telemetry logs.
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex flex-wrap items-center gap-3 shrink-0 relative z-10">
                     <button
                       type="button"
                       onClick={() => setDevPortalTab("docs")}
-                      className="px-5 py-3 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-2 transition-all border border-slate-200 cursor-pointer shadow-2xs"
+                      className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl flex items-center gap-2 transition-all border border-slate-700 cursor-pointer shadow-sm"
                     >
-                      <FileText className="h-4 w-4 text-blue-600" /> View API Docs
+                      <FileText className="h-4 w-4 text-blue-400" /> View API Docs
                     </button>
 
                     <button
@@ -3468,17 +3578,87 @@ print(res.json())`;
                         setSelectedScopes(["whatsapp_send", "whatsapp_templates", "whatsapp_read"]);
                         setShowCreateKeyModal(true);
                       }}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all shadow-md shadow-blue-600/20 cursor-pointer"
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-blue-600/25 cursor-pointer"
                     >
                       <Plus className="h-4 w-4" /> Generate New API Key
                     </button>
                   </div>
                 </div>
 
+                {/* STANDALONE ACTIVE CRM ORGANIZATION CARD */}
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-2xs">
+                  <div className="flex items-center gap-3.5">
+                    <div className="h-10 w-10 rounded-xl bg-slate-100/90 border border-slate-200/80 flex items-center justify-center text-slate-700 shrink-0">
+                      <Building2 className="h-4.5 w-4.5 text-slate-700" />
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-semibold text-slate-900 text-sm md:text-base">{currentOrg?.name || "Active Organization"}</span>
+                      <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200/80">
+                        {getOrgId()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {allOrgs.length > 1 && (
+                    <div ref={orgDropdownRef} className="relative w-full md:w-auto shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowOrgDropdown(!showOrgDropdown)}
+                        className="w-full md:w-auto bg-slate-50 hover:bg-slate-100 border border-slate-200/90 hover:border-slate-300 text-slate-900 text-xs font-medium rounded-xl px-4 py-2.5 transition-all cursor-pointer inline-flex items-center justify-between gap-3 shadow-2xs group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-3.5 w-3.5 text-slate-500 group-hover:text-slate-700 transition-colors" />
+                          <span className="font-semibold text-slate-900">Available Organizations ({allOrgs.length})</span>
+                        </div>
+                        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${showOrgDropdown ? "rotate-180 text-slate-700" : ""}`} />
+                      </button>
+
+                      {showOrgDropdown && (
+                        <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200/90 rounded-2xl shadow-xl py-2 z-40 animate-fadeIn space-y-1">
+                          <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            Available Organizations ({allOrgs.length})
+                          </div>
+                          <div className="max-h-60 overflow-y-auto px-1.5 custom-scrollbar space-y-1">
+                            {allOrgs.map((org) => {
+                              const isSelected = org.id === getOrgId();
+                              return (
+                                <button
+                                  key={org.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (typeof window !== "undefined") {
+                                      localStorage.setItem("organization_id", org.id);
+                                    }
+                                    fetchApiKeys(org.id);
+                                    setShowOrgDropdown(false);
+                                  }}
+                                  className={`w-full text-left px-3 py-2.5 rounded-xl text-xs flex items-center justify-between transition-all cursor-pointer ${
+                                    isSelected
+                                      ? "bg-slate-100 text-slate-900 font-semibold"
+                                      : "hover:bg-slate-50 text-slate-600 hover:text-slate-900"
+                                  }`}
+                                >
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="font-medium text-slate-900">{org.name}</span>
+                                    <span className="text-[10px] font-mono text-slate-400">{org.id}</span>
+                                  </div>
+                                  {isSelected && (
+                                    <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-2xs" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* OVERVIEW STATS METRIC CARDS */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   <div className="bg-white border border-slate-200/90 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
-                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Credentials</span>
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Credentials</span>
                     <div className="flex items-center justify-between">
                       <span className="text-3xl font-black text-slate-900 font-mono">{apiKeys.length}</span>
                       <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
@@ -3488,7 +3668,7 @@ print(res.json())`;
                   </div>
 
                   <div className="bg-white border border-slate-200/90 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
-                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Active Keys</span>
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Active Keys</span>
                     <div className="flex items-center justify-between">
                       <span className="text-3xl font-black text-emerald-600 font-mono">
                         {apiKeys.filter(k => k.status === "ACTIVE").length}
@@ -3500,7 +3680,7 @@ print(res.json())`;
                   </div>
 
                   <div className="bg-white border border-slate-200/90 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
-                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Telemetry Requests</span>
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Telemetry Requests</span>
                     <div className="flex items-center justify-between">
                       <span className="text-3xl font-black text-blue-600 font-mono">{telemetryLogs.length}</span>
                       <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
@@ -3510,7 +3690,7 @@ print(res.json())`;
                   </div>
 
                   <div className="bg-white border border-slate-200/90 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
-                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Live Success Rate</span>
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Live Success Rate</span>
                     <div className="flex items-center justify-between">
                       <span className="text-3xl font-black text-emerald-600 font-mono">
                         {telemetryLogs.length > 0
@@ -3525,7 +3705,7 @@ print(res.json())`;
                 </div>
 
                 {/* SUB-NAVIGATION TABS BAR */}
-                <div className="flex items-center gap-3 border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
                   <button
                     type="button"
                     onClick={() => setDevPortalTab("keys")}
@@ -3703,12 +3883,12 @@ print(res.json())`;
                         />
                       </div>
 
-                      <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1 w-full sm:w-auto">
+                      <div className="flex bg-slate-100/80 p-1 rounded-xl border border-slate-200/80 gap-1 w-full sm:w-auto">
                         <button
                           type="button"
                           onClick={() => setEnvFilter("ALL")}
-                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
-                            envFilter === "ALL" ? "bg-white text-slate-900 shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"
+                          className={`px-4 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                            envFilter === "ALL" ? "bg-white text-slate-900 shadow-2xs font-semibold border border-slate-200" : "text-slate-600 hover:text-slate-900"
                           }`}
                         >
                           All Credentials ({apiKeys.length})
@@ -3716,20 +3896,20 @@ print(res.json())`;
                         <button
                           type="button"
                           onClick={() => setEnvFilter("LIVE")}
-                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-2 ${
-                            envFilter === "LIVE" ? "bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
+                          className={`px-4 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                            envFilter === "LIVE" ? "bg-white text-slate-900 shadow-2xs font-semibold border border-slate-200" : "text-slate-600 hover:text-slate-900"
                           }`}
                         >
-                          🟢 Live ({apiKeys.filter(k => (k.environment || "LIVE").toUpperCase() === "LIVE").length})
+                          Live ({apiKeys.filter(k => (k.environment || "LIVE").toUpperCase() === "LIVE").length})
                         </button>
                         <button
                           type="button"
                           onClick={() => setEnvFilter("TEST")}
-                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-2 ${
-                            envFilter === "TEST" ? "bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
+                          className={`px-4 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                            envFilter === "TEST" ? "bg-white text-slate-900 shadow-2xs font-semibold border border-slate-200" : "text-slate-600 hover:text-slate-900"
                           }`}
                         >
-                          🟡 Test ({apiKeys.filter(k => (k.environment || "LIVE").toUpperCase() === "TEST").length})
+                          Test ({apiKeys.filter(k => (k.environment || "LIVE").toUpperCase() === "TEST").length})
                         </button>
                       </div>
                     </div>
@@ -3747,7 +3927,7 @@ print(res.json())`;
                         </div>
                         <button
                           type="button"
-                          onClick={fetchApiKeys}
+                          onClick={() => fetchApiKeys()}
                           className="px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold flex items-center gap-2 cursor-pointer transition-all shadow-2xs"
                         >
                           <RefreshCw className={`h-3.5 w-3.5 ${loadingApiKeys ? "animate-spin text-blue-600" : ""}`} /> Refresh Table
@@ -3759,14 +3939,18 @@ print(res.json())`;
                           <RefreshCw className="h-5 w-5 animate-spin text-blue-600" /> Loading API Keys...
                         </div>
                       ) : filteredApiKeys.length === 0 ? (
-                        <div className="py-20 text-center border border-dashed border-slate-200 rounded-3xl space-y-4 bg-slate-50/50 p-8">
-                          <Key className="h-12 w-12 text-slate-400 mx-auto" />
-                          <div className="space-y-1.5">
-                            <p className="text-base font-bold text-slate-900">No API keys match your filter</p>
-                            <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                        <div className="py-16 px-6 text-center border border-dashed border-slate-200/90 rounded-3xl space-y-5 bg-gradient-to-b from-slate-50/50 to-white">
+                          <div className="h-16 w-16 bg-blue-50 border border-blue-200/80 rounded-2xl flex items-center justify-center text-blue-600 mx-auto shadow-sm">
+                            <Key className="h-8 w-8" />
+                          </div>
+                          <div className="space-y-1.5 max-w-md mx-auto">
+                            <h5 className="text-base font-extrabold text-slate-900">
+                              {searchQuery || envFilter !== "ALL" ? "No Credentials Match Filter" : `No API Keys Found for ${currentOrg?.name || "Active Organization"}`}
+                            </h5>
+                            <p className="text-xs text-slate-500 leading-relaxed font-sans">
                               {searchQuery || envFilter !== "ALL"
-                                ? "Try clearing your search term or environment filter to view all keys."
-                                : "Generate your first secret key to authorize external forms, websites, or integrations."}
+                                ? "Try clearing your search query or switching environment filters to view all keys."
+                                : "Generate a secure API key bound to this organization to authorize external web forms, custom app integrations, or messaging APIs."}
                             </p>
                           </div>
                           <button
@@ -3775,39 +3959,39 @@ print(res.json())`;
                               setWizardStep(1);
                               setShowCreateKeyModal(true);
                             }}
-                            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-md shadow-blue-600/20"
+                            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-lg shadow-blue-600/25"
                           >
                             <Plus className="h-4 w-4" /> Generate First API Key
                           </button>
                         </div>
                       ) : (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs">
                           <table className="w-full text-left text-xs">
                             <thead>
-                              <tr className="border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[11px]">
-                                <th className="py-4 px-5 font-bold">Key Name & Environment</th>
-                                <th className="py-4 px-5 font-bold">Masked API Key Prefix</th>
-                                <th className="py-4 px-5 font-bold">Granted Permission Scopes</th>
-                                <th className="py-4 px-5 font-bold">Status</th>
-                                <th className="py-4 px-5 font-bold">Created Date</th>
-                                <th className="py-4 px-5 font-bold">Last Activity</th>
-                                <th className="py-4 px-5 font-bold text-right">Manage</th>
+                              <tr className="border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[11px] bg-slate-50/80">
+                                <th className="py-4 px-6 font-extrabold">Key Name & Environment</th>
+                                <th className="py-4 px-6 font-extrabold">Masked API Key Prefix</th>
+                                <th className="py-4 px-6 font-extrabold">Granted Permission Scopes</th>
+                                <th className="py-4 px-6 font-extrabold">Status</th>
+                                <th className="py-4 px-6 font-extrabold">Created Date</th>
+                                <th className="py-4 px-6 font-extrabold">Last Activity</th>
+                                <th className="py-4 px-6 font-extrabold text-right">Manage Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 font-sans">
                               {filteredApiKeys.map((k) => (
                                 <tr key={k.id} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="py-4 px-5">
+                                  <td className="py-4 px-6">
                                     <div className="flex flex-col gap-1">
-                                      <div className="flex items-center gap-2.5">
-                                        <span className="font-bold text-slate-900 text-xs md:text-sm">{k.name}</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-slate-900 text-xs md:text-sm">{k.name}</span>
                                         {(k.environment || "LIVE").toUpperCase() === "TEST" ? (
-                                          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200">
-                                            🟡 TEST
+                                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                            TEST
                                           </span>
                                         ) : (
-                                          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                            🟢 LIVE
+                                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            LIVE
                                           </span>
                                         )}
                                       </div>
@@ -3816,18 +4000,36 @@ print(res.json())`;
                                       )}
                                     </div>
                                   </td>
-                                  <td className="py-4 px-5 font-mono text-slate-600">
-                                    <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
-                                      <span className="text-slate-800 font-mono font-semibold">{k.keyPrefix}</span>
+                                  <td className="py-4 px-6 font-mono text-slate-600">
+                                    <div className="inline-flex items-center gap-2 bg-slate-100/70 border border-slate-200/80 px-2.5 py-1 rounded-md text-xs font-medium text-slate-800">
                                       <button
                                         type="button"
-                                        title="Copy Key Identifier / Prefix (Full secret key is only revealed once upon creation)"
                                         onClick={() => {
+                                          const savedFullKey = localStorage.getItem(`crm_raw_key_${k.id}`) || k.rawKey || k.keyPrefix;
+                                          setViewingKeyModal({
+                                            id: k.id,
+                                            name: k.name,
+                                            keyPrefix: k.keyPrefix,
+                                            fullKey: savedFullKey
+                                          });
+                                        }}
+                                        className="font-mono text-slate-900 hover:text-blue-600 font-semibold cursor-pointer underline underline-offset-2 decoration-slate-300 hover:decoration-blue-500 transition-all text-left"
+                                        title="Click to view full API key modal"
+                                      >
+                                        {k.keyPrefix}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Copy API Key"
+                                        onClick={() => {
+                                          const savedFullKey = localStorage.getItem(`crm_raw_key_${k.id}`) || k.rawKey;
+                                          const textToCopy = savedFullKey || k.keyPrefix;
+                                          
                                           if (navigator.clipboard && window.isSecureContext) {
-                                            navigator.clipboard.writeText(k.keyPrefix);
+                                            navigator.clipboard.writeText(textToCopy);
                                           } else {
                                             const textArea = document.createElement("textarea");
-                                            textArea.value = k.keyPrefix;
+                                            textArea.value = textToCopy;
                                             textArea.style.position = "fixed";
                                             textArea.style.left = "-999999px";
                                             document.body.appendChild(textArea);
@@ -3836,95 +4038,98 @@ print(res.json())`;
                                             try { document.execCommand("copy"); } catch (err) {}
                                             document.body.removeChild(textArea);
                                           }
+                                          if (savedFullKey) {
+                                            showToast("Full API key copied to clipboard!");
+                                          } else {
+                                            showToast("Key prefix copied!");
+                                          }
                                           setCopiedKey(true);
                                           setTimeout(() => setCopiedKey(false), 2000);
                                         }}
-                                        className="text-slate-400 hover:text-blue-600 p-0.5 rounded cursor-pointer transition-colors"
+                                        className="text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer transition-colors"
                                       >
                                         <Copy className="h-3.5 w-3.5" />
                                       </button>
                                     </div>
                                   </td>
-                                  <td className="py-4 px-5">
+                                  <td className="py-4 px-6">
                                     <div className="flex flex-wrap gap-1.5 max-w-sm">
                                       {Array.isArray(k.permissions) && k.permissions.includes("full_access") ? (
-                                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
-                                          ⭐ FULL SYSTEM ACCESS
+                                        <span className="px-2.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                          FULL ACCESS
                                         </span>
                                       ) : (
-                                        (k.permissions || []).map((perm: string) => {
-                                          let badgeStyle = "bg-slate-100 text-slate-700 border-slate-200";
-                                          if (perm.startsWith("whatsapp_")) badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                                          else if (perm.startsWith("instagram_")) badgeStyle = "bg-pink-50 text-pink-700 border-pink-200";
-                                          else if (perm.startsWith("meta_ads_")) badgeStyle = "bg-purple-50 text-purple-700 border-purple-200";
-                                          else if (perm.startsWith("contacts_") || perm.startsWith("campaigns_")) badgeStyle = "bg-blue-50 text-blue-700 border-blue-200";
-
-                                          return (
-                                            <span key={perm} className={`px-2.5 py-0.5 rounded-md text-[10px] font-mono border ${badgeStyle}`}>
-                                              {perm}
-                                            </span>
-                                          );
-                                        })
+                                        (k.permissions || []).map((perm: string) => (
+                                          <span key={perm} className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-600 border border-slate-200">
+                                            {perm}
+                                          </span>
+                                        ))
                                       )}
                                     </div>
                                   </td>
-                                  <td className="py-4 px-5">
+                                  <td className="py-4 px-6">
                                     {k.status === "ACTIVE" ? (
-                                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider">
-                                        ACTIVE
+                                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5 uppercase">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> ACTIVE
                                       </span>
                                     ) : (
-                                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
-                                        REVOKED
+                                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1.5 uppercase">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> REVOKED
                                       </span>
                                     )}
                                   </td>
-                                  <td className="py-4 px-5 text-slate-500">
+                                  <td className="py-4 px-6 text-slate-600 font-mono text-xs font-medium">
                                     {new Date(k.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                                   </td>
-                                  <td className="py-4 px-5 text-slate-500">
-                                    {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : "Never used"}
+                                  <td className="py-4 px-6 text-slate-600 font-mono text-xs font-medium">
+                                    {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : <span className="text-slate-400 italic">Never used</span>}
                                   </td>
-                                  <td className="py-4 px-5 text-right space-x-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setTestApiKeyInput(k.keyPrefix);
-                                        handleTestApiKey(k.keyPrefix);
-                                      }}
-                                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-xl transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                                    >
-                                      <Activity className="h-3.5 w-3.5" /> Test
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditingKeyModal(k);
-                                        setEditKeyName(k.name);
-                                        setEditKeyDesc(k.description || "");
-                                        setEditKeyEnv((k.environment || "LIVE").toUpperCase() === "TEST" ? "TEST" : "LIVE");
-                                        setEditKeyScopes(k.permissions || ["full_access"]);
-                                      }}
-                                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs"
-                                    >
-                                      Edit
-                                    </button>
-                                    {k.status === "ACTIVE" && (
+                                  <td className="py-4 px-6 text-right">
+                                    <div className="flex items-center justify-end gap-3 font-medium text-xs">
                                       <button
                                         type="button"
-                                        onClick={() => setRevokeConfirmKey(k)}
-                                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs"
+                                        title="Verify Key Health & Permissions"
+                                        onClick={() => {
+                                          setTestApiKeyInput(k.keyPrefix);
+                                          handleTestApiKey(k.keyPrefix);
+                                        }}
+                                        className="text-slate-600 hover:text-slate-900 font-medium hover:bg-slate-100 px-2 py-1 rounded transition-colors cursor-pointer"
                                       >
-                                        Revoke
+                                        Test
                                       </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteApiKey(k.id)}
-                                      className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs"
-                                    >
-                                      Delete
-                                    </button>
+                                      <button
+                                        type="button"
+                                        title="Edit Name, Environment & Permissions"
+                                        onClick={() => {
+                                          setEditingKeyModal(k);
+                                          setEditKeyName(k.name);
+                                          setEditKeyDesc(k.description || "");
+                                          setEditKeyEnv((k.environment || "LIVE").toUpperCase() === "TEST" ? "TEST" : "LIVE");
+                                          setEditKeyScopes(k.permissions || ["full_access"]);
+                                        }}
+                                        className="text-slate-600 hover:text-slate-900 font-medium hover:bg-slate-100 px-2 py-1 rounded transition-colors cursor-pointer"
+                                      >
+                                        Edit
+                                      </button>
+                                      {k.status === "ACTIVE" && (
+                                        <button
+                                          type="button"
+                                          title="Revoke API Key Access Immediately"
+                                          onClick={() => setRevokeConfirmKey(k)}
+                                          className="text-amber-700 hover:text-amber-900 font-medium hover:bg-amber-50 px-2 py-1 rounded transition-colors cursor-pointer"
+                                        >
+                                          Revoke
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        title="Delete Key Record Permanently"
+                                        onClick={() => handleDeleteApiKey(k.id)}
+                                        className="text-rose-600 hover:text-rose-800 font-medium hover:bg-rose-50 px-2 py-1 rounded transition-colors cursor-pointer"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               ))}
@@ -4553,13 +4758,26 @@ print(res.json())`;
                             igAccounts.map((acc) => (
                               <div key={acc.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-white to-slate-50/50 border border-slate-200/90 rounded-2xl text-xs shadow-2xs hover:border-pink-300 transition-all">
                                 <div className="flex items-center gap-3.5">
-                                  {acc.profilePic ? (
-                                    <img src={acc.profilePic} alt="" className="w-10 h-10 rounded-full object-cover border border-pink-200" />
-                                  ) : (
-                                    <div className="relative p-2.5 rounded-xl bg-pink-50 text-pink-600 border border-pink-100/80">
+                                  <div className="relative w-10 h-10 shrink-0">
+                                    {acc.profilePic ? (
+                                      <img
+                                        src={acc.profilePic}
+                                        alt=""
+                                        className="w-10 h-10 rounded-full object-cover border border-pink-200"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = "none";
+                                          const fallback = e.currentTarget.parentElement?.querySelector(".fallback-ig-icon") as HTMLElement;
+                                          if (fallback) fallback.style.display = "flex";
+                                        }}
+                                      />
+                                    ) : null}
+                                    <div
+                                      className="fallback-ig-icon w-10 h-10 rounded-full bg-pink-50 text-pink-600 border border-pink-100/80 items-center justify-center"
+                                      style={{ display: acc.profilePic ? "none" : "flex" }}
+                                    >
                                       <Instagram className="w-5 h-5" />
                                     </div>
-                                  )}
+                                  </div>
                                   <div className="space-y-0.5">
                                     <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                                       <span>{acc.username ? `@${acc.username}` : (acc.name || `IG (${acc.instagramAccountId.slice(-4)})`)}</span>
@@ -5182,6 +5400,19 @@ print(res.json())`;
               {/* WIZARD STEP 1: BASIC DETAILS */}
               {wizardStep === 1 && (
                 <div className="space-y-4 animate-fadeIn">
+                  {/* TARGET CRM ORGANIZATION INDICATOR */}
+                  <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs text-blue-900">
+                      <Shield className="h-4 w-4 text-blue-600 shrink-0" />
+                      <span>
+                        Binding Key to Org: <strong className="font-bold text-blue-950">{currentOrg?.name || "Active Organization"}</strong>
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded border border-blue-200">
+                      ID: {getOrgId().substring(0, 8)}...
+                    </span>
+                  </div>
+
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-semibold text-slate-700">
                       API Key Name <span className="text-rose-500">*</span>
@@ -5337,6 +5568,13 @@ print(res.json())`;
               {wizardStep === 3 && (
                 <div className="space-y-4 animate-fadeIn">
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 text-xs">
+                    <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
+                      <span className="text-slate-500">Target CRM Organization:</span>
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <Shield className="h-3.5 w-3.5 text-blue-600" />
+                        {currentOrg?.name || "Active Organization"} ({getOrgId().substring(0, 8)}...)
+                      </span>
+                    </div>
                     <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
                       <span className="text-slate-500">Key Name:</span>
                       <span className="font-bold text-slate-900">{newKeyName}</span>
@@ -5518,6 +5756,104 @@ print(res.json())`;
                   className="w-full sm:w-auto px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-sm"
                 >
                   I Have Saved My Key ✓
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 1C: VIEW FULL API KEY DETAILS POPUP */}
+        {viewingKeyModal && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-2xl relative">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                    <Key className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-900">
+                      {viewingKeyModal.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                      Prefix: {viewingKeyModal.keyPrefix}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingKeyModal(null)}
+                  className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                  <span>Full API Secret Key</span>
+                  <span className="text-[10px] text-slate-400 font-mono">x-api-key header</span>
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    readOnly
+                    onClick={(e) => e.currentTarget.select()}
+                    value={viewingKeyModal.fullKey}
+                    className="w-full bg-slate-950 text-emerald-400 font-mono text-xs rounded-2xl pl-4 pr-28 py-3.5 border border-slate-800 focus:outline-none shadow-inner selection:bg-emerald-800 selection:text-emerald-100 cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(viewingKeyModal.fullKey);
+                      } else {
+                        const textArea = document.createElement("textarea");
+                        textArea.value = viewingKeyModal.fullKey;
+                        textArea.style.position = "fixed";
+                        textArea.style.left = "-999999px";
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        try { document.execCommand("copy"); } catch (err) {}
+                        document.body.removeChild(textArea);
+                      }
+                      showToast(viewingKeyModal.fullKey === viewingKeyModal.keyPrefix ? "Key prefix copied!" : "Full API key copied to clipboard!");
+                    }}
+                    className="absolute right-2 px-3.5 py-1.5 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Copy className="h-3.5 w-3.5" /> Copy Key
+                  </button>
+                </div>
+
+                {viewingKeyModal.fullKey === viewingKeyModal.keyPrefix && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-1.5 text-amber-900 text-xs">
+                    <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>Security Standard Notice</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-relaxed font-sans">
+                      This key was generated before local storage caching was enabled. Industry standard security protocols store only <strong>SHA-256 hashes</strong> on backend servers. If you lost the secret key, generate a new key below.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => downloadEnvFile(viewingKeyModal.fullKey, viewingKeyModal.name)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4 text-slate-600" /> Download .env
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewingKeyModal(null)}
+                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-sm"
+                >
+                  Close
                 </button>
               </div>
             </div>

@@ -740,6 +740,7 @@ export class MetaAdsService {
         title: formData.thankYouTitle || "Thanks!",
         body: formData.thankYouBody || "We will contact you soon.",
         button_type: formData.thankYouButtonType || "VIEW_WEBSITE",
+        button_text: formData.thankYouButtonText || "Visit Website",
         website_url: formData.thankYouWebsiteUrl || "https://example.com"
       },
       should_enforce_work_email: Boolean(formData.shouldEnforceWorkEmail),
@@ -957,6 +958,10 @@ export class MetaAdsService {
           status: "PAUSED",
           access_token: config.accessToken,
         };
+
+        if (payload.specialAdCategory && payload.specialAdCategory !== "NONE") {
+          campPostPayload.special_ad_category_country = ["IN"];
+        }
 
         if (isCbo) {
           if (payload.budgetMode === "LIFETIME") {

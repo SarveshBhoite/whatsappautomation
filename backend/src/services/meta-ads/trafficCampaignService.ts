@@ -2,12 +2,13 @@ import prisma from "../../utils/prisma";
 import axios from "axios";
 import { MetaAdsCoreService, META_GRAPH_BASE } from "./metaAdsCoreService";
 import { CreateMetaCampaignPayload } from "../metaAdsService";
+import { MetaAdsCapabilityService } from "./metaAdsCapabilityService";
 
 export class TrafficCampaignService {
   /**
    * Create Traffic Campaign, Ad Set, and Ad (OUTCOME_TRAFFIC)
    */
-  static async createTrafficCampaign(organizationId: string, payload: CreateMetaCampaignPayload) {
+  static async createTrafficCampaign(organizationId: string, payload: CreateMetaCampaignPayload | any) {
     const config = await MetaAdsCoreService.getConfig(organizationId);
 
     const formattedAccountId = config.adAccountId
@@ -107,7 +108,7 @@ export class TrafficCampaignService {
           let destType = (payload.destinationType || payload.adDestinationRadio || "WEBSITE").toUpperCase();
           if (destType === "MESSAGING") destType = "WHATSAPP";
           if (destType === "INSTAGRAM") destType = "INSTAGRAM_DIRECT";
-          if (destType === "CALL") destType = "PHONE_CALL";
+          if (destType === "CALL" || destType === "PHONE_CALL") destType = "WEBSITE";
 
           let optGoal = (payload.performanceGoal || payload.optimizationGoal || "LINK_CLICKS").toUpperCase();
           if (optGoal.includes("CLICK")) optGoal = "LINK_CLICKS";
@@ -122,8 +123,20 @@ export class TrafficCampaignService {
           if (payload.gender === "MEN" || payload.gender === "MALE") parsedGenders = [1];
           else if (payload.gender === "WOMEN" || payload.gender === "FEMALE") parsedGenders = [2];
 
+          const isSpecialCategory = Boolean(payload.specialAdCategory && payload.specialAdCategory !== "NONE");
+          const geoLocations = await MetaAdsCapabilityService.resolveGeoLocations(
+            {
+              cities: payload.cities || payload.targeting?.cities,
+              locationDescription: payload.locationDescription || payload.targeting?.locationDescription,
+              countries: payload.targeting?.countries || payload.countries || ["IN"],
+              radiusKm: payload.targeting?.radiusKm || payload.radiusKm,
+            },
+            isSpecialCategory,
+            config.accessToken
+          );
+
           const targetingObj: any = {
-            geo_locations: { countries: payload.targeting?.countries || ["IN"] },
+            geo_locations: geoLocations,
             age_min: payload.ageMin || payload.targeting?.ageMin || 18,
             age_max: payload.ageMax || payload.targeting?.ageMax || 65,
             genders: parsedGenders,

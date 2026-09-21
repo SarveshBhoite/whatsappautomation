@@ -62,8 +62,25 @@ router.post("/send", async (req: Request, res: Response) => {
       }
     }
 
-    const igConfig = conversation.organization.igConfig;
-    const ytConfig = conversation.organization.ytConfig;
+    let igConfig: any = null;
+    if (isInstagram) {
+      if ((conversation as any).accountId) {
+        igConfig = await prisma.instagramConfig.findUnique({
+          where: { id: (conversation as any).accountId }
+        });
+      }
+      if (!igConfig) {
+        igConfig = await prisma.instagramConfig.findFirst({
+          where: { organizationId: conversation.organizationId, isActive: true },
+          orderBy: { isDefault: "desc" }
+        });
+      }
+      if (!igConfig && (conversation.organization as any)?.igConfigs?.length > 0) {
+        igConfig = (conversation.organization as any).igConfigs[0];
+      }
+    }
+
+    const ytConfig = (conversation.organization as any).ytConfig;
 
     if (isWhatsApp) {
       if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
@@ -185,11 +202,13 @@ router.post("/send", async (req: Request, res: Response) => {
         return res.status(400).json({ error: "Unsupported message type for manual sending" });
       }
     } else if (isInstagram) {
+      const pageIdOrAccountId = igConfig?.pageId || igConfig?.instagramAccountId || undefined;
       if (messageType === "text") {
         responseData = await InstagramService.sendTextMessage(
           igConfig!.pageAccessToken!,
           customerPhone,
-          mediaUrlOrId
+          mediaUrlOrId,
+          pageIdOrAccountId
         );
         contentForDb = mediaUrlOrId;
       } else if (["image", "document", "video", "audio"].includes(messageType)) {
@@ -199,7 +218,8 @@ router.post("/send", async (req: Request, res: Response) => {
           messageType as "document" | "image" | "video" | "audio",
           mediaUrlOrId,
           filename,
-          caption
+          caption,
+          pageIdOrAccountId
         );
         
         // Format content for database
