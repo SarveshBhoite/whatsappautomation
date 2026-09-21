@@ -1,5 +1,5 @@
-import { MetaAIConversationService, CampaignConversationState } from "../../src/services/meta-ads/metaAIConversationService";
-import { MetaLanguageAnalyzerService } from "../../src/services/meta-ads/metaAIConversationService";
+import { MetaAIConversationService, CampaignConversationState, MetaLanguageAnalyzerService } from "../../src/services/meta-ads/metaAIConversationService";
+import { MetaCampaignDraftService } from "../../src/services/meta-ads/metaCampaignDraftService";
 import { MetaAIProviderService } from "../../src/services/meta-ads/metaAIProviderService";
 
 describe("Meta Ads AI Assistant - Language Stability & Anti-Jumping Suite", () => {
@@ -9,35 +9,44 @@ describe("Meta Ads AI Assistant - Language Stability & Anti-Jumping Suite", () =
     jest.spyOn(MetaAIProviderService, "generateStructuredResponse").mockResolvedValue(null as any);
   });
 
-  const createTestState = (): CampaignConversationState => ({
-    sessionId: "session_test",
-    versionNumber: 1,
-    status: "DISCOVERY",
-    draft: {
-      campaign: { name: "AI Meta Campaign Blueprint" },
-      destination: {},
-      targeting: {},
-      creative: {},
-      sourceMap: {},
-    },
-    validation: { isValid: false, issues: [] },
-    context: {
-      adAccounts: [{ id: "act_123", name: "Test Account", currency: "INR", timezone_name: "Asia/Kolkata" }],
-      pages: [{ id: "page_123", name: "Test Page" }],
-      timezones: ["Asia/Kolkata"],
-      whatsAppNumbers: [{ phoneNumber: "+919876543210", displayPhoneNumber: "+91 98765 43210" }],
-      pixels: [],
-    },
-    conversation: [
-      {
-        id: "msg_init",
-        sender: "ai",
-        text: "Hello! I'm JISNU AI, your Senior Media Buyer. How can I help you create your Meta ad campaign today?",
-        timestamp: "10:00 AM",
+  const createTestState = (): CampaignConversationState => {
+    const draft = MetaCampaignDraftService.createInitialDraft("act_123");
+    draft.campaign.name = "AI Meta Campaign Blueprint";
+    return {
+      sessionId: "session_test",
+      versionNumber: 1,
+      status: "DISCOVERY",
+      draft,
+      validation: { valid: false, errors: [], warnings: [], info: [], blockingCount: 0 },
+      context: {
+        adAccounts: [
+          {
+            id: "act_123",
+            adAccountId: "act_123",
+            name: "Test Account",
+            currency: "INR",
+            timezoneName: "Asia/Kolkata",
+            accountStatus: 1,
+            isActive: true,
+          },
+        ],
+        pages: [{ id: "page_123", name: "Test Page" }],
+        timezones: ["Asia/Kolkata"],
+        whatsAppNumbers: [{ phoneNumber: "+919876543210", displayPhoneNumber: "+91 98765 43210" }],
+        pixels: [],
+        instagramAccounts: [],
       },
-    ],
-    requiresConfirmation: false,
-  });
+      conversation: [
+        {
+          id: "msg_init",
+          sender: "ai",
+          text: "Hello! I'm JISNU AI, your Senior Media Buyer. How can I help you create your Meta ad campaign today?",
+          timestamp: "10:00 AM",
+        },
+      ],
+      requiresConfirmation: false,
+    };
+  };
 
   test("User Hinglish input does not erroneously flip to Marathi when verbs like 'karte' or 'ham' appear", () => {
     // 1. Initial Hinglish request

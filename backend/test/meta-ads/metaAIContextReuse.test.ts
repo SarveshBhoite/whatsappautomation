@@ -31,12 +31,10 @@ describe("Meta Ads AI Assistant - Context Reuse & Anti-Repetition Test Suite", (
       draft,
       validation: {
         valid: false,
-        criticalCount: 0,
-        warningCount: 0,
-        policyBreaches: [],
-        missingRequiredFields: [],
-        structuralErrors: [],
-        riskScore: 0,
+        errors: [],
+        warnings: [],
+        info: [],
+        blockingCount: 0,
       },
       context: {
         organizationId: orgId,

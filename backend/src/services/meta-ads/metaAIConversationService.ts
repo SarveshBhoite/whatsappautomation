@@ -76,6 +76,8 @@ export interface DetectedLanguageInfo {
   localeCode: string;
   script: string;
   confidence: number;
+  style?: "hinglish" | "marathlish" | "mr" | "hi" | "gu" | "en" | string;
+  variant?: "hinglish" | "marathlish" | "mr" | "hi" | "gu" | "en" | string;
 }
 
 export class MetaLanguageAnalyzerService {
@@ -121,6 +123,32 @@ export class MetaLanguageAnalyzerService {
   }
 
   /**
+   * Resolves language styling nuances (isHinglish, isMarathlish, isHindi, isMarathi, etc.)
+   */
+  static getLanguageStyle(detected?: DetectedLanguageInfo) {
+    const code = detected?.code || "en";
+    const script = detected?.script || "Latin";
+    const isLatin = script === "Latin" || script.toLowerCase().includes("latin");
+    const isHinglish = (code === "hi" && isLatin) || detected?.style === "hinglish" || detected?.variant === "hinglish";
+    const isMarathlish = (code === "mr" && isLatin) || detected?.style === "marathlish" || detected?.variant === "marathlish";
+    const isHindi = code === "hi" && !isHinglish;
+    const isMarathi = code === "mr" && !isMarathlish;
+    const isEnglish = code === "en";
+    const isGujarati = code === "gu";
+    return {
+      code,
+      script,
+      isLatin,
+      isHinglish,
+      isMarathlish,
+      isHindi,
+      isMarathi,
+      isEnglish,
+      isGujarati,
+    };
+  }
+
+  /**
    * Analyze incoming user input, detect natural language & script, with dynamic switching and precision scoring
    */
   static analyzeUserLanguage(text: string, currentSessionLanguage?: DetectedLanguageInfo): DetectedLanguageInfo {
@@ -134,47 +162,49 @@ export class MetaLanguageAnalyzerService {
         localeCode: "en_US",
         script: "Latin",
         confidence: 0.9,
+        variant: "en",
+        style: "en",
       };
     }
 
-    // 1. EXPLICIT LANGUAGE OVERRIDE COMMANDS (e.g. "marathi madhe bola", "hindi me bolo", "speak in english")
+    // 1. EXPLICIT LANGUAGE OVERRIDE COMMANDS (e.g. "marathi madhe bola", "hindi me bolo", "speak in english", "switch to english")
     if (/\b(?:marathi madhe bola|marathi madhe|मराठीत बोला|मराठी मध्ये बोला|बोल मराठीत|speak in marathi|in marathi|marathit bola|मराठी)\b/i.test(trimmed)) {
-      return { code: "mr", name: "Marathi", nativeName: "मराठी", metaLocaleKey: 21, localeCode: "mr_IN", script: "Devanagari (मराठी)", confidence: 1.0 };
+      return { code: "mr", name: "Marathi", nativeName: "मराठी", metaLocaleKey: 21, localeCode: "mr_IN", script: "Devanagari (मराठी)", confidence: 1.0, variant: "mr", style: "mr" };
     }
     if (/\b(?:hindi me bolo|hindi me|हिंदी में बोलो|हिंदी में|speak in hindi|in hindi|hindi mai bolo|hindi bolo|हिंदी)\b/i.test(trimmed)) {
-      return { code: "hi", name: "Hindi", nativeName: "हिंदी", metaLocaleKey: 20, localeCode: "hi_IN", script: "Devanagari (हिंदी)", confidence: 1.0 };
+      return { code: "hi", name: "Hindi", nativeName: "हिंदी", metaLocaleKey: 20, localeCode: "hi_IN", script: "Devanagari (हिंदी)", confidence: 1.0, variant: "hi", style: "hi" };
     }
-    if (/\b(?:speak in english|in english|english me bolo|इंग्रजीत बोला|इंग्लिश मध्ये बोला|अंग्रेजी में बोलो|english me|talk in english|in english please)\b/i.test(trimmed)) {
-      return { code: "en", name: "English", nativeName: "English", metaLocaleKey: 6, localeCode: "en_US", script: "Latin", confidence: 1.0 };
+    if (/\b(?:speak in english|in english|english me bolo|इंग्रजीत बोला|इंग्लिश मध्ये बोला|अंग्रेजी में बोलो|english me|talk in english|in english please|switch to english)\b/i.test(trimmed)) {
+      return { code: "en", name: "English", nativeName: "English", metaLocaleKey: 6, localeCode: "en_US", script: "Latin", confidence: 1.0, variant: "en", style: "en" };
     }
     if (/\b(?:speak in gujarati|gujarati ma|ગુજરાતી માં બોલો|gujarati)\b/i.test(trimmed)) {
-      return { code: "gu", name: "Gujarati", nativeName: "ગુજરાતી", metaLocaleKey: 22, localeCode: "gu_IN", script: "Gujarati", confidence: 1.0 };
+      return { code: "gu", name: "Gujarati", nativeName: "ગુજરાતી", metaLocaleKey: 22, localeCode: "gu_IN", script: "Gujarati", confidence: 1.0, variant: "gu", style: "gu" };
     }
 
     // 2. NON-DEVANAGARI REGIONAL SCRIPTS
     if (/[\u0A80-\u0AFF]/.test(trimmed)) {
-      return { code: "gu", name: "Gujarati", nativeName: "ગુજરાતી", metaLocaleKey: 22, localeCode: "gu_IN", script: "Gujarati", confidence: 0.99 };
+      return { code: "gu", name: "Gujarati", nativeName: "ગુજરાતી", metaLocaleKey: 22, localeCode: "gu_IN", script: "Gujarati", confidence: 0.99, variant: "gu", style: "gu" };
     }
     if (/[\u0B80-\u0BFF]/.test(trimmed)) {
-      return { code: "ta", name: "Tamil", nativeName: "தமிழ்", metaLocaleKey: 23, localeCode: "ta_IN", script: "Tamil", confidence: 0.99 };
+      return { code: "ta", name: "Tamil", nativeName: "தமிழ்", metaLocaleKey: 23, localeCode: "ta_IN", script: "Tamil", confidence: 0.99, variant: "ta", style: "ta" };
     }
     if (/[\u0C00-\u0C7F]/.test(trimmed)) {
-      return { code: "te", name: "Telugu", nativeName: "తెలుగు", metaLocaleKey: 25, localeCode: "te_IN", script: "Telugu", confidence: 0.99 };
+      return { code: "te", name: "Telugu", nativeName: "తెలుగు", metaLocaleKey: 25, localeCode: "te_IN", script: "Telugu", confidence: 0.99, variant: "te", style: "te" };
     }
     if (/[\u0980-\u09FF]/.test(trimmed)) {
-      return { code: "bn", name: "Bengali", nativeName: "বাংলা", metaLocaleKey: 26, localeCode: "bn_IN", script: "Bengali", confidence: 0.99 };
+      return { code: "bn", name: "Bengali", nativeName: "বাংলা", metaLocaleKey: 26, localeCode: "bn_IN", script: "Bengali", confidence: 0.99, variant: "bn", style: "bn" };
     }
     if (/[\u0C80-\u0CFF]/.test(trimmed)) {
-      return { code: "kn", name: "Kannada", nativeName: "ಕನ್ನಡ", metaLocaleKey: 27, localeCode: "kn_IN", script: "Kannada", confidence: 0.99 };
+      return { code: "kn", name: "Kannada", nativeName: "ಕನ್ನಡ", metaLocaleKey: 27, localeCode: "kn_IN", script: "Kannada", confidence: 0.99, variant: "kn", style: "kn" };
     }
     if (/[\u0D00-\u0D7F]/.test(trimmed)) {
-      return { code: "ml", name: "Malayalam", nativeName: "മലയാളം", metaLocaleKey: 28, localeCode: "ml_IN", script: "Malayalam", confidence: 0.99 };
+      return { code: "ml", name: "Malayalam", nativeName: "മലയാളം", metaLocaleKey: 28, localeCode: "ml_IN", script: "Malayalam", confidence: 0.99, variant: "ml", style: "ml" };
     }
     if (/[\u0A00-\u0A7F]/.test(trimmed)) {
-      return { code: "pa", name: "Punjabi", nativeName: "ਪੰਜਾਬੀ", metaLocaleKey: 29, localeCode: "pa_IN", script: "Gurmukhi", confidence: 0.99 };
+      return { code: "pa", name: "Punjabi", nativeName: "ਪੰਜਾਬੀ", metaLocaleKey: 29, localeCode: "pa_IN", script: "Gurmukhi", confidence: 0.99, variant: "pa", style: "pa" };
     }
     if (/[\u0600-\u06FF]/.test(trimmed)) {
-      return { code: "ar", name: "Arabic", nativeName: "العربية", metaLocaleKey: 11, localeCode: "ar_AR", script: "Arabic", confidence: 0.99 };
+      return { code: "ar", name: "Arabic", nativeName: "العربية", metaLocaleKey: 11, localeCode: "ar_AR", script: "Arabic", confidence: 0.99, variant: "ar", style: "ar" };
     }
 
     // 3. DEVANAGARI SCRIPT ANALYSIS (Marathi vs Hindi)
@@ -186,23 +216,23 @@ export class MetaLanguageAnalyzerService {
       const hindiScore = hindiDevanagariMatches.length;
 
       if (marathiScore > 0 && marathiScore >= hindiScore) {
-        return { code: "mr", name: "Marathi", nativeName: "मराठी", metaLocaleKey: 21, localeCode: "mr_IN", script: "Devanagari (मराठी)", confidence: 0.99 };
+        return { code: "mr", name: "Marathi", nativeName: "मराठी", metaLocaleKey: 21, localeCode: "mr_IN", script: "Devanagari (मराठी)", confidence: 0.99, variant: "mr", style: "mr" };
       }
       if (hindiScore > 0 && hindiScore > marathiScore) {
-        return { code: "hi", name: "Hindi", nativeName: "हिंदी", metaLocaleKey: 20, localeCode: "hi_IN", script: "Devanagari (हिंदी)", confidence: 0.99 };
+        return { code: "hi", name: "Hindi", nativeName: "हिंदी", metaLocaleKey: 20, localeCode: "hi_IN", script: "Devanagari (हिंदी)", confidence: 0.99, variant: "hi", style: "hi" };
       }
       if (/ळ/.test(trimmed)) {
-        return { code: "mr", name: "Marathi", nativeName: "मराठी", metaLocaleKey: 21, localeCode: "mr_IN", script: "Devanagari (मराठी)", confidence: 0.99 };
+        return { code: "mr", name: "Marathi", nativeName: "मराठी", metaLocaleKey: 21, localeCode: "mr_IN", script: "Devanagari (मराठी)", confidence: 0.99, variant: "mr", style: "mr" };
       }
       if (currentSessionLanguage && (currentSessionLanguage.code === "mr" || currentSessionLanguage.code === "hi")) {
         return currentSessionLanguage;
       }
-      return { code: "hi", name: "Hindi", nativeName: "हिंदी", metaLocaleKey: 20, localeCode: "hi_IN", script: "Devanagari (हिंदी)", confidence: 0.95 };
+      return { code: "hi", name: "Hindi", nativeName: "हिंदी", metaLocaleKey: 20, localeCode: "hi_IN", script: "Devanagari (हिंदी)", confidence: 0.95, variant: "hi", style: "hi" };
     }
 
     // 4. LATIN ALPHABET: DISTINGUISH EXPLICIT CONVERSATION vs SHORT BRAND/PARAMETER INPUTS
-    const marathiTranslitMatches = trimmed.match(/\b(?:mala|tula|aamhi|amhi|aahe|ahe|ahet|aahet|nahi|naahi|pahije|pahijet|karaych[aei]|chalvaych[aei]|vadhvaych[aei]|kara|karu|karave|karava|karavi|karto|karte|kartat|divas|bhetel|sanga|sangitla|sangitlele|maharashtra|punyat|mumbait|chalu|karun|kiti|kuthe|kay|kash[aei]|kasa|kasi|kase|sathi|madhe|mde|alele|aalele|vr|wale|theu|dya|baddal|tyanchya|tumcha|tumchi|tumche|tumhi|maza|majha|mazi|majhi|maaze|maze|maz[ao]|hawa|havi|hawe|aani|ani|pan|jar|tar|mhanun|lavauche|thevayche|dakhav|dakhva|dakhvaychi|pahile|aata|kra|kraychi|set karaychi)\b/gi) || [];
-    const hindiTranslitMatches = trimmed.match(/\b(?:mere|meri|mera|muze|mujhe|hum|hume|humko|aap|aapka|aapke|aapki|hain|hoga|hogi|hoge|nahin|chahiye|karna|karni|karne|kare|karenge|karo|chalana|chalani|chalaye|batao|bataiye|bhejo|kaise|kaisa|kaisi|kitna|kitne|kitni|apna|apne|apni|badana|badhana|bikri|bikree|shuru|shuruat|theek|kripya|naam|karna hai|karni hai)\b/gi) || [];
+    const marathiTranslitMatches = trimmed.match(/\b(?:mala|tula|aamhi|amhi|aahe|ahe|ahet|aahet|nahi|naahi|pahije|pahijet|karaych[aei]|chalvaych[aei]|vadhvaych[aei]|kara|karu|karave|karava|karavi|karto|kartat|divas|bhetel|sanga|sangitla|sangitlele|maharashtra|punyat|mumbait|chalu|karun|kiti|kuthe|kay|kash[aei]|kasa|kasi|kase|sathi|madhe|mde|alele|aalele|vr|wale|theu|dya|baddal|tyanchya|tumcha|tumchi|tumche|tumhi|maza|majha|mazi|majhi|maaze|maze|maz[ao]|hawa|havi|hawe|aani|ani|pan|jar|tar|mhanun|lavauche|thevayche|dakhav|dakhva|dakhvaychi|pahile|aata|kra|kraychi|set karaychi)\b/gi) || [];
+    const hindiTranslitMatches = trimmed.match(/\b(?:mere|meri|mera|muze|mujhe|hum|hume|humko|ham|hamko|aap|aapka|aapke|aapki|hain|hai|hoga|hogi|hoge|nahin|nahi|chahiye|karna|karni|karne|kare|karenge|karo|karte|karta|karti|chalana|chalani|chalaye|batao|bataiye|bhejo|kaise|kaisa|kaisi|kitna|kitne|kitni|apna|apne|apni|badana|badhana|bikri|bikree|shuru|shuruat|theek|kripya|naam|nam|karna hai|karni hai|karte hai|karte hain|konsa|kaunsa|kya|kyu|kyun)\b/gi) || [];
     
     // Explicit English conversational sentence markers
     const englishSentenceMatches = trimmed.match(/\b(?:i want to|we want to|i need to|we need to|help me|can you|could you|please create|let's create|let us|i would like to|how to|what is|how much|promote my|run ads for|set up ads for|my business is|start a campaign|grow the sales|boost sales|increase sales)\b/gi) || [];
@@ -213,13 +243,13 @@ export class MetaLanguageAnalyzerService {
 
     // Active conversational language switch triggers:
     if (marathiScore > 0 && marathiScore >= hindiScore) {
-      return { code: "mr", name: "Marathi", nativeName: "मराठी", metaLocaleKey: 21, localeCode: "mr_IN", script: "Devanagari (मराठी)", confidence: 0.98 };
+      return { code: "mr", name: "Marathi", nativeName: "मराठी", metaLocaleKey: 21, localeCode: "mr_IN", script: "Latin", confidence: 0.98, variant: "marathlish", style: "marathlish" };
     }
     if (hindiScore > 0 && hindiScore > marathiScore) {
-      return { code: "hi", name: "Hindi", nativeName: "हिंदी", metaLocaleKey: 20, localeCode: "hi_IN", script: "Devanagari (हिंदी)", confidence: 0.98 };
+      return { code: "hi", name: "Hindi", nativeName: "हिंदी", metaLocaleKey: 20, localeCode: "hi_IN", script: "Latin", confidence: 0.98, variant: "hinglish", style: "hinglish" };
     }
     if (englishSentenceScore > 0) {
-      return { code: "en", name: "English", nativeName: "English", metaLocaleKey: 6, localeCode: "en_US", script: "Latin", confidence: 0.98 };
+      return { code: "en", name: "English", nativeName: "English", metaLocaleKey: 6, localeCode: "en_US", script: "Latin", confidence: 0.98, variant: "en", style: "en" };
     }
 
     // 5. STICKY SESSION RETENTION FOR SHORT ANSWERS (Brand names, numbers, city names, button choices)
@@ -228,7 +258,7 @@ export class MetaLanguageAnalyzerService {
       const words = trimmed.split(/\s+/).filter(Boolean);
       const isEnglishSentence = words.length >= 3 && /^(i|we|can|could|please|how|what|let|my|the|run|create|target|increase|boost|start)\b/i.test(trimmed);
       if (isEnglishSentence) {
-        return { code: "en", name: "English", nativeName: "English", metaLocaleKey: 6, localeCode: "en_US", script: "Latin", confidence: 0.95 };
+        return { code: "en", name: "English", nativeName: "English", metaLocaleKey: 6, localeCode: "en_US", script: "Latin", confidence: 0.95, variant: "en", style: "en" };
       }
       // Otherwise STICK to the established session language!
       return currentSessionLanguage;
@@ -243,8 +273,98 @@ export class MetaLanguageAnalyzerService {
       localeCode: "en_US",
       script: "Latin",
       confidence: 0.95,
+      variant: "en",
+      style: "en",
     };
   }
+}
+
+export interface CampaignFieldStatus {
+  brandName: "completed" | "missing";
+  objective: "completed" | "missing";
+  promotedService: "completed" | "missing";
+  specialAdCategory: "completed" | "missing";
+  destination: "completed" | "missing";
+  location: "completed" | "missing";
+  demographics: "completed" | "missing";
+  budget: "completed" | "missing";
+  placements: "completed" | "missing";
+  [key: string]: "completed" | "missing";
+}
+
+export function resolveCampaignFieldStatus(params: {
+  draft: MetaCampaignDraft;
+  conversation?: ConversationMessage[];
+  context?: MetaAdsContext;
+}): CampaignFieldStatus {
+  const { draft } = params;
+  const brandCompleted = !!(
+    (draft.campaign?.brandName && draft.campaign.brandName.trim()) ||
+    (draft.campaign?.name && draft.campaign.name.trim() && draft.campaign.name !== "AI Meta Campaign Blueprint") ||
+    draft.sourceMap?.["campaign.name"]?.value ||
+    draft.sourceMap?.["campaign.brandName"]?.value
+  );
+
+  const objectiveCompleted = !!(
+    draft.campaign?.objective ||
+    draft.sourceMap?.["campaign.objective"]?.value
+  );
+
+  const serviceCompleted = !!(
+    (draft.campaign?.promotedService && draft.campaign.promotedService.trim()) ||
+    (draft.campaign?.promotedProduct && draft.campaign.promotedProduct.trim()) ||
+    draft.sourceMap?.["campaign.promotedService"]?.value ||
+    draft.sourceMap?.["campaign.promotedProduct"]?.value
+  );
+
+  const specialCatCompleted = !!(
+    draft.campaign?.specialAdCategory !== undefined ||
+    draft.sourceMap?.["campaign.specialAdCategory"]?.value !== undefined
+  );
+
+  const destinationCompleted = !!(
+    draft.destination?.type ||
+    draft.sourceMap?.["destination.type"]?.value
+  );
+
+  const locationCompleted = !!(
+    (draft.targeting?.cities && draft.targeting.cities.length > 0) ||
+    draft.targeting?.locationDescription ||
+    draft.targeting?.locationType ||
+    (draft.targeting?.countries && draft.targeting.countries.length > 0) ||
+    draft.sourceMap?.["targeting.cities"]?.value ||
+    draft.sourceMap?.["targeting.locationDescription"]?.value
+  );
+
+  const demographicsCompleted = !!(
+    draft.targeting?.ageMin !== undefined ||
+    draft.targeting?.ageMax !== undefined ||
+    draft.sourceMap?.["targeting.ageMin"]?.value !== undefined
+  );
+
+  const budgetCompleted = !!(
+    (draft.campaign?.dailyBudget !== undefined && draft.campaign.dailyBudget !== null) ||
+    (draft.campaign?.lifetimeBudget !== undefined && draft.campaign.lifetimeBudget !== null) ||
+    draft.sourceMap?.["campaign.dailyBudget"]?.value !== undefined ||
+    draft.sourceMap?.["campaign.lifetimeBudget"]?.value !== undefined
+  );
+
+  const placementsCompleted = !!(
+    draft.targeting?.placements ||
+    draft.sourceMap?.["targeting.placements"]?.value
+  );
+
+  return {
+    brandName: brandCompleted ? "completed" : "missing",
+    objective: objectiveCompleted ? "completed" : "missing",
+    promotedService: serviceCompleted ? "completed" : "missing",
+    specialAdCategory: specialCatCompleted ? "completed" : "missing",
+    destination: destinationCompleted ? "completed" : "missing",
+    location: locationCompleted ? "completed" : "missing",
+    demographics: demographicsCompleted ? "completed" : "missing",
+    budget: budgetCompleted ? "completed" : "missing",
+    placements: placementsCompleted ? "completed" : "missing",
+  };
 }
 
 export class MetaAIConversationService {
