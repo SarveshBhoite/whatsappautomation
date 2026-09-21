@@ -54,6 +54,7 @@ import WhatsAppTemplatesPage from "./templates/page";
 import WhatsAppDripCampaignsModule from "./drip/WhatsAppDripCampaignsModule";
 import AppointmentsPage from "../appointments/page";
 import { AccountSwitcher, AccountOption } from "../../components/AccountSwitcher";
+import { EmojiPickerPopover } from "../../components/EmojiPickerPopover";
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -1742,21 +1743,14 @@ export default function Dashboard() {
                       
                       {/* EMOJI PICKER POPUP */}
                       {showEmojiPicker && (
-                        <div className="absolute bottom-16 left-4 bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-5 gap-2 shadow-xl z-50">
-                          {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
-                            <button
-                              key={emoji}
-                              type="button"
-                              onClick={() => {
-                                setInputText((prev) => prev + emoji);
-                                setShowEmojiPicker(false);
-                              }}
-                              className="text-lg hover:scale-125 transition-transform p-1.5 cursor-pointer"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
+                        <EmojiPickerPopover
+                          onEmojiSelect={(emoji) => {
+                            setInputText((prev) => prev + emoji);
+                          }}
+                          onClose={() => setShowEmojiPicker(false)}
+                          theme="emerald"
+                          className="bottom-16 left-4"
+                        />
                       )}
 
                       {/* MEDIA/PAPERCLIP POPUP */}
