@@ -96,7 +96,7 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
         gmbConfigs: true,
         linkedInConfig: true,
         gmailConfigs: true,
-        aiAgentConfig: true,
+        aiAgentConfigs: true,
       }
     });
 
@@ -167,7 +167,7 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
         status: defaultGmail?.emailAddress ? "Operational" : "Not Configured"
       },
       ai_agent: {
-        connected: Boolean(org.aiAgentConfig?.isActive !== false),
+        connected: Boolean(org.aiAgentConfigs?.[0]?.isActive !== false),
         name: "AI Autonomous Agent",
         status: "Operational"
       }
