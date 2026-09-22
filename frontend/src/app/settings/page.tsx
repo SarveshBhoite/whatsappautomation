@@ -1519,18 +1519,13 @@ print(res.json())`;
   const [igEmbeddedConnecting, setIgEmbeddedConnecting] = useState(false);
   const [igEmbeddedSuccess, setIgEmbeddedSuccess] = useState(false);
 
-  const processInstagramEmbeddedCode = async (code: string, redirectUriOverride?: string | null) => {
+  const processInstagramEmbeddedCode = async (code: string) => {
     try {
       setIgEmbeddedConnecting(true);
       const orgId = getOrgId();
       const targetOrigin = window.location.origin.startsWith("https://")
         ? window.location.origin
         : "https://crm.jisnudigital.com";
-
-      // If redirectUriOverride is explicitly provided (or empty string for FB SDK), use it; otherwise fallback to dialog URI
-      const effectiveRedirectUri = redirectUriOverride !== undefined
-        ? (redirectUriOverride || "")
-        : `${targetOrigin}/settings?tab=instagram`;
 
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/embedded-signup/callback`, {
         method: "POST",
@@ -1540,7 +1535,7 @@ print(res.json())`;
         },
         body: JSON.stringify({
           code,
-          redirectUri: effectiveRedirectUri,
+          redirectUri: `${targetOrigin}/settings?tab=instagram`,
         }),
       });
 
@@ -1718,8 +1713,7 @@ print(res.json())`;
           (response: any) => {
             console.log("[META INSTAGRAM FB.LOGIN RESPONSE]:", response);
             if (response.authResponse && response.authResponse.code) {
-              // FB.login codes do not use a redirect_uri
-              processInstagramEmbeddedCode(response.authResponse.code, "");
+              processInstagramEmbeddedCode(response.authResponse.code);
             } else {
               setIgEmbeddedConnecting(false);
             }
