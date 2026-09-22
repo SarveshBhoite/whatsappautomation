@@ -46,7 +46,10 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       promotions = [],
       prices = [],
       callAsset,
-      structuredSnippets = []
+      structuredSnippets = [],
+      adSchedule = [],
+      devices,
+      demographicExclusions
     } = payload;
 
     if (!campaignName || !campaignName.trim()) {
@@ -153,6 +156,8 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
         ...(negativeGeoTargetType ? { negativeGeoTargetType } : { negativeGeoTargetType: "PRESENCE" })
       };
     }
+
+    const effectiveAdSchedule = Array.isArray(adSchedule) ? adSchedule : [];
 
     let apiResult: any = { campaignId: `sales-pmax-${Date.now()}` };
     const ADS_BASE = "https://googleads.googleapis.com/v24";
@@ -477,7 +482,9 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
 
       // Asset Group Signals (Search Themes and Audience Signals)
       const validSearchThemes = Array.isArray(searchThemes)
-        ? searchThemes.map(t => String(t).trim()).filter(Boolean)
+        ? searchThemes
+            .map((t: any) => GoogleAdsBaseService.cleanSearchTheme(t))
+            .filter(Boolean)
         : [];
       validSearchThemes.forEach((theme: string) => {
         mutateOperations.push({
@@ -517,6 +524,24 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
         { locations, languages, headers }
       );
       apiResult.criteriaResults = criteriaResults;
+
+      // 7b. Mutate Campaign Criteria for Ad Schedule (if specified)
+      if (effectiveAdSchedule.length > 0) {
+        try {
+          const scheduleResults = await GoogleAdsBaseService.mutateCampaignAdScheduleCriteria(
+            organizationId,
+            customerId,
+            campaignRef,
+            effectiveAdSchedule,
+            headers
+          );
+          if (scheduleResults.length > 0) {
+            apiResult.scheduleCriteriaResults = scheduleResults;
+          }
+        } catch (schedErr: any) {
+          console.warn("[PMax Ad Schedule Warning]:", schedErr?.response?.data || schedErr.message);
+        }
+      }
 
       // 8. Attach Campaign Extension Assets (Sitelinks, Callouts, Promotions, Prices, Call, Snippets)
       try {
@@ -755,10 +780,23 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       budget: amountMicrosVal / 1_000_000,
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: startDate ? new Date(String(startDate).split("T")[0]) : null,
+      endDate: endDate ? new Date(String(endDate).split("T")[0]) : null,
       finalUrl,
       headlines: safeHeadlines,
       descriptions: safeDescriptions,
-      geoTargets: { objective: "Sales", locations, languages },
+      geoTargets: {
+        objective: "Sales",
+        locations,
+        languages,
+        devices: devices || null,
+        demographicExclusions: demographicExclusions || null,
+        callouts: callouts || [],
+        structuredSnippets: structuredSnippets || []
+      },
+      languages: languages || ["Hindi"],
+      searchThemes: Array.isArray(searchThemes) && searchThemes.length > 0 ? searchThemes : null,
+      adSchedule: effectiveAdSchedule.length > 0 ? effectiveAdSchedule : null,
       advertisingChannelType: "PERFORMANCE_MAX",
       amountMicros: BigInt(amountMicrosVal),
       costMicros: BigInt(0),

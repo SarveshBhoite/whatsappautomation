@@ -184,6 +184,12 @@ router.get("/user-profile", async (req, res) => {
       businessDescription: savedProfile?.businessDescription || "",
       customerType: savedProfile?.customerType || "",
       businessModel: savedProfile?.businessModel || "",
+      businessEmail: savedProfile?.businessEmail || "",
+      businessPhone: savedProfile?.businessPhone || "",
+      whatsappNumber: savedProfile?.whatsappNumber || "",
+      businessAddress: savedProfile?.businessAddress || "",
+      serviceAreas: savedProfile?.serviceAreas || [],
+      languagesServed: savedProfile?.languagesServed || [],
       industry: savedProfile?.industry || "",
       primaryWebsite: savedProfile?.primaryWebsite || "",
       additionalWebsites: savedProfile?.additionalWebsites || [],
@@ -1037,6 +1043,10 @@ setInterval(() => {
 
 // POST /api/ads/ai-guided/create-campaign
 router.post("/create-campaign", async (req, res) => {
+  // Set socket timeout to 10 minutes for Google Ads campaign mutation pipeline
+  if (req.socket) {
+    req.socket.setTimeout(10 * 60 * 1000);
+  }
   const idempotencyKey = (req.body?.idempotencyKey || req.headers["x-idempotency-key"] || "") as string;
   try {
     const { customerId, campaignState } = req.body;
@@ -1180,9 +1190,25 @@ router.post("/create-campaign", async (req, res) => {
     }
     const dailyBudget = effectiveDailyBudget;
     const locations = (state.locations && state.locations.length > 0) ? state.locations : [];
-    const languages = (state.language && !["all languages", "all", "any", "all_languages"].includes(state.language.trim().toLowerCase())) 
-      ? [state.language] 
-      : (Array.isArray(state.languages) ? state.languages.filter((l: string) => l && !["all languages", "all", "any", "all_languages"].includes(String(l).trim().toLowerCase())) : []);
+
+    // Parse and split all languages (supporting comma-separated string e.g. "Bengali, Hindi" or array ["Bengali", "Hindi"])
+    const rawLanguageInputs: string[] = [];
+    if (state.language && typeof state.language === "string") {
+      rawLanguageInputs.push(...state.language.split(",").map((l: string) => l.trim()).filter(Boolean));
+    }
+    if (Array.isArray(state.languages)) {
+      for (const item of state.languages) {
+        if (typeof item === "string" && item.includes(",")) {
+          rawLanguageInputs.push(...item.split(",").map((l: string) => l.trim()).filter(Boolean));
+        } else if (item) {
+          rawLanguageInputs.push(String(item).trim());
+        }
+      }
+    }
+    const filteredLanguages = Array.from(new Set(rawLanguageInputs)).filter(
+      (l: string) => !["all languages", "all", "any", "all_languages"].includes(l.toLowerCase())
+    );
+    const languages = filteredLanguages;
 
     const validHeadlines = (state.headlines || [])
       .map(h => GoogleAdsBaseService.cleanAdText(String(h), 30))
@@ -1212,7 +1238,7 @@ router.post("/create-campaign", async (req, res) => {
           businessName: state.businessName,
           dailyBudget,
           locations: (state.locations && state.locations.length > 0) ? state.locations : [],
-          languages: (anyState.languages && anyState.languages.length > 0) ? anyState.languages : (state.language ? [state.language] : []),
+          languages: languages.length > 0 ? languages : ["English"],
           biddingFocus: state.biddingStrategy || "Maximize conversions",
           biddingStrategy: state.biddingStrategy || "Maximize conversions",
           targetCpa: state.targetCpa || undefined,
@@ -1238,8 +1264,12 @@ router.post("/create-campaign", async (req, res) => {
           adGroupName: anyState.adGroupName || state.adGroupName || undefined,
           trackingTemplate: state.trackingTemplate || anyState.trackingTemplate || undefined,
           finalUrlSuffix: state.finalUrlSuffix || anyState.finalUrlSuffix || undefined,
+          customParameters: anyState.customParameters || state.customParameters || [],
+          urlCustomParameters: anyState.customParameters || state.customParameters || [],
           brandInclusions: anyState.brandInclusions || state.brandInclusions || [],
           brandExclusions: anyState.brandExclusions || state.brandExclusions || [],
+          locationsOfInterest: anyState.locationsOfInterest || state.locationsOfInterest || [],
+          urlInclusions: anyState.urlInclusions || state.urlInclusions || [],
           onlyBidNewCustomers: anyState.onlyBidNewCustomers !== undefined ? anyState.onlyBidNewCustomers : state.onlyBidNewCustomers,
           adjustLapsedCustomers: anyState.adjustLapsedCustomers !== undefined ? anyState.adjustLapsedCustomers : state.adjustLapsedCustomers,
           customerAcquisitionMode: anyState.customerAcquisitionMode || state.customerAcquisitionMode || (state.onlyBidNewCustomers ? "TARGET_NEW_CUSTOMER_ONLY" : "TARGET_ALL_EQUALLY"),
@@ -1248,15 +1278,18 @@ router.post("/create-campaign", async (req, res) => {
           enableTextCustomization: anyState.enableTextCustomization !== undefined ? anyState.enableTextCustomization : true,
           enableFinalUrlExpansion: anyState.enableFinalUrlExpansion !== undefined ? anyState.enableFinalUrlExpansion : true,
           useSearchTermMatchingAdGroup: anyState.useSearchTermMatchingAdGroup !== undefined ? anyState.useSearchTermMatchingAdGroup : true,
+          searchThemes: state.searchThemes || anyState.searchThemes || [],
           // Schedules & Extensions
-          adSchedule: anyState.adSchedule || anyState.adScheduleList || [],
-          sitelinks: anyState.sitelinks || [],
-          callouts: anyState.callouts || [],
-          structuredSnippets: anyState.structuredSnippets || [],
-          callAsset: anyState.callAsset || (anyState.callPhone ? { phoneNumber: anyState.callPhone, countryCode: anyState.callCountryCode || "IN" } : undefined),
-          promotions: anyState.promotions || [],
-          prices: anyState.prices || [],
-          leadForms: anyState.leadForms || []
+          adSchedule: anyState.adSchedule || anyState.adScheduleList || state.adSchedule || [],
+          sitelinks: anyState.sitelinks || state.sitelinks || [],
+          callouts: anyState.callouts || state.callouts || [],
+          structuredSnippets: anyState.structuredSnippets || state.structuredSnippets || [],
+          callAsset: anyState.callAsset || (anyState.callPhone || anyState.callPhoneNumber || state.callPhoneNumber ? { phoneNumber: anyState.callPhone || anyState.callPhoneNumber || state.callPhoneNumber, countryCode: anyState.callCountryCode || "IN" } : undefined),
+          callPhoneNumber: state.callPhoneNumber || anyState.callPhoneNumber || anyState.callPhone || undefined,
+          callPhone: state.callPhoneNumber || anyState.callPhoneNumber || anyState.callPhone || undefined,
+          promotions: anyState.promotions || state.promotions || [],
+          prices: anyState.prices || state.prices || [],
+          leadForms: anyState.leadForms || state.leadForms || []
         };
         if (objective === "NO_GUIDANCE" || objective === "NO-GUIDANCE") {
           result = await NoGuidanceSearchService.createCampaign(orgId, customerId, payload);
@@ -1753,6 +1786,38 @@ router.post("/create-campaign", async (req, res) => {
       console.log(`-----------------------------------------------------------------`);
       console.log(`🔗 Sitelink Extensions (${stlinks.length}):`);
       stlinks.forEach((st: any, i: number) => console.log(`   [${i + 1}] "${st.text}" -> ${st.url}${st.desc1 ? ` (${st.desc1})` : ""}`));
+    }
+
+    // Callout Extensions
+    const calloutsList = anyState?.callouts || [];
+    if (calloutsList.length > 0) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`📢 Callout Extensions (${calloutsList.length}):`);
+      calloutsList.forEach((co: any, i: number) => console.log(`   [${i + 1}] "${typeof co === 'string' ? co : co.text || co}"`));
+    }
+
+    // Structured Snippets
+    const snipsList = anyState?.structuredSnippets || [];
+    if (snipsList.length > 0) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`📋 Structured Snippets (${snipsList.length}):`);
+      snipsList.forEach((sn: any, i: number) => console.log(`   [${i + 1}] ${sn.header}: ${(sn.values || []).join(", ")}`));
+    }
+
+    // Search Themes
+    const sthemesList = anyState?.searchThemes || [];
+    if (sthemesList.length > 0) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`🎯 Search Themes / Signals (${sthemesList.length}):`);
+      sthemesList.forEach((th: any, i: number) => console.log(`   [${i + 1}] ${typeof th === 'string' ? th : th.text || th}`));
+    }
+
+    // Ad Schedule
+    const schedList = anyState?.adSchedule || anyState?.adScheduleList || [];
+    if (Array.isArray(schedList) && schedList.length > 0) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`⏰ Ad Schedule (${schedList.length}):`);
+      schedList.forEach((sc: any, i: number) => console.log(`   [${i + 1}] ${sc.day || sc.dayOfWeek || 'All days'}: ${sc.start || '00:00'} - ${sc.end || '00:00'}`));
     }
 
     console.log(`-----------------------------------------------------------------`);

@@ -78,6 +78,7 @@ export class GoogleAdsBaseService {
       .replace(/[“”„‟«»]/g, '"')
       .replace(/[‘’‚‛`]/g, "'")
       .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, " ")
+      .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\uFE58\uFE63\uFF0D\u00AD]/g, "-")
       .replace(/\s*[-–—―]+\s*/g, " - ");
 
     // 4. Remove leading punctuation & symbols
@@ -105,6 +106,28 @@ export class GoogleAdsBaseService {
     return cleaned;
   }
 
+  public static cleanSearchTheme(theme: any): string {
+    if (!theme) return "";
+    let cleaned = String(theme && typeof theme === "object" ? theme.text || theme.theme || "" : theme).trim();
+    if (!cleaned) return "";
+
+    // 1. Normalize all unicode hyphens and dashes (including non-breaking hyphen \u2011, en-dash \u2013, em-dash \u2014, soft hyphen \u00AD) to standard ASCII space or hyphen
+    cleaned = cleaned.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\uFE58\uFE63\uFF0D\u00AD]/g, " ");
+
+    // 2. Remove non-breaking spaces and zero-width characters
+    cleaned = cleaned.replace(/[\u00A0\u2000-\u200F\u2028-\u202F\u205F\u3000\uFEFF]/g, " ");
+
+    // 3. Remove disallowed punctuation and symbols in Search Themes (Google Ads Search Themes only support letters, numbers, spaces, and standard ASCII hyphens)
+    cleaned = cleaned.replace(/[^\p{L}\p{N}\s\-]/gu, " ");
+
+    // 4. Collapse consecutive spaces and hyphens
+    cleaned = cleaned.replace(/\s+/g, " ");
+    cleaned = cleaned.replace(/\s*-\s*/g, " - ");
+    cleaned = cleaned.replace(/^[-–—\s]+/, "").replace(/[-–—\s]+$/, "").trim();
+
+    return cleaned.slice(0, 80);
+  }
+
   public static cleanUrl(url: any): string {
     if (!url || typeof url !== "string") return "";
     let cleaned = url.trim();
@@ -122,15 +145,16 @@ export class GoogleAdsBaseService {
     if (!template || typeof template !== "string") return undefined;
     let cleaned = template.trim();
     if (!cleaned) return undefined;
-    // If it doesn't start with http:// or https:// or {lpurl}, check if it starts with protocol
+
+    // Google Ads requires that a tracking template must contain at least one tag (such as {lpurl})
+    const hasLandingPageTag = /\{(lpurl|unescapedlpurl|escapedlpurl|lpurl\+\d+)\}/i.test(cleaned);
+    if (!hasLandingPageTag) {
+      // Plain URL without tag is rejected by Google Ads as invalid tracking template
+      return undefined;
+    }
+
     if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://") && !cleaned.startsWith("{lpurl}") && !cleaned.startsWith("{unescapedlpurl}")) {
-      // If it looks like a domain or path, prepend https://
-      if (cleaned.includes(".") || cleaned.includes("/") || cleaned.includes("{")) {
-        cleaned = `https://${cleaned}`;
-      } else {
-        // Invalid garbage string, drop it to prevent Google Ads mutation errors
-        return undefined;
-      }
+      cleaned = `https://${cleaned}`;
     }
     return cleaned;
   }
@@ -618,10 +642,20 @@ export class GoogleAdsBaseService {
     }
 
     // 2. Process Languages
-    const langList = Array.isArray(params.languages) ? params.languages : [params.languages].filter(Boolean);
-    for (const lang of langList) {
+    const parsedLangList: string[] = [];
+    const rawLangList = Array.isArray(params.languages) ? params.languages : [params.languages].filter(Boolean);
+    for (const item of rawLangList) {
+      if (typeof item === "string" && item.includes(",")) {
+        parsedLangList.push(...item.split(",").map(l => l.trim()).filter(Boolean));
+      } else if (item) {
+        parsedLangList.push(String(item).trim());
+      }
+    }
+
+    for (const lang of parsedLangList) {
       if (!lang) continue;
       const normLang = String(lang).trim().toLowerCase();
+      if (["all languages", "all", "any", "all_languages"].includes(normLang)) continue;
       const constantId = this.LANGUAGE_CONSTANT_MAP[normLang] || (/^\d+$/.test(String(lang)) ? String(lang) : null);
       if (constantId) {
         operations.push({
@@ -644,6 +678,126 @@ export class GoogleAdsBaseService {
       return res.data?.results || [];
     } catch (critErr: any) {
       console.warn(`[GoogleAdsBaseService] campaignCriteria:mutate warning:`, critErr?.response?.data || critErr.message);
+      return [];
+    }
+  }
+
+  public static mapMinuteToEnum(minute: number): string {
+    if (minute >= 45) return "FORTY_FIVE";
+    if (minute >= 30) return "THIRTY";
+    if (minute >= 15) return "FIFTEEN";
+    return "ZERO";
+  }
+
+  /**
+   * Helper: Builds AdScheduleInfo criterion objects from frontend adSchedule list
+   */
+  public static buildAdScheduleCriteria(schedules: any[]): any[] {
+    if (!Array.isArray(schedules) || schedules.length === 0) return [];
+
+    const dayMap: Record<string, string[]> = {
+      "all days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"],
+      "mondays - fridays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+      "saturdays - sundays": ["SATURDAY", "SUNDAY"],
+      "mondays": ["MONDAY"],
+      "tuesdays": ["TUESDAY"],
+      "wednesdays": ["WEDNESDAY"],
+      "thursdays": ["THURSDAY"],
+      "fridays": ["FRIDAY"],
+      "saturdays": ["SATURDAY"],
+      "sundays": ["SUNDAY"],
+      "monday": ["MONDAY"],
+      "tuesday": ["TUESDAY"],
+      "wednesday": ["WEDNESDAY"],
+      "thursday": ["THURSDAY"],
+      "friday": ["FRIDAY"],
+      "saturday": ["SATURDAY"],
+      "sunday": ["SUNDAY"]
+    };
+
+    const criteria: any[] = [];
+
+    for (const sched of schedules) {
+      if (!sched || typeof sched !== "object") continue;
+      const rawDay = String(sched.day || sched.dayOfWeek || "All days").trim().toLowerCase();
+      const targetDays = dayMap[rawDay] || [rawDay.toUpperCase()];
+
+      let sHour = 0;
+      let sMinStr = "ZERO";
+      let eHour = 24;
+      let eMinStr = "ZERO";
+
+      const start = String(sched.start || "00:00").trim();
+      const end = String(sched.end || "00:00").trim();
+
+      // Check if full day schedule (00:00 -> 00:00 or 00:00 -> 24:00)
+      if ((start === "00:00" || start === "0:00") && (end === "00:00" || end === "0:00" || end === "24:00")) {
+        sHour = 0;
+        sMinStr = "ZERO";
+        eHour = 24;
+        eMinStr = "ZERO";
+      } else {
+        const [sh, sm] = start.split(":").map(v => parseInt(v, 10));
+        const [eh, em] = end.split(":").map(v => parseInt(v, 10));
+
+        sHour = isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh));
+        sMinStr = this.mapMinuteToEnum(sm || 0);
+
+        eHour = isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh));
+        eMinStr = this.mapMinuteToEnum(em || 0);
+
+        const startTotalMinutes = sHour * 60 + (sm || 0);
+        const endTotalMinutes = eHour * 60 + (em || 0);
+        if (endTotalMinutes <= startTotalMinutes && eHour !== 24) {
+          console.warn(`[GoogleAdsBaseService] Invalid ad schedule: End time (${end}) must be after start time (${start}) for ${sched.day || 'day'}. Skipping row.`);
+          continue;
+        }
+      }
+
+      for (const d of targetDays) {
+        criteria.push({
+          dayOfWeek: d,
+          startHour: sHour,
+          startMinute: sMinStr,
+          endHour: eHour,
+          endMinute: eMinStr
+        });
+      }
+    }
+
+    return criteria;
+  }
+
+  /**
+   * Mutate campaign criteria for Ad Schedule
+   */
+  public static async mutateCampaignAdScheduleCriteria(
+    organizationId: string,
+    customerId: string,
+    campaignResourceName: string,
+    schedules: any[],
+    customHeaders?: any
+  ): Promise<any[]> {
+    if (!Array.isArray(schedules) || schedules.length === 0) return [];
+    const scheduleCriteria = this.buildAdScheduleCriteria(schedules);
+    if (scheduleCriteria.length === 0) return [];
+
+    const cid = customerId.replace(/-/g, "").trim();
+    const headers = customHeaders || (await this.getAdsHeaders(organizationId, customerId)).headers;
+    const operations = scheduleCriteria.map(sched => ({
+      create: {
+        campaign: campaignResourceName,
+        adSchedule: sched
+      }
+    }));
+
+    try {
+      const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, {
+        operations
+      }, { headers });
+      return res.data?.results || [];
+    } catch (critErr: any) {
+      console.warn(`[GoogleAdsBaseService] campaignCriteria:mutate (adSchedule) warning:`, critErr?.response?.data || critErr.message);
       return [];
     }
   }

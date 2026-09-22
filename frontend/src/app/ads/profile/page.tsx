@@ -42,7 +42,9 @@ import {
   Search,
   HelpCircle,
   Image as ImageIcon,
-  ArrowRight
+  ArrowRight,
+  PartyPopper,
+  Trophy
 } from "lucide-react";
 import { MediaAssetsLibraryTab, MediaAssetItem } from "@/components/ads/MediaAssetsLibraryTab";
 import { ProfileSectionFooterNav } from "@/components/ads/ProfileSectionFooterNav";
@@ -682,6 +684,47 @@ function ProfilePageContent() {
 
   const totalWebsitesCount = (primaryWebsite.trim() ? 1 : 0) + additionalWebsites.length;
 
+  const isSectionCompleted = (key: TabKey): boolean => {
+    switch (key) {
+      case "business":
+        return Boolean(businessName.trim() && (industry.trim() || businessCategory.trim()));
+      case "products_services":
+        return products.length > 0 || services.length > 0;
+      case "target_audience":
+        return targetAudiences.length > 0 || customerPersonas.length > 0 || Boolean(targetAudience && targetAudience.trim());
+      case "locations":
+        return locationRecords.length > 0 || locations.length > 0 || serviceAreas.length > 0;
+      case "conversion_goals":
+        return conversionGoals.length > 0;
+      case "brand_profile":
+        return brandColors.length > 0 || brandVoice.length > 0 || brandUsps.length > 0;
+      case "competitors":
+        return competitors.length > 0;
+      case "seo_keywords":
+        return seoKeywords.length > 0 || negativeKeywords.length > 0;
+      case "faqs":
+        return faqs.length > 0;
+      case "ai_suggestions":
+        return aiSuggestions.length > 0 || Boolean(profile?.isApproved);
+      case "websites":
+        return Boolean(primaryWebsite && primaryWebsite.trim()) || totalWebsitesCount > 0;
+      case "merchant_apps":
+        return hasMerchantAccount || hasAppAccount || appDetails.length > 0 || Boolean(profile?.isApproved);
+      case "media_assets":
+        return mediaAssets.length > 0;
+      case "overview":
+        return Boolean(profile?.formattedCustomerId || profile?.accountName);
+      default:
+        return false;
+    }
+  };
+
+  const completedSections = PROFILE_TABS_SEQUENCE.filter(t => isSectionCompleted(t.key));
+  const completedCount = completedSections.length;
+  const totalSections = PROFILE_TABS_SEQUENCE.length;
+  const completionPercentage = Math.round((completedCount / totalSections) * 100);
+  const isProfileFullyCompleted = completionPercentage >= 90 || isApproved;
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedOrg = localStorage.getItem("organization_id");
@@ -1014,12 +1057,23 @@ function ProfilePageContent() {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  // AI Website Analysis & Grok Parameter Autofill handler
+  const handleAnalyzeAndAutofill = async (inputUrl?: string) => {
+    const targetUrl = (inputUrl !== undefined ? inputUrl : primaryWebsite).trim();
+    if (!targetUrl) {
+      setError("Please enter a valid primary website URL to analyze.");
+      return;
+    }
+    await handleAnalyzeWebsite(targetUrl, true);
+  };
+
   // AI Website Analysis handler
   const handleAnalyzeWebsite = async (targetUrl: string, isPrimary = false) => {
     if (!targetUrl || !targetUrl.trim()) return;
+    const cleanUrl = targetUrl.trim();
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
-    setAnalyzingUrl(targetUrl);
+    setAnalyzingUrl(cleanUrl);
     setError(null);
 
     try {
@@ -1031,7 +1085,7 @@ function ProfilePageContent() {
         },
         body: JSON.stringify({
           customerId,
-          url: targetUrl.trim(),
+          url: cleanUrl,
           isPrimary,
           currentProfile: {
             businessName,
@@ -1062,11 +1116,12 @@ function ProfilePageContent() {
       // Update subpages
       const subPages: SubPageEntry[] = data.website?.subPages || [];
       if (isPrimary) {
+        setPrimaryWebsite(cleanUrl);
         setPrimarySubPages(subPages);
       } else {
         setAdditionalWebsites((prev) =>
           prev.map((w) =>
-            w.url === targetUrl
+            w.url === cleanUrl
               ? {
                   ...w,
                   title: data.website?.title || w.title,
@@ -1078,23 +1133,208 @@ function ProfilePageContent() {
           )
         );
       }
-      setExpandedWebsiteUrl(targetUrl);
+      setExpandedWebsiteUrl(cleanUrl);
 
-      // Collect AI Suggestions for user review (Data protection: NEVER automatically overwrite profile data)
+      // AUTOFILL PARAMETERS DIRECTLY INTO PROFILE STATE (When Primary Website is analyzed with Grok AI)
+      let autofilledCount = 0;
+      if (isPrimary && data.aiIntelligence) {
+        const intel = data.aiIntelligence;
+
+        if (intel.businessName && typeof intel.businessName === "string" && intel.businessName.trim()) {
+          setBusinessName(intel.businessName.trim());
+          setLegalBusinessName(intel.businessName.trim());
+          autofilledCount++;
+        }
+        if (intel.industry && typeof intel.industry === "string" && intel.industry.trim()) {
+          setIndustry(intel.industry.trim());
+          setBusinessCategory(intel.industry.trim());
+          autofilledCount++;
+        }
+        if (intel.businessDescription && typeof intel.businessDescription === "string" && intel.businessDescription.trim()) {
+          setBusinessDescription(intel.businessDescription.trim());
+          autofilledCount++;
+        }
+        if (intel.targetAudience && typeof intel.targetAudience === "string" && intel.targetAudience.trim()) {
+          setTargetAudience(intel.targetAudience.trim());
+          autofilledCount++;
+        }
+
+        // Products
+        if (Array.isArray(intel.products) && intel.products.length > 0) {
+          const newProds: ProductItem[] = intel.products
+            .map((p: any, idx: number) => {
+              const pName = typeof p === "object" ? p?.name : String(p);
+              const pDesc = typeof p === "object" ? p?.description : undefined;
+              return {
+                id: `prod-ai-${Date.now()}-${idx}`,
+                name: pName?.trim() || "",
+                description: pDesc?.trim() || undefined,
+                currency: profile?.currencyCode || "INR",
+                isActive: true
+              };
+            })
+            .filter((p: ProductItem) => Boolean(p.name));
+          if (newProds.length > 0) {
+            setProducts(newProds);
+            autofilledCount++;
+          }
+        }
+
+        // Services
+        if (Array.isArray(intel.services) && intel.services.length > 0) {
+          const newServs: ServiceItem[] = intel.services
+            .map((s: any, idx: number) => {
+              const sName = typeof s === "object" ? s?.name : String(s);
+              const sDesc = typeof s === "object" ? s?.description : undefined;
+              return {
+                id: `serv-ai-${Date.now()}-${idx}`,
+                name: sName?.trim() || "",
+                description: sDesc?.trim() || undefined,
+                currency: profile?.currencyCode || "INR",
+                isActive: true
+              };
+            })
+            .filter((s: ServiceItem) => Boolean(s.name));
+          if (newServs.length > 0) {
+            setServices(newServs);
+            autofilledCount++;
+          }
+        }
+
+        // Customer Personas
+        if (Array.isArray(intel.customerPersonas) && intel.customerPersonas.length > 0) {
+          const newPersonas: CustomerPersonaItem[] = intel.customerPersonas
+            .map((cp: any, idx: number) => {
+              const title = typeof cp === "object" ? cp?.personaTitle || cp?.name : String(cp);
+              const desc = typeof cp === "object" ? cp?.description || cp?.summary : undefined;
+              return {
+                id: `pers-ai-${Date.now()}-${idx}`,
+                name: title?.trim() || "Target Customer",
+                shortDescription: desc?.trim() || title?.trim() || "Target Audience Persona",
+                painPoints: [],
+                needs: [],
+                isActive: true
+              };
+            })
+            .filter((cp: CustomerPersonaItem) => Boolean(cp.name));
+          if (newPersonas.length > 0) {
+            setCustomerPersonas(newPersonas);
+            autofilledCount++;
+          }
+        }
+
+        // Locations
+        if (Array.isArray(intel.locations) && intel.locations.length > 0) {
+          const validLocs = intel.locations.map((l: any) => String(l).trim()).filter(Boolean);
+          if (validLocs.length > 0) {
+            setLocations(validLocs);
+            const newLocRecords: LocationItem[] = validLocs.map((locName: string, idx: number) => ({
+              id: `loc-ai-${Date.now()}-${idx}`,
+              locationName: locName,
+              country: "India",
+              city: locName,
+              locationType: "Service Area",
+              isActive: true
+            }));
+            setLocationRecords(newLocRecords);
+            autofilledCount++;
+          }
+        }
+
+        // Brand Profile
+        if (intel.brandTagline && typeof intel.brandTagline === "string" && intel.brandTagline.trim()) {
+          setBrandTagline(intel.brandTagline.trim());
+          autofilledCount++;
+        }
+        if (intel.brandVoice && typeof intel.brandVoice === "string" && intel.brandVoice.trim()) {
+          setBrandVoice([intel.brandVoice.trim()]);
+          autofilledCount++;
+        }
+        if (Array.isArray(intel.brandUsps) && intel.brandUsps.length > 0) {
+          const usps = intel.brandUsps.map((u: any) => String(u).trim()).filter(Boolean);
+          if (usps.length > 0) {
+            setBrandUsps(usps);
+            setKeyOfferings(usps);
+            autofilledCount++;
+          }
+        }
+
+        // Competitors
+        if (Array.isArray(intel.competitors) && intel.competitors.length > 0) {
+          const newComps: CompetitorItem[] = intel.competitors
+            .map((c: any, idx: number) => {
+              const cName = typeof c === "object" ? c?.competitorName || c?.name : String(c);
+              const cDesc = typeof c === "object" ? c?.notes || c?.description : undefined;
+              return {
+                id: `comp-ai-${Date.now()}-${idx}`,
+                competitorName: cName?.trim() || "Competitor",
+                competitorDescription: cDesc?.trim() || undefined,
+                isActive: true
+              };
+            })
+            .filter((c: CompetitorItem) => Boolean(c.competitorName));
+          if (newComps.length > 0) {
+            setCompetitors(newComps);
+            autofilledCount++;
+          }
+        }
+
+        // SEO Keywords
+        if (Array.isArray(intel.seoKeywords) && intel.seoKeywords.length > 0) {
+          const newKws: SeoKeywordItem[] = intel.seoKeywords
+            .map((k: any, idx: number) => {
+              const kw = typeof k === "object" ? k?.keyword : String(k);
+              const kwType = (typeof k === "object" && k?.keywordType) || "Primary";
+              const searchIntent = (typeof k === "object" && k?.searchIntent) || "Commercial";
+              return {
+                id: `kw-ai-${Date.now()}-${idx}`,
+                keyword: kw?.trim() || "Keyword",
+                keywordType: kwType,
+                searchIntent: searchIntent,
+                isActive: true
+              };
+            })
+            .filter((k: SeoKeywordItem) => Boolean(k.keyword));
+          if (newKws.length > 0) {
+            setSeoKeywords(newKws);
+            autofilledCount++;
+          }
+        }
+
+        // FAQs
+        if (Array.isArray(intel.faqs) && intel.faqs.length > 0) {
+          const newFaqs: BusinessFaqItem[] = intel.faqs
+            .map((f: any, idx: number) => ({
+              id: `faq-ai-${Date.now()}-${idx}`,
+              question: f?.question?.trim() || "FAQ Question",
+              answer: f?.answer?.trim() || "FAQ Answer",
+              category: f?.category?.trim() || "General",
+              isActive: true
+            }))
+            .filter((f: BusinessFaqItem) => Boolean(f.question && f.answer));
+          if (newFaqs.length > 0) {
+            setFaqs(newFaqs);
+            autofilledCount++;
+          }
+        }
+      }
+
+      // Collect AI Suggestions for reference
       const newSuggestions: AiSuggestionItem[] = Array.isArray(data.aiSuggestions) ? data.aiSuggestions : [];
       if (newSuggestions.length > 0) {
         setAiSuggestions((prev) => {
-          const filtered = prev.filter((s) => s.sourceUrl !== targetUrl || s.applied);
+          const filtered = prev.filter((s) => s.sourceUrl !== cleanUrl || s.applied);
           return [...filtered, ...newSuggestions];
         });
-        const newCount = newSuggestions.filter((s) => s.status === "new").length;
-        const conflictCount = newSuggestions.filter((s) => s.status === "conflict").length;
-        setSuggestionSuccessMsg(
-          `Analysis complete! ${newSuggestions.length} AI suggestions discovered (${newCount} new, ${conflictCount} potential conflicts). Review them in the AI Suggestions tab.`
+      }
+
+      if (isPrimary && autofilledCount > 0) {
+        setSaveSuccessMsg(
+          `✨ Grok AI successfully analyzed ${cleanUrl}! Autofilled ${autofilledCount} profile pillars and discovered ${subPages.length} sub-pages.`
         );
-        setTimeout(() => setSuggestionSuccessMsg(null), 8000);
+        setTimeout(() => setSaveSuccessMsg(null), 8000);
       } else {
-        setSaveSuccessMsg(`AI analyzed ${targetUrl} and discovered ${subPages.length} relevant sub-pages!`);
+        setSaveSuccessMsg(`AI analyzed ${cleanUrl} and discovered ${subPages.length} relevant sub-pages!`);
         setTimeout(() => setSaveSuccessMsg(null), 4000);
       }
     } catch (err: any) {
@@ -2733,7 +2973,7 @@ function ProfilePageContent() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
         {/* Notifications */}
         {saveSuccessMsg && (
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 font-semibold animate-fadeIn">
@@ -2761,122 +3001,446 @@ function ProfilePageContent() {
           </div>
         ) : (
           <>
-            {/* Account Overview Header Card */}
-            {profile && (
-              <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="text-lg font-bold text-slate-900">
-                      {businessName || profile.businessName || profile.accountName}
-                    </span>
-                    {profile.isManager && (
-                      <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                        Manager (MCC)
-                      </span>
-                    )}
-                    <span
-                      className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full ${
-                        profile.status === "ENABLED"
-                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                          : "bg-slate-200 text-slate-700 border border-slate-300"
-                      }`}
-                    >
-                      {profile.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs font-mono text-slate-600">
-                    <span>Account ID: {profile.formattedCustomerId}</span>
-                    <button
-                      onClick={() => copyToClipboard(profile.customerId, "cid")}
-                      className="text-slate-400 hover:text-blue-600 transition-colors p-1"
-                      title="Copy Customer ID"
-                    >
-                      {copiedField === "cid" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
+            {/* ── Completed Profile Celebration Banner & Animations ── */}
+            {(isProfileFullyCompleted || isApproved) && (
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border-2 border-emerald-400/60 p-5 sm:p-6 shadow-lg shadow-emerald-500/10 animate-in fade-in zoom-in-95 duration-500">
+                {/* Decorative floating celebration particle icons */}
+                <div className="absolute top-3 right-6 text-emerald-500/50 animate-bounce duration-1000 pointer-events-none">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div className="absolute bottom-3 right-20 text-teal-500/40 animate-pulse pointer-events-none">
+                  <PartyPopper className="w-6 h-6" />
+                </div>
+                <div className="absolute top-4 left-1/3 text-blue-500/30 animate-spin duration-3000 pointer-events-none">
+                  <Sparkles className="w-5 h-5" />
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="px-4 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-right">
-                    <span className="block text-[10px] font-bold uppercase text-slate-400">Currency</span>
-                    <span className="text-xs font-bold text-slate-800">{profile.currencyCode}</span>
+                <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center gap-4 min-w-0">
+                    <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/30">
+                      <Trophy className="w-6 h-6 animate-pulse" />
+                      <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white"></span>
+                      </span>
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
+                          Business &amp; Marketing Profile Completed!
+                        </h2>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs inline-flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>100% Ready for AI Campaigns</span>
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+                        All 14 core marketing intelligence pillars are fully configured and verified for Customer ID{" "}
+                        <strong className="font-mono text-slate-800">{profile?.formattedCustomerId || customerId}</strong>.
+                        Google Ads AI Guided campaigns will now automatically leverage your catalog, personas, locations, and brand assets.
+                      </p>
+                    </div>
                   </div>
-                  <div className="px-4 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-right">
-                    <span className="block text-[10px] font-bold uppercase text-slate-400">Timezone</span>
-                    <span className="text-xs font-bold text-slate-800">{profile.timeZone}</span>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/ads/campaigns/create/ai-guided?customerId=${customerId}`)}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/25 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>Launch AI Campaign</span>
+                    </button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Navigation Tabs Bar */}
-            <div className="sticky top-16 z-30 flex items-center gap-1.5 border border-slate-200/80 bg-white/95 backdrop-blur-md rounded-2xl p-1.5 shadow-xs overflow-x-auto scrollbar-none transition-all">
-              {PROFILE_TABS_SEQUENCE.map((tabItem) => {
-                const isActive = activeTab === tabItem.key;
-                const IconComponent =
-                  tabItem.key === "business" ? Building2 :
-                  tabItem.key === "products_services" ? Package :
-                  tabItem.key === "target_audience" ? Users :
-                  tabItem.key === "locations" ? MapPin :
-                  tabItem.key === "conversion_goals" ? Target :
-                  tabItem.key === "brand_profile" ? Palette :
-                  tabItem.key === "competitors" ? Swords :
-                  tabItem.key === "seo_keywords" ? Search :
-                  tabItem.key === "faqs" ? HelpCircle :
-                  tabItem.key === "ai_suggestions" ? Sparkles :
-                  tabItem.key === "websites" ? Globe :
-                  tabItem.key === "merchant_apps" ? ShoppingBag :
-                  tabItem.key === "media_assets" ? ImageIcon :
-                  ShieldCheck;
+            {/* ── TOP-SIDE PRIMARY WEBSITE & GROK AI AUTOFILL HERO CARD ── */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-blue-50/40 to-indigo-50/50 border-2 border-blue-200/90 shadow-sm p-5 sm:p-6 space-y-4">
+              {/* Glowing decorative background aura */}
+              <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 rounded-full bg-blue-400/10 blur-2xl pointer-events-none" />
+              <div className="absolute bottom-0 left-1/3 -mb-10 w-40 h-40 rounded-full bg-purple-400/10 blur-2xl pointer-events-none" />
 
-                let countBadge: string | number | null = null;
-                if (tabItem.key === "products_services") countBadge = products.length + services.length;
-                else if (tabItem.key === "target_audience") countBadge = targetAudiences.length + customerPersonas.length;
-                else if (tabItem.key === "locations") countBadge = locationRecords.length;
-                else if (tabItem.key === "conversion_goals") countBadge = conversionGoals.length;
-                else if (tabItem.key === "competitors") countBadge = competitors.length;
-                else if (tabItem.key === "seo_keywords") countBadge = seoKeywords.length + negativeKeywords.length;
-                else if (tabItem.key === "faqs") countBadge = faqs.length;
-                else if (tabItem.key === "ai_suggestions") countBadge = aiSuggestions.filter(s => !s.applied && !s.rejected).length;
-                else if (tabItem.key === "websites") countBadge = `${totalWebsitesCount}/15`;
-                else if (tabItem.key === "media_assets") countBadge = mediaAssets.length;
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Globe className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                      Primary Website &amp; Grok AI Intelligence Autofill
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs inline-flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-purple-600" />
+                      <span>Grok AI Engine Active</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed max-w-3xl">
+                    Enter your primary business website. Grok AI will analyze your live website, discover sub-pages, and <strong>automatically autofill all 14 profile parameters</strong> (business details, products, services, target audience personas, locations, brand voice, competitors, and SEO keywords).
+                  </p>
+                </div>
 
-                return (
-                  <button
-                    key={tabItem.key}
-                    type="button"
-                    onClick={() => {
-                      setActiveTab(tabItem.key);
-                      scrollToTop();
+                {primarySubPages.length > 0 && (
+                  <div className="shrink-0 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedWebsiteUrl(expandedWebsiteUrl === primaryWebsite ? null : primaryWebsite)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <Globe className="w-3.5 h-3.5 text-blue-500" />
+                      <span>{primarySubPages.length} Sub-Pages Discovered</span>
+                      {expandedWebsiteUrl === primaryWebsite ? (
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* URL Input Bar & Action Button */}
+              <div className="relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="url"
+                    value={primaryWebsite}
+                    onChange={(e) => {
+                      const newUrl = e.target.value;
+                      setPrimaryWebsite(newUrl);
+                      if (!newUrl.trim()) {
+                        setPrimarySubPages([]);
+                      }
                     }}
-                    className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                      isActive
-                        ? tabItem.key === "ai_suggestions"
-                          ? "bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white shadow-sm shadow-purple-500/25"
-                          : "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-sm shadow-blue-500/25"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/90"
-                    }`}
-                  >
-                    <IconComponent className="w-3.5 h-3.5 shrink-0" />
-                    <span>{tabItem.label}</span>
-                    {countBadge !== null && (
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                          isActive
-                            ? "bg-white/20 text-white"
-                            : "bg-slate-100 text-slate-500"
-                        }`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && primaryWebsite.trim() && analyzingUrl !== primaryWebsite) {
+                        e.preventDefault();
+                        handleAnalyzeAndAutofill(primaryWebsite);
+                      }
+                    }}
+                    placeholder="Enter primary website: e.g. https://yourcompany.com"
+                    className="w-full pl-10 pr-9 py-2.5 text-xs rounded-2xl border border-slate-300 bg-white font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 shadow-2xs transition-all"
+                  />
+                  {primaryWebsite && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPrimaryWebsite("");
+                        setPrimarySubPages([]);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 cursor-pointer p-1 transition-colors"
+                      title="Clear website & sub-pages"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleAnalyzeAndAutofill(primaryWebsite)}
+                  disabled={!primaryWebsite.trim() || analyzingUrl === primaryWebsite}
+                  className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 shrink-0 ${
+                    !primaryWebsite.trim() || analyzingUrl === primaryWebsite
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/60"
+                      : "bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-blue-500/25 active:scale-98"
+                  }`}
+                >
+                  {analyzingUrl === primaryWebsite ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Analyzing with Grok AI…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-purple-200" />
+                      <span>✨ Analyze &amp; Autofill Profile with Grok AI</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Sub-Pages Dropdown Drawer if Expanded */}
+              {primarySubPages.length > 0 && expandedWebsiteUrl === primaryWebsite && (
+                <div className="pt-3 border-t border-blue-100/80 animate-fadeIn">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                      Discovered Sub-Pages for Customer ID {profile?.formattedCustomerId || customerId}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {primarySubPages.length} active destinations
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1 custom-vertical-scrollbar">
+                    {primarySubPages.map((sp, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2 rounded-xl bg-white/90 border border-blue-100 text-xs flex flex-col justify-between shadow-2xs hover:border-blue-300 transition-colors"
                       >
-                        {countBadge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                        <span className="font-semibold text-slate-800 truncate text-[11px]">{sp.text}</span>
+                        <a
+                          href={sp.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-blue-600 truncate flex items-center gap-1 hover:underline mt-0.5"
+                        >
+                          <span className="truncate">{sp.url}</span>
+                          <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* TAB CONTENT: BUSINESS INFORMATION & MARKETING INTELLIGENCE */}
-            {activeTab === "business" && (
+            {/* ── Split Layout: Left Sidebar + Right Tab Content ── */}
+            <div className="flex flex-col lg:flex-row items-start gap-6">
+
+              {/* ── LEFT SIDEBAR: All Profile Options & Completion Status ── */}
+              <aside className="w-full lg:w-72 shrink-0 space-y-4 lg:sticky lg:top-20 z-20">
+                {/* Profile Completion Progress Widget */}
+                <div className="p-4 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Award className={`w-4 h-4 ${completionPercentage === 100 ? "text-emerald-600" : "text-blue-600"}`} />
+                      <span className="text-xs font-bold text-slate-900">Profile Completion</span>
+                    </div>
+                    <span
+                      className={`text-xs font-extrabold font-mono px-2 py-0.5 rounded-full ${
+                        completionPercentage === 100
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          : "bg-blue-50 text-blue-700 border border-blue-200"
+                      }`}
+                    >
+                      {completionPercentage}%
+                    </span>
+                  </div>
+
+                  {/* Animated Progress Bar */}
+                  <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ease-out ${
+                        completionPercentage === 100
+                          ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 shadow-xs"
+                          : "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700"
+                      }`}
+                      style={{ width: `${completionPercentage}%` }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span>{completedCount} of {totalSections} sections</span>
+                    {completionPercentage === 100 ? (
+                      <span className="text-emerald-700 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> All Complete
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">{totalSections - completedCount} remaining</span>
+                    )}
+                  </div>
+
+                  {completionPercentage === 100 && (
+                    <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50/80 p-2 rounded-xl border border-emerald-200">
+                      <Trophy className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>100% Ready for AI Campaigns!</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Left Sidebar Options Navigation Menu */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-2.5 space-y-1">
+                  <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                    <span>All Options</span>
+                    <span className="font-mono text-slate-500 font-bold">({PROFILE_TABS_SEQUENCE.length})</span>
+                  </div>
+
+                  <nav className="space-y-1 max-h-[calc(100vh-280px)] overflow-y-auto pr-0.5 custom-vertical-scrollbar">
+                    {PROFILE_TABS_SEQUENCE.map((tabItem) => {
+                      const isActive = activeTab === tabItem.key;
+                      const isCompleted = isSectionCompleted(tabItem.key);
+                      const IconComponent =
+                        tabItem.key === "business" ? Building2 :
+                        tabItem.key === "products_services" ? Package :
+                        tabItem.key === "target_audience" ? Users :
+                        tabItem.key === "locations" ? MapPin :
+                        tabItem.key === "conversion_goals" ? Target :
+                        tabItem.key === "brand_profile" ? Palette :
+                        tabItem.key === "competitors" ? Swords :
+                        tabItem.key === "seo_keywords" ? Search :
+                        tabItem.key === "faqs" ? HelpCircle :
+                        tabItem.key === "ai_suggestions" ? Sparkles :
+                        tabItem.key === "websites" ? Globe :
+                        tabItem.key === "merchant_apps" ? ShoppingBag :
+                        tabItem.key === "media_assets" ? ImageIcon :
+                        ShieldCheck;
+
+                      let countBadge: string | number | null = null;
+                      if (tabItem.key === "products_services") countBadge = products.length + services.length;
+                      else if (tabItem.key === "target_audience") countBadge = targetAudiences.length + customerPersonas.length;
+                      else if (tabItem.key === "locations") countBadge = locationRecords.length;
+                      else if (tabItem.key === "conversion_goals") countBadge = conversionGoals.length;
+                      else if (tabItem.key === "competitors") countBadge = competitors.length;
+                      else if (tabItem.key === "seo_keywords") countBadge = seoKeywords.length + negativeKeywords.length;
+                      else if (tabItem.key === "faqs") countBadge = faqs.length;
+                      else if (tabItem.key === "ai_suggestions") countBadge = aiSuggestions.filter(s => !s.applied && !s.rejected).length;
+                      else if (tabItem.key === "websites") countBadge = `${totalWebsitesCount}/15`;
+                      else if (tabItem.key === "media_assets") countBadge = mediaAssets.length;
+
+                      return (
+                        <button
+                          key={tabItem.key}
+                          type="button"
+                          onClick={() => {
+                            setActiveTab(tabItem.key);
+                            scrollToTop();
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs transition-all cursor-pointer text-left ${
+                            isActive
+                              ? tabItem.key === "ai_suggestions"
+                                ? "bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white shadow-sm shadow-purple-500/25 font-bold"
+                                : "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-sm shadow-blue-500/25 font-bold"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-semibold"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? "text-white" : "text-slate-500"}`} />
+                            <span className="truncate">{tabItem.label}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                            {countBadge !== null && (
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                                  isActive
+                                    ? "bg-white/20 text-white"
+                                    : "bg-slate-100 text-slate-600"
+                                }`}
+                              >
+                                {countBadge}
+                              </span>
+                            )}
+                            {isCompleted ? (
+                              <span title="Section Complete" className="flex items-center">
+                                <CheckCircle2
+                                  className={`w-4 h-4 shrink-0 ${
+                                    isActive ? "text-emerald-300" : "text-emerald-600"
+                                  }`}
+                                />
+                              </span>
+                            ) : (
+                              <span
+                                className={`w-2 h-2 rounded-full shrink-0 ${
+                                  isActive ? "bg-white/40" : "bg-slate-300"
+                                }`}
+                                title="Pending Information"
+                              />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </nav>
+                </div>
+              </aside>
+
+              {/* ── RIGHT CONTENT AREA ── */}
+              <div className="flex-1 min-w-0 space-y-6">
+                {/* Account Overview Header Card */}
+                {profile && (
+                  <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="text-lg font-bold text-slate-900">
+                          {businessName || profile.businessName || profile.accountName}
+                        </span>
+                        {profile.isManager && (
+                          <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                            Manager (MCC)
+                          </span>
+                        )}
+                        <span
+                          className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full ${
+                            profile.status === "ENABLED"
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                              : "bg-slate-200 text-slate-700 border border-slate-300"
+                          }`}
+                        >
+                          {profile.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-mono text-slate-600">
+                        <span>Account ID: {profile.formattedCustomerId}</span>
+                        <button
+                          onClick={() => copyToClipboard(profile.customerId, "cid")}
+                          className="text-slate-400 hover:text-blue-600 transition-colors p-1"
+                          title="Copy Customer ID"
+                        >
+                          {copiedField === "cid" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="px-4 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-right">
+                        <span className="block text-[10px] font-bold uppercase text-slate-400">Currency</span>
+                        <span className="text-xs font-bold text-slate-800">{profile.currencyCode}</span>
+                      </div>
+                      <div className="px-4 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-right">
+                        <span className="block text-[10px] font-bold uppercase text-slate-400">Timezone</span>
+                        <span className="text-xs font-bold text-slate-800">{profile.timeZone}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mobile Quick Options Bar (Only on small screens < lg) */}
+                <div className="lg:hidden flex items-center gap-1.5 border border-slate-200/80 bg-white/95 backdrop-blur-md rounded-2xl p-1.5 shadow-xs overflow-x-auto scrollbar-none transition-all">
+                  {PROFILE_TABS_SEQUENCE.map((tabItem) => {
+                    const isActive = activeTab === tabItem.key;
+                    const IconComponent =
+                      tabItem.key === "business" ? Building2 :
+                      tabItem.key === "products_services" ? Package :
+                      tabItem.key === "target_audience" ? Users :
+                      tabItem.key === "locations" ? MapPin :
+                      tabItem.key === "conversion_goals" ? Target :
+                      tabItem.key === "brand_profile" ? Palette :
+                      tabItem.key === "competitors" ? Swords :
+                      tabItem.key === "seo_keywords" ? Search :
+                      tabItem.key === "faqs" ? HelpCircle :
+                      tabItem.key === "ai_suggestions" ? Sparkles :
+                      tabItem.key === "websites" ? Globe :
+                      tabItem.key === "merchant_apps" ? ShoppingBag :
+                      tabItem.key === "media_assets" ? ImageIcon :
+                      ShieldCheck;
+
+                    return (
+                      <button
+                        key={tabItem.key}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(tabItem.key);
+                          scrollToTop();
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                          isActive
+                            ? "bg-blue-600 text-white shadow-xs"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        }`}
+                      >
+                        <IconComponent className="w-3.5 h-3.5 shrink-0" />
+                        <span>{tabItem.shortLabel}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* TAB CONTENT: BUSINESS INFORMATION & MARKETING INTELLIGENCE */}
+                {activeTab === "business" && (
               <div className="animate-fadeIn space-y-6 transition-all duration-300">
                 {/* 1. Business Information Card */}
                 <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
@@ -8771,16 +9335,16 @@ function ProfilePageContent() {
                     {primaryWebsite && (
                       <button
                         type="button"
-                        onClick={() => handleAnalyzeWebsite(primaryWebsite, true)}
+                        onClick={() => handleAnalyzeAndAutofill(primaryWebsite)}
                         disabled={analyzingUrl === primaryWebsite}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-all cursor-pointer shadow-2xs"
                       >
                         {analyzingUrl === primaryWebsite ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
-                          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                          <Sparkles className="w-3.5 h-3.5 text-purple-600" />
                         )}
-                        <span>Analyze with Groq AI</span>
+                        <span>✨ Analyze &amp; Autofill with Grok AI</span>
                       </button>
                     )}
                   </div>
@@ -9296,10 +9860,12 @@ function ProfilePageContent() {
                 {renderSectionFooterNav()}
               </div>
             )}
-          </>
-        )}
-      </main>
-    </div>
+          </div>
+        </div>
+      </>
+    )}
+  </main>
+</div>
   );
 }
 

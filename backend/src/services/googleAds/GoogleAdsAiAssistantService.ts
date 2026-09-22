@@ -368,7 +368,17 @@ export function detectCampaignCase(
   // ── Priority 1: Explicit user edit/override intent ──
   // Only evaluate overrides if campaign context already exists
   if (hasBusiness && msg) {
-    // 1. Explicit objective override
+    // 1. Explicit asset / creative / full campaign generation request
+    // Matches: "generate headlines", "generate high-CTR headlines", "create festive campaign", "generate descriptions", "generate keywords", etc.
+    const isExplicitAssetRequest =
+      /\b(?:generate|write|create|suggest|draft|regenerate|give me|provide)\b.*?\b(?:headlines?|descriptions?|ad\s+copy|copy|keywords?|search\s+themes?|assets?|creatives?|sitelinks?)\b/i.test(msg) ||
+      /\b(?:festive\s+campaign|special\s+campaign|holiday\s+campaign|google\s+ads\s+campaign|new\s+campaign)\b/i.test(msg);
+
+    if (isExplicitAssetRequest) {
+      return "CASE_6_ASSETS";
+    }
+
+    // 2. Explicit objective override
     const isExplicitObjectiveChange =
       /\b(?:change|switch|update|set|choose|select)\s+(?:my\s+)?objective\b/.test(msg) ||
       /\bobjective\s*(?:to|is|=)\s*(?:sales|leads|website_traffic|traffic|app_promotion|awareness|local|no_guidance)\b/.test(msg) ||
@@ -379,7 +389,7 @@ export function detectCampaignCase(
       return "CASE_2_OBJECTIVE";
     }
 
-    // 2. Explicit campaign type override
+    // 3. Explicit campaign type override
     const isExplicitCampaignTypeChange =
       /\b(?:change|switch|update|set|choose|select)\s+(?:my\s+)?(?:campaign\s+)?type\b/.test(msg) ||
       /\b(?:switch|change|convert)\s+(?:this\s+campaign\s+)?to\s+(?:performance\s+max|pmax|search|display|video|demand\s+gen|shopping|app)\b/.test(msg) ||
@@ -389,7 +399,7 @@ export function detectCampaignCase(
       return "CASE_4_CAMPAIGN_TYPE";
     }
 
-    // 3. Explicit setup change (budget, locations, dates, languages, bidding)
+    // 4. Explicit setup change (budget, locations, dates, languages, bidding)
     const isExplicitSetupChange =
       /\b(?:change|update|set|increase|decrease|make)\s+(?:my\s+)?(?:daily\s+|total\s+|campaign\s+)?budget\b/.test(msg) ||
       /\b(?:budget|spend|cost)\s*(?:is|of|to|=)\s*(?:rs\.?|₹|inr|\$)?\s*\d+/i.test(msg) ||
@@ -402,15 +412,6 @@ export function detectCampaignCase(
 
     if (isExplicitSetupChange && hasCampaignType) {
       return "CASE_5_SETUP";
-    }
-
-    // 4. Explicit asset / creative generation request
-    const isExplicitAssetRequest =
-      /\b(?:generate|write|create|suggest|draft|regenerate)\s+(?:more\s+)?(?:headlines?|descriptions?|ad\s+copy|copy|keywords?|search\s+themes?|assets?|images?|logos?|creatives?|sitelinks?)\b/.test(msg) ||
-      /\b(?:give me|show me)\s+(?:some\s+)?(?:headlines?|descriptions?|keywords?|copy|sitelinks?)\b/.test(msg);
-
-    if (isExplicitAssetRequest) {
-      return "CASE_6_ASSETS";
     }
   }
 
@@ -435,18 +436,39 @@ export function detectCampaignCase(
     return "CASE_1_DISCOVERY";
   }
 
+  // If user message supplies objective or campaign type directly, treat them as provided
+  const msgSpecifiesObjective =
+    /\b(?:campaign\s+)?objective\s*[:=]?\s*(sales|leads|website_traffic|traffic|app_promotion|awareness|local|no_guidance)\b/i.test(msg) ||
+    /\b(?:in sales|for sales|objective is sales|objective sales)\b/.test(msg) ||
+    /\b(?:in leads|for leads|objective is leads|objective leads)\b/.test(msg);
+
+  const msgSpecifiesCampaignType =
+    /\b(?:campaign\s+)?type\s*[:=]?\s*(performance\s+max|pmax|search|display|shopping|demand\s+gen|video|app)\b/i.test(msg) ||
+    /\b(?:performance\s+max|pmax|search\s+campaign|display\s+campaign)\b/i.test(msg);
+
+  const isExplicitAssetRequestAnywhere =
+    /\b(?:generate|write|create|suggest|draft|regenerate|give me|provide)\b.*?\b(?:headlines?|descriptions?|ad\s+copy|copy|keywords?|search\s+themes?|assets?|creatives?|sitelinks?)\b/i.test(msg) ||
+    /\b(?:festive\s+campaign|special\s+campaign|holiday\s+campaign|google\s+ads\s+campaign|new\s+campaign)\b/i.test(msg);
+
+  if (isExplicitAssetRequestAnywhere) {
+    return "CASE_6_ASSETS";
+  }
+
+  const effectiveHasObjective = hasObjective || msgSpecifiesObjective;
+  const effectiveHasCampaignType = hasCampaignType || msgSpecifiesCampaignType;
+
   // 2. Business known but objective missing -> CASE_2_OBJECTIVE
-  if (!hasObjective) {
+  if (!effectiveHasObjective) {
     return "CASE_2_OBJECTIVE";
   }
 
   // 3. Objective known but conversion goals are required and missing -> CASE_3_GOALS
-  if (goalsRequired && !hasGoals) {
+  if (goalsRequired && !hasGoals && !msgSpecifiesCampaignType) {
     return "CASE_3_GOALS";
   }
 
   // 4. Objective/goals are sufficient but campaign type missing -> CASE_4_CAMPAIGN_TYPE
-  if (!hasCampaignType) {
+  if (!effectiveHasCampaignType) {
     return "CASE_4_CAMPAIGN_TYPE";
   }
 
@@ -556,14 +578,21 @@ export class GoogleAdsAiAssistantService {
   private static activeKeyIndex = 0;
 
   /**
-   * Retrieves all available Groq API keys configured in environment.
-   * Supports GROQ_KEY, GROQ_API_KEY, and GROQ_API_KEY_1 through GROQ_API_KEY_20.
+   * Retrieves all available Grok / Groq API keys configured in environment.
+   * Supports GROK_API_KEY, XAI_API_KEY, GROQ_KEY, GROQ_API_KEY, and GROQ_API_KEY_1 through GROQ_API_KEY_20.
    */
   public static getGroqKeys(): string[] {
     const keys: string[] = [];
+    const grokMain = process.env.GROK_API_KEY || process.env.XAI_API_KEY;
+    if (grokMain && grokMain.trim()) {
+      keys.push(grokMain.trim().replace(/['"]/g, ""));
+    }
     const main = process.env.GROQ_KEY || process.env.GROQ_API_KEY;
     if (main && main.trim()) {
-      keys.push(main.trim().replace(/['"]/g, ""));
+      const clean = main.trim().replace(/['"]/g, "");
+      if (!keys.includes(clean)) {
+        keys.push(clean);
+      }
     }
     for (let i = 1; i <= 20; i++) {
       const k = process.env[`GROQ_API_KEY_${i}`];
@@ -575,14 +604,15 @@ export class GoogleAdsAiAssistantService {
       }
     }
     if (keys.length === 0) {
-      console.warn("[GoogleAdsAiAssistantService] Warning: No GROQ keys found in environment.");
+      console.warn("[GoogleAdsAiAssistantService] Warning: No Grok / Groq keys found in environment.");
       keys.push("");
     }
     return keys;
   }
 
   /**
-   * Executes a Groq Chat Completion with automatic multi-key rotation and model fallback.
+   * Executes a Grok / Groq Chat Completion with automatic multi-key rotation, model fallback,
+   * and dual support for both xAI Grok and Groq endpoints.
    */
   public static async executeGroqChat(
     payload: {
@@ -593,14 +623,6 @@ export class GoogleAdsAiAssistantService {
     },
     preferredModels?: string[]
   ): Promise<{ content: string; model: string }> {
-    const candidateModels = preferredModels || [
-      "groq/compound",
-      "groq/compound-mini",
-      "openai/gpt-oss-20b",
-      "qwen/qwen3.8-27b",
-      "openai/gpt-oss-120b"
-    ];
-
     const groqKeys = this.getGroqKeys();
     const numKeys = groqKeys.length;
     let lastErr: any = null;
@@ -609,6 +631,18 @@ export class GoogleAdsAiAssistantService {
       const keyIdx = (this.activeKeyIndex + kOffset) % numKeys;
       const currentKey = groqKeys[keyIdx];
       if (!currentKey) continue;
+
+      const isXaiGrok = currentKey.startsWith("xai-");
+      const targetEndpoint = isXaiGrok ? "https://api.x.ai/v1/chat/completions" : GROQ_API_URL;
+      const candidateModels = preferredModels || (isXaiGrok
+        ? ["grok-2-latest", "grok-beta", "grok-vision-beta"]
+        : [
+            "groq/compound",
+            "groq/compound-mini",
+            "llama-3.3-70b-versatile",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.8-27b"
+          ]);
 
       for (const model of candidateModels) {
         try {
@@ -623,14 +657,14 @@ export class GoogleAdsAiAssistantService {
           }
 
           const response = await axios.post(
-            GROQ_API_URL,
+            targetEndpoint,
             body,
             {
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${currentKey}`
               },
-              timeout: 15000
+              timeout: 20000
             }
           );
 
@@ -890,7 +924,7 @@ export class GoogleAdsAiAssistantService {
       const userEstimatedTokens = Math.round(userChars / 4);
 
       const estimatedInputTokens = systemEstimatedTokens + historyEstimatedTokens + userEstimatedTokens;
-      const maxTokens = 1000;
+      const maxTokens = activeCase === "CASE_6_ASSETS" ? 2000 : 1200;
       const estimatedTPMReservation = estimatedInputTokens + maxTokens;
 
       console.log(
@@ -927,7 +961,7 @@ export class GoogleAdsAiAssistantService {
                 model,
                 messages: apiMessages,
                 temperature: 0.1,
-                max_tokens: 1000,
+                max_tokens: maxTokens,
                 response_format: { type: "json_object" }
               },
               {
@@ -1060,6 +1094,16 @@ export class GoogleAdsAiAssistantService {
       if (startDateMatch && startDateMatch[1]) {
         explicitStartDate = normalizeDateString(startDateMatch[1]);
       }
+      if (!explicitStartDate) {
+        // Match dates in parentheses or after festival/campaign name e.g. "(2026-10-19)", "for Maha Navami (2026-10-19)", "on 2026-10-19"
+        const genericDateMatch = lastUserMsg.match(/\((\d{4}[-\/\.]\d{1,2}[-\/\.]\d{1,2})\)/) ||
+                                 lastUserMsg.match(/(?:for|on|date|during|campaign|festival)\s*[:=]?\s*(\d{4}[-\/\.]\d{1,2}[-\/\.]\d{1,2})/i) ||
+                                 lastUserMsg.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+        if (genericDateMatch && genericDateMatch[1]) {
+          explicitStartDate = normalizeDateString(genericDateMatch[1]);
+        }
+      }
+
       const endDateMatch = lastUserMsg.match(/end\s*(?:date)?\s*(?:is|:)?\s*(\d{1,4}[-\/\.]\d{1,2}[-\/\.]\d{1,4})/i);
       if (endDateMatch && endDateMatch[1]) {
         explicitEndDate = normalizeDateString(endDateMatch[1]);
@@ -1095,23 +1139,47 @@ export class GoogleAdsAiAssistantService {
       let resolvedObjective = parsedState.objective || currentState.objective || "";
       let resolvedCampaignType = parsedState.campaignType || currentState.campaignType || "";
 
-      if (lastUserMsg.includes("performance max") || lastUserMsg.includes("pmax")) {
-        resolvedCampaignType = "PERFORMANCE_MAX";
-      } else if (lastUserMsg.includes("search")) {
-        resolvedCampaignType = "SEARCH";
-      }
-
-      if (lastUserMsg.includes("in sales") || lastUserMsg.includes("for sales") || lastUserMsg.includes("objective is sales") || lastUserMsg.includes("objective sales")) {
+      const objectiveMatch = lastUserMsg.match(/(?:campaign\s+)?objective\s*[:=]?\s*(sales|leads|website_traffic|traffic|app_promotion|awareness|local|no_guidance)/i);
+      if (objectiveMatch && objectiveMatch[1]) {
+        const objVal = objectiveMatch[1].toUpperCase();
+        resolvedObjective = objVal === "TRAFFIC" ? "WEBSITE_TRAFFIC" : objVal;
+      } else if (lastUserMsg.includes("in sales") || lastUserMsg.includes("for sales") || lastUserMsg.includes("objective is sales") || lastUserMsg.includes("objective sales")) {
         resolvedObjective = "SALES";
       } else if (lastUserMsg.includes("in leads") || lastUserMsg.includes("for leads") || lastUserMsg.includes("objective is leads")) {
         resolvedObjective = "LEADS";
       }
 
+      const typeMatch = lastUserMsg.match(/(?:campaign\s+)?type\s*[:=]?\s*(performance\s+max|pmax|search|display|shopping|demand\s+gen|video|app)/i);
+      if (typeMatch && typeMatch[1]) {
+        const rawT = typeMatch[1].toUpperCase().replace(/\s+/g, "_");
+        resolvedCampaignType = rawT === "PMAX" ? "PERFORMANCE_MAX" : rawT;
+      } else if (lastUserMsg.includes("performance max") || lastUserMsg.includes("pmax")) {
+        resolvedCampaignType = "PERFORMANCE_MAX";
+      } else if (lastUserMsg.includes("search")) {
+        resolvedCampaignType = "SEARCH";
+      }
+
+      // Regex fallback for locations (e.g. "across Pune, India", "in Mumbai, India", "location: Pune")
+      let explicitLocations: string[] | undefined = undefined;
+      const locMatch = lastUserMsg.match(/(?:across|in|location|locations|targeting|target|geo|city|audiences across)\s+([a-zA-Z]+(?:\s*,\s*[a-zA-Z]+)+)/i) ||
+                       lastUserMsg.match(/(?:across|in|location|locations|targeting|target|geo|city|audiences across)\s*[:=]?\s*([a-zA-Z]+(?:\s*,\s*[a-zA-Z]+)+)/i);
+      if (locMatch && locMatch[1]) {
+        const rawLoc = locMatch[1].trim();
+        const formattedLoc = rawLoc
+          .split(",")
+          .map(part => part.trim().replace(/\b\w/g, c => c.toUpperCase()))
+          .join(", ");
+        if (formattedLoc) {
+          explicitLocations = [formattedLoc];
+        }
+      }
+
       const cleanLocations = (parsedState.locations && parsedState.locations.length > 0)
         ? this.sanitizeArray(parsedState.locations)
-        : (currentState.locations && currentState.locations.length > 0 ? currentState.locations : ["India"]);
+        : (explicitLocations && explicitLocations.length > 0
+          ? explicitLocations
+          : (currentState.locations && currentState.locations.length > 0 ? currentState.locations : ["India"]));
 
-      // Check if user requested copy/assets or if parsedState contains generated items
       // Check if user requested copy/assets or if parsedState contains generated items
       const hasKeywordsInParsed = Array.isArray(parsedState.keywords) && parsedState.keywords.length > 0;
       const hasSearchThemesInParsed = Array.isArray(parsedState.searchThemes) && parsedState.searchThemes.length > 0;
@@ -1185,7 +1253,15 @@ export class GoogleAdsAiAssistantService {
         : this.sanitizeArray(currentState.longHeadlines, 90);
 
       // User confirmed values vs recommendation values
-      const resolvedBiddingStrategy = parsedState.biddingStrategy || currentState.biddingStrategy || "";
+      let resolvedBiddingStrategy = parsedState.biddingStrategy || currentState.biddingStrategy || "";
+      if (!resolvedBiddingStrategy) {
+        if (lastUserMsg.includes("maximize conversions")) resolvedBiddingStrategy = "Maximize conversions";
+        else if (lastUserMsg.includes("maximize conversion value")) resolvedBiddingStrategy = "Maximize conversion value";
+        else if (lastUserMsg.includes("target cpa")) resolvedBiddingStrategy = "Target CPA";
+        else if (lastUserMsg.includes("target roas")) resolvedBiddingStrategy = "Target ROAS";
+        else if (lastUserMsg.includes("maximize clicks")) resolvedBiddingStrategy = "Maximize Clicks";
+        else if (resolvedCampaignType === "PERFORMANCE_MAX") resolvedBiddingStrategy = "Maximize conversions";
+      }
       const resolvedLanguage = parsedState.language || currentState.language || "English";
       const resolvedTargetCpa = explicitBudget !== null ? null : (parsedState.targetCpa ?? currentState.targetCpa ?? null);
       const resolvedTargetRoas = parsedState.targetRoas ?? currentState.targetRoas ?? null;
@@ -1194,6 +1270,10 @@ export class GoogleAdsAiAssistantService {
         : (parsedState.dailyBudget ?? currentState.dailyBudget ?? null);
 
       // Contextual Campaign Name Formulation: [Business_Name] or [Business_Name] - [CampaignType]
+      const themeMatch = lastUserMsg.match(/(?:campaign\s+theme\s*\/?\s*angle|campaign\s+theme|campaign\s+angle|festive\s+theme|theme)\s*[:=]?\s*([^\n\r]+)/i) ||
+                         lastUserMsg.match(/(?:campaign\s+for|festive\s+campaign\s+for)\s+([A-Za-z0-9\s]+?)(?:\s*\(\d{4}|\.|\n|$)/i);
+      const themePart = themeMatch && themeMatch[1] ? ` - ${themeMatch[1].trim().replace(/\b\w/g, c => c.toUpperCase())}` : "";
+
       let derivedCampaignName = "";
       if (resolvedBizName) {
         const underscoredBiz = resolvedBizName.replace(/\s+/g, "_");
@@ -1203,9 +1283,9 @@ export class GoogleAdsAiAssistantService {
             .split("_")
             .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
             .join(" ");
-          derivedCampaignName = `${underscoredBiz} - ${formattedType}`;
+          derivedCampaignName = `${underscoredBiz}${themePart} - ${formattedType}`;
         } else {
-          derivedCampaignName = underscoredBiz;
+          derivedCampaignName = `${underscoredBiz}${themePart}`;
         }
       }
 
@@ -1219,17 +1299,16 @@ export class GoogleAdsAiAssistantService {
       const resolvedEndDate = explicitEndDate || normalizeDateString(parsedState.endDate) || currentState.endDate || undefined;
 
       // Check if user also asked to generate images/logo in prompt
+      // CRITICAL: Only generate visual media when the user explicitly requests image/logo generation
       let generatedCreativesList: GeneratedCreativeImage[] = [];
       let mergedImages = currentState.images || [];
       let mergedLogos = currentState.logos || [];
 
       const resolvedTypeUpper = ((resolvedCampaignType as any) || parsedState.campaignType || currentState.campaignType || "").toUpperCase();
-      const isVisualType = ["DEMAND_GEN", "PERFORMANCE_MAX", "DISPLAY", "VIDEO"].includes(resolvedTypeUpper);
       const userAskedForImages = lastUserMsg.includes("generate image") || lastUserMsg.includes("generate images") ||
                                  lastUserMsg.includes("generate logo") || lastUserMsg.includes("create image") ||
                                  lastUserMsg.includes("create logo") || lastUserMsg.includes("generate and auto fill") ||
-                                 lastUserMsg.includes("generate creatives") || (lastUserMsg.includes("image") && lastUserMsg.includes("logo")) ||
-                                 lastUserMsg.includes("@") || (isVisualType && (mergedImages.length === 0 || mergedLogos.length === 0));
+                                 lastUserMsg.includes("generate creatives") || (lastUserMsg.includes("image") && lastUserMsg.includes("logo"));
 
       if (userAskedForImages && (resolvedBizName || resolvedWebsite)) {
         try {

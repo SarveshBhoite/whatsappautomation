@@ -287,7 +287,17 @@ export class PromptBuilder {
     }
 
     // 3. CAMPAIGN TYPE RULES (loaded ONLY when activeCase is CASE_5_SETUP, CASE_6_ASSETS, or CASE_7_REVIEW)
-    const rawType = (campaignState?.campaignType || "").toUpperCase();
+    let rawType = (campaignState?.campaignType || "").toUpperCase();
+    if (!rawType && options.lastUserMessage) {
+      const lmsg = options.lastUserMessage.toLowerCase();
+      if (lmsg.includes("performance max") || lmsg.includes("pmax")) rawType = "PERFORMANCE_MAX";
+      else if (lmsg.includes("search")) rawType = "SEARCH";
+      else if (lmsg.includes("display")) rawType = "DISPLAY";
+      else if (lmsg.includes("demand gen")) rawType = "DEMAND_GEN";
+      else if (lmsg.includes("shopping")) rawType = "SHOPPING";
+      else if (lmsg.includes("video")) rawType = "VIDEO";
+      else if (lmsg.includes("app")) rawType = "APP";
+    }
     const needsTypeRules = (activeCase === "CASE_5_SETUP" || activeCase === "CASE_6_ASSETS" || activeCase === "CASE_7_REVIEW") && rawType;
 
     if (needsTypeRules) {

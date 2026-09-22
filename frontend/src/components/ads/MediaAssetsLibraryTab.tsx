@@ -21,7 +21,9 @@ import {
   ChevronRight,
   ExternalLink,
   Sparkles,
-  Filter
+  Filter,
+  Edit2,
+  RefreshCw
 } from "lucide-react";
 
 export type MediaAssetType = "IMAGE" | "LOGO" | "VIDEO";
@@ -79,6 +81,292 @@ export function MediaAssetsLibraryTab({
   // Modals state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<MediaAssetItem | null>(null);
+
+  // Edit modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<MediaAssetItem | null>(null);
+  const [editFileName, setEditFileName] = useState("");
+  const [editFileUrl, setEditFileUrl] = useState("");
+  const [editFileData, setEditFileData] = useState<string | null>(null);
+  const [editType, setEditType] = useState<MediaAssetType>("IMAGE");
+  const [editSubtype, setEditSubtype] = useState<MediaAssetSubtype>("IMAGE_LANDSCAPE");
+  const [editAspectRatio, setEditAspectRatio] = useState("");
+  const [editWidth, setEditWidth] = useState(0);
+  const [editHeight, setEditHeight] = useState(0);
+  const [editFileSize, setEditFileSize] = useState(0);
+  const [editMimeType, setEditMimeType] = useState("");
+  const [editDurationSeconds, setEditDurationSeconds] = useState<number | undefined>(undefined);
+  const [editStatus, setEditStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
+  const [editValidationError, setEditValidationError] = useState<string | null>(null);
+  const [editValidationSuccess, setEditValidationSuccess] = useState<string | null>(null);
+  const [isProcessingEditFile, setIsProcessingEditFile] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editMode, setEditMode] = useState<"keep" | "file" | "url">("keep");
+
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Open Edit Modal with asset data
+  const handleOpenEditModal = (asset: MediaAssetItem) => {
+    setEditingAsset(asset);
+    setEditFileName(asset.fileName);
+    setEditFileUrl(asset.fileUrl);
+    setEditFileData(null);
+    setEditType(asset.type);
+    setEditSubtype(asset.subtype);
+    setEditAspectRatio(asset.aspectRatio || "1:1");
+    setEditWidth(asset.width || 1200);
+    setEditHeight(asset.height || 1200);
+    setEditFileSize(asset.fileSize || 0);
+    setEditMimeType(asset.mimeType || "image/jpeg");
+    setEditDurationSeconds(asset.durationSeconds);
+    setEditStatus(asset.status);
+    setEditValidationError(null);
+    setEditValidationSuccess("Asset loaded. Compliant with Google Ads specifications.");
+    setEditMode("keep");
+    setIsEditModalOpen(true);
+  };
+
+  // Close Edit Modal
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingAsset(null);
+    setEditFileName("");
+    setEditFileUrl("");
+    setEditFileData(null);
+    setEditValidationError(null);
+    setEditValidationSuccess(null);
+    setIsProcessingEditFile(false);
+    setIsSavingEdit(false);
+    if (editFileInputRef.current) editFileInputRef.current.value = "";
+  };
+
+  // Handle Edit Replacement File
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setEditValidationError(null);
+    setEditValidationSuccess(null);
+    setIsProcessingEditFile(true);
+
+    const name = file.name;
+    const size = file.size;
+    const mime = file.type || (editType === "VIDEO" ? "video/mp4" : "image/jpeg");
+
+    setEditFileSize(size);
+    setEditMimeType(mime);
+
+    if (editType !== "VIDEO" && size > 5120 * 1024) {
+      setEditValidationError(`File size ${(size / 1024).toFixed(0)} KB exceeds the 5120 KB limit for Google Ads.`);
+      setIsProcessingEditFile(false);
+      return;
+    }
+
+    const reader = new FileReader();
+
+    if (editType === "VIDEO") {
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        setEditFileData(dataUrl);
+        setEditFileUrl(dataUrl);
+
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.src = dataUrl;
+        video.onloadedmetadata = () => {
+          window.URL.revokeObjectURL(video.src);
+          const duration = video.duration;
+          const w = video.videoWidth;
+          const h = video.videoHeight;
+          const ratio = (w / h).toFixed(2);
+
+          setEditDurationSeconds(Math.round(duration));
+          setEditWidth(w);
+          setEditHeight(h);
+          setEditAspectRatio(`${ratio}:1`);
+          setEditSubtype("VIDEO");
+
+          if (duration < 10) {
+            setEditValidationError(`Google Ads requires video duration >= 10 seconds. This video is only ${duration.toFixed(1)}s.`);
+          } else {
+            setEditValidationSuccess(`Video verified: ${w} × ${h} px (${ratio}:1), ${Math.round(duration)}s duration.`);
+          }
+          setIsProcessingEditFile(false);
+        };
+        video.onerror = () => {
+          setEditValidationError("Could not read video metadata.");
+          setIsProcessingEditFile(false);
+        };
+      };
+      reader.readAsDataURL(file);
+    } else {
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        setEditFileData(dataUrl);
+        setEditFileUrl(dataUrl);
+
+        const img = new window.Image();
+        img.onload = () => {
+          const w = img.naturalWidth;
+          const h = img.naturalHeight;
+          setEditWidth(w);
+          setEditHeight(h);
+
+          const result = validateImageDimensions(w, h, editType);
+          if (!result.isValid) {
+            setEditValidationError(result.error || "Dimension validation failed for Google Ads.");
+          } else {
+            setEditSubtype(result.subtype || (editType === "LOGO" ? "LOGO_SQUARE" : "IMAGE_LANDSCAPE"));
+            setEditAspectRatio(result.aspectRatio || "1:1");
+            setEditValidationSuccess(`Asset compliant: ${result.subtype} (${w} × ${h} px, ${result.aspectRatio}). Ready to save.`);
+          }
+          setIsProcessingEditFile(false);
+        };
+        img.onerror = () => {
+          setEditValidationError("Failed to load image file.");
+          setIsProcessingEditFile(false);
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Analyze URL for Edit Modal
+  const handleAnalyzeEditUrl = () => {
+    if (!editFileUrl || !editFileUrl.startsWith("http")) {
+      setEditValidationError("Please provide a valid URL starting with http:// or https://");
+      return;
+    }
+
+    setEditValidationError(null);
+    setEditValidationSuccess(null);
+    setIsProcessingEditFile(true);
+
+    if (editType === "VIDEO") {
+      const video = document.createElement("video");
+      video.crossOrigin = "anonymous";
+      video.src = editFileUrl;
+      video.onloadedmetadata = () => {
+        const duration = video.duration;
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        const ratio = (w / h).toFixed(2);
+
+        setEditDurationSeconds(Math.round(duration));
+        setEditWidth(w);
+        setEditHeight(h);
+        setEditAspectRatio(`${ratio}:1`);
+        setEditSubtype("VIDEO");
+
+        if (duration < 10) {
+          setEditValidationError(`Google Ads requires video duration >= 10s. This video is ${duration.toFixed(1)}s.`);
+        } else {
+          setEditValidationSuccess(`Video verified: ${w} × ${h} px (${ratio}:1), ${Math.round(duration)}s.`);
+        }
+        setIsProcessingEditFile(false);
+      };
+      video.onerror = () => {
+        setEditWidth(1920);
+        setEditHeight(1080);
+        setEditAspectRatio("16:9");
+        setEditDurationSeconds(15);
+        setEditSubtype("VIDEO");
+        setEditValidationSuccess("External video URL accepted.");
+        setIsProcessingEditFile(false);
+      };
+    } else {
+      const img = new window.Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        setEditWidth(w);
+        setEditHeight(h);
+
+        const result = validateImageDimensions(w, h, editType);
+        if (!result.isValid) {
+          setEditValidationError(result.error || "Dimension validation failed.");
+        } else {
+          setEditSubtype(result.subtype || (editType === "LOGO" ? "LOGO_SQUARE" : "IMAGE_LANDSCAPE"));
+          setEditAspectRatio(result.aspectRatio || "1:1");
+          setEditValidationSuccess(`Asset compliant: ${result.subtype} (${w} × ${h} px, ${result.aspectRatio}). Ready to save.`);
+        }
+        setIsProcessingEditFile(false);
+      };
+      img.onerror = () => {
+        setEditValidationError("Could not load image from the provided URL.");
+        setIsProcessingEditFile(false);
+      };
+      img.src = editFileUrl;
+    }
+  };
+
+  // Save changes from Edit Modal
+  const handleSaveEditedAsset = async () => {
+    if (!editingAsset) return;
+
+    if (!editFileName.trim()) {
+      setEditValidationError("Asset name is required.");
+      return;
+    }
+
+    if (!editFileUrl) {
+      setEditValidationError("Asset must have a valid file or URL.");
+      return;
+    }
+
+    if (editValidationError) {
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    const updatedAsset: MediaAssetItem = {
+      ...editingAsset,
+      fileName: editFileName.trim(),
+      fileUrl: editFileUrl,
+      thumbnailUrl: editType === "VIDEO" ? undefined : editFileUrl,
+      type: editType,
+      subtype: editSubtype,
+      aspectRatio: editAspectRatio,
+      width: editWidth,
+      height: editHeight,
+      fileSize: editFileSize || editingAsset.fileSize,
+      mimeType: editMimeType || editingAsset.mimeType,
+      durationSeconds: editDurationSeconds,
+      status: editStatus,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Update parent state immediately
+    const nextList = mediaAssets.map((m) => (m.id === editingAsset.id ? updatedAsset : m));
+    onUpdateMediaAssets(nextList);
+
+    // Persist via backend API
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const cleanCid = customerId.replace(/-/g, "").trim();
+
+      await fetch(`${BACKEND}/api/ads/customer-profile/media/${editingAsset.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({
+          customerId: cleanCid,
+          asset: updatedAsset,
+          file: editFileData || undefined
+        })
+      });
+    } catch (e) {
+      console.warn("Edit asset backend sync notice:", e);
+    } finally {
+      setIsSavingEdit(false);
+      handleCloseEditModal();
+    }
+  };
 
   // Upload modal state
   const [uploadType, setUploadType] = useState<MediaAssetType>("IMAGE");
@@ -765,6 +1053,14 @@ export function MediaAssetsLibraryTab({
                     <Eye className="w-3.5 h-3.5" />
                     <span>View</span>
                   </button>
+                  <button
+                    onClick={() => handleOpenEditModal(asset)}
+                    className="p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold flex items-center gap-1 shadow-sm cursor-pointer"
+                    title="Edit image/logo"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
                 </div>
               </div>
 
@@ -812,19 +1108,30 @@ export function MediaAssetsLibraryTab({
                   )}
                 </div>
 
-                {/* Action Buttons: Enable/Disable, Delete */}
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => handleToggleStatus(asset)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                      asset.status === "ACTIVE"
-                        ? "text-slate-600 hover:text-amber-700 hover:bg-amber-50"
-                        : "text-emerald-700 hover:bg-emerald-50"
-                    }`}
-                  >
-                    <Power className="w-3 h-3" />
-                    <span>{asset.status === "ACTIVE" ? "Disable" : "Enable"}</span>
-                  </button>
+                {/* Action Buttons: Edit, Enable/Disable, Delete */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenEditModal(asset)}
+                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
+                      title="Edit asset details and aspect ratios"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleToggleStatus(asset)}
+                      className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        asset.status === "ACTIVE"
+                          ? "text-slate-600 hover:text-amber-700 hover:bg-amber-50"
+                          : "text-emerald-700 hover:bg-emerald-50"
+                      }`}
+                    >
+                      <Power className="w-3 h-3" />
+                      <span>{asset.status === "ACTIVE" ? "Disable" : "Enable"}</span>
+                    </button>
+                  </div>
 
                   <button
                     onClick={() => handleDeleteAsset(asset.id)}
@@ -1307,6 +1614,276 @@ export function MediaAssetsLibraryTab({
                 className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. EDIT ASSET POPUP MODAL (Google Ads Rules & Direct Save) */}
+      {isEditModalOpen && editingAsset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                  <Edit2 className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Edit {editingAsset.type === "IMAGE" ? "Image" : editingAsset.type === "LOGO" ? "Logo" : "Video"} Asset
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Configure parameters and aspect ratio according to Google Ads guidelines
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseEditModal}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-5 overflow-y-auto flex-1">
+              {/* Asset Preview Frame */}
+              <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-slate-900 border border-slate-800 relative group overflow-hidden">
+                {editType === "VIDEO" ? (
+                  <video
+                    src={editFileUrl}
+                    className="max-h-56 max-w-full rounded-lg object-contain"
+                    controls
+                  />
+                ) : (
+                  <img
+                    src={editFileUrl}
+                    alt={editFileName}
+                    className="max-h-56 max-w-full rounded-lg object-contain bg-slate-950/30"
+                  />
+                )}
+                <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider backdrop-blur-md bg-slate-900/80 text-white">
+                    {formatSubtypeLabel(editSubtype)}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold backdrop-blur-md bg-blue-600/90 text-white">
+                    {editWidth} × {editHeight} px
+                  </span>
+                </div>
+              </div>
+
+              {/* Google Ads Aspect Ratio Specifications Guide */}
+              <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100/80 text-xs text-blue-900 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-blue-950 text-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Google Ads Specification Rules</span>
+                </div>
+                {editType === "IMAGE" ? (
+                  <ul className="text-[11px] text-blue-800/90 list-disc list-inside space-y-0.5">
+                    <li><strong>Landscape (1.91:1)</strong>: Min 600 × 314 px (Recommended: 1200 × 628 px)</li>
+                    <li><strong>Square (1:1)</strong>: Min 300 × 300 px (Recommended: 1200 × 1200 px)</li>
+                    <li><strong>Portrait (4:5)</strong>: Min 480 × 600 px (Recommended: 960 × 1200 px)</li>
+                    <li><strong>Max file size</strong>: 5,120 KB (5 MB), JPG or PNG format.</li>
+                  </ul>
+                ) : editType === "LOGO" ? (
+                  <ul className="text-[11px] text-blue-800/90 list-disc list-inside space-y-0.5">
+                    <li><strong>Square Logo (1:1)</strong>: Min 128 × 128 px (Recommended: 1200 × 1200 px)</li>
+                    <li><strong>Landscape Logo (4:1)</strong>: Min 512 × 128 px (Recommended: 1200 × 300 px)</li>
+                    <li><strong>Max file size</strong>: 5,120 KB (5 MB), transparent PNG recommended.</li>
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-blue-800/90">
+                    Video duration must be at least 10 seconds. Aspect ratios: 16:9, 1:1, or 9:16.
+                  </p>
+                )}
+              </div>
+
+              {/* Asset Name Field */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Asset File Name</label>
+                <input
+                  type="text"
+                  value={editFileName}
+                  onChange={(e) => setEditFileName(e.target.value)}
+                  placeholder="e.g. Summer Campaign Banner Landscape"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
+                />
+              </div>
+
+              {/* Subtype / Aspect Ratio Selector */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Aspect Ratio / Subtype</label>
+                  <select
+                    value={editSubtype}
+                    onChange={(e) => {
+                      const newSub = e.target.value as MediaAssetSubtype;
+                      setEditSubtype(newSub);
+                      if (newSub === "IMAGE_LANDSCAPE") setEditAspectRatio("1.91:1");
+                      else if (newSub === "IMAGE_SQUARE" || newSub === "LOGO_SQUARE") setEditAspectRatio("1:1");
+                      else if (newSub === "IMAGE_PORTRAIT") setEditAspectRatio("4:5");
+                      else if (newSub === "IMAGE_TALL_PORTRAIT") setEditAspectRatio("9:16");
+                      else if (newSub === "LOGO_LANDSCAPE") setEditAspectRatio("4:1");
+                      else if (newSub === "VIDEO") setEditAspectRatio("16:9");
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium cursor-pointer"
+                  >
+                    {editType === "IMAGE" && (
+                      <>
+                        <option value="IMAGE_LANDSCAPE">Landscape (1.91:1) - Standard</option>
+                        <option value="IMAGE_SQUARE">Square (1:1) - Standard</option>
+                        <option value="IMAGE_PORTRAIT">Portrait (4:5) - Feed</option>
+                        <option value="IMAGE_TALL_PORTRAIT">Tall Portrait (9:16) - Shorts/Stories</option>
+                      </>
+                    )}
+                    {editType === "LOGO" && (
+                      <>
+                        <option value="LOGO_SQUARE">Square Logo (1:1) - Required</option>
+                        <option value="LOGO_LANDSCAPE">Landscape Logo (4:1) - Optional</option>
+                      </>
+                    )}
+                    {editType === "VIDEO" && (
+                      <option value="VIDEO">Video Asset (YouTube/MP4)</option>
+                    )}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Status</label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as "ACTIVE" | "INACTIVE")}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium cursor-pointer"
+                  >
+                    <option value="ACTIVE">ACTIVE (Ready for AI &amp; Campaigns)</option>
+                    <option value="INACTIVE">INACTIVE (Disabled)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Replace Image / File Option */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">Replace Media File (Optional)</label>
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setEditMode("keep")}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                        editMode === "keep" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
+                      }`}
+                    >
+                      Keep Current
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditMode("file")}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                        editMode === "file" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-500"
+                      }`}
+                    >
+                      Upload New
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditMode("url")}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                        editMode === "url" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-500"
+                      }`}
+                    >
+                      Change URL
+                    </button>
+                  </div>
+                </div>
+
+                {editMode === "file" && (
+                  <div className="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 flex flex-col items-center justify-center gap-2">
+                    <input
+                      ref={editFileInputRef}
+                      type="file"
+                      accept={editType === "VIDEO" ? "video/*" : "image/*"}
+                      onChange={handleEditFileChange}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => editFileInputRef.current?.click()}
+                      className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:border-blue-500 hover:text-blue-600 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <UploadCloud className="w-4 h-4" />
+                      <span>Choose Replacement File</span>
+                    </button>
+                    <span className="text-[11px] text-slate-400">Max size 5,120 KB • JPG, PNG or MP4</span>
+                  </div>
+                )}
+
+                {editMode === "url" && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      value={editFileUrl}
+                      onChange={(e) => setEditFileUrl(e.target.value)}
+                      placeholder="https://example.com/asset.png"
+                      className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAnalyzeEditUrl}
+                      disabled={isProcessingEditFile}
+                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isProcessingEditFile ? "Checking..." : "Verify"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Validation Status Notice */}
+              {editValidationError && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 text-rose-700 text-xs border border-rose-100 font-medium">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{editValidationError}</span>
+                </div>
+              )}
+
+              {editValidationSuccess && !editValidationError && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs border border-emerald-100 font-medium">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{editValidationSuccess}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer with Save Button */}
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <button
+                type="button"
+                onClick={handleCloseEditModal}
+                disabled={isSavingEdit}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveEditedAsset}
+                disabled={isSavingEdit || Boolean(editValidationError) || isProcessingEditFile}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSavingEdit ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving Changes...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

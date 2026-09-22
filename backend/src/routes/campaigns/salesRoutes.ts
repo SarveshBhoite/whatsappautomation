@@ -14,6 +14,8 @@ const validatePayload = (req: any, res: any, next: any) => {
     return res.status(400).json({ error: "Missing required fields: customerId, campaignName" });
   }
   next();
+
+  
 };
 
 router.post("/performance-max", validatePayload, async (req, res) => {

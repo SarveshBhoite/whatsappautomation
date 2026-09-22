@@ -73,7 +73,8 @@ import {
   ChevronUp,
   Link2,
   Link,
-  Building2
+  Building2,
+  PhoneCall
 } from "lucide-react";
 import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 
@@ -397,18 +398,48 @@ export interface CampaignTypeDefinition {
 }
 
 /**
+ * Checks if a user profile has verified Google Merchant Center credentials.
+ * User must have selected Yes for Merchant Account AND provided a valid Merchant Center ID.
+ */
+export const isMerchantVerified = (prof: any): boolean => {
+  if (!prof) return false;
+  const hasMerchant = Boolean(prof.hasMerchantAccount);
+  const mId = typeof prof.merchantCenterId === "string" ? prof.merchantCenterId.trim() : "";
+  return hasMerchant && mId.length > 0;
+};
+
+/**
+ * Checks if a user profile has verified Mobile App credentials.
+ * User must have selected Yes for App Account AND provided registered app details.
+ */
+export const isAppVerified = (prof: any): boolean => {
+  if (!prof) return false;
+  const hasApp = Boolean(prof.hasAppAccount);
+  const hasAppDetails = Array.isArray(prof.appDetails) && prof.appDetails.length > 0 && Boolean(prof.appDetails[0]?.appId?.trim());
+  const hasDirectAppId = typeof prof.appId === "string" && prof.appId.trim().length > 0;
+  return hasApp && (hasAppDetails || hasDirectAppId);
+};
+
+/**
  * Authoritative Campaign Type Resolver matching exact CRM flow rules
  */
 export const getAvailableCampaignTypes = (
   objective?: string,
-  conversionGoals?: string[]
+  conversionGoals?: string[],
+  customerProfileSource?: any
 ): CampaignTypeDefinition[] => {
   const obj = objective || "";
   const rawGoal = (conversionGoals && conversionGoals.length > 0) ? conversionGoals.join(",") : "";
   const hasContacts = rawGoal.includes("contacts");
   const hasDirections = rawGoal.includes("get_directions");
 
+  const merchantValid = isMerchantVerified(customerProfileSource);
+  const appValid = isAppVerified(customerProfileSource);
+
   if (obj === "APP_PROMOTION") {
+    if (!appValid) {
+      return [];
+    }
     return [
       {
         id: "APP",
@@ -472,7 +503,7 @@ export const getAvailableCampaignTypes = (
   }
 
   if (obj === "NO_GUIDANCE") {
-    return [
+    const types: CampaignTypeDefinition[] = [
       {
         id: "PERFORMANCE_MAX",
         title: "Performance Max",
@@ -492,17 +523,22 @@ export const getAvailableCampaignTypes = (
         id: "DEMAND_GEN",
         title: "Demand Gen",
         desc: "Drive demand and conversions on YouTube, Google Display Network, and more with image and video ads"
-      },
-      {
+      }
+    ];
+
+    if (merchantValid) {
+      types.push({
         id: "SHOPPING",
         title: "Shopping",
         desc: "Promote your products from Merchant Center on Google Search with Shopping ads"
-      }
-    ];
+      });
+    }
+
+    return types;
   }
 
   if (obj === "WEBSITE_TRAFFIC") {
-    return [
+    const types: CampaignTypeDefinition[] = [
       {
         id: "SEARCH",
         title: "Search",
@@ -522,18 +558,24 @@ export const getAvailableCampaignTypes = (
         id: "DISPLAY",
         title: "Display",
         desc: "Reach potential customers across 3 million sites and apps with your creative"
-      },
-      {
+      }
+    ];
+
+    if (merchantValid) {
+      types.push({
         id: "SHOPPING",
         title: "Shopping",
         desc: "Promote your products from Merchant Center on Google Search with Shopping ads"
-      },
-      {
-        id: "VIDEO",
-        title: "Video",
-        desc: "Reach and engage viewers on YouTube and across the web"
-      }
-    ];
+      });
+    }
+
+    types.push({
+      id: "VIDEO",
+      title: "Video",
+      desc: "Reach and engage viewers on YouTube and across the web"
+    });
+
+    return types;
   }
 
   // SALES or LEADS (Default base list)
@@ -565,23 +607,26 @@ export const getAvailableCampaignTypes = (
       id: "DISPLAY",
       title: "Display",
       desc: `Reach potential customers across 3 million sites and apps with your creative`
-    },
-    {
+    }
+  ];
+
+  if (merchantValid) {
+    allSalesOrLeadsTypes.push({
       id: "SHOPPING",
       title: "Shopping",
       desc: `Promote your products from Merchant Center on Google Search with Shopping ads`
-    }
-  ];
+    });
+  }
 
   // Manual Flow Goal Dependencies for SALES / LEADS:
   if (hasContacts) {
     // If Contacts goal is present: ONLY Performance Max
     return allSalesOrLeadsTypes.filter(ct => ct.id === "PERFORMANCE_MAX");
   } else if (hasDirections && !hasContacts) {
-    // If Get directions is present (without Contacts): Performance Max, Search, Shopping
+    // If Get directions is present (without Contacts): Performance Max, Search, Shopping (if merchant verified)
     return allSalesOrLeadsTypes.filter(ct => ["PERFORMANCE_MAX", "SEARCH", "SHOPPING"].includes(ct.id));
   } else {
-    // Default / Phone call leads: All 6 campaign types available
+    // Default / Phone call leads: All available campaign types
     return allSalesOrLeadsTypes;
   }
 };
@@ -591,9 +636,26 @@ export const getAvailableCampaignTypes = (
  */
 export const reconcileCampaignStateWithManualFlow = (
   state: CampaignState,
-  changedField?: "objective" | "conversionGoal" | "campaignType"
+  changedField?: "objective" | "conversionGoal" | "campaignType",
+  customerProfileSource?: any
 ): CampaignState => {
   const updated = { ...state };
+  const profSource = customerProfileSource || updated.customerProfile;
+  const merchantValid = isMerchantVerified(profSource);
+  const appValid = isAppVerified(profSource);
+
+  // If user selected APP_PROMOTION but app is not verified, fall back to SALES
+  if (updated.objective === "APP_PROMOTION" && !appValid) {
+    updated.objective = "SALES";
+    updated.campaignType = "PERFORMANCE_MAX";
+    updated.conversionGoals = ["phone_leads"];
+  }
+
+  // If user selected SHOPPING but merchant is not verified, fall back to PERFORMANCE_MAX
+  if (updated.campaignType === "SHOPPING" && !merchantValid) {
+    updated.campaignType = "PERFORMANCE_MAX";
+  }
+
   const obj = updated.objective || "";
 
   if (obj === "SALES" || obj === "LEADS" || obj === "WEBSITE_TRAFFIC") {
@@ -604,22 +666,28 @@ export const reconcileCampaignStateWithManualFlow = (
     const resolvedGoal = isValid ? rawGoal : "phone_leads";
     updated.conversionGoals = resolvedGoal.split(",");
 
-    const availableTypes = getAvailableCampaignTypes(obj, updated.conversionGoals);
+    const availableTypes = getAvailableCampaignTypes(obj, updated.conversionGoals, profSource);
     const isTypeValid = availableTypes.some(t => t.id === updated.campaignType);
     if (!isTypeValid) {
       updated.campaignType = (availableTypes[0]?.id || "PERFORMANCE_MAX") as any;
     }
   } else if (obj === "APP_PROMOTION") {
-    const rawSubtype = updated.conversionGoals?.[0] || "installs";
-    const isValid = APP_PROMOTION_SUBTYPES.some(s => s.id === rawSubtype);
-    updated.conversionGoals = [isValid ? rawSubtype : "installs"];
-    updated.campaignType = "APP";
+    if (!appValid) {
+      updated.objective = "SALES";
+      updated.campaignType = "PERFORMANCE_MAX";
+      updated.conversionGoals = ["phone_leads"];
+    } else {
+      const rawSubtype = updated.conversionGoals?.[0] || "installs";
+      const isValid = APP_PROMOTION_SUBTYPES.some(s => s.id === rawSubtype);
+      updated.conversionGoals = [isValid ? rawSubtype : "installs"];
+      updated.campaignType = "APP";
+    }
   } else if (obj === "AWARENESS") {
     const rawSubtype = updated.conversionGoals?.[0] || "views";
     const isValid = AWARENESS_SUBTYPES.some(s => s.id === rawSubtype);
     const resolvedSubtype = isValid ? rawSubtype : "views";
     updated.conversionGoals = [resolvedSubtype];
-    const availableTypes = getAvailableCampaignTypes(obj, updated.conversionGoals);
+    const availableTypes = getAvailableCampaignTypes(obj, updated.conversionGoals, profSource);
     const isTypeValid = availableTypes.some(t => t.id === updated.campaignType);
     if (!isTypeValid) {
       updated.campaignType = (availableTypes[0]?.id || "VIDEO") as any;
@@ -631,7 +699,10 @@ export const reconcileCampaignStateWithManualFlow = (
       updated.locations = ["India"];
     }
   } else if (obj === "NO_GUIDANCE") {
-    const availableTypes = ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN", "SHOPPING"];
+    const availableTypes = ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN"];
+    if (merchantValid) {
+      availableTypes.push("SHOPPING");
+    }
     if (!updated.campaignType || !availableTypes.includes(updated.campaignType)) {
       updated.campaignType = "PERFORMANCE_MAX";
     }
@@ -656,6 +727,155 @@ export const reconcileCampaignStateWithManualFlow = (
   }
 
   return updated;
+};
+
+/**
+ * Extracts and synthesizes up to 6 high-quality, valid sitelinks directly from user profile data.
+ * Inspects:
+ *  1. additionalWebsites (subPages and website roots)
+ *  2. products (active products, their URLs or synthesized clean URLs)
+ *  3. services (active services, their URLs or synthesized clean URLs)
+ * Guaranteed to produce valid Google Ads sitelink text (<= 25 chars) and description (<= 35 chars).
+ */
+export const extractProfileSitelinks = (
+  prof: any,
+  baseWebsiteUrl?: string
+): Array<{ text: string; url: string; desc1?: string; desc2?: string }> => {
+  if (!prof) return [];
+
+  const sitelinks: Array<{ text: string; url: string; desc1?: string; desc2?: string }> = [];
+  const seenUrls = new Set<string>();
+  const seenTexts = new Set<string>();
+
+  // Determine normalized base website for relative URL synthesis
+  let rootUrl = (baseWebsiteUrl || prof?.primaryWebsite || "").trim();
+  if (rootUrl && !rootUrl.startsWith("http://") && !rootUrl.startsWith("https://")) {
+    rootUrl = `https://${rootUrl}`;
+  }
+  if (rootUrl.endsWith("/")) {
+    rootUrl = rootUrl.slice(0, -1);
+  }
+
+  const addSitelink = (rawText: string, rawUrl: string, rawDesc1?: string, rawDesc2?: string) => {
+    let text = (rawText || "").trim().replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, "-").slice(0, 25).trim();
+    let url = (rawUrl || "").trim();
+
+    if (!url && rootUrl && text) {
+      // Synthesize clean slug URL if missing
+      const slug = text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      url = `${rootUrl}/${slug}`;
+    }
+
+    if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+      url = `https://${url}`;
+    }
+
+    if (!text || !url || seenUrls.has(url.toLowerCase()) || seenTexts.has(text.toLowerCase())) {
+      return;
+    }
+
+    seenUrls.add(url.toLowerCase());
+    seenTexts.add(text.toLowerCase());
+
+    const desc1 = (rawDesc1 || "").trim().slice(0, 35);
+    const desc2 = (rawDesc2 || "").trim().slice(0, 35);
+
+    sitelinks.push({
+      text,
+      url,
+      desc1,
+      desc2
+    });
+  };
+
+  // 1. Extract from additionalWebsites & subPages
+  const rawWebsites = prof?.additionalWebsites || prof?.websites || [];
+  if (Array.isArray(rawWebsites)) {
+    for (const site of rawWebsites) {
+      if (Array.isArray(site?.subPages) && site.subPages.length > 0) {
+        for (const sub of site.subPages) {
+          const text = sub?.text || sub?.title || "";
+          const url = sub?.url || "";
+          if (text) {
+            addSitelink(text, url, sub?.description || "");
+          }
+        }
+      } else if (site?.url || site?.title) {
+        const text = site?.title || site?.text || "";
+        const url = site?.url || "";
+        if (text) {
+          addSitelink(text, url, site?.description || "");
+        }
+      }
+    }
+  }
+
+  // 2. Extract from active Products
+  const rawProducts = prof?.products || [];
+  if (Array.isArray(rawProducts) && sitelinks.length < 6) {
+    for (const prod of rawProducts) {
+      if (sitelinks.length >= 6) break;
+      const isItemActive = prod?.isActive !== false;
+      if (!isItemActive) continue;
+
+      const name = typeof prod === "string" ? prod : (prod?.name || "");
+      const prodUrl = prod?.productUrl || "";
+      const desc = prod?.description || prod?.usp || "";
+      if (name) {
+        addSitelink(name, prodUrl, desc);
+      }
+    }
+  }
+
+  // 3. Extract from active Services
+  const rawServices = prof?.services || [];
+  if (Array.isArray(rawServices) && sitelinks.length < 6) {
+    for (const srv of rawServices) {
+      if (sitelinks.length >= 6) break;
+      const isItemActive = srv?.isActive !== false;
+      if (!isItemActive) continue;
+
+      const name = typeof srv === "string" ? srv : (srv?.name || "");
+      const srvUrl = srv?.serviceUrl || "";
+      const desc = srv?.description || srv?.usp || "";
+      if (name) {
+        addSitelink(name, srvUrl, desc);
+      }
+    }
+  }
+
+  // 4. Default high-converting fallbacks if rootUrl is known and still < 4 sitelinks
+  if (sitelinks.length < 4 && rootUrl) {
+    const defaultPages = [
+      { text: "About Us", path: "/about", desc: "Learn more about our company" },
+      { text: "Contact Us", path: "/contact", desc: "Get in touch with our team" },
+      { text: "Our Services", path: "/services", desc: "Explore all our services" },
+      { text: "Special Offers", path: "/offers", desc: "Discover exclusive deals today" }
+    ];
+
+    for (const p of defaultPages) {
+      if (sitelinks.length >= 4) break;
+      addSitelink(p.text, `${rootUrl}${p.path}`, p.desc);
+    }
+  }
+
+  return sitelinks;
+};
+
+/**
+ * Validates Google Ads Tracking Template requirements.
+ * Google Ads requires that a Tracking Template MUST contain at least one valid landing page tag,
+ * such as {lpurl}, {unescapedlpurl}, {escapedlpurl}, or {lpurl+2}.
+ * Plain destination URLs without landing page tags are rejected by Google Ads.
+ */
+export const validateTrackingTemplate = (template?: string | null): string | null => {
+  if (!template || !template.trim()) return null;
+  const t = template.trim();
+  const hasLandingPageTag = /\{(lpurl|unescapedlpurl|escapedlpurl|lpurl\+\d+)\}/i.test(t);
+  if (!hasLandingPageTag) {
+    return `Tracking template must contain at least one landing page tag (e.g. {lpurl}?utm_source=google). If you just want to set your website URL, leave this field empty.`;
+  }
+  return null;
 };
 
 interface GeneratedCreativeItem {
@@ -778,6 +998,122 @@ export default function AiGuidedCampaignPage() {
   const [isCalendarLoading, setIsCalendarLoading] = useState<boolean>(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
   const [calendarMonthFilter, setCalendarMonthFilter] = useState<string>("All");
+  const [selectedEventForDetail, setSelectedEventForDetail] = useState<any | null>(null);
+
+  const getEventDetailData = (item: any) => {
+    if (!item) return null;
+    const evLower = (item.eventName || "").toLowerCase();
+
+    let campaignTheme = item.campaignTheme;
+    let suggestedObjective = item.suggestedObjective;
+    let suggestedCampaignType = item.suggestedCampaignType;
+    let opportunityInsight = item.opportunityInsight || item.relevanceReason || item.extras;
+
+    if (!campaignTheme) {
+      if (
+        evLower.includes("diwali") ||
+        evLower.includes("deepavali") ||
+        evLower.includes("dhanteras") ||
+        evLower.includes("new year") ||
+        evLower.includes("christmas")
+      ) {
+        campaignTheme = `${item.eventName} Mega Festive Gifting & Discount Sale`;
+        suggestedObjective = "Sales";
+        suggestedCampaignType = "Performance Max";
+        opportunityInsight = `Peak festive shopping period in India with high discretionary spending, corporate bonuses, and strong gifting intent across retail and e-commerce.`;
+      } else if (
+        evLower.includes("republic") ||
+        evLower.includes("independence") ||
+        evLower.includes("gandhi")
+      ) {
+        campaignTheme = `${item.eventName} Freedom Deals & National Celebration`;
+        suggestedObjective = "Sales / Website Traffic";
+        suggestedCampaignType = "Search";
+        opportunityInsight = `Extended holiday weekend driving significant digital search queries and promotional shopping across categories.`;
+      } else if (
+        evLower.includes("holi") ||
+        evLower.includes("raksha") ||
+        evLower.includes("karwa") ||
+        evLower.includes("ganesh") ||
+        evLower.includes("dussehra") ||
+        evLower.includes("navratri") ||
+        evLower.includes("eid")
+      ) {
+        campaignTheme = `${item.eventName} Exclusive Festive Collection & Celebratory Offers`;
+        suggestedObjective = "Sales";
+        suggestedCampaignType = "Performance Max";
+        opportunityInsight = `Surge in local demand and family shopping. Highly effective for timely promotions, gift sets, and fast-fulfillment offers.`;
+      } else {
+        campaignTheme = `${item.eventName} Special Customer Appreciation Campaign`;
+        suggestedObjective = "Brand Awareness & Leads";
+        suggestedCampaignType = "Demand Gen";
+        opportunityInsight = `Opportunity to build authentic engagement and brand goodwill during ${item.eventName}.`;
+      }
+    }
+
+    const sampleHeadlines = [
+      `Celebrate ${item.eventName}`,
+      `Exclusive ${item.eventName} Offers`,
+      `Festive Special Discounts`,
+      `Limited Time ${item.eventName} Deals`
+    ];
+
+    const sampleDescriptions = [
+      `Make this ${item.eventName} unforgettable with our special festive promotions. Limited-time offers available now!`,
+      `Shop top-rated products & services for ${item.eventName}. Fast support & premium satisfaction guaranteed.`
+    ];
+
+    const sampleKeywords = [
+      `${item.eventName} offers`,
+      `best ${item.eventName} deals`,
+      `${item.eventName} discounts`,
+      `festive sale online`,
+      `buy for ${item.eventName}`
+    ];
+
+    return {
+      ...item,
+      campaignTheme: campaignTheme || `${item.eventName} Special Campaign`,
+      suggestedObjective: suggestedObjective || "Sales",
+      suggestedCampaignType: suggestedCampaignType || "Performance Max",
+      opportunityInsight: opportunityInsight || `Heightened festive consumer search intent during ${item.eventName}.`,
+      sampleHeadlines,
+      sampleDescriptions,
+      sampleKeywords
+    };
+  };
+
+  const handleSendEventToChatbox = (event: any, autoSubmit = true) => {
+    if (!event) return;
+    const detail = getEventDetailData(event);
+    if (!detail) return;
+
+    const eventName = detail.eventName || "Festive Event";
+    const eventDate = detail.date || "";
+    const objective = detail.suggestedObjective || "Sales";
+    const campaignType = detail.suggestedCampaignType || "Performance Max";
+    const campaignTheme = detail.campaignTheme || `${eventName} Special Promotion`;
+    const insight = detail.opportunityInsight || `Leverage high festive demand for ${eventName}.`;
+
+    const promptText = `Create a high-converting Google Ads festive campaign for ${eventName} (${eventDate}).
+- Campaign Objective: ${objective}
+- Recommended Campaign Type: ${campaignType}
+- Campaign Theme / Angle: ${campaignTheme}
+- Festive Insight & Strategy: ${insight}
+Please generate high-CTR festive headlines, conversion-focused descriptions, high-intent search keywords/themes, and configure the optimal Performance Max assets and bidding strategy for my business.`;
+
+    setSelectedEventForDetail(null);
+    setIsCalendarModalOpen(false);
+
+    if (autoSubmit) {
+      handleSendMessage(promptText);
+    } else {
+      setInputVal(promptText);
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }
+  };
 
   const fetchCalendarOpportunities = async (yearOverride?: number) => {
     setIsCalendarLoading(true);
@@ -870,8 +1206,22 @@ export default function AiGuidedCampaignPage() {
   // Merchant Center Conditional Flow State
   const [hasMerchantCenterAccount, setHasMerchantCenterAccount] = useState<boolean | null>(null);
 
-  // More Asset Types Modals & Forms State (100% Parity with Manual Sales Performance Max)
-  const [activeAssetModal, setActiveAssetModal] = useState<"PROMOTIONS" | "PRICES" | "APPS" | "SNIPPETS" | "LEAD_FORMS" | "BRAND_GUIDELINES" | null>(null);
+  // More Asset Types Modals & Forms State (100% Parity with Manual Sales Performance Max & Search)
+  const [activeAssetModal, setActiveAssetModal] = useState<"PROMOTIONS" | "PRICES" | "APPS" | "APP_ASSET" | "SNIPPETS" | "LEAD_FORMS" | "BRAND_GUIDELINES" | null>(null);
+
+  // App Asset Modal State
+  const [appPlatform, setAppPlatform] = useState<"Android" | "iOS">("Android");
+  const [appNameInput, setAppNameInput] = useState<string>("");
+  const [appLinkText, setAppLinkText] = useState<string>("Download App");
+
+  // Search Ad Group Settings for AI Max State
+  const [showSearchBrandModal, setShowSearchBrandModal] = useState<boolean>(false);
+  const [searchBrandInput, setSearchBrandInput] = useState<string>("");
+  const [showSearchUrlInclusionsModal, setShowSearchUrlInclusionsModal] = useState<boolean>(false);
+  const [searchUrlInclusionsInput, setSearchUrlInclusionsInput] = useState<string>("");
+  const [searchLocationOfInterestInput, setSearchLocationOfInterestInput] = useState<string>("");
+  const [showSearchAdUrlOptions, setShowSearchAdUrlOptions] = useState<boolean>(false);
+  const [showSearchCallsInput, setShowSearchCallsInput] = useState<boolean>(false);
 
   // Promotions State
   const [promoOccasion, setPromoOccasion] = useState<string>("None");
@@ -1043,12 +1393,14 @@ export default function AiGuidedCampaignPage() {
 
   // Approved Business & Marketing Profile Context (GoogleAdsCustomerProfile)
   const [customerProfile, setCustomerProfile] = useState<any | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true);
+  const [loadingProfileStep, setLoadingProfileStep] = useState<string>("Connecting to Business Profile...");
 
   // Fetch Logged-in User Profile & Auto-fill Campaign Cockpit + Chat Welcome Message
   useEffect(() => {
-    const fetchUserProfile = async () => {
+    const fetchUserProfile = async (retryCount = 0) => {
       try {
-        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
         const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
         const cid = customerId || "6587355041";
         const storedUserName = typeof window !== "undefined" ? (localStorage.getItem("user_name") || localStorage.getItem("userName") || "") : "";
@@ -1085,6 +1437,109 @@ export default function AiGuidedCampaignPage() {
           setCustomerProfile(prof);
         }
 
+        setLoadingProfileStep("Loading business keywords & locations...");
+
+        // Extract profile keywords (from seoKeywords array of {keyword, isActive})
+        const rawKeywords = profileData.seoKeywords || prof?.seoKeywords || [];
+        const profileKeywords: string[] = Array.isArray(rawKeywords)
+          ? rawKeywords
+              .map((k: any) => typeof k === "string" ? k : (k?.keyword || ""))
+              .map((k: string) => k.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, "-").trim())
+              .filter((k: string) => Boolean(k) && k.length > 0)
+          : [];
+
+        // Extract sitelinks using comprehensive profile extractor (websites, subPages, products, services)
+        setLoadingProfileStep("Configuring sitelinks, assets & brand parameters...");
+        const profileSitelinks = extractProfileSitelinks(
+          prof || profileData,
+          profileData.primaryWebsite || prof?.primaryWebsite || ""
+        );
+
+        // Extract callouts from keyOfferings and brandUsps
+        const rawOfferings = profileData.keyOfferings || prof?.keyOfferings || [];
+        const rawUsps = profileData.brandProfile?.brandUsps || prof?.brandProfile?.brandUsps || [];
+        const combinedCallouts = [
+          ...(Array.isArray(rawOfferings) ? rawOfferings : []),
+          ...(Array.isArray(rawUsps) ? rawUsps : [])
+        ];
+        const profileCallouts: string[] = Array.from(
+          new Set(
+            combinedCallouts
+              .map((c: any) => (typeof c === "string" ? c : (c?.title || c?.text || "")).trim())
+              .filter((c: string) => c.length > 0 && c.length <= 25)
+          )
+        );
+
+        // Extract phone number for Call Assets
+        const profilePhone = profileData.businessPhone || prof?.businessPhone || profileData.whatsappNumber || prof?.whatsappNumber || "";
+
+        // Extract brand colors / font
+        const profileBrandColor = profileData.brandProfile?.brandColors?.[0] || prof?.brandProfile?.brandColors?.[0] || "";
+        const profileBrandFont = profileData.brandProfile?.brandFont || prof?.brandProfile?.brandFont || "";
+
+        // Extract media assets (Images, Logos, Videos) from business profile
+        // Per rule: If more than 1 image, logo, or video exist in profile, select only 1 of each
+        const rawMediaAssets: any[] = prof?.mediaAssets || profileData?.mediaAssets || [];
+        const activeImages = rawMediaAssets.filter((m: any) => m.type === "IMAGE" && m.status === "ACTIVE");
+        const activeLogos = rawMediaAssets.filter((m: any) => m.type === "LOGO" && m.status === "ACTIVE");
+        const activeVideos = rawMediaAssets.filter((m: any) => m.type === "VIDEO" && m.status === "ACTIVE");
+
+        // Format single profile image asset if available
+        const singleProfileImage = activeImages.length > 0
+          ? [{
+              url: activeImages[0].fileUrl,
+              data: activeImages[0].fileUrl,
+              name: activeImages[0].fileName,
+              fieldType: "IMAGE",
+              aspectRatio: activeImages[0].aspectRatio || "1.91:1",
+              dimensions: {
+                width: activeImages[0].width || 1200,
+                height: activeImages[0].height || 628
+              }
+            }]
+          : undefined;
+
+        // Format single profile logo asset if available (or fallback to brandProfile.logoUrl)
+        const profileBrandLogoUrl = profileData.brandProfile?.logoUrl || prof?.brandProfile?.logoUrl || "";
+        const singleProfileLogo = activeLogos.length > 0
+          ? [{
+              url: activeLogos[0].fileUrl,
+              data: activeLogos[0].fileUrl,
+              name: activeLogos[0].fileName,
+              fieldType: "LOGO",
+              aspectRatio: activeLogos[0].aspectRatio || "1:1",
+              dimensions: {
+                width: activeLogos[0].width || 1200,
+                height: activeLogos[0].height || 1200
+              }
+            }]
+          : (profileBrandLogoUrl
+              ? [{
+                  url: profileBrandLogoUrl,
+                  data: profileBrandLogoUrl,
+                  name: "Business Logo",
+                  fieldType: "LOGO",
+                  aspectRatio: "1:1",
+                  dimensions: { width: 1200, height: 1200 }
+                }]
+              : undefined);
+
+        // Format single profile video asset if available
+        const singleProfileVideo = activeVideos.length > 0
+          ? [{
+              url: activeVideos[0].fileUrl,
+              data: activeVideos[0].fileUrl,
+              name: activeVideos[0].fileName,
+              aspectRatio: activeVideos[0].aspectRatio || "16:9",
+              dimensions: {
+                width: activeVideos[0].width || 1920,
+                height: activeVideos[0].height || 1080
+              }
+            }]
+          : undefined;
+
+        setLoadingProfileStep("Applying parameters to Campaign Cockpit...");
+
         // Pre-fill Right Side Campaign Cockpit with approved business profile if fields are empty
         setCampaignState(prev => {
           const finalBiz = prev.businessName || resolvedBizName || "";
@@ -1097,10 +1552,80 @@ export default function AiGuidedCampaignPage() {
           const prefilledProducts = (prev.business?.products && prev.business.products.length > 0)
             ? prev.business.products
             : (Array.isArray(profileData.products) ? profileData.products.map((p: any) => typeof p === "string" ? p : p.name).filter(Boolean) : []);
-          const prefilledLocations = (prev.locations && prev.locations.length > 0 && prev.locations[0] !== "") 
+          const prefilledServices = (prev.business?.services && prev.business.services.length > 0)
+            ? prev.business.services
+            : (Array.isArray(profileData.services) ? profileData.services.map((s: any) => typeof s === "string" ? s : s.name).filter(Boolean) : []);
+          const prefilledLocations = (prev.locations && prev.locations.length > 0 && prev.locations[0] !== "" && prev.locations[0] !== "India") 
             ? prev.locations 
-            : (Array.isArray(profileData.locations) && profileData.locations.length > 0 ? profileData.locations : [resolvedLocation || "India"]);
+            : (Array.isArray(profileData.locations) && profileData.locations.length > 0 
+                ? profileData.locations 
+                : (resolvedLocation ? [resolvedLocation] : ["India"]));
           const prefilledLanguage = prev.language || (prof?.languagesServed?.[0] ? prof.languagesServed[0] : prev.language);
+
+          // Auto-fill Keywords if campaignState keywords are empty
+          const prefilledKeywords = (prev.keywords && prev.keywords.length > 0)
+            ? prev.keywords
+            : profileKeywords;
+
+          // Auto-fill Search Themes if campaignState searchThemes are empty
+          const prefilledSearchThemes = (prev.searchThemes && prev.searchThemes.length > 0)
+            ? prev.searchThemes
+            : profileKeywords.slice(0, 10);
+
+          // Auto-fill Sitelinks if campaignState sitelinks are empty
+          const prefilledSitelinks = (prev.sitelinks && prev.sitelinks.length > 0)
+            ? prev.sitelinks
+            : profileSitelinks;
+
+          // Auto-fill Callouts if campaignState callouts are empty
+          const prefilledCallouts = (prev.callouts && prev.callouts.length > 0)
+            ? prev.callouts
+            : profileCallouts;
+
+          // Auto-fill Call phone number if not yet specified
+          const prefilledPhone = prev.callPhoneNumber || profilePhone || "";
+
+          // Auto-fill media assets (max 1 image, 1 logo, 1 video) if campaignState media is empty
+          const prefilledImages = (prev.images && prev.images.length > 0)
+            ? prev.images
+            : singleProfileImage;
+
+          const prefilledLogos = (prev.logos && prev.logos.length > 0)
+            ? prev.logos
+            : singleProfileLogo;
+
+          const prefilledVideos = (prev.videos && prev.videos.length > 0)
+            ? prev.videos
+            : singleProfileVideo;
+
+          // Sync Cockpit selectedLocationsList state
+          if (prefilledLocations && prefilledLocations.length > 0) {
+            setSelectedLocationsList(prefilledLocations);
+          }
+
+          // Determine verified Merchant Center and App credentials from business profile
+          const verifiedMerchant = isMerchantVerified(prof || profileData);
+          const verifiedApp = isAppVerified(prof || profileData);
+
+          if (verifiedMerchant) {
+            setHasMerchantCenterAccount(true);
+          } else {
+            setHasMerchantCenterAccount(false);
+          }
+
+          const prefilledMerchantId = verifiedMerchant
+            ? (prof?.merchantCenterId || profileData?.merchantCenterId || "").trim()
+            : undefined;
+
+          const prefilledAppId = verifiedApp
+            ? (prof?.appDetails?.[0]?.appId || prof?.appId || profileData?.appId || "").trim()
+            : undefined;
+          const prefilledAppName = verifiedApp
+            ? (prof?.appDetails?.[0]?.appName || prof?.appName || profileData?.appName || "").trim()
+            : undefined;
+          const prefilledPlatform = verifiedApp
+            ? (prof?.appDetails?.[0]?.platform || prof?.platform || profileData?.platform || "ANDROID")
+            : undefined;
 
           return {
             ...prev,
@@ -1109,13 +1634,30 @@ export default function AiGuidedCampaignPage() {
             campaignName: defaultCampaignName,
             website: prefilledWebsite,
             language: prefilledLanguage,
+            merchantCenterId: prefilledMerchantId,
+            merchantId: prefilledMerchantId,
+            appId: prefilledAppId,
+            appName: prefilledAppName,
+            platform: prefilledPlatform,
+            appStore: prefilledPlatform === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE",
             business: {
               ...(prev.business || {}),
               name: prev.business?.name || finalBiz,
               description: prefilledDescription,
-              products: prefilledProducts
+              products: prefilledProducts,
+              services: prefilledServices
             },
-            locations: prefilledLocations
+            locations: prefilledLocations,
+            keywords: prefilledKeywords,
+            searchThemes: prefilledSearchThemes,
+            sitelinks: prefilledSitelinks,
+            callouts: prefilledCallouts,
+            callPhoneNumber: prefilledPhone,
+            images: prefilledImages,
+            logos: prefilledLogos,
+            videos: prefilledVideos,
+            mainBrandColor: prev.mainBrandColor || profileBrandColor || undefined,
+            brandFont: prev.brandFont || profileBrandFont || undefined
           };
         });
 
@@ -1180,8 +1722,18 @@ export default function AiGuidedCampaignPage() {
         } catch (mErr) {
           console.warn("[AI-GUIDED] Failed to load places config:", mErr);
         }
+
+        // Smooth transition before hiding loading overlay
+        setTimeout(() => {
+          setIsProfileLoading(false);
+        }, 400);
       } catch (e) {
+        if (retryCount < 2) {
+          setTimeout(() => fetchUserProfile(retryCount + 1), 1500);
+          return;
+        }
         console.warn("[AI-GUIDED] Error loading user profile:", e);
+        setIsProfileLoading(false);
       }
     };
 
@@ -1372,10 +1924,10 @@ export default function AiGuidedCampaignPage() {
   };
 
   // Fetch only unpublished saved drafts (status === "DRAFT")
-  const fetchDraftCampaigns = async () => {
+  const fetchDraftCampaigns = async (retryCount = 0) => {
     try {
       setIsLoadingDrafts(true);
-      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
       const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
       const cid = customerId || "6587355041";
       const res = await fetch(`${BACKEND}/api/ads/campaigns/drafts?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`, {
@@ -1388,6 +1940,10 @@ export default function AiGuidedCampaignPage() {
         }
       }
     } catch (err) {
+      if (retryCount < 2) {
+        setTimeout(() => fetchDraftCampaigns(retryCount + 1), 1500);
+        return;
+      }
       console.warn("[AI-GUIDED] Failed to load drafts:", err);
     } finally {
       setIsLoadingDrafts(false);
@@ -1395,10 +1951,10 @@ export default function AiGuidedCampaignPage() {
   };
 
   // Fetch user's existing campaigns from database for Draft Picker and @ Reference
-  const fetchExistingCampaigns = async () => {
+  const fetchExistingCampaigns = async (retryCount = 0) => {
     try {
       setIsLoadingCampaigns(true);
-      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
       const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
       const cid = customerId || "6587355041";
       const res = await fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`);
@@ -1409,6 +1965,10 @@ export default function AiGuidedCampaignPage() {
         }
       }
     } catch (err) {
+      if (retryCount < 2) {
+        setTimeout(() => fetchExistingCampaigns(retryCount + 1), 1500);
+        return;
+      }
       console.warn("[AI-GUIDED] Failed to load existing campaigns for @ mention / draft picker:", err);
     } finally {
       setIsLoadingCampaigns(false);
@@ -2704,6 +3264,12 @@ export default function AiGuidedCampaignPage() {
         setFieldError("Ad group bid must be a positive number greater than ₹0.");
         return;
       }
+    } else if (editingField === "trackingTemplate") {
+      const err = validateTrackingTemplate(tempEditValues.trackingTemplate);
+      if (err) {
+        setFieldError(err);
+        return;
+      }
     }
 
     setFieldError(null);
@@ -2894,6 +3460,22 @@ export default function AiGuidedCampaignPage() {
       } else if (editingField === "campaignType" || editingField === "objective" || editingField === "conversionGoal") {
         if (!isCustomCampaignName && newBizName && newCampaignType) {
           updated.campaignName = generateCampaignName(newBizName, newCampaignType);
+        }
+      }
+
+      // Auto-fill sitelinks from profile data if user selected a campaign type supporting sitelinks (PMax or Search) and sitelinks are not yet populated
+      if (editingField === "campaignType" || editingField === "objective") {
+        if (
+          (updated.campaignType === "PERFORMANCE_MAX" || updated.campaignType === "SEARCH") &&
+          (!updated.sitelinks || updated.sitelinks.length === 0)
+        ) {
+          const profileSource = customerProfile || updated.customerProfile;
+          if (profileSource) {
+            const autoSitelinks = extractProfileSitelinks(profileSource, updated.website);
+            if (autoSitelinks && autoSitelinks.length > 0) {
+              updated.sitelinks = autoSitelinks;
+            }
+          }
         }
       }
 
@@ -4450,8 +5032,9 @@ export default function AiGuidedCampaignPage() {
       }
     }
 
-    // D. Manual Locations (e.g. "location is Mumbai", "target India", "locations: Delhi, Mumbai", "in Mumbai", "Mumbai target kara", "मुंबई target करा")
+    // D. Manual Locations (e.g. "location is Mumbai", "across Pune, India", "target India", "locations: Delhi, Mumbai", "in Mumbai")
     const locMatch = text.match(/(?:location|locations|target location|city|country)\s*(?:is|are|=|:)\s*([a-zA-Z0-9\s,.-]+)/i) ||
+                     text.match(/(?:across|in)\s+([a-zA-Z0-9\s]+(?:,\s*[a-zA-Z0-9\s]+)+)/i) ||
                      text.match(/(?:^|[.!?\n]\s*|,\s*)([a-zA-Z\u0900-\u097F\s,.-]+?)\s+target\s*(?:kara|करा|karo|करो)?(?:\.|\s|$)/i) ||
                      text.match(/target\s+([a-zA-Z0-9\u0900-\u097F\s,.-]+?)(?:\s+(?:with|language|daily budget|budget|inr|rs|₹|is|aahe|आहे)|\.|\s*,|\s*$)/i) ||
                      text.match(/\bin\s+([a-zA-Z\u0900-\u097F\s,.-]+?)(?:\s*,|\s+(?:and|with|language|budget)|\.|\s*$)/i);
@@ -4461,8 +5044,9 @@ export default function AiGuidedCampaignPage() {
         .map(s => s.trim())
         .filter(s => s.length > 1 && !s.toLowerCase().includes("budget") && !s.toLowerCase().includes("website") && !s.toLowerCase().includes("language"));
       if (rawLocs.length > 0) {
-        activeState.locations = rawLocs;
-        setSelectedLocationsList(rawLocs);
+        const titleCased = rawLocs.map(l => l.replace(/\b\w/g, c => c.toUpperCase()));
+        activeState.locations = titleCased;
+        setSelectedLocationsList(titleCased);
         didUserProvideManualValues = true;
       }
     }
@@ -4475,6 +5059,39 @@ export default function AiGuidedCampaignPage() {
       const detectedLang = langMatch[1].trim();
       const capitalized = detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1).toLowerCase();
       activeState.language = capitalized;
+      didUserProvideManualValues = true;
+    }
+
+    // F. Manual Dates Detection (e.g. "(2026-10-19)", "start date: 2026-10-19", "for Maha Navami (2026-10-19)", "on 2026-10-19")
+    const dateMatch = text.match(/\((\d{4}[-\/\.]\d{1,2}[-\/\.]\d{1,2})\)/) ||
+                      text.match(/(?:start\s*date|date|during|festival|on)\s*[:=]?\s*(\d{4}[-\/\.]\d{1,2}[-\/\.]\d{1,2})/i) ||
+                      text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+    if (dateMatch && dateMatch[1]) {
+      const parts = dateMatch[1].split(/[-\/\.]/);
+      let formattedDate = dateMatch[1];
+      if (parts.length === 3) {
+        if (parts[0].length === 4) {
+          formattedDate = `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+        } else if (parts[2].length === 4) {
+          formattedDate = `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+        }
+      }
+      activeState.startDate = formattedDate;
+      didUserProvideManualValues = true;
+    }
+
+    // G. Manual Objective & Campaign Type Detection
+    const objMatch = text.match(/(?:campaign\s+)?objective\s*[:=]?\s*(sales|leads|website_traffic|traffic|app_promotion|awareness|local|no_guidance)/i);
+    if (objMatch && objMatch[1]) {
+      const o = objMatch[1].toUpperCase();
+      activeState.objective = o === "TRAFFIC" ? "WEBSITE_TRAFFIC" : (o as any);
+      didUserProvideManualValues = true;
+    }
+
+    const typeMatch = text.match(/(?:recommended\s+)?(?:campaign\s+)?type\s*[:=]?\s*(performance\s+max|pmax|search|display|shopping|demand\s+gen|video|app)/i);
+    if (typeMatch && typeMatch[1]) {
+      const rawT = typeMatch[1].toUpperCase().replace(/\s+/g, "_");
+      activeState.campaignType = rawT === "PMAX" ? "PERFORMANCE_MAX" : (rawT as any);
       didUserProvideManualValues = true;
     }
 
@@ -4809,14 +5426,19 @@ export default function AiGuidedCampaignPage() {
       // 6c. Tracking Template and Custom Parameters Sanitization
       if (effectiveState.trackingTemplate) {
         let tt = String(effectiveState.trackingTemplate).trim();
-        if (tt && !tt.startsWith("http://") && !tt.startsWith("https://") && !tt.startsWith("{lpurl}") && !tt.startsWith("{unescapedlpurl}")) {
-          if (tt.includes(".") || tt.includes("/") || tt.includes("{")) {
+        const hasTag = /\{(lpurl|unescapedlpurl|escapedlpurl|lpurl\+\d+)\}/i.test(tt);
+        
+        if (!hasTag) {
+          // A plain URL or string was entered without the required landing page tag
+          console.warn(`[AI-GUIDED] Tracking template "${tt}" lacks required {lpurl} tag. Auto-clearing to prevent Google Ads rejection.`);
+          delete effectiveState.trackingTemplate;
+          setCampaignState(p => ({ ...p, trackingTemplate: undefined }));
+        } else {
+          // Ensure it starts with protocol or tag
+          if (!tt.startsWith("http://") && !tt.startsWith("https://") && !tt.startsWith("{lpurl}") && !tt.startsWith("{unescapedlpurl}")) {
             tt = `https://${tt}`;
-            effectiveState.trackingTemplate = tt;
-          } else {
-            delete effectiveState.trackingTemplate;
-            setCampaignState(p => ({ ...p, trackingTemplate: undefined }));
           }
+          effectiveState.trackingTemplate = tt;
         }
       }
       if (Array.isArray((effectiveState as any).customParameters)) {
@@ -4859,6 +5481,25 @@ export default function AiGuidedCampaignPage() {
           seen.add(key);
           return true;
         });
+      }
+
+      if (effectiveState.searchThemes && Array.isArray(effectiveState.searchThemes)) {
+        effectiveState.searchThemes = effectiveState.searchThemes
+          .map((th: any) => {
+            const raw = String(th && typeof th === "object" ? th.text || th.theme || "" : th).trim();
+            if (!raw) return "";
+            return raw
+              .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\uFE58\uFE63\uFF0D\u00AD]/g, " ")
+              .replace(/[\u00A0\u2000-\u200F\u2028-\u202F\u205F\u3000\uFEFF]/g, " ")
+              .replace(/[^\p{L}\p{N}\s\-]/gu, " ")
+              .replace(/\s+/g, " ")
+              .replace(/\s*-\s*/g, " - ")
+              .replace(/^[-–—\s]+/, "")
+              .replace(/[-–—\s]+$/, "")
+              .trim()
+              .slice(0, 80);
+          })
+          .filter(Boolean);
       }
 
       if (cType === "PERFORMANCE_MAX") {
@@ -4952,6 +5593,11 @@ export default function AiGuidedCampaignPage() {
         }
         effectiveState.headlines = validH.slice(0, 15);
         effectiveState.descriptions = validD.slice(0, 4);
+        if (campaignState.displayPath1) effectiveState.displayPath1 = campaignState.displayPath1.trim();
+        if (campaignState.displayPath2) effectiveState.displayPath2 = campaignState.displayPath2.trim();
+        if (campaignState.callPhoneNumber) effectiveState.callPhoneNumber = campaignState.callPhoneNumber.trim();
+        if (campaignState.adSchedule) effectiveState.adSchedule = campaignState.adSchedule;
+        if ((campaignState as any).customParameters) (effectiveState as any).customParameters = (campaignState as any).customParameters;
       } else if (cType === "DEMAND_GEN") {
         const dgFormat = (effectiveState.adFormat || "SINGLE_IMAGE").toUpperCase();
         if (validH.length < 1) {
@@ -5066,6 +5712,8 @@ export default function AiGuidedCampaignPage() {
         }
       } else if (rawMsg.includes("DESTINATION_NOT_WORKING") || rawMsg.includes("Landing page URL is unreachable")) {
         setPublishError(`Landing page URL (${campaignState.website}) is unreachable or returning an error (DESTINATION_NOT_WORKING). Please update to a live, working URL before launching.`);
+      } else if (rawMsg.includes("tracking_url_template") || rawMsg.includes("The url must contain at least one tag")) {
+        setPublishError(`Tracking Template Notice: Google Ads requires tracking templates to include a landing page tag like {lpurl} (e.g. {lpurl}?utm_source=google). If you do not use third-party tracking, leave the Tracking Template field empty.`);
       } else {
         setPublishError(rawMsg);
       }
@@ -5240,7 +5888,7 @@ export default function AiGuidedCampaignPage() {
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={fetchCalendarOpportunities}
+                  onClick={() => fetchCalendarOpportunities()}
                   disabled={isCalendarLoading}
                   className="p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 transition-all cursor-pointer"
                   title="Refresh Calendar"
@@ -5326,7 +5974,7 @@ export default function AiGuidedCampaignPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={fetchCalendarOpportunities}
+                    onClick={() => fetchCalendarOpportunities()}
                     className="px-3 py-1 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all cursor-pointer"
                   >
                     Retry
@@ -5360,14 +6008,15 @@ export default function AiGuidedCampaignPage() {
                       {calendarData.opportunities.map((opp: any) => (
                         <div
                           key={opp.id}
-                          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:shadow-xs transition-all space-y-3"
+                          onClick={() => setSelectedEventForDetail(getEventDetailData(opp))}
+                          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:shadow-md hover:border-blue-400 transition-all space-y-3 cursor-pointer group active:scale-[0.99]"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600 block mb-0.5">
                                 {opp.type || "Festival"}
                               </span>
-                              <h4 className="text-sm font-bold text-slate-900 leading-tight truncate">
+                              <h4 className="text-sm font-bold text-slate-900 leading-tight truncate group-hover:text-blue-600 transition-colors">
                                 {opp.eventName}
                               </h4>
                               <div className="flex items-center gap-2 mt-0.5">
@@ -5416,10 +6065,31 @@ export default function AiGuidedCampaignPage() {
                             </div>
 
                             {opp.opportunityInsight && (
-                              <p className="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
+                              <p className="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed line-clamp-2">
                                 {opp.opportunityInsight}
                               </p>
                             )}
+                          </div>
+
+                          {/* Card Footer with Details & Chatbox Action */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-blue-600 group-hover:text-blue-700 flex items-center gap-1">
+                              <span>View Strategy Details</span>
+                              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendEventToChatbox(opp, true);
+                              }}
+                              className="px-3 py-1 rounded-xl bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                              title="Send details to AI Copilot chatbox and launch campaign"
+                            >
+                              <Send className="w-3 h-3" />
+                              <span>Send to Chatbox</span>
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -5511,21 +6181,22 @@ export default function AiGuidedCampaignPage() {
                       .map((item: any) => (
                         <div
                           key={item.id}
-                          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-all"
+                          onClick={() => setSelectedEventForDetail(getEventDetailData(item))}
+                          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer group active:scale-[0.99]"
                         >
                           <div className="flex items-start gap-3 min-w-0">
-                            <div className="px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-center shrink-0 min-w-[70px]">
-                              <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                            <div className="px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-center shrink-0 min-w-[70px] group-hover:bg-blue-50 group-hover:border-blue-200 transition-colors">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 group-hover:text-blue-600 block">
                                 {new Date(item.date + "T00:00:00Z").toLocaleDateString("en-US", { month: "short" })}
                               </span>
-                              <span className="text-base font-extrabold text-slate-900 leading-none block">
+                              <span className="text-base font-extrabold text-slate-900 group-hover:text-blue-700 leading-none block">
                                 {new Date(item.date + "T00:00:00Z").getDate()}
                               </span>
                             </div>
 
                             <div className="min-w-0 space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
+                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-tight">
                                   {item.eventName}
                                 </h4>
                                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
@@ -5550,7 +6221,7 @@ export default function AiGuidedCampaignPage() {
                             </div>
                           </div>
 
-                          <div className="shrink-0 sm:text-right">
+                          <div className="shrink-0 flex items-center sm:flex-col sm:items-end gap-2">
                             <span
                               className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
                                 item.daysRemaining >= 0 && item.daysRemaining <= 30
@@ -5568,6 +6239,19 @@ export default function AiGuidedCampaignPage() {
                                 ? "Tomorrow"
                                 : `${item.daysRemaining} days away`}
                             </span>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendEventToChatbox(item, true);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 text-[10px] font-bold transition-all cursor-pointer shadow-2xs"
+                              title="Send details to AI Copilot chatbox and launch campaign"
+                            >
+                              <Send className="w-2.5 h-2.5" />
+                              <span>Send to Chatbox</span>
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -5588,6 +6272,227 @@ export default function AiGuidedCampaignPage() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Event & Campaign Opportunity Detail Modal Popup ── */}
+      {selectedEventForDetail && (
+        <div className="fixed inset-0 bg-slate-950/75 z-[60] flex items-center justify-center p-3 sm:p-6 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-purple-50/70 flex items-center justify-between gap-4 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md border border-blue-200">
+                      {selectedEventForDetail.type || "Festive Event"}
+                    </span>
+                    {selectedEventForDetail.isMovable && (
+                      <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200">
+                        Lunar Calendar
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-tight truncate mt-0.5">
+                    {selectedEventForDetail.eventName}
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedEventForDetail(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-all cursor-pointer shrink-0"
+                title="Close details"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 bg-slate-50/40 custom-vertical-scrollbar">
+              {/* Event Date & Countdown Banner */}
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex flex-col items-center justify-center text-blue-700 shrink-0">
+                    <span className="text-[9px] font-bold uppercase leading-none">
+                      {new Date(selectedEventForDetail.date + "T00:00:00Z").toLocaleDateString("en-US", { month: "short" })}
+                    </span>
+                    <span className="text-sm font-extrabold leading-none mt-0.5">
+                      {new Date(selectedEventForDetail.date + "T00:00:00Z").getDate()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block">
+                      {new Date(selectedEventForDetail.date + "T00:00:00Z").toLocaleDateString("en-US", {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric"
+                      })}
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-500">
+                      Standard ISO Date: {selectedEventForDetail.date}
+                    </span>
+                  </div>
+                </div>
+
+                <span
+                  className={`px-3 py-1.5 rounded-full text-xs font-extrabold shrink-0 sm:self-center inline-flex items-center gap-1.5 ${
+                    selectedEventForDetail.daysRemaining <= 14 && selectedEventForDetail.daysRemaining >= 0
+                      ? "bg-rose-100 text-rose-800 border border-rose-200 animate-pulse"
+                      : selectedEventForDetail.daysRemaining <= 30 && selectedEventForDetail.daysRemaining >= 0
+                      ? "bg-amber-100 text-amber-800 border border-amber-200"
+                      : selectedEventForDetail.daysRemaining >= 0
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                      : "bg-slate-100 text-slate-500 border border-slate-200"
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedEventForDetail.daysRemaining < 0
+                      ? "Past Event"
+                      : selectedEventForDetail.daysRemaining === 0
+                      ? "Happening Today!"
+                      : selectedEventForDetail.daysRemaining === 1
+                      ? "Tomorrow!"
+                      : `${selectedEventForDetail.daysRemaining} days remaining`}
+                  </span>
+                </span>
+              </div>
+
+              {/* Cultural Significance / Context */}
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Cultural Significance &amp; Celebration Context
+                </span>
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  {selectedEventForDetail.extras ||
+                    `${selectedEventForDetail.eventName} is one of the most widely celebrated occasions in India, characterized by high consumer cheer, community gatherings, and festive gifting.`}
+                </p>
+                {selectedEventForDetail.relevanceReason && (
+                  <p className="text-[11px] text-blue-700/90 bg-blue-50/70 p-2.5 rounded-xl border border-blue-100 leading-relaxed font-medium">
+                    {selectedEventForDetail.relevanceReason}
+                  </p>
+                )}
+              </div>
+
+              {/* Recommended Campaign Strategy */}
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Recommended Google Ads Strategy
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-0.5">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Campaign Theme</span>
+                    <span className="font-bold text-slate-900">{selectedEventForDetail.campaignTheme}</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-0.5">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Campaign Format</span>
+                    <span className="font-bold text-blue-700">{selectedEventForDetail.suggestedCampaignType}</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-0.5">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Suggested Objective</span>
+                    <span className="font-bold text-emerald-700">{selectedEventForDetail.suggestedObjective}</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-0.5">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Target Market</span>
+                    <span className="font-bold text-slate-900 truncate block">
+                      Pan-India / Regional Festive Shoppers
+                    </span>
+                  </div>
+                </div>
+
+                {selectedEventForDetail.opportunityInsight && (
+                  <div className="p-3 rounded-xl bg-purple-50/60 border border-purple-100 text-xs text-purple-900 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 block flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      <span>Festive Market Intelligence</span>
+                    </span>
+                    <p className="text-[11px] text-purple-800 leading-relaxed">
+                      {selectedEventForDetail.opportunityInsight}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Ready-to-Use Ad Headlines & Descriptions */}
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Suggested Festive Headlines &amp; Ad Angles
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedEventForDetail.sampleHeadlines?.map((hl: string, idx: number) => (
+                    <span
+                      key={idx}
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-200"
+                    >
+                      {hl}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    High-Intent Search Keywords
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedEventForDetail.sampleKeywords?.map((kw: string, idx: number) => (
+                      <span
+                        key={idx}
+                        className="px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-800 text-[11px] font-mono border border-blue-100"
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer with Send to Chatbox Button */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              <div className="text-[11px] text-slate-500 text-center sm:text-left">
+                Click below to launch an AI campaign based on this festival.
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedEventForDetail(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSendEventToChatbox(selectedEventForDetail, false)}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Insert details into chatbox input for manual editing"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Insert in Chatbox</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSendEventToChatbox(selectedEventForDetail, true)}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-md shadow-blue-500/25 transition-all cursor-pointer flex items-center gap-2 active:scale-98"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Send Details to Chatbox</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -5764,6 +6669,79 @@ export default function AiGuidedCampaignPage() {
                 <Upload className="h-3.5 w-3.5" />
                 <span>Select & Upload {uploadGuidelineModal === "LOGO" ? "Logo" : uploadGuidelineModal === "VIDEO" ? "Video" : "Image"}</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Business Profile Initializing & Auto-Filling Parameters Animation Modal ── */}
+      {isProfileLoading && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/75 backdrop-blur-xl transition-all duration-500">
+          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl p-7 sm:p-9 max-w-md w-full mx-4 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] border border-white/60 flex flex-col items-center text-center relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+            {/* Top decorative animated gradient bar */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 animate-gradient-x" />
+
+            {/* Glowing Logo Container with Dual Orbital Rings & Radial Aurora Pulse */}
+            <div className="relative mb-6 mt-2 flex items-center justify-center">
+              {/* Outer soft ambient glow */}
+              <div className="absolute -inset-6 bg-gradient-to-tr from-blue-500/30 via-indigo-500/25 to-purple-500/30 rounded-full blur-2xl animate-pulse" style={{ animationDuration: "2.5s" }} />
+
+              {/* Rotating outer dotted orbital ring */}
+              <div className="absolute w-28 h-28 rounded-full border-2 border-dashed border-indigo-400/40 animate-spin" style={{ animationDuration: "14s" }} />
+
+              {/* Rotating inner gradient accent ring */}
+              <div className="absolute w-24 h-24 rounded-full border-2 border-t-blue-600 border-r-indigo-500 border-b-purple-500 border-l-transparent animate-spin" style={{ animationDuration: "3s" }} />
+
+              {/* Center Logo Card with soft depth & subtle breathing scale */}
+              <div className="relative w-20 h-20 rounded-2xl bg-white p-2 shadow-xl border border-slate-100 flex items-center justify-center overflow-hidden transition-transform transform hover:scale-105">
+                <img
+                  src="/icon.jpeg"
+                  alt="Jisnu Digital Logo"
+                  className="w-full h-full object-contain rounded-xl drop-shadow-xs"
+                />
+              </div>
+
+              {/* Floating Sparkle Badge */}
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md border-2 border-white animate-bounce" style={{ animationDuration: "2s" }}>
+                <Sparkles className="w-3.5 h-3.5 text-white animate-pulse" />
+              </div>
+            </div>
+
+            {/* Title & Live Status */}
+            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 mb-2 tracking-tight flex items-center justify-center gap-2.5">
+              Syncing Business Profile
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600" />
+              </span>
+            </h3>
+
+            <p className="text-xs sm:text-sm text-slate-600 mb-6 max-w-xs leading-relaxed font-medium">
+              Auto-filling parameters from your profile: keywords, sitelinks, locations, call assets & brand identity.
+            </p>
+
+            {/* Live Progress Step Badge with Glassmorphism */}
+            <div className="w-full bg-slate-50/90 rounded-2xl p-3.5 border border-slate-200/80 mb-5 flex items-center gap-3 shadow-2xs">
+              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <span className="text-[10px] uppercase font-extrabold tracking-wider text-blue-600 block">Current Step</span>
+                <span className="text-xs font-bold text-slate-800 truncate block">
+                  {loadingProfileStep}
+                </span>
+              </div>
+            </div>
+
+            {/* Animated Loading Bar with Radiant Shimmer */}
+            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden relative shadow-inner">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full w-full animate-[shimmer_2s_infinite] bg-[length:200%_100%]" />
+            </div>
+
+            <div className="mt-4 flex items-center justify-between w-full text-[11px] text-slate-400 font-medium px-1">
+              <span>Google Ads Studio</span>
+              <span className="flex items-center gap-1 text-indigo-600 font-semibold">
+                <Sparkles className="w-3 h-3" /> AI Copilot Active
+              </span>
             </div>
           </div>
         </div>
@@ -8397,7 +9375,8 @@ export default function AiGuidedCampaignPage() {
                           else if (newObj === "AWARENESS") defaultGoal = "views";
                           else if (newObj === "LOCAL" || newObj === "NO_GUIDANCE") defaultGoal = "";
 
-                          const newAvailableTypes = getAvailableCampaignTypes(newObj, defaultGoal ? [defaultGoal] : []);
+                          const effectiveProfile = customerProfile || campaignState.customerProfile;
+                          const newAvailableTypes = getAvailableCampaignTypes(newObj, defaultGoal ? [defaultGoal] : [], effectiveProfile);
                           setTempEditValues({
                             ...tempEditValues,
                             objective: newObj,
@@ -8408,7 +9387,13 @@ export default function AiGuidedCampaignPage() {
                         className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                       >
                         <option value="">-- Select Objective --</option>
-                        {MANUAL_OBJECTIVES.map((obj) => (
+                        {MANUAL_OBJECTIVES.filter(obj => {
+                          const effectiveProfile = customerProfile || campaignState.customerProfile;
+                          if (obj.id === "APP_PROMOTION" && !isAppVerified(effectiveProfile)) {
+                            return false;
+                          }
+                          return true;
+                        }).map((obj) => (
                           <option key={obj.id} value={obj.id}>
                             {obj.title}
                           </option>
@@ -8492,13 +9477,14 @@ export default function AiGuidedCampaignPage() {
                             }
 
                             const currentGoalVal = tempEditValues.conversionGoal || defaultVal;
+                            const effectiveProfile = customerProfile || campaignState.customerProfile;
 
                             return (
                               <select
                                 value={currentGoalVal}
                                 onChange={(e) => {
                                   const selectedGoal = e.target.value;
-                                  const availableTypes = getAvailableCampaignTypes(curObj, [selectedGoal]);
+                                  const availableTypes = getAvailableCampaignTypes(curObj, [selectedGoal], effectiveProfile);
                                   const isCurrentTypeStillValid = availableTypes.some(t => t.id === tempEditValues.campaignType);
                                   setTempEditValues({
                                     ...tempEditValues,
@@ -8562,7 +9548,8 @@ export default function AiGuidedCampaignPage() {
                       {(() => {
                         const activeObj = tempEditValues.objective || campaignState.objective || "";
                         const activeGoals = tempEditValues.conversionGoal ? [tempEditValues.conversionGoal] : campaignState.conversionGoals;
-                        const availableTypes = getAvailableCampaignTypes(activeObj, activeGoals);
+                        const effectiveProfile = customerProfile || campaignState.customerProfile;
+                        const availableTypes = getAvailableCampaignTypes(activeObj, activeGoals, effectiveProfile);
                         const currentTypeVal = tempEditValues.campaignType && availableTypes.some(t => t.id === tempEditValues.campaignType)
                           ? tempEditValues.campaignType
                           : (availableTypes[0]?.id || "PERFORMANCE_MAX");
@@ -10292,7 +11279,7 @@ export default function AiGuidedCampaignPage() {
                         </div>
 
                         {/* Optional Param 12: Merchant Center & Feeds (PMax / Shopping) */}
-                        {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SHOPPING") && (
+                        {Boolean(isMerchantVerified(customerProfile || campaignState.customerProfile)) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SHOPPING") && (
                           <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
                             <div className="flex items-center gap-1 text-slate-500">
                               <span>Merchant Center ID:</span>
@@ -10385,22 +11372,22 @@ export default function AiGuidedCampaignPage() {
               </div>
             )}
 
-            {/* 2. SEARCH ONLY: AI MAX SETTINGS CARD */}
+            {/* 2. SEARCH ONLY: AI MAX & AD GROUP SETTINGS CARD */}
             {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SEARCH" && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
+              <div className="bg-slate-50 border border-blue-200 rounded-2xl p-4 space-y-3.5 shadow-xs">
+                <div className="flex items-center justify-between border-b border-blue-100 pb-2.5">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="h-4 w-4 text-blue-600" />
-                    <span className="font-bold text-xs text-slate-900">AI Max Controls (Search Only)</span>
+                    <span className="font-bold text-xs text-slate-900">AI Max Controls (Search Campaign)</span>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                    Search Optimization
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 font-semibold">
+                    Search AI Optimization
                   </span>
                 </div>
 
                 <div className="space-y-2 text-[11px]">
                   {/* AI Max Toggle */}
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200">
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
                     <div>
                       <span className="font-semibold text-slate-800 block">AI Max</span>
                       <span className="text-[10px] text-slate-400">Enable Google AI Max smart asset assembly</span>
@@ -10417,7 +11404,7 @@ export default function AiGuidedCampaignPage() {
                   </div>
 
                   {/* Text Customization Toggle */}
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200">
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
                     <div>
                       <span className="font-semibold text-slate-800 block">Text Customization</span>
                       <span className="text-[10px] text-slate-400">Automatically customize ad copy from landing page</span>
@@ -10434,7 +11421,7 @@ export default function AiGuidedCampaignPage() {
                   </div>
 
                   {/* Final URL Expansion Toggle */}
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200">
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
                     <div>
                       <span className="font-semibold text-slate-800 block">Final URL Expansion</span>
                       <span className="text-[10px] text-slate-400">Allow Google to direct clicks to the most relevant landing page</span>
@@ -10448,6 +11435,219 @@ export default function AiGuidedCampaignPage() {
                     >
                       <div className="w-4 h-4 rounded-full bg-white shadow-md"></div>
                     </button>
+                  </div>
+                </div>
+
+                {/* Ad group settings for AI Max */}
+                <div className="pt-2 border-t border-slate-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                      <Target className="h-3.5 w-3.5 text-blue-600" />
+                      <span>Ad group settings for AI Max</span>
+                    </span>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold uppercase">Active</span>
+                  </div>
+
+                  {/* 1. Search term matching */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-800 text-[11px]">Search term matching</span>
+                        <span className="px-1 py-0.2 rounded bg-emerald-100 text-emerald-700 font-mono text-[8px] font-bold uppercase">BETA</span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={campaignState.useSearchTermMatchingAdGroup !== false}
+                        onChange={(e) => setCampaignState(prev => ({ ...prev, useSearchTermMatchingAdGroup: e.target.checked }))}
+                        className="rounded bg-white border-slate-300 text-blue-600 h-3.5 w-3.5 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Expands your keywords to broad match and lets Google AI match content from your landing pages and assets.
+                    </p>
+                  </div>
+
+                  {/* 2. Brand inclusions */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800 text-[11px]">Brand inclusions</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{(campaignState.brandInclusions || []).length} brands</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Limit traffic to serve only on search queries related to specified brands.
+                    </p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={searchBrandInput}
+                        onChange={(e) => setSearchBrandInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && searchBrandInput.trim()) {
+                            e.preventDefault();
+                            const val = searchBrandInput.trim();
+                            if (!(campaignState.brandInclusions || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, brandInclusions: [...(prev.brandInclusions || []), val] }));
+                            }
+                            setSearchBrandInput("");
+                          }
+                        }}
+                        placeholder="Add brand name..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (searchBrandInput.trim()) {
+                            const val = searchBrandInput.trim();
+                            if (!(campaignState.brandInclusions || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, brandInclusions: [...(prev.brandInclusions || []), val] }));
+                            }
+                            setSearchBrandInput("");
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                    {(campaignState.brandInclusions || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {(campaignState.brandInclusions || []).map((b, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-[10px] text-blue-800 font-medium">
+                            <span>{b}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, brandInclusions: (prev.brandInclusions || []).filter((_, i) => i !== idx) }))}
+                              className="text-blue-400 hover:text-rose-600"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. Locations of interest */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800 text-[11px]">Locations of interest</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{(campaignState.audienceSignals || []).length} locations</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Reach customers searching for or interested in specific geographic areas with phrase & broad match.
+                    </p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={searchLocationOfInterestInput}
+                        onChange={(e) => setSearchLocationOfInterestInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && searchLocationOfInterestInput.trim()) {
+                            e.preventDefault();
+                            const val = searchLocationOfInterestInput.trim();
+                            if (!(campaignState.audienceSignals || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
+                            }
+                            setSearchLocationOfInterestInput("");
+                          }
+                        }}
+                        placeholder="e.g. Mumbai, New Delhi, California..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (searchLocationOfInterestInput.trim()) {
+                            const val = searchLocationOfInterestInput.trim();
+                            if (!(campaignState.audienceSignals || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
+                            }
+                            setSearchLocationOfInterestInput("");
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                    {(campaignState.audienceSignals || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {(campaignState.audienceSignals || []).map((loc, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] text-slate-800 font-medium">
+                            <span>📍 {loc}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, audienceSignals: (prev.audienceSignals || []).filter((_, i) => i !== idx) }))}
+                              className="text-slate-400 hover:text-rose-600"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 4. URL inclusions */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800 text-[11px]">URL inclusions</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{(campaignState.dataExclusions || []).length} URLs</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Specify exact landing pages from your website you want Google AI to prioritize.
+                    </p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="url"
+                        value={searchUrlInclusionsInput}
+                        onChange={(e) => setSearchUrlInclusionsInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && searchUrlInclusionsInput.trim()) {
+                            e.preventDefault();
+                            const val = searchUrlInclusionsInput.trim();
+                            if (!(campaignState.dataExclusions || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, dataExclusions: [...(prev.dataExclusions || []), val] }));
+                            }
+                            setSearchUrlInclusionsInput("");
+                          }
+                        }}
+                        placeholder="https://example.com/product-page"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (searchUrlInclusionsInput.trim()) {
+                            const val = searchUrlInclusionsInput.trim();
+                            if (!(campaignState.dataExclusions || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, dataExclusions: [...(prev.dataExclusions || []), val] }));
+                            }
+                            setSearchUrlInclusionsInput("");
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                    {(campaignState.dataExclusions || []).length > 0 && (
+                      <div className="space-y-1 pt-1">
+                        {(campaignState.dataExclusions || []).map((url, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[10px]">
+                            <span className="font-mono text-slate-800 truncate mr-2">{url}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, dataExclusions: (prev.dataExclusions || []).filter((_, i) => i !== idx) }))}
+                              className="text-slate-400 hover:text-rose-600"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -10991,16 +12191,18 @@ export default function AiGuidedCampaignPage() {
               </div>
             )}
 
-            {/* 2b-2. PERFORMANCE MAX CONTROLS: MORE CAMPAIGN SETTINGS */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "PERFORMANCE_MAX" && (
-              <div className="bg-slate-50 border border-purple-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between border-b border-purple-100 pb-2">
+            {/* 2b-2. SEARCH & PERFORMANCE MAX CONTROLS: MORE CAMPAIGN SETTINGS */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SEARCH") && (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-1.5">
-                    <Sparkles className="h-4 w-4 text-purple-600" />
-                    <span className="font-bold text-xs text-slate-900">Performance Max Controls</span>
+                    <Sparkles className="h-4 w-4 text-blue-600" />
+                    <span className="font-bold text-xs text-slate-900">
+                      {campaignState.campaignType === "SEARCH" ? "Search Campaign Settings" : "Performance Max Controls"}
+                    </span>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                    PMax Controls
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                    {campaignState.campaignType === "SEARCH" ? "Schedule & URL Options" : "PMax Controls"}
                   </span>
                 </div>
 
@@ -11371,8 +12573,8 @@ export default function AiGuidedCampaignPage() {
               </div>
             )}
 
-            {/* 2c. DEDICATED SHOPPING SETTINGS & READINESS CARD (When CampaignType = SHOPPING) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SHOPPING" && (
+            {/* 2c. DEDICATED SHOPPING SETTINGS & READINESS CARD (When CampaignType = SHOPPING and Merchant verified) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SHOPPING" && Boolean(isMerchantVerified(customerProfile || campaignState.customerProfile)) && (
               <div className="bg-slate-50 border border-amber-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between border-b border-amber-200 pb-2">
                   <div className="flex items-center gap-1.5">
@@ -11541,8 +12743,8 @@ export default function AiGuidedCampaignPage() {
               </div>
             )}
 
-            {/* 2d. DEDICATED APP PROMOTION SETTINGS & READINESS CARD (When CampaignType = APP) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "APP" && (
+            {/* 2d. DEDICATED APP PROMOTION SETTINGS & READINESS CARD (When CampaignType = APP and App verified) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "APP" && Boolean(isAppVerified(customerProfile || campaignState.customerProfile)) && (
               <div className="bg-slate-50 border border-indigo-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-1.5">
@@ -12188,8 +13390,8 @@ export default function AiGuidedCampaignPage() {
                     </div>
                   </div>
                 )}
-                {/* Live App Promotion Asset Requirements Checklist when type is APP */}
-                {campaignState.campaignType === "APP" && (
+                {/* Live App Promotion Asset Requirements Checklist when type is APP and App is verified */}
+                {campaignState.campaignType === "APP" && Boolean(isAppVerified(customerProfile || campaignState.customerProfile)) && (
                   <div className="p-2.5 rounded-xl bg-white border border-emerald-200 shadow-2xs space-y-1.5 text-[10px]">
                     <div className="flex items-center justify-between font-bold text-slate-800">
                       <span className="flex items-center gap-1 text-emerald-700">
@@ -12246,8 +13448,8 @@ export default function AiGuidedCampaignPage() {
                     </div>
                   </div>
                 )}
-                {/* Live Standard Shopping Requirements Checklist when type is SHOPPING */}
-                {(campaignState.campaignType as string) === "SHOPPING" && (
+                {/* Live Standard Shopping Requirements Checklist when type is SHOPPING and Merchant is verified */}
+                {(campaignState.campaignType as string) === "SHOPPING" && Boolean(isMerchantVerified(customerProfile || campaignState.customerProfile)) && (
                   <div className="p-2.5 rounded-xl bg-white border border-amber-200 shadow-2xs space-y-1.5 text-[10px]">
                     <div className="flex items-center justify-between font-bold text-slate-800">
                       <span className="flex items-center gap-1 text-amber-700">
@@ -12747,8 +13949,11 @@ export default function AiGuidedCampaignPage() {
               </div>
             )}
 
-            {/* 4a. MERCHANT CENTER & PRODUCT FEED CONDITIONAL SETUP (Performance Max / Sales) */}
-            {Boolean(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.objective === "SALES") && (
+            {/* 4a. MERCHANT CENTER & PRODUCT FEED CONDITIONAL SETUP (When Merchant Center verified in Profile) */}
+            {Boolean(
+              isMerchantVerified(customerProfile || campaignState.customerProfile) &&
+              (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.objective === "SALES" || campaignState.campaignType === "SHOPPING")
+            ) && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -12862,6 +14067,47 @@ export default function AiGuidedCampaignPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Action controls: Cancel / Skip Feed & Switch to Manual Campaign */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHasMerchantCenterAccount(false);
+                        setCampaignState(prev => ({
+                          ...prev,
+                          merchantCenterId: undefined,
+                          merchantId: undefined
+                        }));
+                        setMessages(prev => [
+                          ...prev,
+                          {
+                            id: `msg-merchant-cancel-${Date.now()}`,
+                            role: "assistant",
+                            content: "Google Merchant Center feed cleared and skipped for this campaign. You can re-enable it anytime.",
+                            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                          }
+                        ]);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-800 text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                      title="Cancel Merchant Center integration and continue without products feed"
+                    >
+                      <X className="h-3 w-3 text-slate-500" />
+                      <span>Cancel / Skip Merchant Center</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        router.push(`/ads/campaigns/create/manual${customerId ? `?customerId=${customerId}` : ""}`);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title="Go to Manual Campaign creation"
+                    >
+                      <span>Go to Manual Campaign</span>
+                      <ArrowRight className="h-3 w-3 text-blue-600" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -13002,6 +14248,24 @@ export default function AiGuidedCampaignPage() {
                     </span>
                     <button
                       type="button"
+                      onClick={() => {
+                        const profileSource = customerProfile || campaignState.customerProfile;
+                        const extracted = extractProfileSitelinks(profileSource, campaignState.website);
+                        if (extracted && extracted.length > 0) {
+                          setCampaignState(prev => ({
+                            ...prev,
+                            sitelinks: extracted
+                          }));
+                        }
+                      }}
+                      className="text-[10px] text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 transition-all shadow-2xs"
+                      title="Auto-fill sitelinks from profile data"
+                    >
+                      <Globe className="h-3 w-3 text-blue-600" />
+                      <span>Profile</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleSendMessage("Suggest 4 high-converting sitelinks for my campaign with titles, description lines 1 & 2, and relevant landing page URLs")}
                       className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-all shadow-2xs group"
                       title="Generate sitelinks using Grok AI"
@@ -13110,7 +14374,25 @@ export default function AiGuidedCampaignPage() {
                 ) : (
                   <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center space-y-2">
                     <p className="text-[11px] text-slate-500">No sitelinks configured yet. Adding 4 or more sitelinks improves ad real estate and performance.</p>
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const profileSource = customerProfile || campaignState.customerProfile;
+                          const extracted = extractProfileSitelinks(profileSource, campaignState.website);
+                          if (extracted && extracted.length > 0) {
+                            setCampaignState(prev => ({
+                              ...prev,
+                              sitelinks: extracted
+                            }));
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 rounded-xl text-[11px] font-bold shadow-xs cursor-pointer transition-all"
+                        title="Auto-populate sitelinks directly from your business profile, subpages, products & services"
+                      >
+                        <Globe className="h-3.5 w-3.5 text-blue-600" />
+                        <span>Auto-fill from Profile</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleSendMessage("Suggest 4 high-converting sitelinks for my campaign with titles, description lines 1 & 2, and relevant landing page URLs")}
@@ -13274,6 +14556,23 @@ export default function AiGuidedCampaignPage() {
                       </span>
                     )}
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveAssetModal("APP_ASSET")}
+                    className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      Boolean(campaignState.appName || campaignState.appId)
+                        ? "bg-cyan-50 border-cyan-300 text-cyan-900 shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
+                    }`}
+                  >
+                    <span>+ App</span>
+                    {Boolean(campaignState.appName || campaignState.appId) && (
+                      <span className="bg-cyan-200 text-cyan-900 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
+                        1
+                      </span>
+                    )}
+                  </button>
                 </div>
 
                 {/* Quick Display Badges of Configured Extension Assets */}
@@ -13335,6 +14634,61 @@ export default function AiGuidedCampaignPage() {
                         ))}
                       </div>
                     )}
+
+                    {/* App badge */}
+                    {Boolean(campaignState.appName || campaignState.appId) && (
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">App:</span>
+                        <span className="px-2 py-0.5 rounded-md bg-cyan-50 border border-cyan-200 text-cyan-800 text-[10px] flex items-center gap-1 font-medium">
+                          <span>📱 {campaignState.appName || campaignState.appId} ({campaignState.platform || "Android"})</span>
+                          <button
+                            type="button"
+                            onClick={() => setCampaignState(p => ({ ...p, appName: undefined, appId: undefined }))}
+                            className="text-slate-400 hover:text-rose-600 transition-colors"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Messages list */}
+                    {(campaignState.messages?.length || 0) > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Messages:</span>
+                        {campaignState.messages?.map((m, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-800 text-[10px] flex items-center gap-1 font-medium">
+                            <span>💬 {m.platform}: {m.customUrlName || m.starterMessage || "Configured"}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(p => ({ ...p, messages: (p.messages || []).filter((_, i) => i !== idx) }))}
+                              className="text-slate-400 hover:text-rose-600 transition-colors"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Lead Forms list */}
+                    {(campaignState.leadForms?.length || 0) > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Leads:</span>
+                        {campaignState.leadForms?.map((lf, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-[10px] flex items-center gap-1 font-medium">
+                            <span>📋 {lf.headline || lf.businessName}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(p => ({ ...p, leadForms: (p.leadForms || []).filter((_, i) => i !== idx) }))}
+                              className="text-slate-400 hover:text-rose-600 transition-colors"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -13346,12 +14700,113 @@ export default function AiGuidedCampaignPage() {
               <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                 <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                  <span>Ad Copy & Creatives</span>
+                  <span>{campaignState.campaignType === "SEARCH" ? "Create ads to get more sales" : "Ad Copy & Creatives"}</span>
                 </span>
                 <span className="text-[10px] text-slate-500 font-mono">
-                  {campaignState.headlines?.length || 0} HL • {campaignState.longHeadlines?.length || 0} Long HL • {campaignState.descriptions?.length || 0} Desc
+                  {campaignState.headlines?.length || 0} HL • {campaignState.campaignType === "SEARCH" ? "" : `${campaignState.longHeadlines?.length || 0} Long HL • `}{campaignState.descriptions?.length || 0} Desc
                 </span>
               </div>
+
+              {/* Search Specific: Final URL, Display Path, Calls Header */}
+              {campaignState.campaignType === "SEARCH" && (
+                <div className="space-y-3 pb-3 border-b border-slate-200">
+                  {/* Final URL */}
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-900 flex items-center gap-1">
+                        <Globe className="h-3.5 w-3.5 text-blue-600" />
+                        <span>Final URL</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (campaignState.website) {
+                            setCampaignState(p => ({ ...p, finalUrl: p.website }));
+                          }
+                        }}
+                        className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                      >
+                        Use website URL
+                      </button>
+                    </div>
+                    <input
+                      type="url"
+                      value={campaignState.finalUrl || campaignState.website || ""}
+                      onChange={(e) => setCampaignState(prev => ({ ...prev, finalUrl: e.target.value, website: e.target.value }))}
+                      placeholder="https://example.com"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-blue-500"
+                    />
+                    <p className="text-[10px] text-slate-400">This landing page will be used to suggest assets and generate relevant ad copy</p>
+                  </div>
+
+                  {/* Display Path */}
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-900 flex items-center gap-1">
+                        <span>Display path</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400">Preview: {campaignState.website ? campaignState.website.replace(/^https?:\/\//, '').replace(/\/.*$/, '') : "example.com"}/{campaignState.displayPath1 || "deals"}/{campaignState.displayPath2 || "sales"}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="text-slate-400 font-mono">/</span>
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          maxLength={15}
+                          value={campaignState.displayPath1 || ""}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, displayPath1: e.target.value }))}
+                          placeholder="e.g. deals"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                        />
+                        <span className="absolute right-2 top-1.5 text-[9px] font-mono text-slate-400">{(campaignState.displayPath1 || "").length}/15</span>
+                      </div>
+                      <span className="text-slate-400 font-mono">/</span>
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          maxLength={15}
+                          value={campaignState.displayPath2 || ""}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, displayPath2: e.target.value }))}
+                          placeholder="e.g. discount"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                        />
+                        <span className="absolute right-2 top-1.5 text-[9px] font-mono text-slate-400">{(campaignState.displayPath2 || "").length}/15</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Calls (Phone number) */}
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
+                        <PhoneCall className="h-3.5 w-3.5 text-blue-600" />
+                        <span>Calls</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSearchCallsInput(!showSearchCallsInput)}
+                        className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                      >
+                        {showSearchCallsInput ? "Hide" : "+ Add Call Phone"}
+                      </button>
+                    </div>
+                    {showSearchCallsInput || Boolean(campaignState.callPhoneNumber) ? (
+                      <div className="space-y-1 pt-1 animate-in fade-in duration-150">
+                        <input
+                          type="tel"
+                          value={campaignState.callPhoneNumber || ""}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, callPhoneNumber: e.target.value }))}
+                          placeholder="+91 98765 43210 (Country code + phone)"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-blue-500"
+                        />
+                        <p className="text-[10px] text-slate-400">Adds a click-to-call phone button directly in your Search ads</p>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-500">Allow customers to directly call your business straight from search results.</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Text Generation Live Shimmer Indicator */}
               {(cockpitGeneratingTarget === "ALL" || cockpitGeneratingTarget === "HEADLINES" || cockpitGeneratingTarget === "LONG_HEADLINES" || cockpitGeneratingTarget === "DESCRIPTIONS") && (
@@ -13707,7 +15162,7 @@ export default function AiGuidedCampaignPage() {
                     <span className={`text-[10px] font-bold ${
                       (campaignState.descriptions?.length || 0) >= 2 ? "text-emerald-600" : "text-rose-600"
                     }`}>
-                      {campaignState.descriptions?.length || 0} (min 2, max 5)
+                      {campaignState.descriptions?.length || 0} {campaignState.campaignType === "SEARCH" ? "(min 2, max 14)" : "(min 2, max 5)"}
                     </span>
                     <button
                       type="button"
@@ -13862,6 +15317,185 @@ export default function AiGuidedCampaignPage() {
                   </div>
                 )}
               </div>
+
+              {/* Search Specific: Business Name & Logo + Ad URL Options */}
+              {campaignState.campaignType === "SEARCH" && (
+                <div className="space-y-3 pt-3 border-t border-slate-200">
+                  {/* Business Name */}
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-900">Business name</label>
+                      <span className="text-[10px] text-slate-400 font-mono">{(campaignState.businessName || "").length}/25</span>
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={25}
+                      value={campaignState.businessName || ""}
+                      onChange={(e) => setCampaignState(prev => ({ ...prev, businessName: e.target.value }))}
+                      placeholder="e.g. My Brand"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
+                    />
+                    <p className="text-[10px] text-slate-400">Matches your domain or verified advertiser identity</p>
+                  </div>
+
+                  {/* Business Logo */}
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
+                        <ImageIcon className="h-3.5 w-3.5 text-blue-600" />
+                        <span>Business logo</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-mono">{(campaignState.logos || []).length} logo(s)</span>
+                    </div>
+                    {(campaignState.logos || []).length > 0 ? (
+                      <div className="flex items-center gap-2">
+                        {(campaignState.logos || []).map((lg, idx) => {
+                          const logoSrc = typeof lg === "string" ? lg : (lg?.url || lg?.data || "");
+                          return (
+                            <div key={idx} className="relative w-12 h-12 rounded-xl border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center group">
+                              {logoSrc ? (
+                                <img src={logoSrc} alt="Logo" className="w-full h-full object-contain" />
+                              ) : (
+                                <ImageIcon className="h-5 w-5 text-slate-400" />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, logos: (prev.logos || []).filter((_, i) => i !== idx) }))}
+                                className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <label className="block border border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-3 text-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-blue-50/30">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                setCampaignState(prev => ({
+                                  ...prev,
+                                  logos: [...(prev.logos || []), reader.result as string]
+                                }));
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                        <UploadCloud className="h-4 w-4 text-blue-600 mx-auto mb-1" />
+                        <span className="text-[11px] font-semibold text-blue-700 block">Upload Business Logo</span>
+                        <span className="text-[9px] text-slate-400 block">Square 1:1 (min 128x128) or Landscape 4:1</span>
+                      </label>
+                    )}
+                  </div>
+
+                  {/* Ad URL Options Collapsible Section */}
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
+                        <Globe className="h-3.5 w-3.5 text-blue-600" />
+                        <span>Ad URL options</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSearchAdUrlOptions(!showSearchAdUrlOptions)}
+                        className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                      >
+                        {showSearchAdUrlOptions ? "Hide" : "Configure"}
+                      </button>
+                    </div>
+
+                    {showSearchAdUrlOptions && (
+                      <div className="space-y-2 pt-1 animate-in fade-in duration-150">
+                        <div>
+                          <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Tracking Template</label>
+                          <input
+                            type="text"
+                            value={campaignState.trackingTemplate || ""}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, trackingTemplate: e.target.value }))}
+                            placeholder="{lpurl}?utm_source=google&utm_medium=cpc"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-mono text-slate-800 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Final URL Suffix</label>
+                          <input
+                            type="text"
+                            value={campaignState.finalUrlSuffix || ""}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, finalUrlSuffix: e.target.value }))}
+                            placeholder="param1=val1&param2=val2"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-mono text-slate-800 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="pt-1 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] text-slate-500 font-semibold">Custom Parameters</label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCampaignState(prev => ({
+                                  ...prev,
+                                  customParameters: [...(prev.customParameters || []), { id: Date.now().toString(), name: "", value: "" }]
+                                }));
+                              }}
+                              className="text-[10px] text-blue-600 hover:text-blue-800 font-bold cursor-pointer"
+                            >
+                              + Add Parameter
+                            </button>
+                          </div>
+                          {(campaignState.customParameters || []).map((cp, cpIdx) => (
+                            <div key={cpIdx} className="flex items-center gap-1">
+                              <span className="text-[10px] font-mono text-slate-400">{`{_`}</span>
+                              <input
+                                type="text"
+                                value={cp.name}
+                                placeholder="name"
+                                onChange={(e) => {
+                                  const cur = [...(campaignState.customParameters || [])];
+                                  cur[cpIdx] = { ...cur[cpIdx], name: e.target.value };
+                                  setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                }}
+                                className="w-20 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                              />
+                              <span className="text-[10px] font-mono text-slate-400">{`} =`}</span>
+                              <input
+                                type="text"
+                                value={cp.value}
+                                placeholder="value"
+                                onChange={(e) => {
+                                  const cur = [...(campaignState.customParameters || [])];
+                                  cur[cpIdx] = { ...cur[cpIdx], value: e.target.value };
+                                  setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                }}
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const cur = (campaignState.customParameters || []).filter((_, i) => i !== cpIdx);
+                                  setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                }}
+                                className="p-1 text-slate-400 hover:text-rose-600"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             )}
           </div>
@@ -16866,6 +18500,111 @@ export default function AiGuidedCampaignPage() {
                 className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
               >
                 Save Callouts
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── More Asset Types Modal: App Asset (Android / iOS) Matching Manual Flow ── */}
+      {activeAssetModal === "APP_ASSET" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Add apps to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Add app links to encourage users to download or open your mobile app.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveAssetModal(null)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3.5">
+                <div className="space-y-1.5">
+                  <label className="block font-semibold text-slate-700">Select your mobile app's platform</label>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                      <input
+                        type="radio"
+                        name="appPlatformRadio"
+                        checked={appPlatform === "Android"}
+                        onChange={() => setAppPlatform("Android")}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>Android (Google Play)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                      <input
+                        type="radio"
+                        name="appPlatformRadio"
+                        checked={appPlatform === "iOS"}
+                        onChange={() => setAppPlatform("iOS")}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>iOS (Apple App Store)</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block font-semibold text-slate-700">Look up your app</label>
+                  <input
+                    type="text"
+                    value={appNameInput}
+                    onChange={(e) => setAppNameInput(e.target.value)}
+                    placeholder="Enter app name, package ID (e.g. com.example.app), or publisher"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                  />
+                  <p className="text-[10px] text-slate-400">Users searching on mobile will be prompted to download or launch your app</p>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-semibold text-slate-700">Link text</label>
+                    <span className="text-[10px] font-mono text-slate-400">{appLinkText.length}/25</span>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={25}
+                    value={appLinkText}
+                    onChange={(e) => setAppLinkText(e.target.value)}
+                    placeholder="Download App"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-medium"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveAssetModal(null)}
+                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (appNameInput.trim()) {
+                    setCampaignState(prev => ({
+                      ...prev,
+                      appName: appNameInput.trim(),
+                      appId: appNameInput.trim(),
+                      platform: appPlatform === "iOS" ? "IOS" : "ANDROID"
+                    }));
+                  }
+                  setActiveAssetModal(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer transition-all shadow-xs"
+              >
+                Save App
               </button>
             </div>
           </div>

@@ -29,6 +29,8 @@ export class SalesSearchService extends GoogleAdsBaseService {
       callouts = [],
       structuredSnippets = [],
       callAsset,
+      callPhoneNumber,
+      callPhone,
       promotions = [],
       prices = [],
       leadForms = [],
@@ -44,10 +46,14 @@ export class SalesSearchService extends GoogleAdsBaseService {
       locationOptionsExclude = "PRESENCE",
       trackingTemplate,
       finalUrlSuffix,
+      customParameters = [],
+      urlCustomParameters = [],
       enableFinalUrlExpansion = true,
       displayPath1,
       displayPath2,
-      adGroupName
+      adGroupName,
+      adSchedule = [],
+      adScheduleList = []
     } = payload;
 
     const finalUrl = (inputFinalUrl || websiteVisitsUrl || website || "").trim();
@@ -75,6 +81,27 @@ export class SalesSearchService extends GoogleAdsBaseService {
     if (validHeadlines.length < 3) throw new Error(`At least 3 valid headlines (<= 30 chars) are required for Responsive Search Ads (provided ${validHeadlines.length}).`);
     if (validDescriptions.length < 2) throw new Error(`At least 2 valid descriptions (<= 90 chars) are required for Responsive Search Ads (provided ${validDescriptions.length}).`);
     if (!keywords || keywords.length === 0) throw new Error("At least 1 valid keyword is required.");
+
+    // Normalize languages list (handles comma-separated string e.g. "Bengali, Hindi")
+    const parsedLanguages: string[] = [];
+    const rawLangList = Array.isArray(languages) ? languages : [languages].filter(Boolean);
+    for (const item of rawLangList) {
+      if (typeof item === "string" && item.includes(",")) {
+        parsedLanguages.push(...item.split(",").map(l => l.trim()).filter(Boolean));
+      } else if (item) {
+        parsedLanguages.push(String(item).trim());
+      }
+    }
+    const cleanLanguages = parsedLanguages.length > 0 ? parsedLanguages : ["English"];
+
+    // Normalize Ad Schedule list
+    const effectiveSchedule = (Array.isArray(adSchedule) && adSchedule.length > 0)
+      ? adSchedule
+      : (Array.isArray(adScheduleList) ? adScheduleList : []);
+
+    // Normalize Call Asset phone & country
+    const effectiveCallPhone = (callAsset?.phoneNumber || callPhoneNumber || callPhone || "").trim();
+    const effectiveCallCountry = (callAsset?.countryCode || payload?.callCountryCode || "IN").trim();
 
     const cid = (customerId || "").replace(/-/g, "").trim();
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
@@ -169,6 +196,19 @@ export class SalesSearchService extends GoogleAdsBaseService {
               },
               ...(trackingTemplate ? { trackingUrlTemplate: GoogleAdsBaseService.cleanTrackingTemplate(trackingTemplate) } : {}),
               ...(finalUrlSuffix ? { finalUrlSuffix: String(finalUrlSuffix).trim() } : {}),
+              ...((() => {
+                const rawParams = (Array.isArray(customParameters) && customParameters.length > 0)
+                  ? customParameters
+                  : (Array.isArray(urlCustomParameters) ? urlCustomParameters : []);
+                const cleanParams = rawParams
+                  .map((p: any) => {
+                    const k = (p?.key || p?.name || "").trim().replace(/[^a-zA-Z0-9_]/g, "").slice(0, 16);
+                    const v = String(p?.value !== undefined ? p.value : "").trim().slice(0, 250);
+                    return k ? { key: k, value: v } : null;
+                  })
+                  .filter(Boolean);
+                return cleanParams.length > 0 ? { urlCustomParameters: cleanParams } : {};
+              })()),
               ...(startDate ? { startDateTime: `${String(startDate).split("T")[0]} 00:00:00` } : {}),
               ...(endDate ? { endDateTime: `${String(endDate).split("T")[0]} 23:59:59` } : {}),
               ...biddingConfig
@@ -266,8 +306,24 @@ export class SalesSearchService extends GoogleAdsBaseService {
         organizationId,
         customerId,
         apiResult.campaignResourceName,
-        { locations, languages, headers }
+        { locations, languages: cleanLanguages, headers }
       );
+
+      // 4b. Create Campaign Criteria for Ad Schedule
+      if (effectiveSchedule.length > 0) {
+        try {
+          await GoogleAdsBaseService.mutateCampaignAdScheduleCriteria(
+            organizationId,
+            customerId,
+            apiResult.campaignResourceName,
+            effectiveSchedule,
+            headers
+          );
+          console.info(`[SalesSearchService] Successfully attached ${effectiveSchedule.length} ad schedule entries to campaign.`);
+        } catch (schedErr: any) {
+          console.warn("[SalesSearchService] Ad Schedule criteria mutate skipped / non-fatal:", schedErr?.message || schedErr);
+        }
+      }
 
       // 5. Create Search Extensions & Visual Assets (Images, Logos, Sitelinks, Callouts, etc.)
       const campaignAssetOperations: any[] = [];
@@ -335,8 +391,17 @@ export class SalesSearchService extends GoogleAdsBaseService {
       // C. Sitelinks (SitelinkAsset)
       const inputSitelinks = Array.isArray(sitelinks) ? sitelinks : [];
       for (const sl of inputSitelinks) {
-        const linkText = (sl.text || sl.linkText || "").trim();
-        const slUrl = (sl.url || sl.finalUrl || "").trim();
+        let linkText = GoogleAdsBaseService.cleanAdText(String(sl.text || sl.linkText || sl.title || ""), 25);
+        let slUrl = (sl.url || sl.finalUrl || "").trim();
+        if (slUrl && !slUrl.startsWith("http://") && !slUrl.startsWith("https://")) {
+          slUrl = `https://${slUrl}`;
+        }
+        
+        let desc1 = sl.desc1 || sl.description1 || sl.line1 || "";
+        let desc2 = sl.desc2 || sl.description2 || sl.line2 || "";
+        if (desc1) desc1 = GoogleAdsBaseService.cleanAdText(String(desc1), 35);
+        if (desc2) desc2 = GoogleAdsBaseService.cleanAdText(String(desc2), 35);
+
         if (linkText && slUrl) {
           try {
             const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
@@ -345,8 +410,8 @@ export class SalesSearchService extends GoogleAdsBaseService {
                   name: `Sitelink - ${linkText.slice(0, 20)} - ${Date.now()}`,
                   sitelinkAsset: {
                     linkText,
-                    ...(sl.desc1 || sl.description1 ? { description1: (sl.desc1 || sl.description1).trim().slice(0, 35) } : {}),
-                    ...(sl.desc2 || sl.description2 ? { description2: (sl.desc2 || sl.description2).trim().slice(0, 35) } : {})
+                    ...(desc1 ? { description1: desc1 } : {}),
+                    ...(desc2 ? { description2: desc2 } : {})
                   },
                   finalUrls: [slUrl]
                 }
@@ -365,7 +430,7 @@ export class SalesSearchService extends GoogleAdsBaseService {
               });
             }
           } catch (slErr: any) {
-            console.warn("[SalesSearchService] Sitelink creation skipped:", slErr?.message || slErr);
+            console.warn("[SalesSearchService] Sitelink creation skipped:", slErr?.response?.data || slErr?.message || slErr);
           }
         }
       }
@@ -442,37 +507,35 @@ export class SalesSearchService extends GoogleAdsBaseService {
       }
 
       // F. Call Asset (CallAsset)
-      if (callAsset && callAsset.phoneNumber) {
-        const phone = String(callAsset.phoneNumber).trim();
-        const countryCode = String(callAsset.countryCode || "IN").trim();
-        if (phone) {
-          try {
-            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
-              operations: [{
-                create: {
-                  name: `Call - ${phone} - ${Date.now()}`,
-                  callAsset: {
-                    countryCode,
-                    phoneNumber: phone
-                  }
+      const effectiveCallPhone = (callAsset?.phoneNumber || callPhoneNumber || callPhone || "").trim();
+      const effectiveCallCountry = (callAsset?.countryCode || payload?.callCountryCode || "IN").trim();
+      if (effectiveCallPhone) {
+        try {
+          const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+            operations: [{
+              create: {
+                name: `Call - ${effectiveCallPhone} - ${Date.now()}`,
+                callAsset: {
+                  countryCode: effectiveCallCountry,
+                  phoneNumber: effectiveCallPhone
                 }
-              }]
-            }, { headers });
-            const assetRef = assetRes.data?.results?.[0]?.resourceName;
-            if (assetRef) {
-              createdAssetResources.push(assetRef);
-              campaignAssetOperations.push({
-                create: {
-                  campaign: apiResult.campaignResourceName,
-                  asset: assetRef,
-                  fieldType: "CALL",
-                  status: "ENABLED"
-                }
-              });
-            }
-          } catch (callErr: any) {
-            console.warn("[SalesSearchService] Call asset creation skipped:", callErr?.message || callErr);
+              }
+            }]
+          }, { headers });
+          const assetRef = assetRes.data?.results?.[0]?.resourceName;
+          if (assetRef) {
+            createdAssetResources.push(assetRef);
+            campaignAssetOperations.push({
+              create: {
+                campaign: apiResult.campaignResourceName,
+                asset: assetRef,
+                fieldType: "CALL",
+                status: "ENABLED"
+              }
+            });
           }
+        } catch (callErr: any) {
+          console.warn("[SalesSearchService] Call asset creation skipped:", callErr?.response?.data || callErr?.message || callErr);
         }
       }
 
@@ -577,16 +640,24 @@ export class SalesSearchService extends GoogleAdsBaseService {
       name: campaignName,
       campaignType: "SEARCH",
       biddingStrategy: biddingFocus === "Target CPA" ? "TARGET_CPA" : biddingFocus === "Target ROAS" ? "TARGET_ROAS" : "MAXIMIZE_CONVERSIONS",
-      budget: Number(dailyBudget),
+      budget: Number(effectiveDailyBudget),
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
       finalUrl,
-      headlines,
-      descriptions,
+      headlines: validHeadlines,
+      descriptions: validDescriptions,
+      keywords: keywords || [],
+      adSchedule: effectiveSchedule.length > 0 ? effectiveSchedule : null,
+      languages: cleanLanguages,
+      searchThemes: payload?.searchThemes || null,
       geoTargets: {
         locations,
-        languages,
-        objective: "Sales"
+        languages: cleanLanguages,
+        objective: "Sales",
+        customParameters: (Array.isArray(customParameters) && customParameters.length > 0) ? customParameters : undefined,
+        callPhoneNumber: effectiveCallPhone || undefined
       },
       advertisingChannelType: "SEARCH",
       amountMicros: BigInt(amountMicros),

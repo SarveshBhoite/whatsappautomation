@@ -108,7 +108,10 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
       promotions = [],
       prices = [],
       callAsset,
-      structuredSnippets = []
+      structuredSnippets = [],
+      adSchedule = [],
+      devices,
+      demographicExclusions
     } = payload;
 
     const safeFinalUrl = GoogleAdsBaseService.cleanUrl(finalUrl);
@@ -258,6 +261,13 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
       };
     }
 
+    const effectiveAdSchedule = Array.isArray(adSchedule) ? adSchedule : [];
+    const validSearchThemes = Array.isArray(searchThemes)
+      ? searchThemes
+          .map((t: any) => GoogleAdsBaseService.cleanSearchTheme(t))
+          .filter(Boolean)
+      : [];
+
     let apiResult: any = { campaignId: `web-pmax-${Date.now()}` };
     const ADS_BASE = "https://googleads.googleapis.com/v24";
 
@@ -286,7 +296,8 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
         if (shoppingSetting) createOp.shoppingSetting = shoppingSetting;
         if (customerAcquisitionSetting) createOp.customerAcquisitionSetting = customerAcquisitionSetting;
         if (geoTargetTypeSetting) createOp.geoTargetTypeSetting = geoTargetTypeSetting;
-        if (trackingTemplate && String(trackingTemplate).trim()) createOp.trackingUrlTemplate = String(trackingTemplate).trim();
+        const cleanTrack = GoogleAdsBaseService.cleanTrackingTemplate(trackingTemplate);
+        if (cleanTrack) createOp.trackingUrlTemplate = cleanTrack;
         if (finalUrlSuffix && String(finalUrlSuffix).trim()) createOp.finalUrlSuffix = String(finalUrlSuffix).trim();
         if (validCustomParameters.length > 0) createOp.urlCustomParameters = validCustomParameters;
 
@@ -578,9 +589,6 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
       });
 
       // Asset Group Signals (Search Themes and Audience Signals)
-      const validSearchThemes = Array.isArray(searchThemes)
-        ? searchThemes.map(t => String(t).trim()).filter(Boolean)
-        : [];
       validSearchThemes.forEach((theme: string) => {
         mutateOperations.push({
           assetGroupSignalOperation: {
@@ -619,6 +627,24 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
         { locations, languages, headers }
       );
       apiResult.criteriaResults = criteriaResults;
+
+      // 7b. Mutate Campaign Criteria for Ad Schedule (if specified)
+      if (effectiveAdSchedule.length > 0) {
+        try {
+          const scheduleResults = await GoogleAdsBaseService.mutateCampaignAdScheduleCriteria(
+            organizationId,
+            customerId,
+            campaignRef,
+            effectiveAdSchedule,
+            headers
+          );
+          if (scheduleResults.length > 0) {
+            apiResult.scheduleCriteriaResults = scheduleResults;
+          }
+        } catch (schedErr: any) {
+          console.warn("[PMax Ad Schedule Warning]:", schedErr?.response?.data || schedErr.message);
+        }
+      }
 
       // 8. Attach Campaign Extension Assets (Sitelinks, Callouts, Promotions, Prices, Call, Snippets)
       try {
@@ -757,10 +783,23 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
       budget: amountMicrosVal / 1_000_000,
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: formattedStartDate ? new Date(formattedStartDate) : null,
+      endDate: formattedEndDate ? new Date(formattedEndDate) : null,
       finalUrl,
       headlines: safeHeadlines,
       descriptions: safeDescriptions,
-      geoTargets: { objective: "Website Traffic", locations, languages },
+      geoTargets: {
+        objective: "Website Traffic",
+        locations,
+        languages,
+        devices: devices || null,
+        demographicExclusions: demographicExclusions || null,
+        callouts: callouts || [],
+        structuredSnippets: structuredSnippets || []
+      },
+      languages: languages || ["Hindi"],
+      searchThemes: validSearchThemes.length > 0 ? validSearchThemes : null,
+      adSchedule: effectiveAdSchedule.length > 0 ? effectiveAdSchedule : null,
       advertisingChannelType: "PERFORMANCE_MAX",
       amountMicros: BigInt(amountMicrosVal),
       costMicros: BigInt(0),
