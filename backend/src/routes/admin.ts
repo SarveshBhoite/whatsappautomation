@@ -1038,7 +1038,7 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
       });
     }
 
-    const accounts = await prisma.instagramConfig.findMany({
+    let accounts = await prisma.instagramConfig.findMany({
       where: { organizationId, isActive: true },
       orderBy: { createdAt: "desc" },
     });
@@ -1077,6 +1077,22 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
               if (metaData.name) matchedAcc.name = metaData.name;
             }
           }
+        } else {
+          const errData = await metaRes.json().catch(() => ({}));
+          console.warn("[IG TOKEN VALIDATION] Meta returned non-200:", errData);
+          if (errData?.error?.code === 190) {
+            console.warn(`[IG TOKEN INVALID] Token for IG account ${config.instagramAccountId} has been revoked or expired.`);
+            await prisma.instagramConfig.update({
+              where: { id: config.id },
+              data: { isActive: false }
+            }).catch(() => {});
+            return res.status(200).json({
+              config: null,
+              accounts: accounts.filter((a) => a.id !== config.id),
+              liveProfile: null,
+              disconnected: true
+            });
+          }
         }
       } catch (e) {
         console.warn("Could not fetch live Graph API stats:", e);
@@ -1096,73 +1112,215 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
 
 export async function syncAllInstagramAccountsForToken(organizationId: string, accessToken: string) {
   try {
-    const pagesRes = await fetch(
-      `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&access_token=${accessToken}`
-    );
+    const appId = process.env.META_APP_ID || "36702477879366478";
+    const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
 
-    if (!pagesRes.ok) return;
-    const pagesData = await pagesRes.json();
-    const pages = pagesData.data || [];
-
-    for (const page of pages) {
-      const ig = page.instagram_business_account;
-      if (ig && ig.id) {
-        const instagramAccountId = ig.id;
-        const pageId = page.id;
-        const pageAccessToken = page.access_token || accessToken;
-        let username = ig.username || "";
-        let name = ig.name || page.name || "";
-        let profilePic = ig.profile_picture_url || "";
-
-        // If nested call didn't return profile picture, fetch directly from IG account endpoint
-        if (!profilePic && pageAccessToken && instagramAccountId) {
+    // 1. Automatically purge any unwanted Page permissions so Meta never shows them again
+    try {
+      const permRes = await axios.get("https://graph.facebook.com/v21.0/me/permissions", {
+        params: { access_token: accessToken },
+      });
+      const perms = permRes.data?.data || [];
+      for (const p of perms) {
+        if (p.permission && (p.permission.startsWith("pages_") || p.permission.startsWith("business_") || p.permission === "read_page_mailboxes")) {
           try {
-            const igRes = await fetch(
-              `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=id,username,name,profile_picture_url&access_token=${pageAccessToken}`
-            );
-            if (igRes.ok) {
-              const igData = await igRes.json();
-              if (igData.profile_picture_url) profilePic = igData.profile_picture_url;
-              if (igData.username && !username) username = igData.username;
-              if (igData.name && !name) name = igData.name;
-            }
-          } catch (e) {}
-        }
-
-        const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
-        const existing = await prisma.instagramConfig.findFirst({
-          where: { organizationId, instagramAccountId }
-        });
-
-        if (existing) {
-          await prisma.instagramConfig.update({
-            where: { id: existing.id },
-            data: {
-              pageId,
-              pageAccessToken,
-              username,
-              name,
-              profilePic,
-              isActive: true,
-            }
-          });
-        } else {
-          await prisma.instagramConfig.create({
-            data: {
-              organizationId,
-              instagramAccountId,
-              pageId,
-              pageAccessToken,
-              username,
-              name,
-              profilePic,
-              isDefault: existingCount === 0,
-              isActive: true,
-            }
-          });
+            await axios.delete(`https://graph.facebook.com/v21.0/me/permissions/${p.permission}`, {
+              params: { access_token: accessToken },
+            });
+            console.log(`[IG CLEANUP] Revoked unwanted permission from Meta: ${p.permission}`);
+          } catch (e: any) {
+            console.warn(`[IG CLEANUP] Could not revoke ${p.permission}:`, e?.message);
+          }
         }
       }
+    } catch (permErr: any) {
+      console.warn("[IG CLEANUP] Permissions inspection notice:", permErr?.message);
     }
+
+    // 2. Discover Instagram Account IDs directly from debug_token granular_scopes
+    const discoveredIgIds = new Set<string>();
+    try {
+      const debugRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
+        params: {
+          input_token: accessToken,
+          access_token: `${appId}|${appSecret}`,
+        },
+      });
+      const data = debugRes.data?.data;
+      if (data?.user_id) {
+        lastMetaUserId = data.user_id;
+      }
+      const granularScopes = data?.granular_scopes || [];
+      for (const gs of granularScopes) {
+        if (gs.scope?.startsWith("instagram_") && Array.isArray(gs.target_ids)) {
+          for (const tid of gs.target_ids) {
+            if (tid) discoveredIgIds.add(String(tid));
+          }
+        }
+      }
+    } catch (dbgErr: any) {
+      console.warn("[IG DISCOVERY] debug_token notice:", dbgErr?.message);
+    }
+
+    // 3. For each discovered IG account, query profile details and upsert
+    for (const igAccountId of discoveredIgIds) {
+      try {
+        const igRes = await fetch(
+          `https://graph.facebook.com/v21.0/${igAccountId}?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
+        );
+        if (igRes.ok) {
+          const igData = await igRes.json();
+          const username = igData.username || `ig_${igAccountId.slice(-4)}`;
+          const name = igData.name || username;
+          const profilePic = igData.profile_picture_url || "";
+
+          const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
+          const existing = await prisma.instagramConfig.findFirst({
+            where: { organizationId, instagramAccountId: igAccountId }
+          });
+
+          if (existing) {
+            await prisma.instagramConfig.update({
+              where: { id: existing.id },
+              data: {
+                pageAccessToken: accessToken,
+                username: username || existing.username,
+                name: name || existing.name,
+                profilePic: profilePic || existing.profilePic,
+                isActive: true,
+              }
+            });
+          } else {
+            await prisma.instagramConfig.create({
+              data: {
+                organizationId,
+                instagramAccountId: igAccountId,
+                pageId: "",
+                pageAccessToken: accessToken,
+                username,
+                name,
+                profilePic,
+                isDefault: existingCount === 0,
+                isActive: true,
+              }
+            });
+          }
+          console.log(`[IG DISCOVERY] Successfully synced Instagram account @${username} (${igAccountId})`);
+        }
+      } catch (err: any) {
+        console.warn(`[IG DISCOVERY] Could not fetch details for account ${igAccountId}:`, err?.message);
+      }
+    }
+
+    // 4. Fallback: Query /me directly if granular_scopes didn't yield accounts
+    if (discoveredIgIds.size === 0) {
+      try {
+        let igUserRes = await fetch(
+          `https://graph.facebook.com/v21.0/me?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
+        );
+        if (!igUserRes.ok) {
+          igUserRes = await fetch(
+            `https://graph.instagram.com/v21.0/me?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
+          );
+        }
+        if (igUserRes.ok) {
+          const igData = await igUserRes.json();
+          if (igData && igData.id) {
+            const instagramAccountId = igData.id;
+            const username = igData.username || "";
+            const name = igData.name || username;
+            const profilePic = igData.profile_picture_url || "";
+            const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
+            const existing = await prisma.instagramConfig.findFirst({
+              where: { organizationId, instagramAccountId }
+            });
+            if (existing) {
+              await prisma.instagramConfig.update({
+                where: { id: existing.id },
+                data: {
+                  pageAccessToken: accessToken,
+                  username: username || existing.username,
+                  name: name || existing.name,
+                  profilePic: profilePic || existing.profilePic,
+                  isActive: true
+                }
+              });
+            } else {
+              await prisma.instagramConfig.create({
+                data: {
+                  organizationId,
+                  instagramAccountId,
+                  pageId: "",
+                  pageAccessToken: accessToken,
+                  username: username || `ig_${instagramAccountId.slice(-4)}`,
+                  name: name || "",
+                  profilePic,
+                  isDefault: existingCount === 0,
+                  isActive: true
+                }
+              });
+            }
+          }
+        }
+      } catch (directErr) {
+        console.warn("[IG DIRECT USER SYNC NOTICE]:", directErr);
+      }
+    }
+
+    // 5. Fallback: Optional /me/accounts check if pages access happens to be available
+    try {
+      const pagesRes = await fetch(
+        `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&access_token=${accessToken}`
+      );
+      if (pagesRes.ok) {
+        const pagesData = await pagesRes.json();
+        const pages = pagesData.data || [];
+        for (const page of pages) {
+          const ig = page.instagram_business_account;
+          if (ig && ig.id) {
+            const instagramAccountId = ig.id;
+            const pageId = page.id;
+            const pageAccessToken = page.access_token || accessToken;
+            let username = ig.username || "";
+            let name = ig.name || page.name || "";
+            let profilePic = ig.profile_picture_url || "";
+
+            const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
+            const existing = await prisma.instagramConfig.findFirst({
+              where: { organizationId, instagramAccountId }
+            });
+
+            if (existing) {
+              await prisma.instagramConfig.update({
+                where: { id: existing.id },
+                data: {
+                  pageId,
+                  pageAccessToken,
+                  username: username || existing.username,
+                  name: name || existing.name,
+                  profilePic: profilePic || existing.profilePic,
+                  isActive: true,
+                }
+              });
+            } else {
+              await prisma.instagramConfig.create({
+                data: {
+                  organizationId,
+                  instagramAccountId,
+                  pageId,
+                  pageAccessToken,
+                  username,
+                  name,
+                  profilePic,
+                  isDefault: existingCount === 0,
+                  isActive: true,
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {}
   } catch (err: any) {
     console.warn("[MULTI-IG SYNC] Auto-sync notice:", err?.message);
   }
@@ -1173,15 +1331,9 @@ router.get("/instagram/accounts", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
     let accounts = await prisma.instagramConfig.findMany({
-      where: { organizationId },
+      where: { organizationId, isActive: true },
       orderBy: { createdAt: "desc" },
     });
-
-    if (accounts.length === 0) {
-      accounts = await prisma.instagramConfig.findMany({
-        orderBy: { createdAt: "desc" },
-      });
-    }
 
     // Refresh live profile pictures and names from Meta Graph API
     await Promise.all(
@@ -1365,6 +1517,8 @@ router.post("/instagram/config", async (req: Request, res: Response) => {
   }
 });
 
+let lastMetaUserId: string = "122186284394621684";
+
 // POST: Exchange code from Meta Instagram Login / Embedded Signup for system access token and sync IG accounts
 router.post("/instagram/embedded-signup/callback", async (req: Request, res: Response) => {
   try {
@@ -1423,6 +1577,24 @@ router.post("/instagram/embedded-signup/callback", async (req: Request, res: Res
       console.warn("[IG EMBEDDED SIGNUP] Long-lived token exchange notice:", llErr?.response?.data?.error?.message || llErr.message);
     }
 
+    // Query granted permissions from Meta Graph API for App Review compliance & validation
+    let grantedPermissions: string[] = [];
+    let declinedPermissions: string[] = [];
+    try {
+      const permRes = await axios.get("https://graph.facebook.com/v21.0/me/permissions", {
+        params: { access_token: accessToken },
+      });
+      const perms = permRes.data?.data || [];
+      grantedPermissions = perms.filter((p: any) => p.status === "granted").map((p: any) => p.permission);
+      declinedPermissions = perms.filter((p: any) => p.status === "declined").map((p: any) => p.permission);
+      console.log("[IG EMBEDDED SIGNUP] Granted permissions:", grantedPermissions);
+      if (declinedPermissions.length > 0) {
+        console.warn("[IG EMBEDDED SIGNUP] User declined permissions:", declinedPermissions);
+      }
+    } catch (permErr: any) {
+      console.warn("[IG EMBEDDED SIGNUP] Failed to query /me/permissions:", permErr?.message);
+    }
+
     await syncAllInstagramAccountsForToken(organizationId, accessToken);
 
     const config = await prisma.instagramConfig.findFirst({
@@ -1434,6 +1606,8 @@ router.post("/instagram/embedded-signup/callback", async (req: Request, res: Res
       success: true,
       message: "Instagram Business Account connected successfully via Meta!",
       config,
+      grantedPermissions,
+      declinedPermissions,
     });
   } catch (error: any) {
     console.error("Error processing Meta Instagram Embedded Signup callback:", error?.response?.data || error.message);
@@ -1444,21 +1618,269 @@ router.post("/instagram/embedded-signup/callback", async (req: Request, res: Res
   }
 });
 
-// POST: Disconnect an Instagram Account
-router.post("/instagram/disconnect", async (req: Request, res: Response) => {
+// GET: Fetch real-time Meta permissions for connected Instagram account
+router.get("/instagram/permissions", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId } = req.query;
+
+    const config = accountId
+      ? await prisma.instagramConfig.findUnique({ where: { id: String(accountId) } })
+      : await prisma.instagramConfig.findFirst({
+          where: { organizationId, isActive: true },
+          orderBy: { isDefault: "desc" },
+        });
+
+    if (!config || !config.pageAccessToken) {
+      return res.status(404).json({ error: "No connected Instagram account found with active access token." });
+    }
+
+    const appId = process.env.META_APP_ID || "36702477879366478";
+    const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
+    const token = config.pageAccessToken;
+
+    // Use Meta debug_token endpoint - works universally for Page Access Tokens and User Access Tokens
+    const debugRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
+      params: {
+        input_token: token,
+        access_token: `${appId}|${appSecret}`,
+      },
+    });
+
+    const tokenData = debugRes.data?.data || {};
+    const granted: string[] = tokenData.scopes || [];
+
+    const REQUIRED_SCOPES = [
+      "instagram_basic",
+      "instagram_manage_messages",
+      "instagram_manage_comments",
+    ];
+
+    const missingRequired = REQUIRED_SCOPES.filter((s) => !granted.includes(s));
+
+    return res.status(200).json({
+      success: true,
+      isValid: tokenData.is_valid ?? true,
+      tokenType: tokenData.type || "PAGE",
+      expiresAt: tokenData.expires_at,
+      dataAccessExpiresAt: tokenData.data_access_expires_at,
+      granted,
+      missingRequired,
+      allRequiredGranted: missingRequired.length === 0,
+      account: {
+        id: config.id,
+        username: config.username,
+        name: config.name,
+        instagramAccountId: config.instagramAccountId,
+        pageId: config.pageId,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error fetching Instagram permissions:", error?.response?.data || error.message);
+    return res.status(500).json({
+      error: "Failed to inspect Instagram permissions",
+      details: error?.response?.data || error.message,
+    });
+  }
+});
+
+// POST: Reset / revoke Meta authorization so subsequent logins ALWAYS force Meta's full account & permission selection flow
+router.post("/instagram/reset-auth", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const appId = process.env.META_APP_ID || "36702477879366478";
+    const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
+
+    const configs = await prisma.instagramConfig.findMany({
+      where: { organizationId },
+    });
+
+    const tokens = configs.map((c) => c.pageAccessToken).filter(Boolean);
+
+    for (const token of tokens) {
+      try {
+        await axios.delete("https://graph.facebook.com/v21.0/me/permissions", {
+          params: { access_token: token },
+        });
+        console.log("[IG RESET AUTH] Revoked Meta permissions via me/permissions");
+      } catch (err: any) {
+        console.warn("[IG RESET AUTH] Notice revoking me/permissions:", err?.message);
+      }
+      try {
+        const debugRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
+          params: {
+            input_token: token,
+            access_token: `${appId}|${appSecret}`,
+          },
+        });
+        const userId = debugRes.data?.data?.user_id;
+        if (userId) {
+          await axios.delete(`https://graph.facebook.com/v21.0/${userId}/permissions`, {
+            params: { access_token: `${appId}|${appSecret}` },
+          });
+          console.log("[IG RESET AUTH] Revoked Meta permissions for user:", userId);
+        }
+      } catch (err: any) {
+        console.warn("[IG RESET AUTH] Notice revoking token:", err?.message);
+      }
+    }
+
+    if (lastMetaUserId) {
+      try {
+        await axios.delete(`https://graph.facebook.com/v21.0/${lastMetaUserId}/permissions`, {
+          params: { access_token: `${appId}|${appSecret}` },
+        });
+        console.log("[IG RESET AUTH] Revoked Meta permissions for lastMetaUserId:", lastMetaUserId);
+      } catch (e) {}
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Meta authorization reset. The login flow will prompt for all accounts and permissions.",
+    });
+  } catch (error: any) {
+    console.error("Error resetting Meta auth:", error);
+    return res.status(200).json({ success: true, message: "Proceeding with login" });
+  }
+});
+
+// POST: Revoke Meta permissions for connected account to force a fresh consent dialog (for App Review & Testing)
+router.post("/instagram/revoke-permissions", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
     const { accountId } = req.body;
 
     const config = accountId
-      ? await prisma.instagramConfig.findUnique({ where: { id: accountId } })
-      : await prisma.instagramConfig.findFirst({ where: { organizationId, isDefault: true } });
+      ? await prisma.instagramConfig.findUnique({ where: { id: String(accountId) } })
+      : await prisma.instagramConfig.findFirst({
+          where: { organizationId, isActive: true },
+          orderBy: { isDefault: "desc" },
+        });
+
+    if (!config || !config.pageAccessToken) {
+      return res.status(404).json({ error: "No connected Instagram account found to revoke permissions." });
+    }
+
+    const appId = process.env.META_APP_ID || "36702477879366478";
+    const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
+
+    try {
+      // First inspect debug_token to get user_id if available
+      const debugRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
+        params: {
+          input_token: config.pageAccessToken,
+          access_token: `${appId}|${appSecret}`,
+        },
+      });
+      const userId = debugRes.data?.data?.user_id;
+      if (userId) {
+        await axios.delete(`https://graph.facebook.com/v21.0/${userId}/permissions`, {
+          params: { access_token: `${appId}|${appSecret}` },
+        });
+        console.log("[IG REVOKE] Successfully revoked Meta permissions for user:", userId);
+      }
+    } catch (revokeErr: any) {
+      console.warn("[IG REVOKE] Meta Graph API revoke notice:", revokeErr?.response?.data || revokeErr.message);
+    }
+
+    // Delete record from database so a completely fresh reconnect can be tested
+    await prisma.instagramConfig.delete({ where: { id: config.id } });
+
+    return res.status(200).json({
+      success: true,
+      message: "Meta permissions successfully revoked. The next login will force Meta's full permission granting dialog.",
+    });
+  } catch (error: any) {
+    console.error("Error revoking Instagram permissions:", error?.response?.data || error.message);
+    return res.status(500).json({
+      error: "Failed to revoke Instagram permissions",
+      details: error?.response?.data || error.message,
+    });
+  }
+});
+
+// POST: Disconnect an Instagram Account
+router.post("/instagram/disconnect", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId, instagramAccountId } = req.body || {};
+
+    let config = null;
+
+    // 1. Try finding by accountId (matches database id or instagramAccountId)
+    if (accountId) {
+      config = await prisma.instagramConfig.findFirst({
+        where: {
+          OR: [
+            { id: String(accountId) },
+            { instagramAccountId: String(accountId) }
+          ]
+        }
+      });
+    }
+
+    // 2. Try finding by instagramAccountId
+    if (!config && instagramAccountId) {
+      config = await prisma.instagramConfig.findFirst({
+        where: { instagramAccountId: String(instagramAccountId) }
+      });
+    }
+
+    // 3. Try finding for this organization (default first)
+    if (!config) {
+      config = await prisma.instagramConfig.findFirst({
+        where: { organizationId, isDefault: true },
+      });
+    }
+
+    // 4. Try finding any config for this organization
+    if (!config) {
+      config = await prisma.instagramConfig.findFirst({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" },
+      });
+    }
 
     if (config) {
+      // 1. Cleanly unsubscribe app from Meta webhooks
+      if (config.pageAccessToken && config.pageId) {
+        try {
+          await axios.delete(`https://graph.facebook.com/v21.0/${config.pageId}/subscribed_apps`, {
+            params: { access_token: config.pageAccessToken }
+          }).catch(() => {});
+        } catch (subErr) {}
+      }
+
+      // 2. Revoke user permissions on Meta so next connect forces fresh Page & Account selection
+      if (config.pageAccessToken) {
+        try {
+          await axios.delete("https://graph.facebook.com/v21.0/me/permissions", {
+            params: { access_token: config.pageAccessToken }
+          }).catch(() => {});
+          const appId = process.env.META_APP_ID || "36702477879366478";
+          const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
+          const debugRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
+            params: {
+              input_token: config.pageAccessToken,
+              access_token: `${appId}|${appSecret}`,
+            },
+          });
+          const userId = debugRes.data?.data?.user_id;
+          if (userId) {
+            await axios.delete(`https://graph.facebook.com/v21.0/${userId}/permissions`, {
+              params: { access_token: `${appId}|${appSecret}` },
+            });
+            console.log("[IG DISCONNECT] Successfully revoked Meta app permissions for user:", userId);
+          }
+        } catch (revokeErr: any) {
+          console.warn("[IG DISCONNECT] Meta permissions revoke notice:", revokeErr?.message);
+        }
+      }
+
       await prisma.instagramConfig.delete({ where: { id: config.id } });
 
       const remaining = await prisma.instagramConfig.findFirst({
-        where: { organizationId },
+        where: { organizationId: config.organizationId },
         orderBy: { createdAt: "desc" },
       });
       if (remaining) {
@@ -1489,7 +1911,7 @@ export const instagramCommentsFeed: Array<{
   autoReplyText: string;
 }> = [];
 
-// GET: Fetch Instagram comments & automation status (fetches live comments from Graph API if available)
+// GET: Fetch Instagram comments & automation status (guarantees latest comments on top)
 router.get("/instagram/comments", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
@@ -1498,43 +1920,77 @@ router.get("/instagram/comments", async (req: Request, res: Response) => {
       orderBy: { isDefault: "desc" },
     });
 
-    let liveComments = [...instagramCommentsFeed];
+    const commentMap = new Map<string, any>();
 
+    // 1. In-memory real-time comments (including webhook and simulated comments)
+    for (const c of instagramCommentsFeed) {
+      if (c && c.id) {
+        commentMap.set(c.id, { ...c });
+      }
+    }
+
+    // 2. Database audit logs (past comments captured by Comment-to-DM Engine)
+    try {
+      const dbLogs = await (prisma as any).instagramCommentAuditLog.findMany({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      });
+      for (const log of dbLogs) {
+        if (log && log.commentId && !commentMap.has(log.commentId)) {
+          commentMap.set(log.commentId, {
+            id: log.commentId,
+            fromUser: log.commenterUser || "instagram_user",
+            commentText: log.commentText || "",
+            createdAt: log.createdAt ? new Date(log.createdAt).toISOString() : new Date().toISOString(),
+            status: log.publicReplySent ? "REPLIED" : "ACTIVE",
+            autoReplyText: log.publicReplySent || "",
+            mediaId: log.mediaId || "",
+          });
+        }
+      }
+    } catch (dbErr: any) {
+      console.warn("Could not query instagramCommentAuditLog:", dbErr?.message);
+    }
+
+    // 3. Live Graph API comments directly on media posts
     if (config?.pageAccessToken && config?.instagramAccountId) {
       try {
         const metaRes = await fetch(
           `https://graph.facebook.com/v21.0/${config.instagramAccountId}/media?fields=id,caption,permalink,comments{id,text,username,timestamp}&access_token=${config.pageAccessToken}`
         );
-        let metaData: any = {};
         if (metaRes.ok) {
-          metaData = await metaRes.json();
-        }
+          const metaData = await metaRes.json();
+          const mediaList = metaData.data || [];
 
-        const mediaList = metaData.data || [];
-        const fetchedCmts: typeof instagramCommentsFeed = [];
-
-        mediaList.forEach((item: any) => {
-          if (item.comments && item.comments.data) {
-            item.comments.data.forEach((c: any) => {
-              fetchedCmts.push({
-                id: c.id ? String(c.id) : `ig_live_${Date.now()}`,
-                fromUser: c.username || "instagram_user",
-                commentText: c.text || "",
-                createdAt: c.timestamp || new Date().toISOString(),
-                status: "ACTIVE",
-                autoReplyText: ""
+          mediaList.forEach((item: any) => {
+            if (item.comments && item.comments.data) {
+              item.comments.data.forEach((c: any) => {
+                const cId = c.id ? String(c.id) : null;
+                if (cId && !commentMap.has(cId)) {
+                  commentMap.set(cId, {
+                    id: cId,
+                    fromUser: c.username || "instagram_user",
+                    commentText: c.text || "",
+                    createdAt: c.timestamp ? new Date(c.timestamp).toISOString() : new Date().toISOString(),
+                    status: "ACTIVE",
+                    autoReplyText: "",
+                    mediaId: item.id || "",
+                  });
+                }
               });
-            });
-          }
-        });
-
-        if (fetchedCmts.length > 0) {
-          liveComments = [...fetchedCmts, ...instagramCommentsFeed];
+            }
+          });
         }
-      } catch (err) {
-        console.warn("Could not fetch Graph API comments:", err);
+      } catch (err: any) {
+        console.warn("Could not fetch Graph API comments:", err?.message);
       }
     }
+
+    // Convert map to array and STRICTLY sort descending by createdAt: Latest comment ALWAYS on top
+    const liveComments = Array.from(commentMap.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
 
     return res.status(200).json({
       status: "Active",
@@ -1590,11 +2046,9 @@ router.post("/instagram/comments/reply", async (req: Request, res: Response) => 
 
     const io = req.app.get("io");
     if (io) {
-      io.to(organizationId || DEFAULT_ORG_ID).emit("instagram-comment-replied", {
-        commentId,
-        replyText,
-        replyResponse
-      });
+      if (organizationId) io.to(organizationId).emit("instagram-comment-replied", { commentId, replyText, replyResponse });
+      io.to(DEFAULT_ORG_ID).emit("instagram-comment-replied", { commentId, replyText, replyResponse });
+      io.emit("instagram-comment-replied", { commentId, replyText, replyResponse });
     }
 
     return res.status(200).json({
@@ -1614,6 +2068,7 @@ router.post("/instagram/comments/reply", async (req: Request, res: Response) => 
 // POST: Simulate or receive live Instagram comment & trigger auto reply
 router.post("/instagram/comments/simulate", async (req: Request, res: Response) => {
   try {
+    const organizationId = getOrgId(req);
     const { fromUser, commentText } = req.body;
 
     if (!fromUser || !commentText) {
@@ -1631,11 +2086,14 @@ router.post("/instagram/comments/simulate", async (req: Request, res: Response) 
       autoReplyText: reply
     };
 
+    // Prepend immediately to in-memory feed so it appears on top
     instagramCommentsFeed.unshift(newComment);
 
     const io = req.app.get("io");
     if (io) {
+      if (organizationId) io.to(organizationId).emit("instagram-comment-received", newComment);
       io.to(DEFAULT_ORG_ID).emit("instagram-comment-received", newComment);
+      io.emit("instagram-comment-received", newComment);
     }
 
     return res.status(200).json({

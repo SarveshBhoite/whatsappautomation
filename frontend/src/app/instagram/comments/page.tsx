@@ -224,6 +224,16 @@ export default function InstagramCommentsPage() {
   const [replyingCommentId, setReplyingCommentId] = useState<string | null>(null);
   const [simulatingComment, setSimulatingComment] = useState(false);
 
+  const formatCommentTime = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return "Just now";
+      return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} • ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    } catch {
+      return "Just now";
+    }
+  };
+
   const fetchLiveComments = async () => {
     try {
       setLoadingLiveComments(true);
@@ -233,7 +243,10 @@ export default function InstagramCommentsPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.comments) {
-          setLiveComments(data.comments);
+          const sorted = [...(data.comments || [])].sort(
+            (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          setLiveComments(sorted);
         }
       }
     } catch (err) {
@@ -292,6 +305,16 @@ export default function InstagramCommentsPage() {
         })
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data?.comment) {
+          setLiveComments((prev) => {
+            const filtered = prev.filter((c) => c.id !== data.comment.id);
+            const nextList = [data.comment, ...filtered];
+            return nextList.sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+          });
+        }
         fetchLiveComments();
       }
     } catch (err) {
@@ -324,6 +347,20 @@ export default function InstagramCommentsPage() {
     });
 
     socket.on("instagram-comment-received", (data: any) => {
+      if (data && data.id) {
+        setLiveComments((prev) => {
+          const existingIndex = prev.findIndex((c) => c.id === data.id);
+          let updated: any[];
+          if (existingIndex >= 0) {
+            updated = prev.map((c) => (c.id === data.id ? { ...c, ...data } : c));
+          } else {
+            updated = [data, ...prev];
+          }
+          return updated.sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        });
+      }
       fetchAutomations();
       fetchLiveComments();
     });
@@ -1664,7 +1701,7 @@ export default function InstagramCommentsPage() {
                       Live Instagram Post Comments & Direct Public Reply
                     </h3>
                     <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-pink-100 text-pink-800 border border-pink-200 uppercase">
-                      instagram_business_manage_comments
+                      instagram_manage_comments
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
@@ -1713,14 +1750,17 @@ export default function InstagramCommentsPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {liveComments.map((comment) => {
+                {liveComments.map((comment, index) => {
                   const isReplied = comment.status === "REPLIED" || Boolean(comment.autoReplyText);
                   const isReplying = replyingCommentId === comment.id;
+                  const isLatest = index === 0;
 
                   return (
                     <div
                       key={comment.id}
-                      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-3 transition-all hover:border-pink-300"
+                      className={`bg-white border rounded-2xl p-5 shadow-2xs space-y-3 transition-all hover:border-pink-300 ${
+                        isLatest ? "border-pink-300 ring-1 ring-pink-100 bg-pink-50/10" : "border-slate-200"
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
@@ -1734,8 +1774,13 @@ export default function InstagramCommentsPage() {
                               <span className="font-extrabold text-slate-900 text-sm">
                                 @{comment.fromUser}
                               </span>
-                              <span className="text-[10px] text-slate-400">
-                                {new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              {isLatest && (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-pink-100 text-pink-700 border border-pink-200 flex items-center gap-1">
+                                  <Sparkles className="h-2.5 w-2.5" /> Latest
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {formatCommentTime(comment.createdAt)}
                               </span>
                             </div>
                             <p className="text-xs text-slate-800 mt-1 font-medium bg-slate-50 p-2.5 rounded-xl border border-slate-100">

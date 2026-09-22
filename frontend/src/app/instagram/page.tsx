@@ -427,7 +427,10 @@ export default function Dashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        setIgComments(data.comments || []);
+        const sorted = (data.comments || []).sort(
+          (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setIgComments(sorted);
       }
     } catch (err) {
       console.error("Failed to fetch Instagram comments:", err);
@@ -449,6 +452,10 @@ export default function Dashboard() {
         })
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data?.comment) {
+          setIgComments(prev => [data.comment, ...prev.filter(c => c.id !== data.comment.id)]);
+        }
         fetchIgComments();
       }
     } catch (err) {
@@ -956,9 +963,14 @@ export default function Dashboard() {
       } else if (data && data.instagramAccountId) {
         setIgConfig(data);
         if (data.id) setSelectedIgAccountId(data.id);
+      } else {
+        setIgConfig({ instagramAccountId: "", pageId: "", pageAccessToken: "" });
+        setSelectedIgAccountId("");
       }
       if (data && data.accounts) {
         setIgAccounts(data.accounts);
+      } else {
+        setIgAccounts([]);
       }
     } catch (err) {
       console.warn("Could not fetch Instagram config:", err);
