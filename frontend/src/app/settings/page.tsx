@@ -1335,10 +1335,12 @@ print(res.json())`;
       const urlParams = new URLSearchParams(window.location.search);
       const incomingCode = urlParams.get("code");
       const tabParam = urlParams.get("tab");
+      const stateParam = urlParams.get("state") || "";
       if (incomingCode) {
         if (window.opener) {
           try {
-            const msgType = tabParam === "instagram" ? "IG_EMBEDDED_CODE" : "WA_EMBEDDED_CODE";
+            const isInstagram = tabParam === "instagram" || stateParam.startsWith("instagram");
+            const msgType = isInstagram ? "IG_EMBEDDED_CODE" : "WA_EMBEDDED_CODE";
             window.opener.postMessage({ type: msgType, code: incomingCode }, "*");
             window.close();
             return;
@@ -1346,7 +1348,8 @@ print(res.json())`;
             console.error("Failed to post message to opener:", e);
           }
         }
-        if (tabParam === "instagram") {
+        const isInstagram = tabParam === "instagram" || stateParam.startsWith("instagram");
+        if (isInstagram) {
           processInstagramEmbeddedCode(incomingCode);
         } else {
           processEmbeddedCode(incomingCode);
@@ -1525,7 +1528,7 @@ print(res.json())`;
       const orgId = getOrgId();
       const targetOrigin = window.location.origin.startsWith("https://")
         ? window.location.origin
-        : "https://crm.jisnudigital.com";
+        : (process.env.NEXT_PUBLIC_PRODUCTION_URL || "https://crm.jisnudigital.com");
 
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/embedded-signup/callback`, {
         method: "POST",
@@ -1535,7 +1538,7 @@ print(res.json())`;
         },
         body: JSON.stringify({
           code,
-          redirectUri: `${targetOrigin}/settings?tab=instagram`,
+          redirectUri: `${targetOrigin}/settings`,
         }),
       });
 
@@ -1730,11 +1733,12 @@ print(res.json())`;
     const appId = process.env.NEXT_PUBLIC_META_APP_ID || "36702477879366478";
     const targetOrigin = window.location.origin.startsWith("https://")
       ? window.location.origin
-      : "https://crm.jisnudigital.com";
+      : (process.env.NEXT_PUBLIC_PRODUCTION_URL || "https://crm.jisnudigital.com");
 
-    const redirectUri = encodeURIComponent(`${targetOrigin}/settings?tab=instagram`);
+    const cleanRedirectUri = `${targetOrigin}/settings`;
+    const redirectUri = encodeURIComponent(cleanRedirectUri);
     const encodedScopes = encodeURIComponent(INSTAGRAM_SCOPES);
-    const nonce = Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    const nonce = "instagram_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
     let oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&auth_type=rerequest&return_scopes=true&state=${nonce}`;
     if (configId) {

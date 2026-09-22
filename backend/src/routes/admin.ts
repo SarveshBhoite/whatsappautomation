@@ -1522,31 +1522,48 @@ router.post("/instagram/embedded-signup/callback", async (req: Request, res: Res
     const appId = process.env.META_APP_ID || "36702477879366478";
     const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
 
+    const prodOrigin = process.env.FRONTEND_URL || "https://crm.jisnudigital.com";
+    const redirectCandidates = [
+      "", // 1. Facebook JS SDK (FB.login) flow requires no redirect_uri
+      redirectUri, // 2. Explicit redirectUri sent from caller
+      `${prodOrigin}/settings`, // 3. Production clean settings URL
+      "https://crm.jisnudigital.com/settings",
+      `${prodOrigin}/settings?tab=instagram`,
+      "https://crm.jisnudigital.com/settings?tab=instagram",
+      prodOrigin,
+      "https://crm.jisnudigital.com",
+    ].filter((val, idx, self) => typeof val === "string" && self.indexOf(val) === idx);
+
     let accessToken = "";
-    try {
-      const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
-        params: {
+    let lastExchangeError: any = null;
+
+    for (const rUri of redirectCandidates) {
+      try {
+        const params: any = {
           client_id: appId,
           client_secret: appSecret,
           code: code,
-          redirect_uri: redirectUri || "https://crm.jisnudigital.com/settings?tab=instagram",
-        },
-      });
-      accessToken = tokenResponse.data.access_token;
-    } catch (err1: any) {
-      console.warn("[IG EMBEDDED SIGNUP] Token exchange fallback without redirect_uri...", err1?.response?.data?.error?.message);
-      const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
-        params: {
-          client_id: appId,
-          client_secret: appSecret,
-          code: code,
-        },
-      });
-      accessToken = tokenResponse.data.access_token;
+        };
+        if (rUri) {
+          params.redirect_uri = rUri;
+        }
+        const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", { params });
+        if (tokenResponse.data?.access_token) {
+          accessToken = tokenResponse.data.access_token;
+          console.log(`[IG EMBEDDED SIGNUP] Token exchange succeeded with redirect_uri: "${rUri || "(none - FB JS SDK)"}"`);
+          break;
+        }
+      } catch (err: any) {
+        lastExchangeError = err?.response?.data || err.message;
+      }
     }
 
     if (!accessToken) {
-      return res.status(400).json({ error: "Failed to obtain access token from Meta Graph API" });
+      console.error("[IG EMBEDDED SIGNUP] All redirect_uri candidates failed. Last error:", lastExchangeError);
+      return res.status(400).json({
+        error: "Failed to obtain access token from Meta Graph API",
+        details: lastExchangeError
+      });
     }
 
     // Upgrade user access token to a 60-day long-lived access token
@@ -1694,7 +1711,7 @@ router.post("/instagram/reset-auth", async (req: Request, res: Response) => {
         });
         console.log("[IG RESET AUTH] Revoked Meta permissions via me/permissions");
       } catch (err: any) {
-        console.warn("[IG RESET AUTH] Notice revoking me/permissions:", err?.message);
+        // Page access tokens return 400 on /me/permissions; user permissions will be handled below via debug_token
       }
       try {
         const debugRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
