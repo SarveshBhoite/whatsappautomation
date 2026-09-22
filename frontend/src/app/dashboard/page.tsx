@@ -129,6 +129,8 @@ export default function OverviewDashboardPage() {
   const [activeChartFilter, setActiveChartFilter] = useState<"all" | "inquiries" | "leads" | "reviews">("all");
   const [hoveredPoint, setHoveredPoint] = useState<{ day: string; date: string; value: number; x: number; y: number } | null>(null);
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const getOrgId = () => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("organization_id");
@@ -139,6 +141,7 @@ export default function OverviewDashboardPage() {
 
   const fetchOverview = async (isManual = false) => {
     if (isManual) setRefreshing(true);
+    setErrorMsg(null);
     try {
       const orgId = getOrgId();
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -150,9 +153,13 @@ export default function OverviewDashboardPage() {
       if (res.ok) {
         const json = await res.json();
         setData(json);
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        setErrorMsg(errJson?.error || `Server responded with status ${res.status}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load dashboard overview:", err);
+      setErrorMsg(err?.message || "Failed to connect to backend server");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -276,6 +283,24 @@ export default function OverviewDashboardPage() {
             </Link>
           </div>
         </div>
+
+        {/* Error notification banner if backend request fails */}
+        {errorMsg && (
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between gap-3 text-xs text-rose-800 animate-fadeIn shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+              <span>
+                <strong>Unable to load live dashboard data:</strong> {errorMsg}
+              </span>
+            </div>
+            <button
+              onClick={() => fetchOverview(true)}
+              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition-colors cursor-pointer shrink-0 text-[11px]"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* ── 2. Loading Skeleton or Primary KPI Grid ───────────────────────────── */}
         {loading ? (
