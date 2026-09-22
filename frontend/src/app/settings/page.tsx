@@ -402,6 +402,12 @@ export default function Dashboard() {
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram" | "youtube">("whatsapp");
   const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google" | "youtube" | "api-keys">("whatsapp");
 
+  // Instagram Permissions & App Review Compliance States
+  const [showIgPermInspector, setShowIgPermInspector] = useState(false);
+  const [igPermissionsData, setIgPermissionsData] = useState<any>(null);
+  const [loadingIgPermissions, setLoadingIgPermissions] = useState(false);
+  const [revokingIgPermissions, setRevokingIgPermissions] = useState(false);
+
   // Multi-Account Lists State
   const [waAccounts, setWaAccounts] = useState<any[]>([]);
   const [igAccounts, setIgAccounts] = useState<any[]>([]);
@@ -1555,20 +1561,38 @@ print(res.json())`;
     }
   };
 
-  const handleDisconnectInstagram = async () => {
+  const handleDisconnectInstagram = async (targetAccountId?: string) => {
     if (!confirm("Are you sure you want to disconnect this Instagram Business Account? Incoming DMs and story mentions will no longer route to this CRM.")) return;
     try {
       setIgEmbeddedConnecting(true);
+      const accId = targetAccountId || (igConfig as any).id || igConfig.instagramAccountId;
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/disconnect`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-organization-id": getOrgId(),
         },
+        body: JSON.stringify({
+          accountId: accId,
+          instagramAccountId: igConfig.instagramAccountId,
+          pageId: igConfig.pageId,
+        }),
       });
       if (res.ok) {
         alert("✓ Instagram account disconnected successfully.");
-        setIgConfig(prev => ({ ...prev, instagramAccountId: "", pageId: "", pageAccessToken: "" }));
+        setIgConfig({
+          instagramAccountId: "",
+          pageId: "",
+          pageAccessToken: "",
+          username: "",
+          name: "",
+          profilePic: "",
+        });
+        if (accId) {
+          setIgAccounts(prev => prev.filter(a => a.id !== accId && a.instagramAccountId !== accId));
+        } else {
+          setIgAccounts([]);
+        }
         fetchInstagramConfig();
       } else {
         alert("Failed to disconnect Instagram account.");
@@ -1581,37 +1605,100 @@ print(res.json())`;
     }
   };
 
-  const launchInstagramSignup = () => {
+  // Meta Instagram Scopes
+  const META_INSTAGRAM_SCOPES_LIST = [
+    "instagram_basic",
+    "instagram_manage_messages",
+    "instagram_manage_comments"
+  ];
+
+  // Inspect Live Meta Scopes & Permissions for connected account
+  const inspectInstagramPermissions = async (accountId?: string) => {
+    try {
+      setLoadingIgPermissions(true);
+      setShowIgPermInspector(true);
+      const orgId = getOrgId();
+      const targetId = accountId || igConfig.instagramAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/permissions${targetId ? `?accountId=${encodeURIComponent(targetId)}` : ""}`, {
+        headers: { "x-organization-id": orgId },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIgPermissionsData(data);
+      } else {
+        setIgPermissionsData({ error: data.error || "Could not inspect permissions", details: data.details });
+      }
+    } catch (err: any) {
+      setIgPermissionsData({ error: err.message });
+    } finally {
+      setLoadingIgPermissions(false);
+    }
+  };
+
+  // Revoke Meta permissions to force a fresh permission consent screen (App Review Testing)
+  const handleRevokeInstagramPermissions = async (accountId?: string) => {
+    if (!confirm("This will revoke Meta app authorization on Facebook and remove the connected account from the database.\n\nThe next time you connect, Meta will be forced to display the full, fresh permission consent dialog (essential for Meta App Review testing).\n\nProceed?")) return;
+    try {
+      setRevokingIgPermissions(true);
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/revoke-permissions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId(),
+        },
+        body: JSON.stringify({ accountId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("✓ " + data.message);
+        setShowIgPermInspector(false);
+        setIgConfig(prev => ({ ...prev, instagramAccountId: "", pageId: "", pageAccessToken: "" }));
+        fetchInstagramConfig();
+        fetchIgAccounts();
+      } else {
+        alert("Failed to revoke permissions: " + (data.error || "Unknown error"));
+      }
+    } catch (err: any) {
+      alert("Error revoking permissions: " + err.message);
+    } finally {
+      setRevokingIgPermissions(false);
+    }
+  };
+
+  // Direct Facebook Login / Meta OAuth Flow requesting exclusively the required permissions
+  const launchInstagramSignup = async () => {
     if (typeof window === "undefined") return;
 
     setIgEmbeddedConnecting(true);
+
+    // Call backend to pre-reset Meta authorization cache so Meta ALWAYS asks the user which accounts, pages, and permissions to grant
+    try {
+      await fetch(`${BACKEND_URL}/api/admin/instagram/reset-auth`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId(),
+        },
+      });
+    } catch (err) {
+      console.warn("Notice pre-resetting Meta auth:", err);
+    }
+
     const FB = (window as any).FB;
 
-    // Official Meta Facebook Login scopes for Instagram Graph API
-    // Note: 'instagram_business_*' scopes are only valid on api.instagram.com (Instagram Login).
-    // The facebook.com/dialog/oauth and FB.login endpoints require standard 'instagram_*' scopes:
     const INSTAGRAM_SCOPES = [
       "instagram_basic",
       "instagram_manage_messages",
-      "instagram_manage_comments",
-      "pages_show_list",
-      "pages_read_engagement",
-      "pages_manage_metadata",
-      "pages_messaging",
-      "public_profile",
-      "business_management"
+      "instagram_manage_comments"
     ].join(",");
-
     const configId = process.env.NEXT_PUBLIC_META_INSTAGRAM_CONFIG_ID || "";
 
-    // 1. Primary Automated Flow: Native Facebook JS SDK with Instagram scopes
+    // 1. Primary Automated Flow: Native Facebook JS SDK with exact 3 Instagram Business scopes
     if (FB && window.location.protocol === "https:") {
       try {
         const loginOptions: any = {
           response_type: "code",
           override_default_response_type: true,
-          // CRITICAL: auth_type="rerequest" forces Meta to show "Choose what you allow"
-          // with Page selector dropdown, Instagram Account selector dropdown, and permissions switches
           auth_type: "rerequest",
           return_scopes: true,
         };
@@ -1647,8 +1734,9 @@ print(res.json())`;
 
     const redirectUri = encodeURIComponent(`${targetOrigin}/settings?tab=instagram`);
     const encodedScopes = encodeURIComponent(INSTAGRAM_SCOPES);
+    const nonce = Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
-    let oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&auth_type=rerequest&return_scopes=true`;
+    let oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&auth_type=rerequest&return_scopes=true&state=${nonce}`;
     if (configId) {
       oauthUrl += `&config_id=${configId}`;
     } else {
@@ -1680,7 +1768,7 @@ print(res.json())`;
           return;
         }
 
-        const currentUrl = popup.location.href;
+        const currentUrl = popup.location?.href;
         if (currentUrl && currentUrl.includes("code=")) {
           const urlObj = new URL(currentUrl);
           const code = urlObj.searchParams.get("code");
@@ -2047,7 +2135,7 @@ print(res.json())`;
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.accounts) setIgAccounts(data.accounts);
+        setIgAccounts(data.accounts || []);
       }
     } catch (err) {
       console.warn("Error fetching IG accounts:", err);
@@ -2078,8 +2166,23 @@ print(res.json())`;
       if (!res.ok) return;
       const data = await res.json();
       if (data) {
-        if (data.config) setIgConfig(data.config);
-        if (data.accounts) setIgAccounts(data.accounts);
+        if (data.config) {
+          setIgConfig(data.config);
+        } else {
+          setIgConfig({
+            instagramAccountId: "",
+            pageId: "",
+            pageAccessToken: "",
+            username: "",
+            name: "",
+            profilePic: "",
+          });
+        }
+        if (data.accounts) {
+          setIgAccounts(data.accounts);
+        } else {
+          setIgAccounts([]);
+        }
       }
       fetchIgAccounts();
     } catch (err) {
@@ -4706,7 +4809,7 @@ print(res.json())`;
                           {(igConfig.instagramAccountId || igConfig.pageId) && (
                             <button
                               type="button"
-                              onClick={handleDisconnectInstagram}
+                              onClick={() => handleDisconnectInstagram()}
                               disabled={igEmbeddedConnecting}
                               className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
                             >
@@ -4722,10 +4825,21 @@ print(res.json())`;
                             <Check className="h-4.5 w-4.5" />
                             <span>Status: Connected to Meta Instagram Messaging API</span>
                           </div>
-                          <div className="flex items-center gap-3 text-slate-700 font-mono text-[11px]">
-                            {igConfig.username && <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Handle: <strong className="text-slate-900">@{igConfig.username}</strong></span>}
-                            <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">IG Account ID: <strong className="text-slate-900">{igConfig.instagramAccountId || "Connected"}</strong></span>
-                            <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Page ID: <strong className="text-slate-900">{igConfig.pageId || "Connected"}</strong></span>
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <div className="flex items-center gap-3 text-slate-700 font-mono text-[11px]">
+                              {igConfig.username && <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Handle: <strong className="text-slate-900">@{igConfig.username}</strong></span>}
+                              <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">IG Account ID: <strong className="text-slate-900">{igConfig.instagramAccountId || "Connected"}</strong></span>
+                              <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Page ID: <strong className="text-slate-900">{igConfig.pageId || "Connected"}</strong></span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => inspectInstagramPermissions()}
+                              disabled={loadingIgPermissions}
+                              className="px-3 py-1.5 bg-white hover:bg-pink-100/60 border border-pink-300 text-pink-700 font-bold text-[11px] rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <ShieldCheck className="h-3.5 w-3.5 text-pink-600" />
+                              <span>{loadingIgPermissions ? "Inspecting..." : "Inspect Permissions & Scopes"}</span>
+                            </button>
                           </div>
                         </div>
                       )}
@@ -4795,19 +4909,39 @@ print(res.json())`;
                                   </div>
                                 </div>
 
-                                {!acc.isDefault ? (
+                                <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => setDefaultIgAccount(acc.id)}
-                                    className="px-4 py-2 bg-white hover:bg-pink-50 text-pink-700 border border-slate-200 hover:border-pink-300 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer"
+                                    onClick={() => inspectInstagramPermissions(acc.id)}
+                                    disabled={loadingIgPermissions}
+                                    title="Inspect Meta Permissions & Scopes"
+                                    className="p-2 bg-white hover:bg-pink-50 text-slate-600 hover:text-pink-600 border border-slate-200 hover:border-pink-300 rounded-xl transition-all cursor-pointer shadow-2xs"
                                   >
-                                    Set as Active Account
+                                    <ShieldCheck className="w-4 h-4 text-pink-600" />
                                   </button>
-                                ) : (
-                                  <span className="px-3 py-1 bg-pink-50 text-pink-700 border border-pink-200 font-bold text-xs rounded-xl flex items-center gap-1.5">
-                                    <Check className="w-3.5 h-3.5 stroke-[3]" /> Active Account
-                                  </span>
-                                )}
+                                  {!acc.isDefault ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDefaultIgAccount(acc.id)}
+                                      className="px-4 py-2 bg-white hover:bg-pink-50 text-pink-700 border border-slate-200 hover:border-pink-300 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer"
+                                    >
+                                      Set as Active Account
+                                    </button>
+                                  ) : (
+                                    <span className="px-3 py-1 bg-pink-50 text-pink-700 border border-pink-200 font-bold text-xs rounded-xl flex items-center gap-1.5">
+                                      <Check className="w-3.5 h-3.5 stroke-[3]" /> Active Account
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDisconnectInstagram(acc.id)}
+                                    disabled={igEmbeddedConnecting}
+                                    title="Disconnect this Instagram Account"
+                                    className="p-2 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-300 rounded-xl transition-all cursor-pointer shadow-2xs"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-rose-500" />
+                                  </button>
+                                </div>
                               </div>
                             ))
                           )}
@@ -5971,6 +6105,164 @@ print(res.json())`;
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: LIVE META PERMISSIONS & APP REVIEW INSPECTOR */}
+        {showIgPermInspector && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 space-y-5 shadow-2xl relative max-h-[85vh] flex flex-col">
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-slate-100 pb-3 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-600 shrink-0">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-900">
+                      Meta Permissions &amp; Scopes Inspector
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Live Graph API verification of permissions granted to this Instagram Business Account.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowIgPermInspector(false)}
+                  className="text-slate-400 hover:text-slate-600 font-bold text-base p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="space-y-4 overflow-y-auto pr-1 custom-scrollbar text-xs">
+                {loadingIgPermissions ? (
+                  <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+                    <RefreshCw className="h-6 w-6 animate-spin text-pink-600" />
+                    <span>Querying Meta Graph API token debug endpoint...</span>
+                  </div>
+                ) : igPermissionsData?.error ? (
+                  <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 space-y-1">
+                    <strong className="font-bold flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600" /> Inspection Error:
+                    </strong>
+                    <p className="text-[11px] font-mono">{igPermissionsData.error}</p>
+                    {igPermissionsData.details && (
+                      <p className="text-[10px] text-rose-600 font-mono mt-1">{JSON.stringify(igPermissionsData.details)}</p>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Account & Token Summary */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 grid grid-cols-2 gap-3 text-[11px]">
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">Username</span>
+                        <strong className="font-bold text-slate-900 text-xs">
+                          {igPermissionsData?.account?.username ? `@${igPermissionsData.account.username}` : (igConfig.username ? `@${igConfig.username}` : "Connected Account")}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">Token Status</span>
+                        <span className={`inline-flex items-center gap-1 font-bold text-xs ${igPermissionsData?.isValid ? "text-emerald-700" : "text-rose-700"}`}>
+                          <Check className="w-3.5 h-3.5" /> {igPermissionsData?.isValid ? "VALID & ACTIVE" : "INVALID / EXPIRED"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">Instagram Account ID</span>
+                        <span className="font-mono text-slate-700">{igPermissionsData?.account?.instagramAccountId || igConfig.instagramAccountId}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">Token Scope Count</span>
+                        <strong className="text-slate-900">{igPermissionsData?.granted?.length || 0} granted scopes</strong>
+                      </div>
+                    </div>
+
+                    {/* Scopes Checklist */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-800 uppercase tracking-wider text-[10px]">
+                          Required Scopes Verification
+                        </span>
+                        {igPermissionsData?.allRequiredGranted ? (
+                          <span className="px-2 py-0.5 text-[9px] font-extrabold bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200 flex items-center gap-1">
+                            <Check className="w-3 h-3 stroke-[3]" /> All Required Scopes Granted
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 text-[9px] font-extrabold bg-amber-100 text-amber-800 rounded-full border border-amber-200 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" /> Missing {igPermissionsData?.missingRequired?.length || 0} Scope(s)
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {META_INSTAGRAM_SCOPES_LIST.map((scope) => {
+                          const isGranted = igPermissionsData?.granted?.includes(scope);
+                          return (
+                            <div
+                              key={scope}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between transition-all ${
+                                isGranted
+                                  ? "bg-emerald-50/50 border-emerald-200 text-slate-900"
+                                  : "bg-rose-50/50 border-rose-200 text-rose-900"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 ${
+                                  isGranted ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"
+                                }`}>
+                                  {isGranted ? <Check className="w-3 h-3 stroke-[3]" /> : "✕"}
+                                </span>
+                                <code className="font-mono text-xs font-semibold">{scope}</code>
+                              </div>
+                              <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                                isGranted ? "text-emerald-700" : "text-rose-700"
+                              }`}>
+                                {isGranted ? "Granted" : "Not Granted"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-slate-100 pt-4 flex items-center justify-between gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleRevokeInstagramPermissions()}
+                  disabled={revokingIgPermissions}
+                  className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{revokingIgPermissions ? "Revoking..." : "Revoke Permissions (Test Reconnect)"}</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  {!igPermissionsData?.allRequiredGranted && (
+                    <button
+                      type="button"
+                      onClick={() => launchInstagramSignup()}
+                      className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Re-request Scopes</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowIgPermInspector(false)}
+                    className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -5,6 +5,7 @@ import { processChatbotFlow } from "../services/flowEngine";
 import { WhatsAppService } from "../services/whatsappService";
 import { InstagramService } from "../services/instagramService";
 import { InstagramCommentEngine } from "../services/instagramCommentEngine";
+import { instagramCommentsFeed } from "../routes/admin";
 
 const processedComments = new Set<string>();
 
@@ -111,17 +112,31 @@ export const handleWebhook = async (req: Request, res: Response) => {
             }
           }
 
-          // Emit real-time comment notification via Socket.IO
+          // Emit real-time comment notification via Socket.IO & store in live feed
+          const newCommentPayload = {
+            id: commentId || `cmt_${Date.now()}`,
+            fromUser: fromUser || "instagram_user",
+            commentText: commentText || "",
+            mediaId: mediaId || "",
+            createdAt: new Date().toISOString(),
+            status: "ACTIVE" as const,
+            autoReplyText: ""
+          };
+
+          // Store at the top of the in-memory comments feed (deduplicated)
+          const existingIdx = instagramCommentsFeed.findIndex(c => c.id === newCommentPayload.id);
+          if (existingIdx >= 0) {
+            instagramCommentsFeed[existingIdx] = { ...instagramCommentsFeed[existingIdx], ...newCommentPayload };
+          } else {
+            instagramCommentsFeed.unshift(newCommentPayload);
+          }
+
           const io = req.app.get("io");
-          if (io && igConfig?.organizationId) {
-            io.to(igConfig.organizationId).emit("instagram-comment-received", {
-              id: commentId || `cmt_${Date.now()}`,
-              fromUser,
-              commentText,
-              createdAt: new Date().toISOString(),
-              status: "REPLIED",
-              autoReplyText: `Private DM sent to @${fromUser}`
-            });
+          if (io) {
+            if (igConfig?.organizationId) {
+              io.to(igConfig.organizationId).emit("instagram-comment-received", newCommentPayload);
+            }
+            io.emit("instagram-comment-received", newCommentPayload);
           }
           continue;
         }
