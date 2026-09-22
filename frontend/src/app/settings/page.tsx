@@ -1519,13 +1519,17 @@ print(res.json())`;
   const [igEmbeddedConnecting, setIgEmbeddedConnecting] = useState(false);
   const [igEmbeddedSuccess, setIgEmbeddedSuccess] = useState(false);
 
-  const processInstagramEmbeddedCode = async (code: string) => {
+  const processInstagramEmbeddedCode = async (code: string, source: "fb_sdk" | "popup" = "fb_sdk") => {
     try {
       setIgEmbeddedConnecting(true);
       const orgId = getOrgId();
       const targetOrigin = window.location.origin.startsWith("https://")
         ? window.location.origin
         : "https://crm.jisnudigital.com";
+
+      // If code came from native FB.login SDK, Meta OAuth does NOT use a redirect_uri.
+      // If code came from popup URL redirect, it must match the dialog redirect_uri.
+      const redirectUri = source === "popup" ? `${targetOrigin}/settings?tab=instagram` : "";
 
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/embedded-signup/callback`, {
         method: "POST",
@@ -1535,7 +1539,8 @@ print(res.json())`;
         },
         body: JSON.stringify({
           code,
-          redirectUri: `${targetOrigin}/settings?tab=instagram`,
+          source,
+          redirectUri,
         }),
       });
 
@@ -1775,7 +1780,7 @@ print(res.json())`;
           if (code) {
             clearInterval(pollTimer);
             popup.close();
-            processInstagramEmbeddedCode(code);
+            processInstagramEmbeddedCode(code, "popup");
           }
         }
       } catch {
