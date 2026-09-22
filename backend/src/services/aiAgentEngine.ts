@@ -81,6 +81,8 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
     }
 
     const orgId = conversation.organizationId;
+    const isInstagramConv = conversation.platform === "instagram";
+    const channelName = isInstagramConv ? "Instagram Direct" : "WhatsApp";
     const aiConfig: any = conversation.organization?.aiAgentConfigs?.[0];
 
     // Default configuration if client hasn't saved one yet
@@ -202,7 +204,7 @@ Current Date & Time in IST: ${currentDateStr} at ${currentTimeStr}.
 ${personalityPrompt}
 
 ### RESPONSE LENGTH — CRITICAL RULE:
-Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. Write plain text only — no bullet points, no markdown bold, no numbered lists. Retrieve information naturally across multiple messages like a real human conversation — never dump everything in one long reply.
+Keep every reply SHORT — maximum 2-3 sentences. This is ${channelName}, not email. Write plain text only — no bullet points, no markdown bold, no numbered lists. Retrieve information naturally across multiple messages like a real human conversation — never dump everything in one long reply.
 
 ### STRICT HUMAN CONVERSATIONAL RULES:
 1. **Be Warm, Natural & Conversational**: Speak as a real representative of ${companyName}. Keep messages clear, polite, and engaging.
@@ -274,7 +276,7 @@ ${recentMessages.map(m => {
 ### REQUIRED JSON OUTPUT FORMAT:
 Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no markdown, no long paragraphs:
 {
-  "replyText": "Your short, natural WhatsApp reply here — plain text, 1-3 sentences only. NEVER write links here.",
+  "replyText": "Your short, natural ${channelName} reply here — plain text, 1-3 sentences only. NEVER write links here.",
   "attachKnowledgeIds": ["only_when_customer_explicitly_asks_for_media"],
   "requestedAppointment": {
     "isBookingRequested": true_or_false,
@@ -424,7 +426,7 @@ if (isBookingRequested) {
       customerName,
       customerEmail: extractedEmail || null,
       title: dynamicTitle,
-      description: `Booked via WhatsApp AI Agent. Topic: ${customerQuery}`,
+      description: `Booked via ${isInstagramConv ? 'Instagram' : 'WhatsApp'} AI Agent. Topic: ${customerQuery}`,
       startTime,
       endTime,
       timezone: "Asia/Kolkata",
@@ -448,9 +450,13 @@ if (isBookingRequested) {
 
     const prefix = replyText ? `${replyText}\n\n` : "I have scheduled your consultation right away!\n\n";
 
-    // Attach verified, genuine Google Meet link to the WhatsApp message
+    // Attach verified, genuine Google Meet link to the message
     if (apptResult.meetUrl) {
-      replyText = `${prefix}🎥 *Join Google Meet:* ${apptResult.meetUrl}\n📅 *Time:* ${formattedDate} at ${formattedTime}\n\nLooking forward to speaking with you!`;
+      if (isInstagramConv) {
+        replyText = `${prefix}🎥 Join Google Meet: ${apptResult.meetUrl}\n📅 Time: ${formattedDate} at ${formattedTime}\n\nLooking forward to speaking with you!`;
+      } else {
+        replyText = `${prefix}🎥 *Join Google Meet:* ${apptResult.meetUrl}\n📅 *Time:* ${formattedDate} at ${formattedTime}\n\nLooking forward to speaking with you!`;
+      }
     }
 
     console.log(`[AI AGENT ENGINE] 🚀 Authentic Google Meet link generated & saved to Appointments for ${customerName} (${customerPhone}): ${apptResult.meetUrl}`);
@@ -502,12 +508,15 @@ if (isWhatsApp && waConfig?.phoneNumberId && waConfig?.accessToken) {
     replyText
   );
   outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
-} else if (isInstagram && igConfig?.pageId && igConfig?.pageAccessToken) {
-  await InstagramService.sendTextMessage(
+} else if (isInstagram && igConfig?.pageAccessToken) {
+  const igPageOrAccountId = igConfig.pageId || igConfig.instagramAccountId;
+  const resData = await InstagramService.sendTextMessage(
     igConfig.pageAccessToken,
     customerPhone,
-    replyText
+    replyText,
+    igPageOrAccountId
   );
+  outWaId = resData?.message_id || null;
 } else if (isYouTube && ytConfig?.accessToken) {
   await YouTubeService.sendCommentReply(
     ytConfig.channelId || "",
@@ -585,14 +594,17 @@ for (const attachedItem of attachedItems) {
       );
       mediaWaId = resMediaData?.messages?.[0]?.id || resMediaData?.message_id || null;
     } else if (isInstagram && igConfig?.pageAccessToken) {
-      await InstagramService.sendMediaMessage(
+      const igPageOrAccountId = igConfig.pageId || igConfig.instagramAccountId;
+      const igMediaRes = await InstagramService.sendMediaMessage(
         igConfig.pageAccessToken,
         customerPhone,
         mediaType === "document" ? "document" : "image",
         singleMediaUrl,
         attachedItem.mediaTitle || undefined,
-        mediaCaption
+        mediaCaption || undefined,
+        igPageOrAccountId
       );
+      mediaWaId = igMediaRes?.message_id || null;
     }
 
     // Save media message in DB
@@ -662,10 +674,11 @@ if (isLeadExpressingInterest) {
   const adAttributionTag = clickedAdHeadline ? `[Meta Ad: "${clickedAdHeadline}"] ` : "";
   const notesText = (leadData.notes && leadData.notes !== "additional_notes_or_null")
     ? `${adAttributionTag}${leadData.notes}`
-    : `${adAttributionTag}Discussed ${topicSummary} via ${conversation.platform || 'WhatsApp'}`;
+    : `${adAttributionTag}Discussed ${topicSummary} via ${conversation.platform === 'instagram' ? 'Instagram' : conversation.platform || 'WhatsApp'}`;
 
   const leadRemark = clickedAdHeadline ? `Meta Ad: ${clickedAdHeadline}` : undefined;
-  const leadName = (leadData.name && leadData.name !== "extracted_name_or_null") ? leadData.name : (conversation.customerName || "WhatsApp Lead");
+  const leadPlatformFallback = isInstagram ? "Instagram Lead" : "WhatsApp Lead";
+  const leadName = (leadData.name && leadData.name !== "extracted_name_or_null") ? leadData.name : (conversation.customerName || leadPlatformFallback);
   const leadEmail = (leadData.email && leadData.email !== "extracted_email_or_null") ? leadData.email : null;
 
   try {
@@ -677,7 +690,7 @@ if (isLeadExpressingInterest) {
       await prisma.aiCapturedLead.update({
         where: { id: existingLead.id },
         data: {
-          customerName: leadName !== "WhatsApp Lead" ? leadName : existingLead.customerName,
+          customerName: leadName !== leadPlatformFallback ? leadName : existingLead.customerName,
           email: leadEmail || existingLead.email,
           topicDiscussed: topicSummary.slice(0, 255),
           notes: notesText,
@@ -719,6 +732,7 @@ console.log(`[AI AGENT ENGINE] Replied to ${customerPhone} with "${replyText.sli
     if (fallbackConv && !fallbackConv.isBotPaused) {
       const fallbackText = "Thank you for reaching out to Jisnu Digital Solutions! Our senior representative has received your message and will guide you personally in just a moment.";
       const waConfig = fallbackConv.organization.waConfigs?.find((c: any) => c.isDefault) || fallbackConv.organization.waConfigs?.[0];
+      const igConfig = fallbackConv.organization.igConfigs?.find((c: any) => c.isDefault) || fallbackConv.organization.igConfigs?.[0];
       const customerPhone = fallbackConv.customerPhone;
 
       let outWaId: string | null = null;
@@ -730,6 +744,14 @@ console.log(`[AI AGENT ENGINE] Replied to ${customerPhone} with "${replyText.sli
           fallbackText
         );
         outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
+      } else if (fallbackConv.platform === "instagram" && igConfig?.pageAccessToken) {
+        const resData = await InstagramService.sendTextMessage(
+          igConfig.pageAccessToken,
+          customerPhone,
+          fallbackText,
+          igConfig.pageId || igConfig.instagramAccountId
+        );
+        outWaId = resData?.message_id || null;
       }
 
       const savedFallback = await prisma.message.create({

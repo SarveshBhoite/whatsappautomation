@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Sparkles,
   MessageSquare,
-  GitMerge,
   Settings,
   Send,
   Bot,
@@ -336,18 +335,20 @@ interface InstagramConfig {
   isActive?: boolean;
 }
 
+const NODE_TYPES = {
+  welcomeNode: WelcomeNodeComponent,
+  textNode: TextNodeComponent,
+  buttonsNode: ButtonsNodeComponent,
+  listNode: ListNodeComponent,
+  questionNode: QuestionNodeComponent,
+  mediaNode: MediaNodeComponent,
+};
+
+const EDGE_TYPES = {};
+
 export default function Dashboard() {
-  const nodeTypes = useMemo(
-    () => ({
-      welcomeNode: WelcomeNodeComponent,
-      textNode: TextNodeComponent,
-      buttonsNode: ButtonsNodeComponent,
-      listNode: ListNodeComponent,
-      questionNode: QuestionNodeComponent,
-      mediaNode: MediaNodeComponent,
-    }),
-    []
-  );
+  const nodeTypes = NODE_TYPES;
+  const edgeTypes = EDGE_TYPES;
 
   const [activeTab, setActiveTab] = useState<"chats_instagram" | "comments" | "profile" | "flows" | "settings">("chats_instagram");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
@@ -1382,20 +1383,6 @@ export default function Dashboard() {
           >
             <User className="h-3.5 w-3.5" /> Profile & API Config
           </button>
-
-          <button
-            onClick={() => {
-              setActiveTab("flows");
-              setSelectedPlatform("instagram");
-            }}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === "flows"
-                ? "bg-white text-brand-blue border border-slate-200 shadow-xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-            }`}
-          >
-            <GitMerge className="h-3.5 w-3.5" /> Flow Builder
-          </button>
         </div>
       </header>
 
@@ -2063,6 +2050,7 @@ export default function Dashboard() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             fitView
           >
             <Controls className="bg-slate-900 border border-slate-800 text-slate-200" />

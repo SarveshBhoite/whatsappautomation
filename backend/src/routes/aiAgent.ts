@@ -30,6 +30,8 @@ router.get("/config", async (req: Request, res: Response) => {
           greetingMessage: "Hello! How can I help you with our services today?",
           activeMode: "AI_AGENT",
           isActive: true,
+          whatsappAiEnabled: true,
+          instagramAiEnabled: true,
           autoSendMedia: true,
         },
       });
@@ -86,7 +88,7 @@ router.post("/config", async (req: Request, res: Response) => {
         isActive: isActive !== undefined ? Boolean(isActive) : true,
         groqApiKey: groqApiKey ? String(groqApiKey).trim() : null,
         whatsappAiEnabled: whatsappAiEnabled !== undefined ? Boolean(whatsappAiEnabled) : true,
-        instagramAiEnabled: instagramAiEnabled !== undefined ? Boolean(instagramAiEnabled) : false,
+        instagramAiEnabled: instagramAiEnabled !== undefined ? Boolean(instagramAiEnabled) : true,
         youtubeAiEnabled: youtubeAiEnabled !== undefined ? Boolean(youtubeAiEnabled) : false,
         linkedinAiEnabled: linkedinAiEnabled !== undefined ? Boolean(linkedinAiEnabled) : false,
         autoSendMedia: autoSendMedia !== undefined ? Boolean(autoSendMedia) : true,

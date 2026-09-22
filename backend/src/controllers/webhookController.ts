@@ -215,6 +215,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
       let messageType = "text";
       let content = "";
       let mimeType: string | undefined = undefined;
+      let messageMediaUrl: string | undefined = undefined;
 
       if (message.quick_reply) {
         content = message.text || message.quick_reply.payload || "";
@@ -235,12 +236,20 @@ export const handleWebhook = async (req: Request, res: Response) => {
           messageType = "image";
         }
         
-        const mediaUrl = attachment.payload?.url || "";
+        messageMediaUrl = attachment.payload?.url || "";
         if (messageType === "document") {
-          content = `instagram_file.pdf|${mediaUrl}`;
+          content = `instagram_file.pdf|${messageMediaUrl}`;
         } else {
-          content = mediaUrl;
+          content = messageMediaUrl || "";
         }
+      }
+
+      // Check for Meta Ad click referral (Click-to-Instagram Direct Ad)
+      const referral = (messagingObj as any).referral || (message as any).referral;
+      if (referral) {
+        const adHeadline = referral.headline || referral.body || referral.ref || "Meta Ad Promotion";
+        console.log(`[META AD REFERRAL]: Customer clicked Instagram Ad "${adHeadline}"`);
+        content = `[Customer clicked Meta Ad: "${adHeadline}"] ${content}`;
       }
 
       // Find or create conversation
@@ -300,6 +309,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           messageType,
           content,
           mediaMimeType: mimeType,
+          mediaUrl: messageMediaUrl || null,
           waMessageId: mid,
           status: isEcho ? "sent" : "read",
           createdAt: timestamp,
@@ -312,6 +322,15 @@ export const handleWebhook = async (req: Request, res: Response) => {
         conversationId: conversation.id,
         message: savedMessage,
       });
+
+      // For inbound media messages, update content to virtual text so AI acknowledges receipt naturally
+      if (!isEcho && ["image", "document", "video", "audio", "voice"].includes(messageType)) {
+        const mediaLabel = messageType === "document" ? "document" : messageType;
+        await prisma.message.update({
+          where: { id: savedMessage.id },
+          data: { content: `[Received ${messageType}: ${mediaLabel}] Please acknowledge receipt and continue the conversation.` }
+        });
+      }
 
       // Trigger chatbot flow
       if (!isEcho && !conversation.isBotPaused) {

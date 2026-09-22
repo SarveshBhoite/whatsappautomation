@@ -93,7 +93,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     if (isWhatsApp) {
       isPlatformAiEnabled = !aiConfig || aiConfig.whatsappAiEnabled !== false;
     } else if (isInstagram) {
-      isPlatformAiEnabled = aiConfig?.instagramAiEnabled === true;
+      isPlatformAiEnabled = !aiConfig || aiConfig.instagramAiEnabled !== false;
     } else if (isYouTube) {
       isPlatformAiEnabled = aiConfig?.youtubeAiEnabled === true;
     } else if (isLinkedIn) {
