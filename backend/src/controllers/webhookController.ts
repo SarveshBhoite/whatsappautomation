@@ -30,7 +30,16 @@ export const verifyWebhook = async (req: Request, res: Response) => {
       });
 
       if (matchingWaConfig) {
-        console.log(`[WEBHOOK VERIFY] Meta Webhook verified successfully for Org: ${matchingWaConfig.organizationId}`);
+        console.log(`[WEBHOOK VERIFY] Meta Webhook verified successfully for WhatsApp Org: ${matchingWaConfig.organizationId}`);
+        return res.status(200).send(challenge);
+      }
+
+      const matchingIgConfig = await prisma.instagramConfig.findFirst({
+        where: { webhookVerifyToken: token }
+      });
+
+      if (matchingIgConfig) {
+        console.log(`[WEBHOOK VERIFY] Meta Webhook verified successfully for Instagram Org: ${matchingIgConfig.organizationId}`);
         return res.status(200).send(challenge);
       }
 
@@ -169,14 +178,30 @@ export const handleWebhook = async (req: Request, res: Response) => {
         include: { organization: true }
       });
 
+      if (!igConfig && entry?.id) {
+        igConfig = await prisma.instagramConfig.findFirst({
+          where: {
+            OR: [
+              { instagramAccountId: entry.id },
+              { pageId: entry.id }
+            ]
+          },
+          include: { organization: true }
+        });
+      }
+
       if (!igConfig) {
-        // Fallback to first available config if only 1 config exists
-        const count = await prisma.instagramConfig.count();
-        if (count === 1) {
-          igConfig = await prisma.instagramConfig.findFirst({
-            include: { organization: true }
-          });
-        }
+        igConfig = await prisma.instagramConfig.findFirst({
+          where: { isDefault: true, isActive: true },
+          include: { organization: true }
+        });
+      }
+
+      if (!igConfig) {
+        igConfig = await prisma.instagramConfig.findFirst({
+          where: { isActive: true },
+          include: { organization: true }
+        });
       }
 
       if (!igConfig) {
@@ -228,14 +253,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
       });
 
       let contactName = `Instagram User (${customerPhone.substring(0, 5)}...)`;
-      if (!isEcho && igConfig.pageAccessToken) {
+      if (!isEcho) {
         try {
-          const profile = await InstagramService.getUserProfile(igConfig.pageAccessToken, customerPhone);
-          if (profile && (profile.name || profile.username)) {
-            contactName = profile.name || `@${profile.username}`;
+          const tokenToUse = igConfig.pageAccessToken || process.env.META_SYSTEM_USER_TOKEN || process.env.INSTAGRAM_ACCESS_TOKEN;
+          if (tokenToUse) {
+            const profile = await InstagramService.getUserProfile(tokenToUse, customerPhone);
+            if (profile && (profile.name || profile.username)) {
+              contactName = profile.name && profile.username
+                ? `${profile.name} (@${profile.username})`
+                : (profile.name || `@${profile.username}`);
+            }
           }
         } catch (err: any) {
-          // Profile lookup permissions require instagram_manage_messages; fallback cleanly
           console.warn("Instagram user profile lookup skipped:", err?.message || err);
         }
       }
@@ -257,7 +286,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           where: { id: conversation.id },
           data: {
             updatedAt: new Date(),
-            ...(contactName !== "Instagram User" && conversation.customerName !== contactName ? { customerName: contactName } : {}),
+            ...(!contactName.startsWith("Instagram User") && conversation.customerName !== contactName ? { customerName: contactName } : {}),
             ...(!conversation.accountHandle && (igConfig.username || igConfig.instagramAccountId) ? { accountHandle: igConfig.username || igConfig.instagramAccountId } : {}),
           },
         });
