@@ -2469,6 +2469,144 @@ Return ONLY a JSON object:
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// NATIVE GOOGLE ADS RECOMMENDATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/recommendations
+ * Fetches official recommendations from Google Ads API for the specified customer.
+ */
+router.get("/recommendations", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const recommendations = await GoogleAdsService.listRecommendations(orgId, customerId);
+    res.status(200).json({ success: true, recommendations });
+  } catch (error: any) {
+    console.error("[recommendations GET] error:", error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.message || "Failed to retrieve Google Ads recommendations",
+      code: error?.code || "RECOMMENDATIONS_FETCH_ERROR"
+    });
+  }
+});
+
+/**
+ * POST /api/ads/recommendations/apply
+ * Applies a specific recommendation on Google Ads.
+ * Body: { customerId, resourceName }
+ */
+router.post("/recommendations/apply", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const { resourceName } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!resourceName || typeof resourceName !== "string") {
+      return res.status(400).json({ error: "resourceName is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const result = await GoogleAdsService.applyRecommendation(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, message: "Recommendation applied successfully", result });
+  } catch (error: any) {
+    console.error("[recommendations/apply POST] error:", error?.message);
+    res.status(500).json({
+      error: error?.message || "Failed to apply recommendation",
+      code: "RECOMMENDATION_APPLY_ERROR"
+    });
+  }
+});
+
+/**
+ * POST /api/ads/recommendations/dismiss
+ * Dismisses a specific recommendation on Google Ads.
+ * Body: { customerId, resourceName }
+ */
+router.post("/recommendations/dismiss", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const { resourceName } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!resourceName || typeof resourceName !== "string") {
+      return res.status(400).json({ error: "resourceName is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const result = await GoogleAdsService.dismissRecommendation(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, message: "Recommendation dismissed", result });
+  } catch (error: any) {
+    console.error("[recommendations/dismiss POST] error:", error?.message);
+    res.status(500).json({
+      error: error?.message || "Failed to dismiss recommendation",
+      code: "RECOMMENDATION_DISMISS_ERROR"
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANGE HISTORY (change_event) - READ ONLY
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/change-history
+ * Retrieves read-only change events from Google Ads API for the specified customer.
+ * Query params: customerId, startDate, endDate, changeResourceType, userEmail, limit
+ */
+router.get("/change-history", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const { startDate, endDate, changeResourceType, userEmail, limit } = req.query;
+
+    const changeHistory = await GoogleAdsService.listChangeHistory(orgId, customerId, {
+      startDate: startDate as string,
+      endDate: endDate as string,
+      changeResourceType: changeResourceType as string,
+      userEmail: userEmail as string,
+      limit: limit ? Number(limit) : 50
+    });
+
+    res.status(200).json({ success: true, changeHistory });
+  } catch (error: any) {
+    console.error("[change-history GET] error:", error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.message || "Failed to retrieve Google Ads change history",
+      code: error?.code || "CHANGE_HISTORY_FETCH_ERROR"
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GOOGLE ADS ACCOUNT HEALTH, BILLING, TRACKING, GOALS & READINESS
 // ─────────────────────────────────────────────────────────────────────────────
 

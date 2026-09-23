@@ -3578,6 +3578,265 @@ export class GoogleAdsService {
       checks
     };
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // NATIVE GOOGLE ADS RECOMMENDATIONS (GAP-RECOMMENDATIONS)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Retrieves official recommendations from Google Ads API for the specified customer account.
+   */
+  public static async listRecommendations(organizationId: string, customerId: string) {
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const query = `
+      SELECT
+        recommendation.resource_name,
+        recommendation.type,
+        recommendation.impact.base_metrics.impressions,
+        recommendation.impact.base_metrics.clicks,
+        recommendation.impact.base_metrics.cost_micros,
+        recommendation.impact.base_metrics.conversions,
+        recommendation.impact.potential_metrics.impressions,
+        recommendation.impact.potential_metrics.clicks,
+        recommendation.impact.potential_metrics.cost_micros,
+        recommendation.impact.potential_metrics.conversions,
+        recommendation.campaign,
+        recommendation.ad_group,
+        recommendation.dismissed,
+        campaign.name,
+        campaign.status,
+        ad_group.name,
+        ad_group.status
+      FROM recommendation
+      WHERE recommendation.dismissed = FALSE
+    `;
+
+    try {
+      const rows = await this.gaqlSearch(organizationId, cleanCid, query);
+      return rows.map((r: any) => {
+        const rec = r.recommendation || {};
+        const base = rec.impact?.baseMetrics || {};
+        const potential = rec.impact?.potentialMetrics || {};
+
+        const baseCost = base.costMicros ? Number(base.costMicros) / 1_000_000 : 0;
+        const potCost = potential.costMicros ? Number(potential.costMicros) / 1_000_000 : 0;
+        const baseClicks = base.clicks ? Number(base.clicks) : 0;
+        const potClicks = potential.clicks ? Number(potential.clicks) : 0;
+        const baseImpr = base.impressions ? Number(base.impressions) : 0;
+        const potImpr = potential.impressions ? Number(potential.impressions) : 0;
+        const baseConv = base.conversions ? Number(base.conversions) : 0;
+        const potConv = potential.conversions ? Number(potential.conversions) : 0;
+
+        const deltaClicks = potClicks - baseClicks;
+        const deltaCost = potCost - baseCost;
+        const deltaConv = potConv - baseConv;
+
+        // Extract ID from resource name "customers/123/recommendations/456"
+        const resourceName = rec.resourceName || "";
+        const id = resourceName ? resourceName.split("/").pop() : "";
+
+        // Determine if safe to mutate via applyRecommendation in API
+        // Most common automated apply types; others remain view-only
+        const typeStr = rec.type || "UNKNOWN";
+        const isAppliable = [
+          "CAMPAIGN_BUDGET",
+          "KEYWORD",
+          "TEXT_AD",
+          "TARGET_CPA_OPT_IN",
+          "MAXIMIZE_CONVERSIONS_OPT_IN",
+          "ENHANCED_CPC_OPT_IN",
+          "SEARCH_PARTNERS_OPT_IN",
+          "MAXIMIZE_CLICKS_OPT_IN",
+          "OPTIMIZE_AD_ROTATION",
+          "CALLOUT_ASSET",
+          "SITELINK_ASSET",
+          "CALL_ASSET",
+          "RESPONSIVE_SEARCH_AD",
+          "RAISE_TARGET_CPA_BID_TOO_LOW",
+          "USE_BROAD_MATCH_KEYWORD",
+          "DISPLAY_EXPANSION_OPT_IN"
+        ].includes(typeStr);
+
+        return {
+          id,
+          resourceName,
+          type: typeStr,
+          dismissed: Boolean(rec.dismissed),
+          campaignResourceName: rec.campaign || null,
+          campaignName: r.campaign?.name || null,
+          campaignStatus: r.campaign?.status || null,
+          adGroupResourceName: rec.adGroup || null,
+          adGroupName: r.adGroup?.name || null,
+          adGroupStatus: r.adGroup?.status || null,
+          isAppliable,
+          impact: {
+            hasImpact: potClicks > 0 || potCost > 0 || potConv > 0 || potImpr > 0,
+            baseClicks,
+            potentialClicks: potClicks,
+            deltaClicks,
+            baseCost,
+            potentialCost: potCost,
+            deltaCost,
+            baseConversions: baseConv,
+            potentialConversions: potConv,
+            deltaConversions: deltaConv
+          },
+          details: rec
+        };
+      });
+    } catch (err: any) {
+      console.warn(`[GoogleAdsService.listRecommendations] Error querying for cid ${cleanCid}:`, err?.response?.data || err.message);
+      throw err;
+    }
+  }
+
+  /**
+   * Applies a specific recommendation on Google Ads via RecommendationService:applyRecommendations
+   */
+  public static async applyRecommendation(organizationId: string, customerId: string, resourceName: string) {
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const { headers } = await this.getAdsHeaders(organizationId, cleanCid);
+    const url = `${ADS_BASE}/customers/${cleanCid}/recommendations:applyRecommendations`;
+
+    const payload = {
+      operations: [
+        {
+          resourceName
+        }
+      ]
+    };
+
+    try {
+      const response = await axios.post(url, payload, { headers });
+      return response.data;
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error?.message || err.message;
+      console.error(`[GoogleAdsService.applyRecommendation] Failed:`, err?.response?.data || err.message);
+      throw new Error(`Google Ads API failed to apply recommendation: ${errMsg}`);
+    }
+  }
+
+  /**
+   * Dismisses a recommendation on Google Ads via RecommendationService:dismissRecommendations
+   */
+  public static async dismissRecommendation(organizationId: string, customerId: string, resourceName: string) {
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const { headers } = await this.getAdsHeaders(organizationId, cleanCid);
+    const url = `${ADS_BASE}/customers/${cleanCid}/recommendations:dismissRecommendations`;
+
+    const payload = {
+      operations: [
+        {
+          resourceName
+        }
+      ]
+    };
+
+    try {
+      const response = await axios.post(url, payload, { headers });
+      return response.data;
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error?.message || err.message;
+      console.error(`[GoogleAdsService.dismissRecommendation] Failed:`, err?.response?.data || err.message);
+      throw new Error(`Google Ads API failed to dismiss recommendation: ${errMsg}`);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CHANGE HISTORY (change_event) - READ ONLY
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Retrieves change history (audit trail) from Google Ads API for the specified customer account.
+   */
+  public static async listChangeHistory(organizationId: string, customerId: string, options: {
+    startDate?: string;
+    endDate?: string;
+    changeResourceType?: string;
+    userEmail?: string;
+    limit?: number;
+  } = {}) {
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const limit = Math.min(Math.max(Number(options.limit) || 50, 1), 100);
+
+    // Build conditions: change_event supports filtering by change_date_time, change_resource_type, etc.
+    const whereClauses: string[] = [];
+
+    // Date range: if provided as YYYY-MM-DD, format to Google Ads change_date_time range
+    if (options.startDate && options.endDate) {
+      whereClauses.push(`change_event.change_date_time >= '${options.startDate} 00:00:00'`);
+      whereClauses.push(`change_event.change_date_time <= '${options.endDate} 23:59:59'`);
+    } else {
+      // Default to last 30 days
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const today = new Date().toISOString().split("T")[0];
+      whereClauses.push(`change_event.change_date_time >= '${thirtyDaysAgo} 00:00:00'`);
+      whereClauses.push(`change_event.change_date_time <= '${today} 23:59:59'`);
+    }
+
+    if (options.changeResourceType && options.changeResourceType !== "ALL") {
+      whereClauses.push(`change_event.change_resource_type = '${options.changeResourceType}'`);
+    }
+
+    if (options.userEmail && options.userEmail.trim()) {
+      whereClauses.push(`change_event.user_email = '${options.userEmail.trim()}'`);
+    }
+
+    const whereStr = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+    const query = `
+      SELECT
+        change_event.resource_name,
+        change_event.change_date_time,
+        change_event.change_resource_type,
+        change_event.change_resource_name,
+        change_event.client_type,
+        change_event.user_email,
+        change_event.old_resource,
+        change_event.new_resource,
+        change_event.resource_change_operation,
+        change_event.changed_fields,
+        campaign.id,
+        campaign.name,
+        campaign.status,
+        ad_group.id,
+        ad_group.name,
+        ad_group.status
+      FROM change_event
+      ${whereStr}
+      ORDER BY change_event.change_date_time DESC
+      LIMIT ${limit}
+    `;
+
+    try {
+      const rows = await this.gaqlSearch(organizationId, cleanCid, query);
+      return rows.map((r: any) => {
+        const ce = r.changeEvent || {};
+
+        return {
+          resourceName: ce.resourceName || "",
+          changeDateTime: ce.changeDateTime || "",
+          changeResourceType: ce.changeResourceType || "UNKNOWN",
+          changeResourceName: ce.changeResourceName || "",
+          clientType: ce.clientType || "UNKNOWN",
+          userEmail: ce.userEmail || "System / Automated",
+          resourceChangeOperation: ce.resourceChangeOperation || "UPDATE",
+          changedFields: ce.changedFields || null,
+          oldResource: ce.oldResource || null,
+          newResource: ce.newResource || null,
+          campaignId: r.campaign?.id ? String(r.campaign.id) : null,
+          campaignName: r.campaign?.name || null,
+          campaignStatus: r.campaign?.status || null,
+          adGroupId: r.adGroup?.id ? String(r.adGroup.id) : null,
+          adGroupName: r.adGroup?.name || null,
+          adGroupStatus: r.adGroup?.status || null
+        };
+      });
+    } catch (err: any) {
+      console.warn(`[GoogleAdsService.listChangeHistory] Error querying for cid ${cleanCid}:`, err?.response?.data || err.message);
+      throw err;
+    }
+  }
 }
 
 

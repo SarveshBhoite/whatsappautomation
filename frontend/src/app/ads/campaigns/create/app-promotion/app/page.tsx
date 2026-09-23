@@ -107,6 +107,8 @@ export default function AppPromotionWizard() {
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [customerProfile, setCustomerProfile] = useState<any | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishError, setPublishError] = useState("");
 
@@ -600,6 +602,40 @@ export default function AppPromotionWizard() {
         .catch(() => {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
         });
+
+      // Fetch customer profile for mobile app verification
+      setIsLoadingProfile(true);
+      fetch(`${BACKEND}/api/ads/customer-profile?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(customerId)}`)
+        .then(r => r.json())
+        .then(prof => {
+          if (prof && prof.success !== false) {
+            setCustomerProfile(prof);
+            // If apps exist in profile, prefill selectedMobileApp if none set
+            const profileApps = Array.isArray(prof.appDetails) ? prof.appDetails : [];
+            if (profileApps.length > 0) {
+              const firstApp = profileApps[0];
+              const plat = firstApp.platform === "IOS" ? "IOS" : "ANDROID";
+              setMobileAppPlatform(plat);
+              setSelectedMobileApp({
+                name: firstApp.appName || firstApp.appId,
+                packageName: firstApp.appId,
+                icon: "https://ik.imagekit.io/automationjds/sample_web_portfolio.png",
+                publisher: prof.businessName || "Google Profile App",
+                rating: "Connected",
+                downloads: "Profile Linked",
+                store: plat === "IOS" ? "Apple App Store" : "Google Play Store"
+              });
+            }
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load customer profile for app verification", err);
+        })
+        .finally(() => {
+          setIsLoadingProfile(false);
+        });
+    } else {
+      setIsLoadingProfile(false);
     }
 
     // Prefill from AI Guided flow if present
@@ -873,6 +909,110 @@ export default function AppPromotionWizard() {
                   </div>
                   <div className="space-y-4 text-xs">
 
+                    {/* Google App API / Profile Connection Check */}
+                    {(() => {
+                      const isConnected = Boolean(customerProfile?.hasAppAccount) && Array.isArray(customerProfile?.appDetails) && customerProfile.appDetails.length > 0;
+                      const profileApps = Array.isArray(customerProfile?.appDetails) ? customerProfile.appDetails : [];
+
+                      if (!isConnected) {
+                        return (
+                          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3">
+                                <div className="p-2 rounded-lg bg-amber-100 text-amber-700 shrink-0 mt-0.5">
+                                  <Smartphone className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <h4 className="text-sm font-bold text-amber-900">Mobile App API Not Connected</h4>
+                                  <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                                    Your Google Ads profile does not have a linked mobile application yet. Connect your Google Play Console or Apple App Store app to proceed with verified App campaigns.
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}
+                                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
+                              >
+                                <span>Connect Now</span>
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <p className="text-[11px] text-amber-800/80 pl-11">
+                              Check your Google Ads profile &gt; <strong>Merchant &amp; Mobile Apps</strong> tab to enable Mobile Apps and link your Google Play or App Store package.
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/60 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                              <span className="text-xs font-bold text-emerald-900">
+                                Google App Connected ({profileApps.length} App{profileApps.length > 1 ? "s" : ""} Linked in Profile)
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}
+                              className="text-[11px] font-semibold text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>Manage in Profile</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </button>
+                          </div>
+
+                          {/* Quick pick from profile apps */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            {profileApps.map((pApp: any, idx: number) => {
+                              const isCurSelected = selectedMobileApp?.packageName === pApp.appId;
+                              return (
+                                <div
+                                  key={pApp.id || idx}
+                                  onClick={() => {
+                                    const plat = pApp.platform === "IOS" ? "IOS" : "ANDROID";
+                                    setMobileAppPlatform(plat);
+                                    setSelectedMobileApp({
+                                      name: pApp.appName || pApp.appId,
+                                      packageName: pApp.appId,
+                                      icon: "https://ik.imagekit.io/automationjds/sample_web_portfolio.png",
+                                      publisher: customerProfile?.businessName || "Profile App",
+                                      rating: "Connected",
+                                      downloads: "Profile Linked",
+                                      store: plat === "IOS" ? "Apple App Store" : "Google Play Store"
+                                    });
+                                  }}
+                                  className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                                    isCurSelected
+                                      ? "bg-white border-primary shadow-xs ring-1 ring-primary"
+                                      : "bg-white/80 border-emerald-200 hover:bg-white"
+                                  }`}
+                                >
+                                  <div className="min-w-0 pr-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                        pApp.platform === "IOS" ? "bg-slate-900 text-white" : "bg-emerald-600 text-white"
+                                      }`}>
+                                        {pApp.platform === "IOS" ? "iOS" : "Android"}
+                                      </span>
+                                      <span className="text-xs font-bold text-slate-900 truncate">
+                                        {pApp.appName || pApp.appId}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] font-mono text-slate-500 truncate block mt-0.5">
+                                      {pApp.appId}
+                                    </span>
+                                  </div>
+                                  {isCurSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     <div className="space-y-3">
                       <label className="text-slate-700 font-semibold block">Mobile app platform</label>
