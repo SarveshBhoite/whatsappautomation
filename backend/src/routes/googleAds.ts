@@ -277,12 +277,11 @@ router.get("/customer-profile", async (req, res) => {
     }
 
     // 1. Fetch organization & user details
-    const org = await (prisma.organization as any).findUnique({
+    const org = await prisma.organization.findUnique({
       where: { id: orgId },
       include: {
         users: { select: { id: true, name: true, email: true, role: true } },
-        gmbConfig: true,
-        aiAgentConfig: true,
+        gmbConfigs: { take: 1 },
         googleAdAccounts: { where: { customerId: cleanCid } }
       }
     });
@@ -290,7 +289,7 @@ router.get("/customer-profile", async (req, res) => {
     const currentAccount = org?.googleAdAccounts?.[0] || null;
     const firstUser = org?.users?.[0];
     const orgName = org?.name || "Organization";
-    const gmbLocation = org?.gmbConfig?.locationName || "";
+    const gmbLocation = org?.gmbConfigs?.[0]?.locationName || "";
 
     // 2. Query live Google Ads account details
     let liveInfo: any = null;
