@@ -209,7 +209,8 @@ export default function OverviewDashboardPage() {
 
     const points = values.map((val, idx) => {
       const x = idx * stepX;
-      const y = height - (val / maxVal) * (height - 30) - 15;
+      // Headroom: keep points strictly within y = 28 to y = 135 so top data points and their tooltips never overflow the chart container
+      const y = height - (val / maxVal) * (height - 45) - 15;
       return { x, y, value: val, day: data.trendDays[idx].day, date: data.trendDays[idx].date };
     });
 
@@ -454,8 +455,8 @@ export default function OverviewDashboardPage() {
                   </div>
                 </div>
 
-                {/* SVG Vector Area Chart */}
-                <div className="relative w-full overflow-hidden pt-2">
+                {/* SVG Vector Area Chart with safe headroom */}
+                <div className="relative w-full pt-6 pb-2">
                   <svg viewBox="0 0 500 150" className="w-full h-44 overflow-visible">
                     <defs>
                       <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -502,18 +503,26 @@ export default function OverviewDashboardPage() {
                     ))}
                   </svg>
 
-                  {/* Hover Tooltip Overlay */}
+                  {/* Hover Tooltip Overlay - z-50 with smart positioning (flipped down if point is near the top) */}
                   {hoveredPoint && (
                     <div
-                      className="absolute z-10 bg-slate-900 text-white px-2.5 py-1 rounded-xl text-[10px] font-bold shadow-lg pointer-events-none -translate-x-1/2 -translate-y-8"
-                      style={{ left: `${(hoveredPoint.x / 500) * 100}%`, top: `${(hoveredPoint.y / 150) * 100}%` }}
+                      className={`absolute z-50 bg-slate-900/95 backdrop-blur-xs text-white px-3 py-1.5 rounded-xl text-[11px] font-bold shadow-2xl border border-slate-700/60 pointer-events-none -translate-x-1/2 transition-all duration-75 whitespace-nowrap flex items-center gap-1.5 ${
+                        hoveredPoint.y < 40 ? "translate-y-4" : "-translate-y-10"
+                      }`}
+                      style={{
+                        left: `${Math.max(8, Math.min(92, (hoveredPoint.x / 500) * 100))}%`,
+                        top: `${(hoveredPoint.y / 150) * 100}%`
+                      }}
                     >
-                      {hoveredPoint.day}: {hoveredPoint.value} {activeChartFilter}
+                      <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+                      <span>{hoveredPoint.day}:</span>
+                      <span className="text-sky-300 font-extrabold">{hoveredPoint.value}</span>
+                      <span className="text-slate-400 capitalize">{activeChartFilter}</span>
                     </div>
                   )}
 
                   {/* X-axis Day Labels */}
-                  <div className="flex justify-between text-[10px] text-slate-400 font-bold pt-2">
+                  <div className="flex justify-between text-[10px] text-slate-400 font-bold pt-3">
                     {data?.trendDays?.map((d, i) => (
                       <span key={i} className="text-center">{d.day}</span>
                     ))}
