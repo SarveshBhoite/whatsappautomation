@@ -33,6 +33,7 @@ model Organization {
   googleQuestions     GoogleQuestion[]
   googleAdCampaigns   GoogleAdCampaign[]
   googleAdAccounts    GoogleAdAccount[]
+  googleAdsCustomerProfiles GoogleAdsCustomerProfile[]
   aiAgentConfigs      AiAgentConfig[]
   aiKnowledgeItems    AiKnowledgeItem[]
   aiCapturedLeads     AiCapturedLead[]
@@ -715,6 +716,47 @@ model GoogleAdAccount {
   @@unique([organizationId, customerId])
 }
 
+model GoogleAdsCustomerProfile {
+  id                   String       @id @default(uuid())
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerId           String
+  businessName         String?
+  legalBusinessName    String?
+  industry             String?
+  businessCategory     String?
+  businessDescription  String?      @db.Text
+  targetAudience       String?      @db.Text
+  customerType         String?      // B2B, B2C, Both
+  businessModel        String?      // Product, Service, E-commerce, SaaS, Local Business, Other
+  businessEmail        String?
+  businessPhone        String?
+  whatsappNumber       String?
+  businessAddress      String?      @db.Text
+  serviceAreas         Json?        @default("[]")
+  languagesServed      Json?        @default("[]")
+  primaryWebsite       String?
+  additionalWebsites   Json?        @default("[]")
+  products             Json?        @default("[]")
+  services             Json?        @default("[]")
+  keyOfferings         Json?        @default("[]")
+  locations            Json?        @default("[]")
+  hasMerchantAccount   Boolean      @default(false)
+  merchantCenterId     String?
+  merchantDetails      Json?
+  hasAppAccount        Boolean      @default(false)
+  appDetails           Json?        @default("[]")
+  isApproved           Boolean      @default(false)
+  approvedAt           DateTime?
+  metadata             Json?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@unique([organizationId, customerId])
+  @@index([organizationId, customerId])
+  @@index([customerId])
+}
+
 model GoogleAdCampaign {
   id                     String       @id @default(uuid())
   organizationId         String
@@ -735,6 +777,10 @@ model GoogleAdCampaign {
   finalUrl               String?
   keywords               Json?
   geoTargets             Json?
+  languages              Json?
+  searchThemes           Json?
+  audienceSignal         Json?
+  adSchedule             Json?
   advertisingChannelType String       @default("SEARCH")
   amountMicros           BigInt       @default(0)
   impressions            BigInt       @default(0)

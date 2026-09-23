@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getGoogleAccessToken } from "./gmbSyncService";
 import prisma from "../utils/prisma";
+import { GoogleAdsBaseService } from "./googleAds/shared/GoogleAdsBaseService";
 
 const ADS_API_VERSION = "v24";
 const ADS_BASE = `https://googleads.googleapis.com/${ADS_API_VERSION}`;
@@ -9,11 +10,19 @@ export class GoogleAdsService {
   private static DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "";
   private static CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
   private static CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
+  private static headersCache: Map<string, { data: any, expiresAt: number }> = new Map();
 
   // ─────────────────────────────────────────────────────────────────────────
   // CORE: Build Ads API headers (MCC-aware)
   // ─────────────────────────────────────────────────────────────────────────
   public static async getAdsHeaders(organizationId: string, customerId?: string) {
+    const cacheKey = `${organizationId}_${customerId || 'default'}`;
+    const cached = this.headersCache.get(cacheKey);
+    // Cache for 45 minutes to avoid token expiration and DB overload
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
     const config = await (prisma as any).googleBusinessConfig.findFirst({
       where: { organizationId, isDefault: true }
     }) || await (prisma as any).googleBusinessConfig.findFirst({
@@ -61,7 +70,9 @@ export class GoogleAdsService {
       ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {})
     };
 
-    return { headers, customerId: cid, accessToken, managerId: loginCustomerId };
+    const result = { headers, customerId: cid, accessToken, managerId: loginCustomerId };
+    this.headersCache.set(cacheKey, { data: result, expiresAt: Date.now() + 45 * 60 * 1000 });
+    return result;
   }
 
   /** Build headers for manager-level calls (accessible-customers, sub-account listing) */
@@ -238,7 +249,9 @@ export class GoogleAdsService {
 
     const rows = await this.gaqlSearch(organizationId, cid, `
       SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type,
-             campaign.bidding_strategy_type, campaign.start_date_time, campaign.end_date_time,
+             campaign.bidding_strategy_type, campaign.maximize_conversions.target_cpa_micros,
+             campaign.maximize_conversion_value.target_roas,
+             campaign.start_date_time, campaign.end_date_time,
              campaign_budget.amount_micros, campaign_budget.resource_name,
              metrics.impressions, metrics.clicks, metrics.cost_micros,
              metrics.ctr, metrics.conversions, metrics.average_cpc,
@@ -255,6 +268,8 @@ export class GoogleAdsService {
       status: r.campaign?.status,
       channelType: r.campaign?.advertisingChannelType,
       biddingStrategy: r.campaign?.biddingStrategyType,
+      targetCpaMicros: r.campaign?.maximizeConversions?.targetCpaMicros ? Number(r.campaign.maximizeConversions.targetCpaMicros) : undefined,
+      targetRoas: r.campaign?.maximizeConversionValue?.targetRoas ? Number(r.campaign.maximizeConversionValue.targetRoas) : undefined,
       startDate: r.campaign?.startDateTime,
       endDate: r.campaign?.endDateTime,
       budgetAmountMicros: r.campaignBudget?.amountMicros,
@@ -293,25 +308,59 @@ export class GoogleAdsService {
       }
     } else {
       switch (params.biddingStrategy) {
-        case "TARGET_CPA":
-          biddingConfig = { targetCpa: { targetCpaMicros: String(params.targetCpaMicros ?? 0) } };
+        case "TARGET_CPA": {
+          const cpaMicros = params.targetCpaMicros && params.targetCpaMicros > 0 ? String(params.targetCpaMicros) : undefined;
+          // In Google Ads API v24 for standard Search campaigns, Target CPA is configured via maximizeConversions with targetCpaMicros
+          biddingConfig = cpaMicros
+            ? { maximizeConversions: { targetCpaMicros: cpaMicros } }
+            : { maximizeConversions: {} };
           break;
-        case "TARGET_ROAS":
-          biddingConfig = { targetRoas: { targetRoas: params.targetRoas ?? 0 } };
+        }
+        case "TARGET_ROAS": {
+          const rawRoas = params.targetRoas && Number(params.targetRoas) > 0 ? Number(params.targetRoas) : undefined;
+          // In Google Ads API v24 for standard Search campaigns, Target ROAS is configured via maximizeConversionValue with targetRoas
+          const validRoas = rawRoas ? (rawRoas > 10 ? rawRoas / 100 : rawRoas) : undefined;
+          biddingConfig = validRoas && validRoas > 0
+            ? { maximizeConversionValue: { targetRoas: validRoas } }
+            : { maximizeConversionValue: {} };
           break;
-        case "MAXIMIZE_CLICKS":
-          // maximizeClicks accepts an optional cpcBidCeilingMicros
-          biddingConfig = { maximizeClicks: {} };
+        }
+        case "MAXIMIZE_CLICKS": {
+          const ceiling = (params as any).maxCpcLimitMicros || ((params as any).maxCpcLimit ? Math.round(Number((params as any).maxCpcLimit) * 1_000_000) : undefined);
+          biddingConfig = { targetSpend: ceiling ? { cpcBidCeilingMicros: String(ceiling) } : {} };
           break;
+        }
         case "MAXIMIZE_CONVERSIONS":
-          biddingConfig = { maximizeConversions: {} };
+          biddingConfig = {
+            maximizeConversions: params.targetCpaMicros && params.targetCpaMicros > 0 ? { targetCpaMicros: String(params.targetCpaMicros) } : {}
+          };
           break;
-        case "MAXIMIZE_CONVERSION_VALUE":
-          biddingConfig = { maximizeConversionValue: {} };
+        case "MAXIMIZE_CONVERSION_VALUE": {
+          const rawRoas = params.targetRoas && Number(params.targetRoas) > 0 ? Number(params.targetRoas) : undefined;
+          const validRoas = rawRoas ? (rawRoas > 10 ? rawRoas / 100 : rawRoas) : undefined;
+          biddingConfig = {
+            maximizeConversionValue: validRoas && validRoas > 0 ? { targetRoas: validRoas } : {}
+          };
           break;
-        case "TARGET_IMPRESSION_SHARE":
-          biddingConfig = { targetImpressionShare: { location: "ANYWHERE_ON_PAGE", locationFractionMicros: 1_000_000 } };
+        }
+        case "TARGET_IMPRESSION_SHARE": {
+          const locMap: Record<string, string> = {
+            "Anywhere on results page": "ANYWHERE_ON_PAGE",
+            "Top of results page": "TOP_OF_PAGE",
+            "Absolute top of results page": "ABSOLUTE_TOP_OF_PAGE"
+          };
+          const loc = locMap[(params as any).impressionShareLocation] || (params as any).impressionShareLocation || "ANYWHERE_ON_PAGE";
+          const fraction = (params as any).targetImpressionSharePercent ? Math.round(Number((params as any).targetImpressionSharePercent) * 10_000) : 1_000_000;
+          const ceiling = (params as any).maxCpcImpressionShare ? Math.round(Number((params as any).maxCpcImpressionShare) * 1_000_000) : undefined;
+          biddingConfig = {
+            targetImpressionShare: {
+              location: loc,
+              locationFractionMicros: fraction,
+              ...(ceiling ? { cpcBidCeilingMicros: String(ceiling) } : {})
+            }
+          };
           break;
+        }
         case "MANUAL_CPM":
           biddingConfig = { manualCpm: {} };
           break;
@@ -327,14 +376,42 @@ export class GoogleAdsService {
     const startDateTime = params.startDate.includes(" ") ? params.startDate : `${params.startDate} 00:00:00`;
     const endDateTime = params.endDate ? (params.endDate.includes(" ") ? params.endDate : `${params.endDate} 23:59:59`) : undefined;
 
+    // Required EU Political Advertising Enum in Google Ads API v24
+    const euPoliticalRaw = (params as any).euPolitical || (params as any).containsEuPoliticalAdvertising;
+    const containsEuPoliticalAdvertising = euPoliticalRaw === "YES" || euPoliticalRaw === "CONTAINS_EU_POLITICAL_ADVERTISING"
+      ? "CONTAINS_EU_POLITICAL_ADVERTISING"
+      : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING";
+
     const campaignBody: any = {
       name: params.name,
       advertisingChannelType: params.channelType || "SEARCH",
       status: "PAUSED",
       campaignBudget: params.budgetResourceName,
       startDateTime,
+      containsEuPoliticalAdvertising,
       ...biddingConfig
     };
+
+    // Location targeting mode (Presence vs Presence/Interest)
+    if ((params as any).locationTargetingType) {
+      campaignBody.geoTargetTypeSetting = {
+        positiveGeoTargetType: (params as any).locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST",
+        negativeGeoTargetType: "PRESENCE"
+      };
+    }
+
+    // Note: Customer Acquisition Lifecycle and AI Max URL Expansion settings are stored at the CRM / Prisma level
+    // for Search campaigns and are not valid Campaign proto fields in Google Ads API v24 mutate create.
+
+    // Campaign Tracking Template (Parameter 21)
+    if ((params as any).trackingUrlTemplate || (params as any).trackingTemplate) {
+      campaignBody.trackingUrlTemplate = (params as any).trackingUrlTemplate || (params as any).trackingTemplate;
+    }
+
+    // Campaign Final URL Suffix (Parameter 22)
+    if ((params as any).finalUrlSuffix) {
+      campaignBody.finalUrlSuffix = (params as any).finalUrlSuffix;
+    }
 
     // Network settings are NOT allowed for PERFORMANCE_MAX campaigns
     if (!isPMax) {
@@ -348,11 +425,18 @@ export class GoogleAdsService {
 
     if (endDateTime) campaignBody.endDateTime = endDateTime;
 
-    const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaigns:mutate`, {
-      operations: [{ create: campaignBody }]
-    }, { headers });
+    console.log("[GoogleAds API] Mutate Campaign Payload:", JSON.stringify(campaignBody, null, 2));
 
-    return res.data.results?.[0]?.resourceName;
+    try {
+      const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaigns:mutate`, {
+        operations: [{ create: campaignBody }]
+      }, { headers });
+
+      return res.data.results?.[0]?.resourceName;
+    } catch (err: any) {
+      console.error("[GoogleAds API createCampaign Error]:", JSON.stringify(err?.response?.data || err.message, null, 2));
+      throw err;
+    }
   }
 
   public static async updateCampaign(organizationId: string, customerId: string, campaignResourceName: string, updates: {
@@ -419,15 +503,18 @@ export class GoogleAdsService {
     name: string; campaignResourceName: string; type?: string; cpcBidMicros?: number;
   }) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const adGroupPayload: any = {
+      name: params.name,
+      campaign: params.campaignResourceName,
+      type: params.type || "SEARCH_STANDARD",
+      status: "ENABLED"
+    };
+    if (params.cpcBidMicros && params.type !== "DISPLAY_STANDARD") {
+      adGroupPayload.cpcBidMicros = params.cpcBidMicros;
+    }
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/adGroups:mutate`, {
       operations: [{
-        create: {
-          name: params.name,
-          campaign: params.campaignResourceName,
-          type: params.type || "SEARCH_STANDARD",
-          status: "ENABLED",
-          cpcBidMicros: params.cpcBidMicros || 1_000_000 // default ₹1 CPC
-        }
+        create: adGroupPayload
       }]
     }, { headers });
     return res.data.results?.[0]?.resourceName;
@@ -775,13 +862,31 @@ export class GoogleAdsService {
 
   public static async listAudiences(organizationId: string, customerId: string) {
     const rows = await this.gaqlSearch(organizationId, customerId, `
+      SELECT audience.id, audience.name, audience.description,
+             audience.status, audience.resource_name
+      FROM audience
+      WHERE audience.status = 'ENABLED'
+    `).catch(() => []);
+
+    return rows.map((r: any) => ({
+      id: String(r.audience?.id),
+      resourceName: r.audience?.resourceName,
+      name: r.audience?.name,
+      description: r.audience?.description,
+      status: r.audience?.status,
+      type: "AUDIENCE"
+    }));
+  }
+
+  public static async listUserLists(organizationId: string, customerId: string) {
+    const rows = await this.gaqlSearch(organizationId, customerId, `
       SELECT user_list.id, user_list.name, user_list.description,
              user_list.membership_status, user_list.size_for_search,
              user_list.size_range_for_search, user_list.eligible_for_search,
              user_list.type, user_list.resource_name
       FROM user_list
       WHERE user_list.membership_status = 'OPEN'
-    `);
+    `).catch(() => []);
 
     return rows.map((r: any) => ({
       id: String(r.userList?.id),
@@ -801,29 +906,353 @@ export class GoogleAdsService {
   // ─────────────────────────────────────────────────────────────────────────
 
   public static async searchGeoTargets(organizationId: string, customerId: string, query: string, locale = "en") {
+    const qTrimmed = (query || "").trim();
+    if (!qTrimmed) return [];
+
+    // 1. Try Google Ads API GeoTargetConstants Suggest if customerId is present
+    try {
+      if (customerId && customerId !== "1234567890") {
+        const { headers } = await this.getAdsHeaders(organizationId, customerId);
+        const res = await axios.get(`${ADS_BASE}/geoTargetConstants:suggest`, {
+          params: { "location_names.names": qTrimmed, locale },
+          headers,
+          timeout: 5000
+        });
+        const list = (res.data.geoTargetConstantSuggestions || []).map((s: any) => ({
+          id: s.geoTargetConstant?.id,
+          name: s.geoTargetConstant?.name,
+          countryCode: s.geoTargetConstant?.countryCode,
+          targetType: s.geoTargetConstant?.targetType,
+          resourceName: s.geoTargetConstant?.resourceName,
+          canonicalName: s.canonicalName
+        }));
+        if (list.length > 0) return list;
+      }
+    } catch (adsErr: any) {
+      console.warn("[GoogleAdsService] Ads API geoTargetConstants:suggest notice (falling back to Places):", adsErr?.message);
+    }
+
+    // 2. Google Places API Autocomplete using GOOGLE_PLACES_API_KEY
+    const placesApiKey = process.env.GOOGLE_PLACES_API_KEY;
+    if (placesApiKey) {
+      try {
+        // Query Google Places Autocomplete for regions/cities/towns/districts
+        let autocompleteUrl = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(qTrimmed)}&language=${encodeURIComponent(locale || "en")}&key=${placesApiKey}`;
+        let pRes = await axios.get(autocompleteUrl, { timeout: 8000 });
+        let rawPredictions = pRes.data?.predictions || [];
+
+        if (rawPredictions.length > 0) {
+          const suggestions = rawPredictions.map((pred: any) => {
+            const primary = pred.structured_formatting?.main_text || pred.description;
+            const secondary = pred.structured_formatting?.secondary_text || "";
+            const fullName = secondary ? `${primary}, ${secondary}` : primary;
+            const isCountry = pred.types?.includes("country");
+            const isState = pred.types?.includes("administrative_area_level_1");
+            const isCity = pred.types?.includes("locality") || pred.types?.includes("administrative_area_level_2") || pred.types?.includes("administrative_area_level_3");
+            const targetType = isCountry ? "Country" : isState ? "State / Region" : isCity ? "City" : "Location";
+
+            return {
+              id: pred.place_id,
+              name: primary,
+              canonicalName: fullName,
+              targetType,
+              countryCode: pred.terms?.slice(-1)[0]?.value || "IN"
+            };
+          });
+          return suggestions;
+        }
+      } catch (placesErr: any) {
+        console.warn("[GoogleAdsService] Google Places API search notice:", placesErr.message);
+      }
+    }
+
+    // 3. Fallback to common pre-mapped Indian & Global cities if query matches
+    const qLower = qTrimmed.toLowerCase();
+    const matchedConstants = Object.entries(GoogleAdsService.GEO_TARGET_CONSTANT_MAP)
+      .filter(([key]) => key.includes(qLower) || qLower.includes(key))
+      .map(([key, id]) => ({
+        id,
+        name: key.split(",")[0].replace(/\b\w/g, l => l.toUpperCase()),
+        canonicalName: key.replace(/\b\w/g, l => l.toUpperCase()),
+        targetType: key.includes(",") ? "City" : (key === "india" || key === "united states" ? "Country" : "City"),
+        countryCode: "IN"
+      }));
+
+    if (matchedConstants.length > 0) {
+      return matchedConstants;
+    }
+
+    return [];
+  }
+
+  // Map common names to official Google Ads GeoTarget Constant IDs
+  public static readonly GEO_TARGET_CONSTANT_MAP: Record<string, string> = {
+    "india": "2356",
+    "mumbai": "1007788",
+    "mumbai, maharashtra, india": "1007788",
+    "delhi": "1007785",
+    "delhi, india": "1007785",
+    "bengaluru": "1007768",
+    "bengaluru, karnataka, india": "1007768",
+    "bangalore": "1007768",
+    "hyderabad": "1007773",
+    "hyderabad, telangana, india": "1007773",
+    "pune": "1007801",
+    "pune, maharashtra, india": "1007801",
+    "kolkata": "1007743",
+    "kolkata, west bengal, india": "1007743",
+    "chennai": "1007809",
+    "chennai, tamil nadu, india": "1007809",
+    "ahmedabad": "1007753",
+    "ahmedabad, gujarat, india": "1007753",
+    "jaipur": "1007828",
+    "jaipur, rajasthan, india": "1007828",
+    "surat": "1007754",
+    "surat, gujarat, india": "1007754",
+    "lucknow": "1007782",
+    "lucknow, uttar pradesh, india": "1007782",
+    "united states": "2840",
+    "united kingdom": "2826"
+  };
+
+  public static async addGeoTargets(organizationId: string, customerId: string, campaignResourceName: string, geoTargets: string[]) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
-    const res = await axios.get(`${ADS_BASE}/geoTargetConstants:suggest`, {
-      params: { "location_names.names": query, locale },
-      headers
-    });
-    return (res.data.geoTargetConstantSuggestions || []).map((s: any) => ({
-      id: s.geoTargetConstant?.id,
-      name: s.geoTargetConstant?.name,
-      countryCode: s.geoTargetConstant?.countryCode,
-      targetType: s.geoTargetConstant?.targetType,
-      resourceName: s.geoTargetConstant?.resourceName,
-      canonicalName: s.canonicalName
+    const operations: any[] = [];
+    for (const target of geoTargets) {
+      if (!target || target === "ALL" || target === "All countries and territories") continue;
+      const normalized = String(target).trim().toLowerCase();
+      const constantId = this.GEO_TARGET_CONSTANT_MAP[normalized] || target;
+      if (constantId && /^\d+$/.test(constantId)) {
+        operations.push({
+          create: {
+            campaign: campaignResourceName,
+            location: { geoTargetConstant: `geoTargetConstants/${constantId}` }
+          }
+        });
+      }
+    }
+    if (operations.length === 0) return [];
+    const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignCriteria:mutate`, { operations }, { headers });
+    return res.data.results || [];
+  }
+
+  // Language mapping to official Google Ads language constants
+  public static readonly LANGUAGE_CONSTANT_MAP: Record<string, string> = {
+    "english": "1000",
+    "spanish": "1003",
+    "french": "1002",
+    "german": "1001",
+    "italian": "1004",
+    "portuguese": "1014",
+    "dutch": "1010",
+    "russian": "1031",
+    "japanese": "1005",
+    "chinese": "1017",
+    "chinese (simplified)": "1017",
+    "chinese (traditional)": "1018",
+    "korean": "1012",
+    "arabic": "1019",
+    "hindi": "1023",
+    "bengali": "1056",
+    "gujarati": "1072",
+    "kannada": "1086",
+    "malayalam": "1098",
+    "marathi": "1101",
+    "punjabi": "1110",
+    "tamil": "1130",
+    "telugu": "1131",
+    "urdu": "1041"
+  };
+
+  public static async getLanguageConstants(organizationId: string, customerId: string) {
+    const query = `
+      SELECT 
+        language_constant.id, 
+        language_constant.code, 
+        language_constant.name, 
+        language_constant.targetable 
+      FROM language_constant 
+      WHERE language_constant.targetable = TRUE
+    `;
+    const rows = await this.gaqlSearch(organizationId, customerId, query);
+    return rows.map((r: any) => ({
+      id: r.languageConstant?.id,
+      code: r.languageConstant?.code,
+      name: r.languageConstant?.name,
+      targetable: r.languageConstant?.targetable
     }));
   }
 
-  public static async addGeoTargets(organizationId: string, customerId: string, campaignResourceName: string, geoTargetIds: string[]) {
+  public static async addLanguages(organizationId: string, customerId: string, campaignResourceName: string, languageNames: string[]) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
-    const operations = geoTargetIds.map(id => ({
+    const operations: any[] = [];
+
+    for (const lang of languageNames) {
+      const normalized = (lang || "").trim().toLowerCase();
+      let constantId = this.LANGUAGE_CONSTANT_MAP[normalized];
+      if (!constantId && /^\d+$/.test(lang)) {
+        constantId = lang;
+      }
+      
+      if (!constantId) {
+        throw new Error(`Unsupported or unmapped CRM language: "${lang}". Please select a valid language.`);
+      }
+      operations.push({
+        create: {
+          campaign: campaignResourceName,
+          language: { languageConstant: `languageConstants/${constantId}` }
+        }
+      });
+    }
+
+    if (operations.length === 0) return [];
+    const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignCriteria:mutate`, { operations }, { headers });
+    return res.data.results || [];
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // AD SCHEDULE TARGETING
+  // ─────────────────────────────────────────────────────────────────────────
+
+  public static readonly MINUTE_MAP: Record<string, string> = {
+    "00": "ZERO",
+    "0": "ZERO",
+    "15": "FIFTEEN",
+    "30": "THIRTY",
+    "45": "FORTY_FIVE"
+  };
+
+  public static readonly DAY_MAP: Record<string, string[]> = {
+    "monday": ["MONDAY"],
+    "mondays": ["MONDAY"],
+    "tuesday": ["TUESDAY"],
+    "tuesdays": ["TUESDAY"],
+    "wednesday": ["WEDNESDAY"],
+    "wednesdays": ["WEDNESDAY"],
+    "thursday": ["THURSDAY"],
+    "thursdays": ["THURSDAY"],
+    "friday": ["FRIDAY"],
+    "fridays": ["FRIDAY"],
+    "saturday": ["SATURDAY"],
+    "saturdays": ["SATURDAY"],
+    "sunday": ["SUNDAY"],
+    "sundays": ["SUNDAY"],
+    "mondays - fridays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+    "monday - friday": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+    "saturdays - sundays": ["SATURDAY", "SUNDAY"],
+    "saturday - sunday": ["SATURDAY", "SUNDAY"],
+    "all days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
+  };
+
+  public static normalizeAdSchedules(rawSchedules: Array<{ day: string; start: string; end: string }>): Array<{
+    day: string;
+    startHour: number;
+    startMinute: string;
+    endHour: number;
+    endMinute: string;
+    displayStart: string;
+    displayEnd: string;
+  }> {
+    if (!Array.isArray(rawSchedules) || rawSchedules.length === 0) return [];
+
+    const result: Array<{
+      day: string;
+      startHour: number;
+      startMinute: string;
+      endHour: number;
+      endMinute: string;
+      displayStart: string;
+      displayEnd: string;
+    }> = [];
+
+    for (const item of rawSchedules) {
+      if (!item || typeof item !== "object") {
+        throw new Error("Invalid ad schedule item format.");
+      }
+      const dayRaw = (item.day || "").trim().toLowerCase();
+      const mappedDays = this.DAY_MAP[dayRaw];
+      if (!mappedDays || mappedDays.length === 0) {
+        throw new Error(`Invalid or unsupported ad schedule day: "${item.day}". Supported days include individual days (e.g. "Mondays"), "Mondays - Fridays", "Saturdays - Sundays", or "All days".`);
+      }
+
+      const parseTime = (timeStr: string, isEnd = false) => {
+        const parts = (timeStr || "").trim().split(":");
+        if (parts.length !== 2) {
+          throw new Error(`Invalid time format: "${timeStr}". Expected HH:mm in 15-minute increments.`);
+        }
+        const hour = parseInt(parts[0], 10);
+        const minuteStr = parts[1].trim();
+
+        if (isNaN(hour) || hour < 0 || hour > 24) {
+          throw new Error(`Invalid hour in time: "${timeStr}".`);
+        }
+        const minuteEnum = this.MINUTE_MAP[minuteStr];
+        if (!minuteEnum) {
+          throw new Error(`Invalid minute: "${minuteStr}" in "${timeStr}". Allowed minute increments are 00, 15, 30, 45.`);
+        }
+        if (hour === 24 && minuteStr !== "00") {
+          throw new Error(`Invalid time: "${timeStr}". 24:00 must have 00 minutes.`);
+        }
+        return { hour, minuteEnum, totalMinutes: hour * 60 + parseInt(minuteStr, 10) };
+      };
+
+      const startParsed = parseTime(item.start || "00:00", false);
+      const endParsed = parseTime(item.end || "00:00", true);
+
+      // In UI, 00:00 to 00:00 for All days / full day represents 00:00 to 24:00
+      let finalEndHour = endParsed.hour;
+      let finalEndMinute = endParsed.minuteEnum;
+      let finalTotalEndMinutes = endParsed.totalMinutes;
+
+      if (startParsed.totalMinutes === 0 && endParsed.totalMinutes === 0) {
+        finalEndHour = 24;
+        finalEndMinute = "ZERO";
+        finalTotalEndMinutes = 24 * 60;
+      }
+
+      if (finalTotalEndMinutes <= startParsed.totalMinutes) {
+        throw new Error(`Ad schedule end time (${item.end}) must be strictly after start time (${item.start}).`);
+      }
+
+      for (const d of mappedDays) {
+        result.push({
+          day: d,
+          startHour: startParsed.hour,
+          startMinute: startParsed.minuteEnum,
+          endHour: finalEndHour,
+          endMinute: finalEndMinute,
+          displayStart: item.start || "00:00",
+          displayEnd: finalEndHour === 24 ? "24:00" : item.end
+        });
+      }
+    }
+
+    return result;
+  }
+
+  public static async addAdSchedules(
+    organizationId: string,
+    customerId: string,
+    campaignResourceName: string,
+    schedules: Array<{ day: string; start: string; end: string }>
+  ) {
+    const normalized = this.normalizeAdSchedules(schedules);
+    if (normalized.length === 0) return [];
+
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const operations = normalized.map(s => ({
       create: {
         campaign: campaignResourceName,
-        location: { geoTargetConstant: `geoTargetConstants/${id}` }
+        adSchedule: {
+          dayOfWeek: s.day,
+          startHour: s.startHour,
+          startMinute: s.startMinute,
+          endHour: s.endHour,
+          endMinute: s.endMinute
+        }
       }
     }));
+
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignCriteria:mutate`, { operations }, { headers });
     return res.data.results || [];
   }
@@ -927,84 +1356,84 @@ export class GoogleAdsService {
   // FULL CAMPAIGN LAUNCH (orchestrates all steps)
   // ─────────────────────────────────────────────────────────────────────────
 
-  public static async launchLocalSearchCampaign(params: {
-    organizationId: string; customerId: string;
-    campaignName: string; budget: number;
-    channelType?: string; biddingStrategy?: string;
-    targetCpa?: number; targetRoas?: number;
-    startDate: string; endDate?: string;
-    finalUrl: string; headlines: string[]; descriptions: string[]; keywords: string[];
-    geoTargetIds?: string[]; networkDisplay?: boolean;
-  }) {
-    const { organizationId, customerId } = params;
 
-    // 1. Create Budget
-    const budgetRef = await this.createBudget(organizationId, customerId, {
-      name: `${params.campaignName} Budget`,
-      amountPerDay: params.budget
-    });
+  public static async setCampaignConversionGoals(
+    organizationId: string,
+    customerId: string,
+    campaignResourceName: string,
+    goals: Array<{ category: string; origin: string; biddable?: boolean }>
+  ) {
+    if (!goals || goals.length === 0) return [];
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    
+    // Extract numerical campaignId from resourceName: "customers/{customerId}/campaigns/{campaignId}"
+    const campaignId = campaignResourceName.includes("/") ? campaignResourceName.split("/").pop() : campaignResourceName;
 
-    // 2. Create Campaign
-    const campaignRef = await this.createCampaign(organizationId, customerId, {
-      name: params.campaignName,
-      budgetResourceName: budgetRef,
-      channelType: params.channelType || "SEARCH",
-      biddingStrategy: params.biddingStrategy || "MANUAL_CPC",
-      targetCpaMicros: params.targetCpa ? Math.round(params.targetCpa * 1_000_000) : undefined,
-      targetRoas: params.targetRoas,
-      startDate: params.startDate,
-      endDate: params.endDate,
-      networkDisplay: params.networkDisplay || false
-    });
+    // Google Ads API v24 pattern: customers/{customerId}/campaignConversionGoals/{campaignId}~{category}~{origin}
+    const operations = goals.map(g => ({
+      update: {
+        resourceName: `customers/${customerId}/campaignConversionGoals/${campaignId}~${g.category}~${g.origin}`,
+        biddable: g.biddable !== false
+      },
+      updateMask: "biddable"
+    }));
 
-    // 3. Create Ad Group
-    const adGroupRef = await this.createAdGroup(organizationId, customerId, {
-      name: `${params.campaignName} - Ad Group 1`,
-      campaignResourceName: campaignRef
-    });
+    console.log("[GoogleAds API] setCampaignConversionGoals operations:", JSON.stringify(operations, null, 2));
 
-    // 4. Create RSA
-    await this.createAd(organizationId, customerId, {
-      adGroupResourceName: adGroupRef,
-      finalUrls: [params.finalUrl],
-      headlines: params.headlines.slice(0, 15).map(h => ({ text: h.substring(0, 30) })),
-      descriptions: params.descriptions.slice(0, 4).map(d => ({ text: d.substring(0, 90) }))
-    });
-
-    // 5. Add Keywords
-    if (params.keywords.length > 0) {
-      await this.addKeywords(organizationId, customerId, adGroupRef, params.keywords.map(kw => ({ text: kw })));
+    try {
+      const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignConversionGoals:mutate`, { operations }, { headers });
+      return res.data.results || [];
+    } catch (err: any) {
+      console.error("[GoogleAds API setCampaignConversionGoals Error]:", JSON.stringify(err?.response?.data || err.message, null, 2));
+      throw err;
     }
-
-    // 6. Geo targets (optional)
-    if (params.geoTargetIds && params.geoTargetIds.length > 0) {
-      await this.addGeoTargets(organizationId, customerId, campaignRef, params.geoTargetIds);
-    }
-
-    return {
-      campaignResourceName: campaignRef,
-      adGroupResourceName: adGroupRef,
-      budgetResourceName: budgetRef,
-      campaignId: campaignRef.split("/").pop()
-    };
   }
 
   // ── PERFORMANCE MAX & ASSET GROUPS ───────────────────────────────────────
 
-  public static async uploadImageAsset(organizationId: string, customerId: string, name: string, base64Data: string) {
-    const { headers } = await this.getAdsHeaders(organizationId, customerId);
-    const res = await axios.post(`${ADS_BASE}/customers/${customerId}/assets:mutate`, {
-      operations: [{
-        create: {
-          name,
-          type: "IMAGE",
-          imageAsset: {
-            data: base64Data
+  public static async uploadImageAsset(organizationId: string, customerId: string, name: string, base64OrUrl: string, expectedFieldType?: string) {
+    try {
+      const { headers } = await this.getAdsHeaders(organizationId, customerId);
+      let base64Data = base64OrUrl;
+
+      if (base64OrUrl.startsWith("http://") || base64OrUrl.startsWith("https://")) {
+        // Download image and convert to base64
+        const imgRes = await axios.get(base64OrUrl, { responseType: "arraybuffer", timeout: 10000 });
+        base64Data = Buffer.from(imgRes.data).toString("base64");
+      } else if (base64OrUrl.includes("base64,")) {
+        base64Data = base64OrUrl.split("base64,")[1];
+      }
+
+      // If data is just a filename or invalid string (not base64 / url), skip
+      if (!base64Data || base64Data.length < 50) {
+        return null;
+      }
+
+      const imgBuffer = Buffer.from(base64Data, "base64");
+
+      // Validate JPEG/PNG signature
+      const isJpeg = imgBuffer[0] === 0xFF && imgBuffer[1] === 0xD8;
+      const isPng = imgBuffer[0] === 0x89 && imgBuffer[1] === 0x50 && imgBuffer[2] === 0x4E && imgBuffer[3] === 0x47;
+      if (!isJpeg && !isPng) {
+        console.warn(`[GoogleAdsService] uploadImageAsset: "${name}" is not a valid JPEG or PNG file. Proceeding with upload.`);
+      }
+
+      const res = await axios.post(`${ADS_BASE}/customers/${customerId}/assets:mutate`, {
+        operations: [{
+          create: {
+            name: name.slice(0, 100),
+            type: "IMAGE",
+            imageAsset: {
+              data: base64Data
+            }
           }
-        }
-      }]
-    }, { headers });
-    return res.data.results?.[0]?.resourceName;
+        }]
+      }, { headers });
+      return res.data.results?.[0]?.resourceName;
+    } catch (err: any) {
+      console.error(`[GoogleAdsService] uploadImageAsset error for "${name}":`, err?.response?.data || err?.message);
+      return null;
+    }
   }
 
   public static async createTextAsset(organizationId: string, customerId: string, value: string) {
@@ -1012,9 +1441,9 @@ export class GoogleAdsService {
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/assets:mutate`, {
       operations: [{
         create: {
-          name: `Text asset: ${value.slice(0, 15)}`,
+          name: `Text asset: ${value.slice(0, 20)}`,
           type: "TEXT",
-          textAsset: { value }
+          textAsset: { text: value }
         }
       }]
     }, { headers });
@@ -1056,80 +1485,6 @@ export class GoogleAdsService {
     return res.data.results?.[0]?.resourceName;
   }
 
-  public static async launchPerformanceMaxCampaign(params: {
-    organizationId: string; customerId: string;
-    campaignName: string; budget: number;
-    biddingStrategy?: string; targetCpa?: number; targetRoas?: number;
-    startDate: string; endDate?: string;
-    finalUrl: string; headlines: string[]; descriptions: string[];
-    images?: Array<{ name: string; base64: string }>;
-  }) {
-    const { organizationId, customerId } = params;
-
-    // 1. Create Budget
-    const budgetRef = await this.createBudget(organizationId, customerId, {
-      name: `${params.campaignName} PMax Budget`,
-      amountPerDay: params.budget
-    });
-
-    // 2. Create Campaign
-    const campaignRef = await this.createCampaign(organizationId, customerId, {
-      name: params.campaignName,
-      budgetResourceName: budgetRef,
-      channelType: "PERFORMANCE_MAX",
-      biddingStrategy: params.biddingStrategy || "MAXIMIZE_CONVERSIONS",
-      targetCpaMicros: params.targetCpa ? Math.round(params.targetCpa * 1_000_000) : undefined,
-      targetRoas: params.targetRoas,
-      startDate: params.startDate,
-      endDate: params.endDate
-    });
-
-    // 3. Create Asset Group
-    const assetGroupRef = await this.createAssetGroup(organizationId, customerId, {
-      campaignResourceName: campaignRef,
-      name: `${params.campaignName} Asset Group 1`,
-      finalUrls: [params.finalUrl]
-    });
-
-    // 4. Create Headlines and link them
-    for (const text of params.headlines.slice(0, 5)) {
-      const assetRef = await this.createTextAsset(organizationId, customerId, text);
-      await this.linkAssetToAssetGroup(organizationId, customerId, {
-        assetGroupResourceName: assetGroupRef,
-        assetResourceName: assetRef,
-        fieldType: "HEADLINE"
-      });
-    }
-
-    // 5. Create Descriptions and link them
-    for (const text of params.descriptions.slice(0, 4)) {
-      const assetRef = await this.createTextAsset(organizationId, customerId, text);
-      await this.linkAssetToAssetGroup(organizationId, customerId, {
-        assetGroupResourceName: assetGroupRef,
-        assetResourceName: assetRef,
-        fieldType: "DESCRIPTION"
-      });
-    }
-
-    // 6. Handle custom images if uploaded
-    if (params.images && params.images.length > 0) {
-      for (const img of params.images) {
-        const assetRef = await this.uploadImageAsset(organizationId, customerId, img.name, img.base64);
-        await this.linkAssetToAssetGroup(organizationId, customerId, {
-          assetGroupResourceName: assetGroupRef,
-          assetResourceName: assetRef,
-          fieldType: "MARKETING_IMAGE"
-        });
-      }
-    }
-
-    return {
-      campaignResourceName: campaignRef,
-      assetGroupResourceName: assetGroupRef,
-      budgetResourceName: budgetRef,
-      campaignId: campaignRef.split("/").pop()
-    };
-  }
 
   /**
    * High-level helper for launching an App Promotion Campaign
@@ -1293,7 +1648,8 @@ export class GoogleAdsService {
               status: "PAUSED",
               advertisingChannelType: "PERFORMANCE_MAX",
               campaignBudget: budgetRef,
-              ...(params.targetCpaMicros ? { targetCpa: { targetCpaMicros: params.targetCpaMicros } } : {})
+              audienceSetting: { useAudienceGrouped: true },
+              ...(params.targetCpaMicros ? { maximizeConversions: { targetCpaMicros: String(params.targetCpaMicros) } } : {})
             }
           }
         ]
@@ -1319,31 +1675,123 @@ export class GoogleAdsService {
   }
 
   /**
-   * High-level helper for launching Performance Max Campaign (No Guidance)
+   * High-level helper for launching Performance Max Campaign (Standard / Sales / No Guidance)
+   * Follows official Google Ads API architecture:
+   * CampaignBudget -> Campaign -> Assets -> AssetGroup -> AssetGroupAssets -> Criteria (Location/Language)
    */
   public static async createNoGuidancePMaxCampaign(
     organizationId: string,
     customerId: string,
     params: {
       campaignName: string;
+      assetGroupName?: string;
       finalUrl: string;
+      businessName?: string;
       amountMicros: number;
-      biddingFocus: string;
+      biddingFocus?: string;
       targetCpaMicros?: number;
+      targetRoas?: number;
+      startDate?: string;
+      endDate?: string;
       headlines: string[];
       longHeadlines?: string[];
       descriptions: string[];
-      images?: string[];
+      images?: Array<string | { name?: string; data: string; fieldType?: string }>;
+      logos?: Array<string | { name?: string; data: string }>;
+      searchThemes?: string[];
+      audienceSignal?: string | { resourceName: string; name?: string; type?: string };
+      locations?: string[];
+      languages?: string[];
+      adSchedule?: Array<{ day: string; start: string; end: string }>;
+      euPolitical?: "YES" | "NO" | string;
+      trackingTemplate?: string;
+      finalUrlSuffix?: string;
+      customParameters?: Array<{ name: string; value: string }>;
+      urlExpansionOptOut?: boolean;
+      path1?: string;
+      path2?: string;
+      displayPath1?: string;
+      displayPath2?: string;
+      sitelinks?: Array<{ text: string; desc1?: string; desc2?: string; url: string }>;
+      callouts?: string[];
+      callAsset?: { countryCode?: string; phoneNumber: string };
+      structuredSnippets?: Array<{ header: string; values: string[] }>;
+      promotions?: Array<{ promotionTarget: string; discountModifier?: string; percentOff?: number; occasion?: string; finalUrl: string }>;
+      prices?: Array<{ header: string; description: string; amountMicros: number; currencyCode?: string; unit?: string; finalUrl: string }>;
+      finalMobileUrls?: string[];
+      assetGroupTrackingTemplate?: string;
+      assetGroupCustomParameters?: Array<{ name: string; value: string }>;
+      positiveGeoTargetType?: "PRESENCE_OR_INTEREST" | "PRESENCE";
+      brandGuidelinesEnabled?: boolean;
     }
   ) {
     try {
+      const cid = (customerId || "").replace(/-/g, "").trim();
+
+      // 1. Create Campaign Budget
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${params.campaignName} Budget - ${Date.now()}`,
         amountPerDay: params.amountMicros / 1_000_000
       });
 
+      // 2. Create Campaign (PERFORMANCE_MAX)
+      let biddingConfig: any = {};
+      const normalizedFocus = (params.biddingFocus || "").trim().toLowerCase();
+
+      if (normalizedFocus === "maximize conversion value" || normalizedFocus === "target roas") {
+        biddingConfig = {
+          maximizeConversionValue: params.targetRoas ? { targetRoas: Number(params.targetRoas) } : {}
+        };
+      } else {
+        // Default to Maximize Conversions (Standard for Sales / Leads)
+        biddingConfig = {
+          maximizeConversions: params.targetCpaMicros ? { targetCpaMicros: String(params.targetCpaMicros) } : {}
+        };
+      }
+
       const { headers } = await this.getAdsHeaders(organizationId, customerId);
-      const cid = (customerId || "").replace(/-/g, "").trim();
+      const todayIso = new Date().toISOString().split("T")[0];
+      let cleanStartDate = params.startDate ? params.startDate.split("T")[0].split(" ")[0] : todayIso;
+      // Google Ads forbids setting a campaign start date in the past
+      if (cleanStartDate < todayIso) {
+        cleanStartDate = todayIso;
+      }
+      const startDateTime = `${cleanStartDate} 00:00:00`;
+      
+      let cleanEndDate = params.endDate ? params.endDate.split("T")[0].split(" ")[0] : undefined;
+      if (cleanEndDate && cleanEndDate < cleanStartDate) {
+        cleanEndDate = cleanStartDate;
+      }
+      const endDateTime = cleanEndDate ? `${cleanEndDate} 23:59:59` : undefined;
+
+      const euPoliticalValue = params.euPolitical === "YES" 
+        ? "CONTAINS_EU_POLITICAL_ADVERTISING" 
+        : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING";
+
+      const rawTrackingTemplate = params.assetGroupTrackingTemplate?.trim() || params.trackingTemplate?.trim();
+      let effectiveTrackingTemplate: string | undefined = undefined;
+      if (rawTrackingTemplate) {
+        let tpl = rawTrackingTemplate;
+        if (!tpl.startsWith("http://") && !tpl.startsWith("https://")) {
+          tpl = `https://${tpl}`;
+        }
+        // Google Ads API requires tracking templates to include a landing page tag such as {lpurl}, {unescapedlpurl}, {escapedlpurl}, or {lpurlpath}
+        const hasTag = /\{(?:lpurl|unescapedlpurl|escapedlpurl|lpurlpath|2escapedlpurl)\}/i.test(tpl);
+        if (!hasTag) {
+          tpl = tpl.includes("?") ? `${tpl}&url={lpurl}` : `${tpl}?url={lpurl}`;
+        }
+        effectiveTrackingTemplate = tpl;
+      }
+
+      const rawCustomParams = (params.assetGroupCustomParameters && params.assetGroupCustomParameters.length > 0)
+        ? params.assetGroupCustomParameters
+        : params.customParameters;
+      const urlCustomParams = rawCustomParams && rawCustomParams.length > 0
+        ? rawCustomParams
+            .filter(p => p.name.trim() && p.value.trim())
+            .map(p => ({ key: p.name.trim(), value: p.value.trim() }))
+        : undefined;
+
       const campaignPayload = {
         operations: [
           {
@@ -1352,28 +1800,579 @@ export class GoogleAdsService {
               status: "PAUSED",
               advertisingChannelType: "PERFORMANCE_MAX",
               campaignBudget: budgetRef,
-              ...(params.targetCpaMicros ? { targetCpa: { targetCpaMicros: params.targetCpaMicros } } : {})
+              audienceSetting: { useAudienceGrouped: true },
+              brandGuidelinesEnabled: params.brandGuidelinesEnabled ?? false,
+              containsEuPoliticalAdvertising: euPoliticalValue,
+              ...(params.positiveGeoTargetType ? {
+                geoTargetTypeSetting: {
+                  positiveGeoTargetType: params.positiveGeoTargetType,
+                  negativeGeoTargetType: "PRESENCE"
+                }
+              } : {}),
+              ...(startDateTime ? { startDateTime } : {}),
+              ...(endDateTime ? { endDateTime } : {}),
+              ...(effectiveTrackingTemplate ? { trackingUrlTemplate: effectiveTrackingTemplate } : {}),
+              ...(params.finalUrlSuffix ? { finalUrlSuffix: params.finalUrlSuffix.trim() } : {}),
+              ...(urlCustomParams ? { urlCustomParameters: urlCustomParams } : {}),
+              ...biddingConfig
             }
           }
         ]
       };
 
-      const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-pmax-${Date.now()}`;
+      let campaignRes;
+      try {
+        campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+      } catch (mutateErr: any) {
+        const errDetails = JSON.stringify(mutateErr?.response?.data || "");
+        if (errDetails.includes("DUPLICATE_CAMPAIGN_NAME") || errDetails.includes("already assigned to another")) {
+          // Retry with unique campaign name
+          const uniqueName = `${params.campaignName} #${Date.now().toString().slice(-4)}`;
+          campaignPayload.operations[0].create.name = uniqueName;
+          campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+        } else {
+          throw mutateErr;
+        }
+      }
+
+      const campaignRef = campaignRes.data?.results?.[0]?.resourceName;
+      if (!campaignRef) {
+        throw new Error("Failed to create Campaign resource name on Google Ads");
+      }
       const campaignId = campaignRef.split("/").pop();
+
+      // 3. Create Real Text & Image Assets on Google Ads
+      // A. Headlines (HEADLINE - max 30 chars)
+      const validHeadlines = (params.headlines || [])
+        .map(h => GoogleAdsBaseService.cleanAdText(String(h || ""), 30))
+        .filter(h => h.length > 0);
+      const headlineAssetRefs: string[] = [];
+      for (const hText of validHeadlines) {
+        const ref = await this.createTextAsset(organizationId, customerId, hText);
+        if (ref && !headlineAssetRefs.includes(ref)) headlineAssetRefs.push(ref);
+      }
+
+      // B. Long Headlines (LONG_HEADLINE - max 90 chars)
+      const validLongHeadlines = (params.longHeadlines || [])
+        .map(lh => GoogleAdsBaseService.cleanAdText(String(lh || ""), 90))
+        .filter(lh => lh.length > 0);
+      const longHeadlineAssetRefs: string[] = [];
+      for (const lhText of validLongHeadlines) {
+        const ref = await this.createTextAsset(organizationId, customerId, lhText);
+        if (ref && !longHeadlineAssetRefs.includes(ref)) longHeadlineAssetRefs.push(ref);
+      }
+
+      // C. Descriptions (DESCRIPTION - max 90 chars)
+      const validDescriptions = (params.descriptions || [])
+        .map(d => GoogleAdsBaseService.cleanAdText(String(d || ""), 90))
+        .filter(d => d.length > 0);
+      const descriptionAssetRefs: string[] = [];
+      for (const dText of validDescriptions) {
+        const ref = await this.createTextAsset(organizationId, customerId, dText);
+        if (ref && !descriptionAssetRefs.includes(ref)) descriptionAssetRefs.push(ref);
+      }
+
+      // D. Business Name (BUSINESS_NAME - max 25 chars)
+      let businessNameAssetRef: string | null = null;
+      if (params.businessName && params.businessName.trim()) {
+        const cleanBiz = GoogleAdsBaseService.cleanAdText(params.businessName, 25);
+        if (cleanBiz) {
+          businessNameAssetRef = await this.createTextAsset(organizationId, customerId, cleanBiz);
+        }
+      }
+
+      // E. Marketing Images & Logos
+      const marketingImageRefs: Array<{ assetRef: string; fieldType: string }> = [];
+      if (params.images && params.images.length > 0) {
+        for (let i = 0; i < params.images.length; i++) {
+          const img = params.images[i];
+          const base64Data = typeof img === "string" ? img : img.data;
+          const imgName = (typeof img === "object" && img.name) ? img.name : `PMax Image ${Date.now()}_${i + 1}`;
+          const fieldType = (typeof img === "object" && img.fieldType) ? img.fieldType : "MARKETING_IMAGE";
+
+          if (base64Data && base64Data.trim()) {
+            const cleanBase64 = base64Data.includes("base64,") ? base64Data.split("base64,")[1] : base64Data;
+            const ref = await this.uploadImageAsset(organizationId, customerId, imgName, cleanBase64, fieldType);
+            if (ref) marketingImageRefs.push({ assetRef: ref, fieldType });
+          }
+        }
+      }
+
+      // Google Ads Performance Max Asset Group strictly requires at least ONE MARKETING_IMAGE (1.91:1) and at least ONE SQUARE_MARKETING_IMAGE (1:1)
+      const hasLandscape = marketingImageRefs.some(i => i.fieldType === "MARKETING_IMAGE");
+      const hasSquare = marketingImageRefs.some(i => i.fieldType === "SQUARE_MARKETING_IMAGE");
+
+      // If either required asset type is missing, ensure fallback exists
+      if (!hasLandscape && marketingImageRefs.length > 0) {
+        // If user uploaded square or other image, mark first as landscape if valid or re-upload
+        marketingImageRefs.push({ assetRef: marketingImageRefs[0].assetRef, fieldType: "MARKETING_IMAGE" });
+      }
+      if (!hasSquare && marketingImageRefs.length > 0) {
+        marketingImageRefs.push({ assetRef: marketingImageRefs[0].assetRef, fieldType: "SQUARE_MARKETING_IMAGE" });
+      }
+
+      const logoRefs: string[] = [];
+      if (params.logos && params.logos.length > 0) {
+        for (let i = 0; i < params.logos.length; i++) {
+          const logo = params.logos[i];
+          const base64Data = typeof logo === "string" ? logo : logo.data;
+          const logoName = (typeof logo === "object" && logo.name) ? logo.name : `PMax Logo ${Date.now()}_${i + 1}`;
+
+          if (base64Data && base64Data.trim()) {
+            const cleanBase64 = base64Data.includes("base64,") ? base64Data.split("base64,")[1] : base64Data;
+            const ref = await this.uploadImageAsset(organizationId, customerId, logoName, cleanBase64, "LOGO");
+            if (ref) logoRefs.push(ref);
+          }
+        }
+      }
+
+      // Google Ads Performance Max Asset Group requires at least ONE LOGO (1:1 Square)
+      if (logoRefs.length === 0) {
+        // If no explicit logo was uploaded, derive a 1:1 LOGO from the uploaded square marketing image
+        const squareImg = marketingImageRefs.find(i => i.fieldType === "SQUARE_MARKETING_IMAGE") || marketingImageRefs[0];
+        if (squareImg && squareImg.assetRef) {
+          logoRefs.push(squareImg.assetRef);
+        }
+      }
+
+      // 4. Atomic AssetGroup and AssetGroupAsset Creation via googleAds:mutate with temporary resource name
+      const tempAssetGroupRef = `customers/${cid}/assetGroups/-1`;
+      const assetGroupName = (params.assetGroupName || "").trim() || `${params.campaignName} Asset Group 1`;
+
+      let cleanFinalUrl = (params.finalUrl || "").trim();
+      if (cleanFinalUrl && !cleanFinalUrl.startsWith("http://") && !cleanFinalUrl.startsWith("https://")) {
+        cleanFinalUrl = `https://${cleanFinalUrl}`;
+      }
+
+      const assetGroupCreateBody: any = {
+        resourceName: tempAssetGroupRef,
+        campaign: campaignRef,
+        name: assetGroupName,
+        finalUrls: [cleanFinalUrl || "https://www.example.com"],
+        status: "PAUSED"
+      };
+      const p1 = (params.path1 || params.displayPath1 || "").trim();
+      const p2 = (params.path2 || params.displayPath2 || "").trim();
+      if (p1) {
+        assetGroupCreateBody.path1 = p1;
+        if (p2) {
+          assetGroupCreateBody.path2 = p2;
+        }
+      } else if (p2) {
+        // If path2 is set without path1, assign path2 to path1
+        assetGroupCreateBody.path1 = p2;
+      }
+
+      const atomicOperations: any[] = [
+        // Operation 1: Create Asset Group with temporary resource name
+        {
+          assetGroupOperation: {
+            create: assetGroupCreateBody
+          }
+        }
+      ];
+
+      // Operation 2+: Link Headlines
+      for (const hRef of headlineAssetRefs) {
+        atomicOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupRef,
+              asset: hRef,
+              fieldType: "HEADLINE"
+            }
+          }
+        });
+      }
+
+      // Link Long Headlines
+      for (const lhRef of longHeadlineAssetRefs) {
+        atomicOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupRef,
+              asset: lhRef,
+              fieldType: "LONG_HEADLINE"
+            }
+          }
+        });
+      }
+
+      // Link Descriptions
+      for (const dRef of descriptionAssetRefs) {
+        atomicOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupRef,
+              asset: dRef,
+              fieldType: "DESCRIPTION"
+            }
+          }
+        });
+      }
+
+      // Link Business Name
+      if (businessNameAssetRef) {
+        atomicOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupRef,
+              asset: businessNameAssetRef,
+              fieldType: "BUSINESS_NAME"
+            }
+          }
+        });
+      }
+
+      // Link Marketing Images
+      // Link each uploaded asset with its corresponding fieldType (MARKETING_IMAGE or SQUARE_MARKETING_IMAGE)
+      for (const imgItem of marketingImageRefs) {
+        atomicOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupRef,
+              asset: imgItem.assetRef,
+              fieldType: imgItem.fieldType
+            }
+          }
+        });
+      }
+
+      // Link Logos
+      for (const lRef of logoRefs) {
+        atomicOperations.push({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: tempAssetGroupRef,
+              asset: lRef,
+              fieldType: "LOGO"
+            }
+          }
+        });
+      }
+
+      // Link Search Themes (AssetGroupSignal)
+      const validSearchThemes = (params.searchThemes || []).filter(t => t && typeof t === "string" && t.trim());
+      for (const theme of validSearchThemes) {
+        atomicOperations.push({
+          assetGroupSignalOperation: {
+            create: {
+              assetGroup: tempAssetGroupRef,
+              searchTheme: {
+                text: theme.trim()
+              }
+            }
+          }
+        });
+      }
+
+      // Link Audience Signal (AssetGroupSignal)
+      if (params.audienceSignal) {
+        let resName = "";
+        let signalType = "AUDIENCE";
+        let signalName = "";
+
+        if (typeof params.audienceSignal === "object" && params.audienceSignal !== null) {
+          resName = (params.audienceSignal.resourceName || "").trim();
+          signalType = (params.audienceSignal.type || "AUDIENCE").trim().toUpperCase();
+          signalName = (params.audienceSignal.name || "").trim();
+        } else if (typeof params.audienceSignal === "string" && params.audienceSignal.trim()) {
+          resName = params.audienceSignal.trim();
+        }
+
+        if (resName) {
+          if (signalType !== "AUDIENCE" || !resName.includes("/audiences/")) {
+            throw new Error(`AUDIENCE signal must reference a valid Google Ads Audience resource belonging to customer ${cid}. Provided: "${resName}".`);
+          }
+
+          if (!resName.startsWith(`customers/${cid}/`)) {
+            throw new Error(`Invalid audience resource: "${resName}" does not belong to customer ${cid}.`);
+          }
+
+          // Verify audience exists and is ENABLED on customer account via GAQL
+          const checkRows = await this.gaqlSearch(organizationId, customerId, `
+            SELECT audience.id, audience.name, audience.resource_name, audience.status
+            FROM audience
+            WHERE audience.resource_name = '${resName}' AND audience.status = 'ENABLED'
+          `).catch(() => []);
+
+          if (checkRows.length === 0) {
+            throw new Error(`Audience resource "${resName}" was not found or is not ENABLED on customer account ${cid}.`);
+          }
+
+          atomicOperations.push({
+            assetGroupSignalOperation: {
+              create: {
+                assetGroup: tempAssetGroupRef,
+                audience: { audience: resName }
+              }
+            }
+          });
+        }
+      }
+
+      // Execute Atomic Mutate
+      const atomicRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:mutate`, {
+        mutateOperations: atomicOperations
+      }, { headers });
+
+      const mutateResults = atomicRes.data?.mutateOperationResponses || [];
+      const realAssetGroupRef = mutateResults[0]?.assetGroupResult?.resourceName;
+      if (!realAssetGroupRef) {
+        throw new Error(`Failed to atomically create AssetGroup "${assetGroupName}" on Google Ads`);
+      }
+
+      // 5. Location Targeting Criteria
+      if (params.locations && params.locations.length > 0) {
+        const geoTargetIds: string[] = [];
+        for (const loc of params.locations) {
+          if (loc.toLowerCase() === "india") geoTargetIds.push("2356");
+          else if (loc.toLowerCase().includes("united states")) geoTargetIds.push("2840");
+          else if (loc.toLowerCase().includes("mumbai")) geoTargetIds.push("1007788");
+          else if (loc.toLowerCase().includes("delhi")) geoTargetIds.push("1007785");
+          else if (loc.toLowerCase().includes("bangalore")) geoTargetIds.push("1007768");
+        }
+        if (geoTargetIds.length > 0 && campaignRef) {
+          await this.addGeoTargets(organizationId, customerId, campaignRef, geoTargetIds);
+        }
+      }
+
+      // 6. Language Targeting Criteria
+      if (params.languages && params.languages.length > 0 && campaignRef) {
+        await this.addLanguages(organizationId, customerId, campaignRef, params.languages);
+      }
+
+      // 7. Ad Schedule Targeting Criteria
+      if (params.adSchedule && params.adSchedule.length > 0 && campaignRef) {
+        await this.addAdSchedules(organizationId, customerId, campaignRef, params.adSchedule);
+      }
+
+      // 8. Campaign Level Asset Extensions (Parameters 23–27)
+      const campaignAssetOperations: any[] = [];
+
+      // Sitelink Assets (Param 23)
+      if (params.sitelinks && params.sitelinks.length > 0) {
+        for (const sitelink of params.sitelinks) {
+          if (sitelink.text && sitelink.url) {
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [
+                {
+                  create: {
+                    name: `Sitelink - ${sitelink.text.trim()} - ${Date.now()}`,
+                    sitelinkAsset: {
+                      linkText: sitelink.text.trim(),
+                      ...(sitelink.desc1 ? { description1: sitelink.desc1.trim() } : {}),
+                      ...(sitelink.desc2 ? { description2: sitelink.desc2.trim() } : {})
+                    },
+                    finalUrls: [sitelink.url.trim()]
+                  }
+                }
+              ]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "SITELINK",
+                  status: "ENABLED"
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // Callout Assets (Param 24)
+      if (params.callouts && params.callouts.length > 0) {
+        for (const callout of params.callouts) {
+          if (typeof callout === "string" && callout.trim()) {
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [
+                {
+                  create: {
+                    name: `Callout - ${callout.trim()} - ${Date.now()}`,
+                    calloutAsset: {
+                      calloutText: callout.trim()
+                    }
+                  }
+                }
+              ]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "CALLOUT",
+                  status: "ENABLED"
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // Call Asset (Param 25)
+      if (params.callAsset && params.callAsset.phoneNumber) {
+        const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+          operations: [
+            {
+              create: {
+                name: `Call - ${params.callAsset.phoneNumber.trim()} - ${Date.now()}`,
+                callAsset: {
+                  countryCode: params.callAsset.countryCode || "IN",
+                  phoneNumber: params.callAsset.phoneNumber.trim()
+                }
+              }
+            }
+          ]
+        }, { headers });
+        const assetRef = assetRes.data?.results?.[0]?.resourceName;
+        if (assetRef) {
+          campaignAssetOperations.push({
+            create: {
+              campaign: campaignRef,
+              asset: assetRef,
+              fieldType: "CALL",
+              status: "ENABLED"
+            }
+          });
+        }
+      }
+
+      // Structured Snippet Assets (Param 26)
+      if (params.structuredSnippets && params.structuredSnippets.length > 0) {
+        for (const snip of params.structuredSnippets) {
+          if (snip.header && snip.values && snip.values.length > 0) {
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [
+                {
+                  create: {
+                    name: `Snippet - ${snip.header.trim()} - ${Date.now()}`,
+                    structuredSnippetAsset: {
+                      header: snip.header.trim(),
+                      values: snip.values.map(v => v.trim()).filter(Boolean)
+                    }
+                  }
+                }
+              ]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "STRUCTURED_SNIPPET",
+                  status: "ENABLED"
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // Promotion Assets (Param 27)
+      if (params.promotions && params.promotions.length > 0) {
+        for (const promo of params.promotions) {
+          if (promo.promotionTarget && promo.finalUrl) {
+            const promoAssetBody: any = {
+              promotionTarget: promo.promotionTarget.trim(),
+              ...(promo.occasion ? { occasion: promo.occasion } : {})
+            };
+            if (promo.percentOff) {
+              promoAssetBody.percentOff = Math.round(Number(promo.percentOff) * 10000); // e.g. 20% -> 200,000
+            }
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [
+                {
+                  create: {
+                    name: `Promo - ${promo.promotionTarget.trim()} - ${Date.now()}`,
+                    promotionAsset: promoAssetBody,
+                    finalUrls: [promo.finalUrl.trim()]
+                  }
+                }
+              ]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "PROMOTION",
+                  status: "ENABLED"
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // Price Assets (Param 28)
+      if (params.prices && params.prices.length >= 3) {
+        const priceOfferings = params.prices.map(p => ({
+          header: p.header.trim(),
+          description: (p.description || "Service option").substring(0, 25).trim(),
+          price: {
+            currencyCode: p.currencyCode || "INR",
+            amountMicros: String(p.amountMicros)
+          },
+          unit: p.unit || "PER_MONTH",
+          finalUrl: p.finalUrl.trim()
+        }));
+
+        const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+          operations: [
+            {
+              create: {
+                name: `Price - ${params.campaignName} - ${Date.now()}`,
+                priceAsset: {
+                  type: "SERVICES",
+                  priceQualifier: "FROM",
+                  languageCode: "en",
+                  priceOfferings
+                }
+              }
+            }
+          ]
+        }, { headers });
+        const assetRef = assetRes.data?.results?.[0]?.resourceName;
+        if (assetRef) {
+          campaignAssetOperations.push({
+            create: {
+              campaign: campaignRef,
+              asset: assetRef,
+              fieldType: "PRICE",
+              status: "ENABLED"
+            }
+          });
+        }
+      }
+
+      if (campaignAssetOperations.length > 0) {
+        await axios.post(`${ADS_BASE}/customers/${cid}/campaignAssets:mutate`, {
+          operations: campaignAssetOperations
+        }, { headers });
+      }
 
       return {
         campaignResourceName: campaignRef,
+        assetGroupResourceName: realAssetGroupRef,
         budgetResourceName: budgetRef,
+        resolvedAudienceResourceName: typeof params.audienceSignal === "object" ? params.audienceSignal?.resourceName : params.audienceSignal,
         campaignId
       };
     } catch (err: any) {
-      console.warn("Google Ads No Guidance Performance Max REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-pmax-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `pmax-${Date.now()}`
-      };
+      const errorData = err?.response?.data;
+      console.error("[GoogleAdsService] Google Ads Performance Max creation failed:", JSON.stringify(errorData, null, 2));
+      const errObj = errorData?.error?.details?.[0]?.errors?.[0];
+      const fieldPath = errObj?.location?.fieldPathElements?.map((f: any) => f.fieldName).join(".");
+      const fullMsg = errObj ? `${errObj.message}${fieldPath ? ` (at ${fieldPath})` : ""}${errObj.trigger?.stringValue ? ` [trigger: ${errObj.trigger.stringValue}]` : ""}` : (errorData?.error?.message || err.message);
+      throw new Error(fullMsg || "Failed to create Performance Max campaign on Google Ads");
     }
   }
 
@@ -1410,7 +2409,7 @@ export class GoogleAdsService {
               status: "PAUSED",
               advertisingChannelType: "SEARCH",
               campaignBudget: budgetRef,
-              ...(params.targetCpaMicros ? { targetCpa: { targetCpaMicros: params.targetCpaMicros } } : {})
+              ...(params.targetCpaMicros ? { maximizeConversions: { targetCpaMicros: String(params.targetCpaMicros) } } : {})
             }
           }
         ]
@@ -1468,28 +2467,79 @@ export class GoogleAdsService {
               status: "PAUSED",
               advertisingChannelType: "DEMAND_GEN",
               campaignBudget: budgetRef,
-              ...(params.targetCpaMicros ? { targetCpa: { targetCpaMicros: params.targetCpaMicros } } : {})
+              audienceSetting: { useAudienceGrouped: true },
+              ...(params.targetCpaMicros ? { maximizeConversions: { targetCpaMicros: String(params.targetCpaMicros) } } : {})
             }
           }
         ]
       };
 
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-demandgen-${Date.now()}`;
+      const campaignRef = res.data?.results?.[0]?.resourceName;
+      if (!campaignRef) {
+        throw new Error(`Google Ads API returned no campaign resource name in mutate response: ${JSON.stringify(res.data)}`);
+      }
       const campaignId = campaignRef.split("/").pop();
+
+      // 1. Create the Demand Gen Ad Group
+      let adGroupRef: string | undefined;
+      try {
+        const agPayload = {
+          operations: [{
+            create: {
+              campaign: campaignRef,
+              name: `${params.campaignName} - Ad Group`,
+              status: "ENABLED"
+            }
+          }]
+        };
+        const agRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroups:mutate`, agPayload, { headers });
+        adGroupRef = agRes.data?.results?.[0]?.resourceName;
+        console.log(`[GoogleAds API] Created Demand Gen Ad Group: ${adGroupRef}`);
+      } catch (agErr: any) {
+        console.warn("[GoogleAds API] Demand Gen Ad Group creation warning:", agErr?.response?.data || agErr.message);
+      }
+
+      // 2. Create the Demand Gen Ad (Multi-Asset)
+      if (adGroupRef) {
+        try {
+          const adPayload = {
+            operations: [{
+              create: {
+                adGroup: adGroupRef,
+                status: "ENABLED",
+                ad: {
+                  finalUrls: [params.finalUrl],
+                  demandGenMultiAssetAd: {
+                    headlines: (params.headlines || ["Discover Demand Gen"]).slice(0, 5).map((h: string) => ({
+                      text: h.substring(0, 30)
+                    })),
+                    descriptions: (params.descriptions || ["Explore our products with Demand Gen"]).slice(0, 5).map((d: string) => ({
+                      text: d.substring(0, 90)
+                    }))
+                    // Note: Images require Asset linking via marketingImages.
+                    // This is skipped for basic generation unless standard Image Assets are already uploaded.
+                  }
+                }
+              }
+            }]
+          };
+          await axios.post(`${ADS_BASE}/customers/${cid}/adGroupAds:mutate`, adPayload, { headers });
+          console.log(`[GoogleAds API] Created Demand Gen Ad in group ${adGroupRef}`);
+        } catch (adErr: any) {
+          console.warn("[GoogleAds API] Demand Gen Ad creation warning:", adErr?.response?.data || adErr.message);
+        }
+      }
 
       return {
         campaignResourceName: campaignRef,
         budgetResourceName: budgetRef,
+        adGroupResourceName: adGroupRef,
         campaignId
       };
     } catch (err: any) {
-      console.warn("Google Ads No Guidance Demand Gen REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-demandgen-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `demandgen-${Date.now()}`
-      };
+      console.error("Google Ads No Guidance Demand Gen REST call failed:", err?.response?.data || err.message);
+      throw err; // Fail explicitly so the frontend knows it failed
     }
   }
 
@@ -1503,7 +2553,7 @@ export class GoogleAdsService {
       campaignName: string;
       finalUrl: string;
       amountMicros: number;
-      biddingFocus: string;
+      biddingFocus?: string;
       targetCpaMicros?: number;
       headlines: string[];
       longHeadline?: string;
@@ -1511,45 +2561,65 @@ export class GoogleAdsService {
       images?: string[];
     }
   ) {
-    try {
-      const budgetRef = await this.createBudget(organizationId, customerId, {
-        name: `${params.campaignName} Budget - ${Date.now()}`,
-        amountPerDay: params.amountMicros / 1_000_000
-      });
+    const budgetRef = await this.createBudget(organizationId, customerId, {
+      name: `${params.campaignName} Budget - ${Date.now()}`,
+      amountPerDay: params.amountMicros / 1_000_000
+    });
 
-      const { headers } = await this.getAdsHeaders(organizationId, customerId);
-      const cid = (customerId || "").replace(/-/g, "").trim();
-      const campaignPayload = {
-        operations: [
-          {
-            create: {
-              name: params.campaignName,
-              status: "PAUSED",
-              advertisingChannelType: "DISPLAY",
-              campaignBudget: budgetRef,
-              ...(params.targetCpaMicros ? { targetCpa: { targetCpaMicros: params.targetCpaMicros } } : {})
-            }
-          }
-        ]
-      };
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const cid = (customerId || "").replace(/-/g, "").trim();
 
-      const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-display-${Date.now()}`;
-      const campaignId = campaignRef.split("/").pop();
-
-      return {
-        campaignResourceName: campaignRef,
-        budgetResourceName: budgetRef,
-        campaignId
-      };
-    } catch (err: any) {
-      console.warn("Google Ads No Guidance Display REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-display-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `display-${Date.now()}`
-      };
+    // Determine bidding strategy for Display in API v24
+    // Standard Display campaigns use maximizeConversions (with optional targetCpaMicros) or targetCpa
+    let biddingConfig: any = { maximizeConversions: {} };
+    if (params.targetCpaMicros && params.targetCpaMicros > 0) {
+      biddingConfig = { maximizeConversions: { targetCpaMicros: String(params.targetCpaMicros) } };
+    } else if (params.biddingFocus === "MANUAL_CPC") {
+      biddingConfig = { manualCpc: { enhancedCpcEnabled: false } };
     }
+
+    const campaignPayload = {
+      operations: [
+        {
+          create: {
+            name: params.campaignName,
+            status: "PAUSED",
+            advertisingChannelType: "DISPLAY",
+            campaignBudget: budgetRef,
+            containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            ...biddingConfig
+          }
+        }
+      ]
+    };
+
+    const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+    const campaignRef = res.data?.results?.[0]?.resourceName;
+    if (!campaignRef) {
+      throw new Error(`Google Ads API returned no campaign resource name in mutate response: ${JSON.stringify(res.data)}`);
+    }
+    const campaignId = campaignRef.split("/").pop();
+
+    // Create the required DISPLAY_STANDARD Ad Group so the campaign is complete and visible in Google Ads UI
+    let adGroupRef: string | undefined;
+    try {
+      adGroupRef = await this.createAdGroup(organizationId, cid, {
+        name: `${params.campaignName} - Ad Group 1`,
+        campaignResourceName: campaignRef,
+        type: "DISPLAY_STANDARD",
+        cpcBidMicros: 1_000_000
+      });
+      console.log(`[GoogleAds API] Created Display Ad Group: ${adGroupRef}`);
+    } catch (agErr: any) {
+      console.warn("[GoogleAds API] Display Ad Group creation warning:", agErr?.response?.data || agErr.message);
+    }
+
+    return {
+      campaignResourceName: campaignRef,
+      budgetResourceName: budgetRef,
+      adGroupResourceName: adGroupRef,
+      campaignId
+    };
   }
 
   /**
@@ -1560,55 +2630,131 @@ export class GoogleAdsService {
     customerId: string,
     params: {
       campaignName: string;
-      campaignSubtype: string;
-      videoUrl: string;
-      finalUrl: string;
+      campaignSubtype?: string;
+      videoUrl?: string;
+      finalUrl?: string;
       amountMicros: number;
-      biddingFocus: string;
+      biddingFocus?: string;
       cpvMicros?: number;
+      targetCpaMicros?: number;
       headline?: string;
       description?: string;
+      startDate?: string;
+      endDate?: string;
     }
   ) {
-    try {
-      const budgetRef = await this.createBudget(organizationId, customerId, {
-        name: `${params.campaignName} Budget - ${Date.now()}`,
-        amountPerDay: params.amountMicros / 1_000_000
-      });
+    const budgetRef = await this.createBudget(organizationId, customerId, {
+      name: `${params.campaignName} Budget - ${Date.now()}`,
+      amountPerDay: params.amountMicros / 1_000_000
+    });
 
-      const { headers } = await this.getAdsHeaders(organizationId, customerId);
-      const cid = (customerId || "").replace(/-/g, "").trim();
-      const campaignPayload = {
-        operations: [
-          {
-            create: {
-              name: params.campaignName,
-              status: "PAUSED",
-              advertisingChannelType: "VIDEO",
-              campaignBudget: budgetRef,
-              targetCpv: { cpmBidMicros: params.cpvMicros || 2500000 }
-            }
-          }
-        ]
-      };
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const cid = (customerId || "").replace(/-/g, "").trim();
 
-      const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-video-${Date.now()}`;
-      const campaignId = campaignRef.split("/").pop();
-
-      return {
-        campaignResourceName: campaignRef,
-        budgetResourceName: budgetRef,
-        campaignId
-      };
-    } catch (err: any) {
-      console.warn("Google Ads No Guidance Video REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-video-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `video-${Date.now()}`
-      };
+    // Determine bidding strategy for Video based on Subtype
+    let biddingConfig: any = { maximizeConversions: {} };
+    const isTargetCpa = params.targetCpaMicros && params.targetCpaMicros > 0;
+    
+    if (params.campaignSubtype === "VIDEO_REACH_TARGET_FREQUENCY" || params.campaignSubtype === "VIDEO_NON_SKIPPABLE") {
+      biddingConfig = { targetCpm: {} }; // Reach campaigns require Target CPM
+    } else if (isTargetCpa) {
+      biddingConfig = { maximizeConversions: { targetCpaMicros: String(params.targetCpaMicros) } };
+    } else if (params.biddingFocus === "MANUAL_CPV" || params.biddingFocus === "Maximum CPV") {
+      biddingConfig = { manualCpv: {} };
     }
+    // Enforce Google Ads maximum end date constraint
+    const todayIso = new Date().toISOString().split("T")[0];
+    let cleanStartDate = params.startDate ? params.startDate.split("T")[0].split(" ")[0] : todayIso;
+    if (cleanStartDate < todayIso) cleanStartDate = todayIso;
+    const startDateTime = `${cleanStartDate} 00:00:00`;
+
+    let cleanEndDate = params.endDate ? params.endDate.split("T")[0].split(" ")[0] : undefined;
+    if (cleanEndDate && cleanEndDate < cleanStartDate) cleanEndDate = cleanStartDate;
+    if (cleanEndDate && cleanEndDate > "2037-12-30") cleanEndDate = "2037-12-30";
+    const endDateTime = cleanEndDate ? `${cleanEndDate} 23:59:59` : undefined;
+
+    const campaignPayload = {
+      operations: [
+        {
+          create: {
+            name: params.campaignName,
+            status: "PAUSED",
+            advertisingChannelType: "VIDEO",
+            advertisingChannelSubType: params.campaignSubtype,
+            campaignBudget: budgetRef,
+            containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            startDateTime,
+            ...(endDateTime ? { endDateTime } : {}),
+            ...biddingConfig
+          }
+        }
+      ]
+    };
+
+    console.log("=== VIDEO CAMPAIGN MUTATE PAYLOAD ===");
+    console.log(JSON.stringify(campaignPayload.operations[0].create, null, 2));
+    console.log("=====================================");
+
+    const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+    const campaignRef = res.data?.results?.[0]?.resourceName;
+    if (!campaignRef) {
+      throw new Error(`Google Ads API returned no campaign resource name in mutate response: ${JSON.stringify(res.data)}`);
+    }
+    const campaignId = campaignRef.split("/").pop();
+
+    // 1. Create the Video Ad Group
+    let adGroupRef: string | undefined;
+    try {
+      const agPayload = {
+        operations: [{
+          create: {
+            campaign: campaignRef,
+            name: `${params.campaignName} - Ad Group`,
+            status: "ENABLED",
+            type: params.campaignSubtype === "VIDEO_ACTION" ? "VIDEO_RESPONSIVE_AD_GROUP" : undefined
+          }
+        }]
+      };
+      const agRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroups:mutate`, agPayload, { headers });
+      adGroupRef = agRes.data?.results?.[0]?.resourceName;
+      console.log(`[GoogleAds API] Created Video Ad Group: ${adGroupRef}`);
+    } catch (agErr: any) {
+      console.warn("[GoogleAds API] Video Ad Group creation warning:", agErr?.response?.data || agErr.message);
+    }
+
+    // 2. Create the Video Ad
+    if (adGroupRef) {
+      try {
+        const adPayload = {
+          operations: [{
+            create: {
+              adGroup: adGroupRef,
+              status: "ENABLED",
+              ad: {
+                finalUrls: params.finalUrl ? [params.finalUrl] : [],
+                videoResponsiveAd: {
+                  headlines: params.headline ? [{ text: params.headline.substring(0, 30) }] : undefined,
+                  longHeadlines: params.description ? [{ text: params.description.substring(0, 90) }] : undefined,
+                  descriptions: params.description ? [{ text: params.description.substring(0, 90) }] : undefined,
+                  // Video linking requires an uploaded Asset. A proper implementation would link the video asset here.
+                }
+              }
+            }
+          }]
+        };
+        await axios.post(`${ADS_BASE}/customers/${cid}/adGroupAds:mutate`, adPayload, { headers });
+        console.log(`[GoogleAds API] Created Video Ad in group ${adGroupRef}`);
+      } catch (adErr: any) {
+        console.warn("[GoogleAds API] Video Ad creation warning:", adErr?.response?.data || adErr.message);
+      }
+    }
+
+    return {
+      campaignResourceName: campaignRef,
+      budgetResourceName: budgetRef,
+      adGroupResourceName: adGroupRef,
+      campaignId
+    };
   }
 
   /**

@@ -62,14 +62,14 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
-            className="p-2 text-slate-400 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
+            className="p-2 text-slate-500 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
             title="Close"
           >
             <X className="h-4 w-4" />
           </button>
           <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-bold">
             <span className="text-slate-500">{formattedObjective}</span>
-            <span className="text-slate-300">/</span>
+            <span className="text-slate-700">/</span>
             <span className="text-blue-700">{formattedType} Setup</span>
           </div>
         </div>
@@ -78,7 +78,7 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
           <span className="font-mono bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-slate-700" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-700" />
         </div>
       </header>
 
@@ -170,7 +170,7 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
               <div className="p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Locations</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
                 <div className="space-y-3 text-xs">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -192,7 +192,7 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
               <div className="p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Languages</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
                 <div className="relative max-w-md text-xs">
                   <input

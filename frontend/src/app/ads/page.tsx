@@ -9,8 +9,10 @@ import {
   Phone, Bell, LayoutGrid, List, Info, PlusCircle, ArrowUpRight,
   Activity, Calendar, Filter, Download, Bot, Settings, Users,
   Layers, FileText, TrendingDown, Award, Star, RotateCcw, 
-  Building2, Check, Minus, BadgePercent, ShieldCheck, MessageSquare
+  Building2, Check, Minus, BadgePercent, ShieldCheck, MessageSquare,
+  Copy, ExternalLink, Sliders, LogOut
 } from "lucide-react";
+import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -78,7 +80,7 @@ function MetricCard({ icon: Icon, label, value, sub, color }: any) {
       <div>
         <p className="text-2xl font-bold text-slate-900 tracking-tight">{value}</p>
         <p className="text-xs font-bold text-slate-600 mt-0.5">{label}</p>
-        {sub && <p className="text-[11px] text-slate-400 mt-1">{sub}</p>}
+        {sub && <p className="text-[11px] text-slate-500 mt-1">{sub}</p>}
       </div>
     </div>
   );
@@ -107,11 +109,11 @@ function EmptyState({ icon: Icon, title, sub, action, onAction }: any) {
 function Modal({ title, onClose, children, wide }: any) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={onClose} />
-      <div className={`relative z-10 bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] ${wide ? "w-full max-w-2xl" : "w-full max-w-lg"}`}>
+      <div className="absolute inset-0 bg-white/40 backdrop-blur-xs" onClick={onClose} />
+      <div className={`relative z-10 bg-white border border-slate-200 rounded-2xl shadow-md flex flex-col max-h-[90vh] ${wide ? "w-full max-w-2xl" : "w-full max-w-lg"}`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <h3 className="font-bold text-slate-900 text-base">{title}</h3>
-          <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer">
+          <button onClick={onClose} className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -205,11 +207,11 @@ function AccountSelector({ accounts, selected, onSelect, loading, orgId }: any) 
       >
         <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
         <span className="flex-1 text-left truncate">{current?.name || (selected ? `ID: ${selected}` : "Select Account")}</span>
-        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
+        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-500" />}
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1 left-0 w-80 z-[200] bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-fadeIn">
+        <div className="absolute top-full mt-1 left-0 w-80 z-[200] bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-fadeIn">
           <div className="p-3 border-b border-slate-100 bg-slate-50">
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Google Ads Accounts</p>
           </div>
@@ -271,10 +273,12 @@ function AccountSelector({ accounts, selected, onSelect, loading, orgId }: any) 
 function AccountPickerScreen({
   orgId,
   onAccountSelected,
+  onDisconnect,
   showToast
 }: {
   orgId: string;
   onAccountSelected: (id: string) => void;
+  onDisconnect?: () => void;
   showToast: (msg: string) => void;
 }) {
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -297,48 +301,34 @@ function AccountPickerScreen({
       const text = await res.text();
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${text}`);
       const data = JSON.parse(text);
-      const ids: string[] = data.customerIds || [];
-      log(ids.length > 0 ? "info" : "warn", `Found ${ids.length} accessible customer IDs: ${ids.join(", ") || "(none)"}`);
-      setAccessibleCids(ids);
+      setAccessibleCids(data.customerIds || []);
+      log("info", `Found ${data.customerIds?.length || 0} accessible accounts`);
     } catch (e: any) {
-      log("error", `Error: ${e.message}`);
-      showToast("Failed to fetch accounts — see debug panel");
+      log("error", `fetchAccessible failed: ${e.message}`);
+      showToast("Could not fetch accounts from Google profile");
     } finally {
       setLoading(false);
     }
   }
 
   async function connectAndSelect(cid: string) {
-    const cleanCid = cid.replace(/-/g, "");
+    const cleanCid = cid.replace(/-/g, "").trim();
     setConnecting(cleanCid);
-    log("info", `Connecting account ${cleanCid}…`);
+    log("info", `Connecting customer ${cleanCid}…`);
     try {
-      const infoRes = await fetch(`${BACKEND_URL}/api/ads/customer-info?orgId=${orgId}&customerId=${cleanCid}`);
-      let info: any = null;
-      if (infoRes.ok) {
-        info = await infoRes.json();
-      }
-
       const res = await fetch(`${BACKEND_URL}/api/ads/connect-customer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orgId,
-          customerId: cleanCid,
-          name: info?.descriptiveName || `Account ${cleanCid}`,
-          currencyCode: info?.currencyCode,
-          timeZone: info?.timeZone,
-          isManager: info?.manager || false
-        })
+        body: JSON.stringify({ orgId, customerId: cleanCid })
       });
-      const resText = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${resText}`);
-
-      showToast(`Account ${cleanCid} connected!`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to connect account");
+      log("info", `Customer ${cleanCid} connected successfully! Selecting…`);
+      showToast(`Connected account ${cleanCid} ✓`);
       onAccountSelected(cleanCid);
     } catch (e: any) {
-      log("error", `Failed: ${e.message}`);
-      showToast(`Failed to connect account: ${e.message}`);
+      log("error", `connectAndSelect failed: ${e.message}`);
+      showToast(`Error: ${e.message}`);
     } finally {
       setConnecting(null);
     }
@@ -359,6 +349,16 @@ function AccountPickerScreen({
           <p className="text-slate-500 text-xs max-w-sm mx-auto">
             Choose which Google Ads account to manage in this workspace. You can switch accounts at any time.
           </p>
+          {onDisconnect && (
+            <div className="pt-1">
+              <button
+                onClick={onDisconnect}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Disconnect Google
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Account list card */}
@@ -377,7 +377,7 @@ function AccountPickerScreen({
           <div className="divide-y divide-slate-100">
             {!loading && accessibleCids.length === 0 && (
               <div className="py-10 text-center space-y-3 px-6">
-                <AlertCircle className="h-8 w-8 text-slate-400 mx-auto" />
+                <AlertCircle className="h-8 w-8 text-slate-500 mx-auto" />
                 <p className="text-slate-700 text-xs font-bold">No accounts found</p>
                 <p className="text-slate-500 text-[11px] max-w-sm mx-auto">
                   This can happen if the Google account connected has no Google Ads accounts. Try connecting manually below.
@@ -475,6 +475,9 @@ interface SettingsTabProps {
   onSelectAccount: (id: string) => void;
   onAccountsRefresh: () => void;
   showToast: (msg: string) => void;
+  onOpenProfile?: () => void;
+  onDisconnect?: () => void;
+  isDisconnecting?: boolean;
 }
 
 function SettingsTab({
@@ -483,7 +486,10 @@ function SettingsTab({
   selectedCustomerId,
   onSelectAccount,
   onAccountsRefresh,
-  showToast
+  showToast,
+  onOpenProfile,
+  onDisconnect,
+  isDisconnecting
 }: SettingsTabProps) {
   const [accessibleCids, setAccessibleCids] = useState<string[]>([]);
   const [loadingAccessible, setLoadingAccessible] = useState(false);
@@ -583,11 +589,30 @@ function SettingsTab({
               <p className="text-[11px] text-slate-500 mt-0.5">Please connect or select an account below to view campaign data.</p>
             )}
           </div>
+          {selectedCustomerId && onOpenProfile && (
+            <button
+              onClick={onOpenProfile}
+              className="text-xs px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-all font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <Building2 className="h-3.5 w-3.5 text-blue-600" />
+              Google Ads Profile
+            </button>
+          )}
+          {onDisconnect && (
+            <button
+              onClick={onDisconnect}
+              disabled={isDisconnecting}
+              className="text-xs px-3.5 py-1.5 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 transition-all font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {isDisconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
+              {isDisconnecting ? "Disconnecting..." : "Disconnect Google"}
+            </button>
+          )}
           <a
-            href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads`}
+            href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads&source=google_ads`}
             className="text-xs px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-all font-bold shadow-2xs"
           >
-            Reconnect Google
+            Switch Account
           </a>
         </div>
       </div>
@@ -602,7 +627,7 @@ function SettingsTab({
             <button 
               onClick={fetchAccessible} 
               disabled={loadingAccessible}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
               title="Refresh profile accounts"
             >
               <RefreshCw className={`h-4 w-4 ${loadingAccessible ? "animate-spin" : ""}`} />
@@ -642,7 +667,7 @@ function SettingsTab({
                         disabled={isConnectingClient || isAlreadyConnected}
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                           isAlreadyConnected 
-                          ? "bg-slate-100 text-slate-400 border border-transparent cursor-not-allowed" 
+                          ? "bg-slate-100 text-slate-500 border border-transparent cursor-not-allowed" 
                           : "bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 cursor-pointer"
                         }`}
                       >
@@ -768,6 +793,7 @@ export default function GoogleAdsPage() {
 
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [accountsLoading, setAccountsLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -818,12 +844,21 @@ export default function GoogleAdsPage() {
 
   // Campaign Details states
   const [selectedCampaignDetails, setSelectedCampaignDetails] = useState<any>(null);
-  const [activeDetailsTab, setActiveDetailsTab] = useState<"info" | "ad-groups" | "ads" | "keywords" | "ai">("info");
+  const [activeDetailsTab, setActiveDetailsTab] = useState<"info" | "assets" | "targeting" | "all" | "ad-groups" | "ads" | "keywords" | "ai">("info");
   const [isSavingDetails, setIsSavingDetails] = useState(false);
   const [detailName, setDetailName] = useState("");
   const [detailBudget, setDetailBudget] = useState(500);
   const [detailStatus, setDetailStatus] = useState("PAUSED");
   const [detailEndDate, setDetailEndDate] = useState("");
+  const [detailFinalUrl, setDetailFinalUrl] = useState("");
+  const [detailBiddingStrategy, setDetailBiddingStrategy] = useState("");
+  const [newHeadlineInput, setNewHeadlineInput] = useState("");
+  const [newDescInput, setNewDescInput] = useState("");
+  const [newKeywordInput, setNewKeywordInput] = useState("");
+  const [newLocationInput, setNewLocationInput] = useState("");
+  const [newLanguageInput, setNewLanguageInput] = useState("");
+  const [editingParamField, setEditingParamField] = useState<string | null>(null);
+  const [tempParamValue, setTempParamValue] = useState<any>("");
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3500); };
 
@@ -832,6 +867,27 @@ export default function GoogleAdsPage() {
       setActiveTab("settings");
       if (oauthStatus === "success") {
         showToast("✅ Google account connected! Fetching your ad accounts…");
+        // Re-fetch config & accounts after reconnect so old data appears immediately
+        (async () => {
+          try {
+            const res = await fetch(`${BACKEND}/api/gmb/config?orgId=${getOrgId()}`);
+            const data = await res.json();
+            const connected = !!data.googleRefreshToken;
+            setIsConnected(connected);
+            if (data.googleAdsCustomerId) {
+              const cid = data.googleAdsCustomerId.replace(/-/g, "");
+              setSelectedCustomerId(cid);
+            }
+            if (connected) {
+              // Re-fetch accounts list (re-activated on backend)
+              const accRes = await api(`/accounts?orgId=${getOrgId()}`);
+              const accData = await accRes.json();
+              if (Array.isArray(accData)) setAccounts(accData);
+            }
+          } catch (e) {
+            console.warn("Failed to re-fetch config after OAuth:", e);
+          }
+        })();
       }
     }
     if (oauthStatus === "error") {
@@ -979,6 +1035,38 @@ export default function GoogleAdsPage() {
     if (activeTab === "reports") loadReports(cid);
   }, [activeTab, selectedCustomerId, isConnected, dateRange, loadOverview, loadCampaigns, loadAdGroups, loadAds, loadKeywords, loadExtensions, loadConversions, loadAudiences, loadReports]);
 
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  const handleDisconnectGoogleAds = async () => {
+    if (!confirm("Are you sure you want to disconnect Google Ads and log out? You will need to reconnect to view your campaigns.")) return;
+    setIsDisconnecting(true);
+    try {
+      const res = await api("/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to disconnect Google Ads");
+      setIsConnected(false);
+      setSelectedCustomerId("");
+      setAccounts([]);
+      setCampaigns([]);
+      setAdGroups([]);
+      setAds([]);
+      setKeywords([]);
+      setExtensions([]);
+      setConversions([]);
+      setAudiences([]);
+      setOverview(null);
+      showToast("Successfully disconnected Google Ads.");
+    } catch (e: any) {
+      showToast(`Error: ${e.message || "Failed to disconnect"}`);
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
+
   const handleSelectAccount = async (cid: string) => {
     setSelectedCustomerId(cid);
     try {
@@ -1061,26 +1149,69 @@ export default function GoogleAdsPage() {
   }
 
   async function saveCampaignDetails() {
-    if (!selectedCampaignDetails || !detailName.trim()) { showToast("Name is required"); return; }
+    if (!selectedCampaignDetails || !detailName.trim()) { showToast("Campaign name is required"); return; }
     setIsSavingDetails(true);
     try {
       const res = await api(`/campaigns/${selectedCampaignDetails.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          orgId,
           customerId: selectedCustomerId,
-          name: detailName,
+          name: detailName.trim(),
+          budget: Number(detailBudget) || undefined,
           status: detailStatus,
-          endDate: detailEndDate || undefined
+          endDate: detailEndDate || undefined,
+          finalUrl: detailFinalUrl || undefined,
+          biddingStrategy: detailBiddingStrategy || undefined
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Update failed");
       showToast("Campaign settings updated live ✓");
-      setSelectedCampaignDetails({ ...selectedCampaignDetails, name: detailName, status: detailStatus, liveStatus: detailStatus, endDate: detailEndDate ? new Date(detailEndDate) : null });
+      setSelectedCampaignDetails((prev: any) => ({
+        ...prev,
+        name: detailName.trim(),
+        budget: Number(detailBudget) || prev.budget,
+        status: detailStatus,
+        liveStatus: detailStatus,
+        endDate: detailEndDate ? new Date(detailEndDate) : null,
+        finalUrl: detailFinalUrl,
+        biddingStrategy: detailBiddingStrategy
+      }));
       loadCampaigns(selectedCustomerId);
     } catch (e: any) {
       showToast(`Error: ${e.message}`);
+    } finally {
+      setIsSavingDetails(false);
+    }
+  }
+
+  async function saveSingleField(fieldKey: string, newValue: any) {
+    if (!selectedCampaignDetails) return;
+    setIsSavingDetails(true);
+    try {
+      const payload: any = {
+        orgId,
+        customerId: selectedCustomerId,
+        [fieldKey]: newValue
+      };
+      const res = await api(`/campaigns/${selectedCampaignDetails.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Field update failed");
+      showToast(`Updated ${fieldKey} successfully ✓`);
+      setSelectedCampaignDetails((prev: any) => ({
+        ...prev,
+        [fieldKey]: newValue
+      }));
+      setEditingParamField(null);
+      loadCampaigns(selectedCustomerId);
+    } catch (e: any) {
+      showToast(`Error updating ${fieldKey}: ${e.message}`);
     } finally {
       setIsSavingDetails(false);
     }
@@ -1141,7 +1272,7 @@ export default function GoogleAdsPage() {
       <div className="flex flex-col h-full bg-slate-50 text-slate-900 overflow-y-auto">
         <header className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white shrink-0 shadow-2xs">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm text-white font-bold">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm text-slate-900 font-bold">
               <Megaphone className="h-5 w-5" />
             </div>
             <div>
@@ -1171,7 +1302,7 @@ export default function GoogleAdsPage() {
               ))}
             </div>
             <a
-              href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads`}
+              href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads&source=google_ads`}
               className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold text-xs transition-all shadow-sm mx-auto w-fit"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
@@ -1189,7 +1320,14 @@ export default function GoogleAdsPage() {
   }
 
   if (isConnected && !selectedCustomerId) {
-    return <AccountPickerScreen orgId={orgId} onAccountSelected={handleSelectAccount} showToast={showToast} />;
+    return (
+      <AccountPickerScreen
+        orgId={orgId}
+        onAccountSelected={handleSelectAccount}
+        onDisconnect={handleDisconnectGoogleAds}
+        showToast={showToast}
+      />
+    );
   }
 
   return (
@@ -1201,56 +1339,92 @@ export default function GoogleAdsPage() {
       {/* ── Top Header Bar ── */}
       <header className="relative z-50 flex items-center justify-between px-6 py-3.5 border-b border-slate-200 bg-white shrink-0 gap-3 flex-wrap shadow-2xs">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm text-white font-bold">
+          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm text-slate-900 font-bold">
             <Megaphone className="h-5 w-5" />
           </div>
           <div>
             <h1 className="font-bold text-slate-900 text-sm leading-none">Google Ads</h1>
-            <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Search, Performance Max &amp; YouTube Ads</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Campaigns, Performance, Keywords &amp; Optimization</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <AccountSelector accounts={accounts} selected={selectedCustomerId} onSelect={handleSelectAccount} loading={accountsLoading} orgId={orgId} />
+        {/* Header Right Actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {isConnected && (
+            <AccountSelector
+              accounts={accounts}
+              selected={selectedCustomerId}
+              onSelect={handleSelectAccount}
+              loading={accountsLoading}
+              orgId={orgId}
+            />
+          )}
 
           <select
             value={dateRange}
             onChange={e => setDateRange(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer"
+            className="bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 rounded-xl px-3 py-2 focus:bg-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-2xs"
           >
-            {DATE_RANGES.map(d => <option key={d.value} value={d.value} className="bg-white text-slate-900">{d.label}</option>)}
+            {DATE_RANGES.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
 
           <button
-            onClick={() => { if (selectedCustomerId) { loadCampaigns(selectedCustomerId); loadOverview(selectedCustomerId); } }}
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
-            title="Refresh Campaigns"
+            onClick={() => selectedCustomerId && activeTab === "overview" ? loadOverview(selectedCustomerId) : selectedCustomerId && loadCampaigns(selectedCustomerId)}
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 transition-all cursor-pointer shadow-2xs"
+            title="Refresh"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
 
           {selectedCustomerId && (
             <button
-              onClick={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+              onClick={() => router.push(`/ads/profile?customerId=${selectedCustomerId}`)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs"
+              title="View Google Ads Profile and Merchant/App Settings"
+            >
+              <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
+              <span>Google Ads Profile</span>
+            </button>
+          )}
+
+          {selectedCustomerId && (
+            <button
+              onClick={() => router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
               <Plus className="h-4 w-4" /> New Campaign
             </button>
           )}
 
-          <a
-            href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads`}
-            title="Connect or switch Google account"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-all cursor-pointer"
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-            </svg>
-            Connect Google
-          </a>
+          {isConnected ? (
+            <button
+              onClick={handleDisconnectGoogleAds}
+              disabled={isDisconnecting}
+              title="Disconnect Google Ads and log out"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+            >
+              {isDisconnecting ? (
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+              ) : (
+                <LogOut className="h-4 w-4 shrink-0" />
+              )}
+              <span>{isDisconnecting ? "Disconnecting..." : "Disconnect"}</span>
+            </button>
+          ) : (
+            <a
+              href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads&source=google_ads`}
+              title="Connect Google account"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-all cursor-pointer"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              <span>Connect Google</span>
+            </a>
+          )}
         </div>
       </header>
 
@@ -1273,7 +1447,7 @@ export default function GoogleAdsPage() {
       {!selectedCustomerId && activeTab !== "settings" ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-3">
-            <Building2 className="h-12 w-12 text-slate-400 mx-auto" />
+            <Building2 className="h-12 w-12 text-slate-500 mx-auto" />
             <p className="text-slate-900 font-bold text-sm">Select a Google Ads account</p>
             <p className="text-slate-500 text-xs">Use the account selector in the header to choose an active account.</p>
           </div>
@@ -1359,7 +1533,7 @@ export default function GoogleAdsPage() {
             <>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                   <input
                     value={campSearch}
                     onChange={e => setCampSearch(e.target.value)}
@@ -1375,8 +1549,8 @@ export default function GoogleAdsPage() {
                     <RefreshCw className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+                    onClick={() => router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
                   >
                     <Plus className="h-4 w-4" /> New Campaign
                   </button>
@@ -1387,7 +1561,7 @@ export default function GoogleAdsPage() {
                 {campsLoading ? (
                   <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
                 ) : filteredCamps.length === 0 ? (
-                  <EmptyState icon={Megaphone} title="No campaigns" sub="Create your first campaign to start reaching customers." action="Create Campaign" onAction={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)} />
+                  <EmptyState icon={Megaphone} title="No campaigns" sub="Create your first campaign to start reaching customers." action="Create Campaign" onAction={() => router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`)} />
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
@@ -1406,10 +1580,13 @@ export default function GoogleAdsPage() {
                                 onClick={() => {
                                   setSelectedCampaignDetails(c);
                                   setActiveDetailsTab("info");
-                                  setDetailName(c.name);
-                                  setDetailBudget(c.budget);
-                                  setDetailStatus(c.liveStatus || c.status);
+                                  setDetailName(c.name || "");
+                                  setDetailBudget(c.budget || 500);
+                                  setDetailStatus(c.liveStatus || c.status || "PAUSED");
                                   setDetailEndDate(c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "");
+                                  setDetailFinalUrl(c.finalUrl || "");
+                                  setDetailBiddingStrategy(c.biddingStrategy || "Maximize conversions");
+                                  setEditingParamField(null);
                                 }}
                                 className="font-bold text-blue-600 hover:text-blue-800 hover:underline text-left text-xs truncate max-w-[200px] block focus:outline-none cursor-pointer"
                               >
@@ -1427,6 +1604,23 @@ export default function GoogleAdsPage() {
                             <td className="p-4 font-semibold text-purple-700">{Number(c.conversions || 0).toFixed(1)}</td>
                             <td className="p-4">
                               <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => {
+                                    setSelectedCampaignDetails(c);
+                                    setActiveDetailsTab("info");
+                                    setDetailName(c.name || "");
+                                    setDetailBudget(c.budget || 500);
+                                    setDetailStatus(c.liveStatus || c.status || "PAUSED");
+                                    setDetailEndDate(c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "");
+                                    setDetailFinalUrl(c.finalUrl || "");
+                                    setDetailBiddingStrategy(c.biddingStrategy || "Maximize conversions");
+                                    setEditingParamField(null);
+                                  }}
+                                  title="View Details & Settings"
+                                  className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                </button>
                                 <button
                                   onClick={() => toggleCampaign(c)}
                                   disabled={toggling === c.id || !c.googleAdsCampaignId}
@@ -1461,7 +1655,7 @@ export default function GoogleAdsPage() {
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Layers className="h-4 w-4 text-blue-600" />Ad Groups <span className="text-slate-500 font-normal">({adGroups.length})</span></h2>
-                <button onClick={() => loadAdGroups(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                <button onClick={() => loadAdGroups(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
               </div>
               {adGroupsLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
@@ -1496,7 +1690,7 @@ export default function GoogleAdsPage() {
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><FileText className="h-4 w-4 text-blue-600" />Ads <span className="text-slate-500 font-normal">({ads.length})</span></h2>
-                <button onClick={() => loadAds(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                <button onClick={() => loadAds(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
               </div>
               {adsLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
@@ -1540,7 +1734,7 @@ export default function GoogleAdsPage() {
             <>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                   <input
                     value={kwSearch}
                     onChange={e => setKwSearch(e.target.value)}
@@ -1557,7 +1751,7 @@ export default function GoogleAdsPage() {
                   </button>
                   <button
                     onClick={() => setShowAddKeyword(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
                   >
                     <Plus className="h-4 w-4" /> Add Keywords
                   </button>
@@ -1611,7 +1805,7 @@ export default function GoogleAdsPage() {
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Link2 className="h-4 w-4 text-blue-600" />Ad Assets &amp; Extensions <span className="text-slate-500 font-normal">({extensions.length})</span></h2>
-                <button onClick={() => loadExtensions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                <button onClick={() => loadExtensions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
               </div>
               {extLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
@@ -1638,7 +1832,7 @@ export default function GoogleAdsPage() {
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Target className="h-4 w-4 text-emerald-600" />Conversion Goals <span className="text-slate-500 font-normal">({conversions.length})</span></h2>
-                <button onClick={() => loadConversions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                <button onClick={() => loadConversions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
               </div>
               {convLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
@@ -1673,7 +1867,7 @@ export default function GoogleAdsPage() {
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Users className="h-4 w-4 text-purple-600" />Audiences <span className="text-slate-500 font-normal">({audiences.length})</span></h2>
-                <button onClick={() => loadAudiences(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                <button onClick={() => loadAudiences(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
               </div>
               {audLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
@@ -1707,7 +1901,7 @@ export default function GoogleAdsPage() {
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                 <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                   <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Search className="h-4 w-4 text-blue-600" />Search Terms Report <span className="text-slate-500 font-normal">({searchTerms.length})</span></h2>
-                  <button onClick={() => loadReports(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                  <button onClick={() => loadReports(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
                 </div>
                 {searchTerms.length === 0 ? (
                   <EmptyState icon={Search} title="No search terms data" sub="Search term reports show what users searched to trigger your ads." />
@@ -1779,6 +1973,9 @@ export default function GoogleAdsPage() {
               onSelectAccount={handleSelectAccount}
               onAccountsRefresh={() => api(`/accounts?orgId=${orgId}`).then(r => r.json()).then(d => { if (Array.isArray(d)) setAccounts(d); })}
               showToast={showToast}
+              onOpenProfile={() => router.push(`/ads/profile?customerId=${selectedCustomerId}`)}
+              onDisconnect={handleDisconnectGoogleAds}
+              isDisconnecting={isDisconnecting}
             />
           )}
         </div>
@@ -1817,48 +2014,1114 @@ export default function GoogleAdsPage() {
       {/* Campaign Details Workspace Modal */}
       {selectedCampaignDetails && (
         <Modal
-          title={`Campaign Settings: ${selectedCampaignDetails.name}`}
+          title={`Campaign: ${selectedCampaignDetails.name}`}
           onClose={() => setSelectedCampaignDetails(null)}
           wide
         >
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <Input
-                label="Campaign Name *"
-                value={detailName}
-                onChange={(e: any) => setDetailName(e.target.value)}
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Daily Budget (₹) *"
-                  type="number"
-                  value={detailBudget}
-                  onChange={(e: any) => setDetailBudget(Number(e.target.value))}
-                />
-                <Input
-                  label="End Date (optional)"
-                  type="date"
-                  value={detailEndDate}
-                  onChange={(e: any) => setDetailEndDate(e.target.value)}
-                />
-              </div>
-              <Select
-                label="Status"
-                value={detailStatus}
-                onChange={(e: any) => setDetailStatus(e.target.value)}
-              >
-                <option value="ENABLED">Enabled (Active)</option>
-                <option value="PAUSED">Paused</option>
-              </Select>
+          <div className="space-y-5">
+            {/* Modal Tabs: General Settings, Copy & Creative Assets, Targeting & Channels, All Parameters */}
+            <div className="flex border-b border-slate-200 gap-1 pb-1">
+              {[
+                { id: "info", label: "Settings & Budget", icon: Settings },
+                { id: "assets", label: "Copy & Assets", icon: FileText },
+                { id: "targeting", label: "Targeting & Goals", icon: Target },
+                { id: "all", label: "All Parameters", icon: Layers }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveDetailsTab(tab.id as any)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                    activeDetailsTab === tab.id
+                      ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <tab.icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </button>
+              ))}
             </div>
-            <button
-              onClick={saveCampaignDetails}
-              disabled={isSavingDetails}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all disabled:opacity-40 text-xs shadow-sm cursor-pointer"
-            >
-              {isSavingDetails ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Save Campaign Settings
-            </button>
+
+            {/* TAB 1: General Settings & Budget Edit */}
+            {activeDetailsTab === "info" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-700">Campaign Name *</label>
+                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                        <Edit3 className="h-3 w-3" /> Editable
+                      </span>
+                    </div>
+                    <Input
+                      value={detailName}
+                      onChange={(e: any) => setDetailName(e.target.value)}
+                      placeholder="e.g. Summer Promotion - Search"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-700">Daily Budget (₹) *</label>
+                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                        <Edit3 className="h-3 w-3" /> Editable
+                      </span>
+                    </div>
+                    <Input
+                      type="number"
+                      value={detailBudget}
+                      onChange={(e: any) => setDetailBudget(Number(e.target.value))}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-700">End Date (optional)</label>
+                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                        <Edit3 className="h-3 w-3" /> Editable
+                      </span>
+                    </div>
+                    <Input
+                      type="date"
+                      value={detailEndDate}
+                      onChange={(e: any) => setDetailEndDate(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-700">Status</label>
+                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                        <Edit3 className="h-3 w-3" /> Editable
+                      </span>
+                    </div>
+                    <Select
+                      value={detailStatus}
+                      onChange={(e: any) => setDetailStatus(e.target.value)}
+                    >
+                      <option value="ENABLED">Enabled (Active)</option>
+                      <option value="PAUSED">Paused</option>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Bidding Strategy</label>
+                    <Select
+                      value={detailBiddingStrategy}
+                      onChange={(e: any) => setDetailBiddingStrategy(e.target.value)}
+                    >
+                      <option value="Maximize conversions">Maximize Conversions</option>
+                      <option value="Maximize clicks">Maximize Clicks</option>
+                      <option value="Target CPA">Target CPA</option>
+                      <option value="Target ROAS">Target ROAS</option>
+                      <option value="Manual CPC">Manual CPC</option>
+                    </Select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-700">Final Landing Page URL</label>
+                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                        <Edit3 className="h-3 w-3" /> Editable
+                      </span>
+                    </div>
+                    <Input
+                      value={detailFinalUrl}
+                      onChange={(e: any) => setDetailFinalUrl(e.target.value)}
+                      placeholder="https://example.com/promo"
+                    />
+                  </div>
+                </div>
+
+                {/* Campaign Quick Summary Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Google Ads ID</p>
+                    <p className="text-xs font-bold font-mono text-slate-900 truncate mt-0.5">{selectedCampaignDetails.googleAdsCampaignId || "Draft / Local"}</p>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Campaign Type</p>
+                    <p className="text-xs font-bold text-slate-900 truncate mt-0.5">{selectedCampaignDetails.campaignType || selectedCampaignDetails.advertisingChannelType || "SEARCH"}</p>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Start Date</p>
+                    <p className="text-xs font-bold text-slate-900 truncate mt-0.5">
+                      {selectedCampaignDetails.startDate ? new Date(selectedCampaignDetails.startDate).toISOString().split("T")[0] : "Today"}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Database Record ID</p>
+                    <p className="text-xs font-bold text-slate-700 truncate mt-0.5 font-mono" title={selectedCampaignDetails.id}>
+                      {selectedCampaignDetails.id ? `${selectedCampaignDetails.id.slice(0, 10)}...` : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={saveCampaignDetails}
+                  disabled={isSavingDetails}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all disabled:opacity-40 text-xs shadow-sm cursor-pointer mt-3"
+                >
+                  {isSavingDetails ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  Save All Campaign Changes Live
+                </button>
+              </div>
+            )}
+
+            {/* TAB 2: Copy & Creative Assets */}
+            {activeDetailsTab === "assets" && (
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                {/* Final URL */}
+                <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-blue-900 flex items-center gap-1.5">
+                      <Globe className="h-3.5 w-3.5 text-blue-600" /> Landing Page (Final URL):
+                    </p>
+                    <button
+                      onClick={() => {
+                        setEditingParamField(editingParamField === "finalUrl" ? null : "finalUrl");
+                        setTempParamValue(selectedCampaignDetails.finalUrl || "");
+                      }}
+                      className="flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer bg-white px-2 py-0.5 rounded border border-blue-200"
+                    >
+                      <Edit3 className="h-3 w-3" /> Edit URL
+                    </button>
+                  </div>
+
+                  {editingParamField === "finalUrl" ? (
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="url"
+                        value={tempParamValue}
+                        onChange={(e) => setTempParamValue(e.target.value)}
+                        placeholder="https://yourwebsite.com"
+                        className="flex-1 bg-white border border-blue-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => saveSingleField("finalUrl", tempParamValue)}
+                        disabled={isSavingDetails}
+                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-40 cursor-pointer"
+                      >
+                        {isSavingDetails ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+                      </button>
+                      <button
+                        onClick={() => setEditingParamField(null)}
+                        className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-300 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    selectedCampaignDetails.finalUrl ? (
+                      <a href={selectedCampaignDetails.finalUrl} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline font-mono break-all flex items-center gap-1">
+                        {selectedCampaignDetails.finalUrl} <ExternalLink className="h-3 w-3 inline" />
+                      </a>
+                    ) : (
+                      <p className="text-slate-500 italic">No landing page URL configured.</p>
+                    )
+                  )}
+                </div>
+
+                {/* Headlines */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-blue-600" />
+                      Headlines ({Array.isArray(selectedCampaignDetails.headlines) ? selectedCampaignDetails.headlines.length : 0})
+                    </h4>
+                    <span className="text-[10px] text-slate-500 font-mono">Max 30 chars each</span>
+                  </div>
+
+                  {/* Add Headline inline */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={30}
+                      value={newHeadlineInput}
+                      onChange={(e) => setNewHeadlineInput(e.target.value)}
+                      placeholder="Add new headline (e.g. Best Service in Pune)..."
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newHeadlineInput.trim()) return;
+                        const current = Array.isArray(selectedCampaignDetails.headlines) ? [...selectedCampaignDetails.headlines] : [];
+                        const updated = [...current, newHeadlineInput.trim()];
+                        saveSingleField("headlines", updated);
+                        setNewHeadlineInput("");
+                      }}
+                      disabled={!newHeadlineInput.trim() || isSavingDetails}
+                      className="px-3 py-1.5 bg-blue-600 text-white font-bold rounded-xl text-xs hover:bg-blue-700 disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add
+                    </button>
+                  </div>
+
+                  {Array.isArray(selectedCampaignDetails.headlines) && selectedCampaignDetails.headlines.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {selectedCampaignDetails.headlines.map((h: any, i: number) => {
+                        const text = typeof h === "string" ? h : h.text || "";
+                        const isEditingThis = editingParamField === `headline_${i}`;
+                        return (
+                          <div key={i} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 flex items-center justify-between gap-2">
+                            {isEditingThis ? (
+                              <div className="flex items-center gap-1 flex-1">
+                                <input
+                                  type="text"
+                                  maxLength={30}
+                                  value={tempParamValue}
+                                  onChange={(e) => setTempParamValue(e.target.value)}
+                                  className="flex-1 bg-white border border-blue-400 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const next = [...selectedCampaignDetails.headlines];
+                                    next[i] = typeof h === "string" ? tempParamValue : { ...h, text: tempParamValue };
+                                    saveSingleField("headlines", next);
+                                  }}
+                                  className="p-1 text-emerald-600 hover:bg-emerald-50 rounded cursor-pointer"
+                                  title="Save headline"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingParamField(null)}
+                                  className="p-1 text-slate-500 hover:bg-slate-200 rounded cursor-pointer"
+                                  title="Cancel"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="truncate flex-1">{text}</span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[10px] text-slate-500 font-mono">{text.length}/30</span>
+                                  <button
+                                    onClick={() => {
+                                      setEditingParamField(`headline_${i}`);
+                                      setTempParamValue(text);
+                                    }}
+                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                                    title="Edit headline"
+                                  >
+                                    <Edit3 className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const next = selectedCampaignDetails.headlines.filter((_: any, idx: number) => idx !== i);
+                                      saveSingleField("headlines", next);
+                                    }}
+                                    className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                    title="Delete headline"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-lg border border-slate-200">No custom headlines stored in database.</p>
+                  )}
+                </div>
+
+                {/* Descriptions */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <MessageSquare className="h-3.5 w-3.5 text-purple-600" />
+                      Descriptions ({Array.isArray(selectedCampaignDetails.descriptions) ? selectedCampaignDetails.descriptions.length : 0})
+                    </h4>
+                    <span className="text-[10px] text-slate-500 font-mono">Max 90 chars each</span>
+                  </div>
+
+                  {/* Add Description inline */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={90}
+                      value={newDescInput}
+                      onChange={(e) => setNewDescInput(e.target.value)}
+                      placeholder="Add new description..."
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newDescInput.trim()) return;
+                        const current = Array.isArray(selectedCampaignDetails.descriptions) ? [...selectedCampaignDetails.descriptions] : [];
+                        const updated = [...current, newDescInput.trim()];
+                        saveSingleField("descriptions", updated);
+                        setNewDescInput("");
+                      }}
+                      disabled={!newDescInput.trim() || isSavingDetails}
+                      className="px-3 py-1.5 bg-purple-600 text-white font-bold rounded-xl text-xs hover:bg-purple-700 disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add
+                    </button>
+                  </div>
+
+                  {Array.isArray(selectedCampaignDetails.descriptions) && selectedCampaignDetails.descriptions.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {selectedCampaignDetails.descriptions.map((d: any, i: number) => {
+                        const text = typeof d === "string" ? d : d.text || "";
+                        const isEditingThis = editingParamField === `desc_${i}`;
+                        return (
+                          <div key={i} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 flex items-start justify-between gap-2">
+                            {isEditingThis ? (
+                              <div className="flex items-center gap-1 flex-1">
+                                <textarea
+                                  maxLength={90}
+                                  rows={2}
+                                  value={tempParamValue}
+                                  onChange={(e) => setTempParamValue(e.target.value)}
+                                  className="flex-1 bg-white border border-purple-400 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none resize-none"
+                                />
+                                <div className="flex flex-col gap-1">
+                                  <button
+                                    onClick={() => {
+                                      const next = [...selectedCampaignDetails.descriptions];
+                                      next[i] = typeof d === "string" ? tempParamValue : { ...d, text: tempParamValue };
+                                      saveSingleField("descriptions", next);
+                                    }}
+                                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded cursor-pointer"
+                                    title="Save description"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingParamField(null)}
+                                    className="p-1 text-slate-500 hover:bg-slate-200 rounded cursor-pointer"
+                                    title="Cancel"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="flex-1">{text}</p>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[10px] text-slate-500 font-mono">{text.length}/90</span>
+                                  <button
+                                    onClick={() => {
+                                      setEditingParamField(`desc_${i}`);
+                                      setTempParamValue(text);
+                                    }}
+                                    className="p-1 text-purple-600 hover:bg-purple-50 rounded cursor-pointer"
+                                    title="Edit description"
+                                  >
+                                    <Edit3 className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const next = selectedCampaignDetails.descriptions.filter((_: any, idx: number) => idx !== i);
+                                      saveSingleField("descriptions", next);
+                                    }}
+                                    className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                    title="Delete description"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-lg border border-slate-200">No descriptions stored in database.</p>
+                  )}
+                </div>
+
+                {/* Keywords */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Tag className="h-3.5 w-3.5 text-emerald-600" />
+                      Keywords ({Array.isArray(selectedCampaignDetails.keywords) ? selectedCampaignDetails.keywords.length : 0})
+                    </h4>
+                  </div>
+
+                  {/* Add Keyword inline */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newKeywordInput}
+                      onChange={(e) => setNewKeywordInput(e.target.value)}
+                      placeholder="Add keyword (e.g. digital marketing pune)..."
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newKeywordInput.trim()) return;
+                        const current = Array.isArray(selectedCampaignDetails.keywords) ? [...selectedCampaignDetails.keywords] : [];
+                        const updated = [...current, newKeywordInput.trim()];
+                        saveSingleField("keywords", updated);
+                        setNewKeywordInput("");
+                      }}
+                      disabled={!newKeywordInput.trim() || isSavingDetails}
+                      className="px-3 py-1.5 bg-emerald-600 text-white font-bold rounded-xl text-xs hover:bg-emerald-700 disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add
+                    </button>
+                  </div>
+
+                  {Array.isArray(selectedCampaignDetails.keywords) && selectedCampaignDetails.keywords.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedCampaignDetails.keywords.map((k: any, i: number) => {
+                        const kwText = typeof k === "string" ? k : k.text || String(k);
+                        return (
+                          <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium rounded-md group">
+                            <span>{kwText}</span>
+                            <button
+                              onClick={() => {
+                                const next = selectedCampaignDetails.keywords.filter((_: any, idx: number) => idx !== i);
+                                saveSingleField("keywords", next);
+                              }}
+                              className="text-emerald-500 hover:text-rose-600 transition-colors ml-0.5 cursor-pointer"
+                              title="Remove keyword"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-lg border border-slate-200">No keywords saved yet.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: Targeting & Goals */}
+            {activeDetailsTab === "targeting" && (
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                {/* Location Targeting */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Globe className="h-3.5 w-3.5 text-blue-600" /> Target Locations
+                    </h4>
+                    <span className="text-[10px] text-slate-500">Geographic Targeting</span>
+                  </div>
+
+                  {/* Add Location inline */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newLocationInput}
+                      onChange={(e) => setNewLocationInput(e.target.value)}
+                      placeholder="Add target location (e.g. Pune, Mumbai, Maharashtra, India)..."
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newLocationInput.trim()) return;
+                        const current = Array.isArray(selectedCampaignDetails.geoTargets) ? [...selectedCampaignDetails.geoTargets] : [];
+                        const updated = [...current, newLocationInput.trim()];
+                        saveSingleField("geoTargets", updated);
+                        setNewLocationInput("");
+                      }}
+                      disabled={!newLocationInput.trim() || isSavingDetails}
+                      className="px-3 py-1.5 bg-blue-600 text-white font-bold rounded-xl text-xs hover:bg-blue-700 disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add
+                    </button>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                    {selectedCampaignDetails.geoTargets && Array.isArray(selectedCampaignDetails.geoTargets) && selectedCampaignDetails.geoTargets.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedCampaignDetails.geoTargets.map((loc: any, i: number) => {
+                          const locName = typeof loc === "string" ? loc : loc.name || loc.canonicalName || JSON.stringify(loc);
+                          return (
+                            <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-md font-medium text-[11px]">
+                              <span>{locName}</span>
+                              <button
+                                onClick={() => {
+                                  const next = selectedCampaignDetails.geoTargets.filter((_: any, idx: number) => idx !== i);
+                                  saveSingleField("geoTargets", next);
+                                }}
+                                className="text-blue-500 hover:text-rose-600 transition-colors ml-0.5 cursor-pointer"
+                                title="Remove location"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : selectedCampaignDetails.geoTargets && typeof selectedCampaignDetails.geoTargets === "object" ? (
+                      <div className="space-y-1 text-[11px] text-slate-700">
+                        {Object.entries(selectedCampaignDetails.geoTargets).map(([k, v]) => (
+                          <div key={k} className="flex justify-between py-0.5 border-b border-slate-200 last:border-0">
+                            <span className="font-bold text-slate-600 capitalize">{k}:</span>
+                            <span>{Array.isArray(v) ? v.join(", ") : String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-slate-500 italic">Default (All Locations / India)</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Languages */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-600" /> Languages
+                    </h4>
+                  </div>
+
+                  {/* Add Language inline */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newLanguageInput}
+                      onChange={(e) => setNewLanguageInput(e.target.value)}
+                      placeholder="Add language (e.g. English, Hindi, Marathi)..."
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newLanguageInput.trim()) return;
+                        const current = Array.isArray(selectedCampaignDetails.languages) ? [...selectedCampaignDetails.languages] : [selectedCampaignDetails.language || "English"];
+                        const updated = [...current, newLanguageInput.trim()];
+                        saveSingleField("languages", updated);
+                        setNewLanguageInput("");
+                      }}
+                      disabled={!newLanguageInput.trim() || isSavingDetails}
+                      className="px-3 py-1.5 bg-amber-600 text-white font-bold rounded-xl text-xs hover:bg-amber-700 disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add
+                    </button>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                    {Array.isArray(selectedCampaignDetails.languages) && selectedCampaignDetails.languages.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedCampaignDetails.languages.map((lang: string, i: number) => (
+                          <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-md font-medium text-[11px]">
+                            <span>{lang}</span>
+                            <button
+                              onClick={() => {
+                                const next = selectedCampaignDetails.languages.filter((_: any, idx: number) => idx !== i);
+                                saveSingleField("languages", next);
+                              }}
+                              className="text-amber-600 hover:text-rose-600 transition-colors ml-0.5 cursor-pointer"
+                              title="Remove language"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-md font-medium text-[11px]">
+                        {selectedCampaignDetails.language || "English"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Audience Signal & Schedule */}
+                {selectedCampaignDetails.audienceSignal && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-purple-600" /> Audience Signal & Insights
+                    </h4>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-800 space-y-1">
+                      {typeof selectedCampaignDetails.audienceSignal === "object" ? (
+                        Object.entries(selectedCampaignDetails.audienceSignal).map(([k, v]) => (
+                          <div key={k} className="flex items-start justify-between py-1 border-b border-slate-200 last:border-0">
+                            <span className="font-bold text-slate-600 capitalize text-[11px]">{k.replace(/([A-Z])/g, " $1")}:</span>
+                            <span className="font-medium text-slate-900 text-right text-[11px]">
+                              {Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : String(v)}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-[11px]">{String(selectedCampaignDetails.audienceSignal)}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: Clean Structured Human-Readable Parameters UI (Replaces Raw JSON) */}
+            {activeDetailsTab === "all" && (
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Sliders className="h-3.5 w-3.5 text-blue-600" />
+                      All Campaign Parameters & System Configuration
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Every parameter is displayed in structured form. Click any edit pen icon to update live.
+                    </p>
+                  </div>
+                  <span className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full font-bold">
+                    Live Record
+                  </span>
+                </div>
+
+                {/* Section 1: Campaign Identity & Account */}
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Tag className="h-3.5 w-3.5 text-blue-600" /> Identity & IDs
+                    </span>
+                  </div>
+                  <div className="p-3 space-y-2.5 divide-y divide-slate-100 text-xs">
+                    {/* Campaign Name */}
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Campaign Name</p>
+                        {editingParamField === "name" ? (
+                          <div className="flex gap-1.5 mt-1">
+                            <input
+                              type="text"
+                              value={tempParamValue}
+                              onChange={(e) => setTempParamValue(e.target.value)}
+                              className="px-2 py-1 bg-white border border-blue-400 rounded text-xs text-slate-900 focus:outline-none"
+                            />
+                            <button
+                              onClick={() => saveSingleField("name", tempParamValue)}
+                              className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 cursor-pointer"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingParamField(null)}
+                              className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="font-bold text-slate-900 mt-0.5">{selectedCampaignDetails.name || "—"}</p>
+                        )}
+                      </div>
+                      {editingParamField !== "name" && (
+                        <button
+                          onClick={() => {
+                            setEditingParamField("name");
+                            setTempParamValue(selectedCampaignDetails.name || "");
+                          }}
+                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          title="Edit Campaign Name"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Google Ads Campaign ID */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Google Ads ID</p>
+                        <p className="font-mono text-slate-800 mt-0.5">{selectedCampaignDetails.googleAdsCampaignId || "Draft (Not synced to Google yet)"}</p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">System</span>
+                    </div>
+
+                    {/* Customer Account ID */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Google Ads Customer Account</p>
+                        <p className="font-mono text-slate-800 mt-0.5">{selectedCampaignDetails.customerId || selectedCustomerId || "—"}</p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">Customer</span>
+                    </div>
+
+                    {/* Campaign Type */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Campaign Channel Type</p>
+                        <p className="font-bold text-purple-700 mt-0.5">{selectedCampaignDetails.campaignType || selectedCampaignDetails.advertisingChannelType || "SEARCH"}</p>
+                      </div>
+                      <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-bold">Channel</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Budget, Bidding & Status */}
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <DollarSign className="h-3.5 w-3.5 text-emerald-600" /> Budget, Status & Strategy
+                    </span>
+                  </div>
+                  <div className="p-3 space-y-2.5 divide-y divide-slate-100 text-xs">
+                    {/* Daily Budget */}
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Daily Budget</p>
+                        {editingParamField === "budget" ? (
+                          <div className="flex gap-1.5 mt-1">
+                            <input
+                              type="number"
+                              value={tempParamValue}
+                              onChange={(e) => setTempParamValue(Number(e.target.value))}
+                              className="px-2 py-1 bg-white border border-blue-400 rounded text-xs text-slate-900 focus:outline-none w-28"
+                            />
+                            <button
+                              onClick={() => saveSingleField("budget", Number(tempParamValue))}
+                              className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 cursor-pointer"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingParamField(null)}
+                              className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="font-bold text-emerald-700 text-sm mt-0.5">₹{selectedCampaignDetails.budget || 0} / day</p>
+                        )}
+                      </div>
+                      {editingParamField !== "budget" && (
+                        <button
+                          onClick={() => {
+                            setEditingParamField("budget");
+                            setTempParamValue(selectedCampaignDetails.budget || 500);
+                          }}
+                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          title="Edit Daily Budget"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Campaign Status */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Campaign Status</p>
+                        {editingParamField === "status" ? (
+                          <div className="flex gap-1.5 mt-1">
+                            <select
+                              value={tempParamValue}
+                              onChange={(e) => setTempParamValue(e.target.value)}
+                              className="px-2 py-1 bg-white border border-blue-400 rounded text-xs text-slate-900 focus:outline-none"
+                            >
+                              <option value="ENABLED">ENABLED (Active)</option>
+                              <option value="PAUSED">PAUSED</option>
+                            </select>
+                            <button
+                              onClick={() => saveSingleField("status", tempParamValue)}
+                              className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 cursor-pointer"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingParamField(null)}
+                              className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="mt-1">
+                            <Pill status={selectedCampaignDetails.liveStatus || selectedCampaignDetails.status || "PAUSED"} />
+                          </div>
+                        )}
+                      </div>
+                      {editingParamField !== "status" && (
+                        <button
+                          onClick={() => {
+                            setEditingParamField("status");
+                            setTempParamValue(selectedCampaignDetails.liveStatus || selectedCampaignDetails.status || "PAUSED");
+                          }}
+                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          title="Edit Status"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Bidding Strategy */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Bidding Strategy</p>
+                        {editingParamField === "biddingStrategy" ? (
+                          <div className="flex gap-1.5 mt-1">
+                            <select
+                              value={tempParamValue}
+                              onChange={(e) => setTempParamValue(e.target.value)}
+                              className="px-2 py-1 bg-white border border-blue-400 rounded text-xs text-slate-900 focus:outline-none"
+                            >
+                              <option value="Maximize conversions">Maximize conversions</option>
+                              <option value="Maximize clicks">Maximize clicks</option>
+                              <option value="Target CPA">Target CPA</option>
+                              <option value="Target ROAS">Target ROAS</option>
+                              <option value="Manual CPC">Manual CPC</option>
+                            </select>
+                            <button
+                              onClick={() => saveSingleField("biddingStrategy", tempParamValue)}
+                              className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 cursor-pointer"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingParamField(null)}
+                              className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="font-semibold text-slate-800 mt-0.5">{selectedCampaignDetails.biddingStrategy || "Maximize conversions"}</p>
+                        )}
+                      </div>
+                      {editingParamField !== "biddingStrategy" && (
+                        <button
+                          onClick={() => {
+                            setEditingParamField("biddingStrategy");
+                            setTempParamValue(selectedCampaignDetails.biddingStrategy || "Maximize conversions");
+                          }}
+                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          title="Edit Bidding Strategy"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Schedule / End Date */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">End Date</p>
+                        {editingParamField === "endDate" ? (
+                          <div className="flex gap-1.5 mt-1">
+                            <input
+                              type="date"
+                              value={tempParamValue}
+                              onChange={(e) => setTempParamValue(e.target.value)}
+                              className="px-2 py-1 bg-white border border-blue-400 rounded text-xs text-slate-900 focus:outline-none"
+                            />
+                            <button
+                              onClick={() => saveSingleField("endDate", tempParamValue ? new Date(tempParamValue) : null)}
+                              className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 cursor-pointer"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingParamField(null)}
+                              className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="font-semibold text-slate-800 mt-0.5">
+                            {selectedCampaignDetails.endDate ? new Date(selectedCampaignDetails.endDate).toISOString().split("T")[0] : "No End Date (Continuous)"}
+                          </p>
+                        )}
+                      </div>
+                      {editingParamField !== "endDate" && (
+                        <button
+                          onClick={() => {
+                            setEditingParamField("endDate");
+                            setTempParamValue(selectedCampaignDetails.endDate ? new Date(selectedCampaignDetails.endDate).toISOString().split("T")[0] : "");
+                          }}
+                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          title="Edit End Date"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Ad Copy & Creative Assets */}
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-purple-600" /> Ad Copy, Landing Page & Keywords
+                    </span>
+                  </div>
+                  <div className="p-3 space-y-3 divide-y divide-slate-100 text-xs">
+                    {/* Final URL */}
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex-1 pr-2">
+                        <p className="text-slate-500 text-[11px] font-semibold">Landing Page URL</p>
+                        <p className="font-mono text-blue-600 break-all mt-0.5">{selectedCampaignDetails.finalUrl || "Not configured"}</p>
+                      </div>
+                      <button
+                        onClick={() => setActiveDetailsTab("assets")}
+                        className="px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-blue-200 cursor-pointer shrink-0"
+                      >
+                        <Edit3 className="h-3 w-3" /> Edit in Assets
+                      </button>
+                    </div>
+
+                    {/* Headlines Count & Preview */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Headlines ({Array.isArray(selectedCampaignDetails.headlines) ? selectedCampaignDetails.headlines.length : 0})</p>
+                        <p className="text-slate-700 mt-0.5 text-[11px]">
+                          {Array.isArray(selectedCampaignDetails.headlines) && selectedCampaignDetails.headlines.length > 0
+                            ? selectedCampaignDetails.headlines.slice(0, 2).map((h: any) => typeof h === "string" ? h : h.text).join(" · ") + (selectedCampaignDetails.headlines.length > 2 ? ` (+${selectedCampaignDetails.headlines.length - 2} more)` : "")
+                            : "No headlines"}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setActiveDetailsTab("assets")}
+                        className="px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-blue-200 cursor-pointer shrink-0"
+                      >
+                        <Edit3 className="h-3 w-3" /> Edit Headlines
+                      </button>
+                    </div>
+
+                    {/* Descriptions Count & Preview */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Descriptions ({Array.isArray(selectedCampaignDetails.descriptions) ? selectedCampaignDetails.descriptions.length : 0})</p>
+                        <p className="text-slate-700 mt-0.5 text-[11px]">
+                          {Array.isArray(selectedCampaignDetails.descriptions) && selectedCampaignDetails.descriptions.length > 0
+                            ? selectedCampaignDetails.descriptions.slice(0, 1).map((d: any) => typeof d === "string" ? d : d.text).join("") + (selectedCampaignDetails.descriptions.length > 1 ? ` (+${selectedCampaignDetails.descriptions.length - 1} more)` : "")
+                            : "No descriptions"}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setActiveDetailsTab("assets")}
+                        className="px-2.5 py-1 text-xs font-bold text-purple-600 hover:bg-purple-50 rounded-lg flex items-center gap-1 border border-purple-200 cursor-pointer shrink-0"
+                      >
+                        <Edit3 className="h-3 w-3" /> Edit Descriptions
+                      </button>
+                    </div>
+
+                    {/* Keywords Count & Preview */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Keywords ({Array.isArray(selectedCampaignDetails.keywords) ? selectedCampaignDetails.keywords.length : 0})</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {Array.isArray(selectedCampaignDetails.keywords) && selectedCampaignDetails.keywords.length > 0 ? (
+                            selectedCampaignDetails.keywords.slice(0, 4).map((k: any, i: number) => (
+                              <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded text-[10px] font-medium border border-emerald-200">
+                                {typeof k === "string" ? k : k.text || String(k)}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">No keywords</span>
+                          )}
+                          {Array.isArray(selectedCampaignDetails.keywords) && selectedCampaignDetails.keywords.length > 4 && (
+                            <span className="text-[10px] text-slate-500">+{selectedCampaignDetails.keywords.length - 4} more</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setActiveDetailsTab("assets")}
+                        className="px-2.5 py-1 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg flex items-center gap-1 border border-emerald-200 cursor-pointer shrink-0"
+                      >
+                        <Edit3 className="h-3 w-3" /> Edit Keywords
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 4: Targeting & Geo */}
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Target className="h-3.5 w-3.5 text-blue-600" /> Geographic & Language Targeting
+                    </span>
+                  </div>
+                  <div className="p-3 space-y-2.5 divide-y divide-slate-100 text-xs">
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Target Locations</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {Array.isArray(selectedCampaignDetails.geoTargets) && selectedCampaignDetails.geoTargets.length > 0 ? (
+                            selectedCampaignDetails.geoTargets.map((g: any, i: number) => (
+                              <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-800 rounded text-[10px] font-medium border border-blue-200">
+                                {typeof g === "string" ? g : g.name || JSON.stringify(g)}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-600 text-[11px]">Default / India</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setActiveDetailsTab("targeting")}
+                        className="px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-blue-200 cursor-pointer shrink-0"
+                      >
+                        <Edit3 className="h-3 w-3" /> Edit Targeting
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-slate-500 text-[11px] font-semibold">Languages</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">
+                          {Array.isArray(selectedCampaignDetails.languages) && selectedCampaignDetails.languages.length > 0
+                            ? selectedCampaignDetails.languages.join(", ")
+                            : selectedCampaignDetails.language || "English"}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setActiveDetailsTab("targeting")}
+                        className="px-2.5 py-1 text-xs font-bold text-amber-600 hover:bg-amber-50 rounded-lg flex items-center gap-1 border border-amber-200 cursor-pointer shrink-0"
+                      >
+                        <Edit3 className="h-3 w-3" /> Edit Languages
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 5: Performance Metrics Overview */}
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <BarChart2 className="h-3.5 w-3.5 text-blue-600" /> Performance Metrics & Timestamps
+                    </span>
+                  </div>
+                  <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Impressions</p>
+                      <p className="text-sm font-bold text-slate-900 mt-0.5">{Number(selectedCampaignDetails.impressions || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Clicks</p>
+                      <p className="text-sm font-bold text-slate-900 mt-0.5">{Number(selectedCampaignDetails.clicks || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Click-Through Rate</p>
+                      <p className="text-sm font-bold text-blue-700 mt-0.5">{selectedCampaignDetails.ctr || "0%"}</p>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Total Spend</p>
+                      <p className="text-sm font-bold text-emerald-700 mt-0.5">₹{selectedCampaignDetails.cost || "0.00"}</p>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Conversions</p>
+                      <p className="text-sm font-bold text-purple-700 mt-0.5">{Number(selectedCampaignDetails.conversions || 0).toFixed(1)}</p>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Last Updated</p>
+                      <p className="text-xs font-semibold text-slate-700 mt-0.5">
+                        {selectedCampaignDetails.updatedAt ? new Date(selectedCampaignDetails.updatedAt).toLocaleString() : "Recently"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </Modal>
       )}
@@ -1922,7 +3185,7 @@ export default function GoogleAdsPage() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl bg-slate-900 text-white text-xs font-bold shadow-2xl animate-fadeIn">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl bg-white text-slate-900 text-xs font-bold shadow-md animate-fadeIn">
           {toast}
         </div>
       )}

@@ -1,3 +1,11 @@
+import dns from "dns";
+// Prioritize IPv4 DNS resolution to prevent getaddrinfo ENOTFOUND and DB connectivity issues on networks where IPv6 is unroutable
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+  // Ignore fallback if unsupported in older Node runtimes
+}
+
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -31,6 +39,12 @@ import instagramCommentToDmRouter from "./routes/instagramCommentToDm";
 
 const app = express();
 const server = http.createServer(app);
+
+// Increase HTTP server and keep-alive timeouts to 10 minutes (600,000ms) to support Google Ads campaign mutations (which upload multiple assets and execute multiple API calls)
+server.timeout = 10 * 60 * 1000;
+server.keepAliveTimeout = 10 * 60 * 1000;
+server.headersTimeout = 10 * 60 * 1000 + 5000;
+
 const io = new Server(server, {
   cors: {
     origin: "*", // Adjust in production to match Next.js origin
@@ -366,8 +380,8 @@ server.listen(Number(PORT), () => {
     console.warn("Auto column patch warning:", err.message);
   }
   startGmbSyncScheduler();
-  // Pre-upload SEO proof images to Meta and store Media IDs in active flow
-  preCacheSeoMediaIds();
+  // Pre-upload SEO proof images to Meta and store Media IDs in active flow (short delay to let connection pool warm up)
+  setTimeout(() => preCacheSeoMediaIds(), 3000);
 });
 
 export { io };
