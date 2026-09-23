@@ -382,6 +382,8 @@ router.get("/customer-profile", async (req, res) => {
       hasAppAccount: savedProfile ? Boolean(savedProfile.hasAppAccount) : hasAppAccount,
       appId: savedProfile ? (savedProfile.hasAppAccount ? (appId || savedProfile?.appDetails?.[0]?.appId || null) : null) : (appId || null),
       appDetails: savedProfile ? (savedProfile.hasAppAccount ? (savedProfile?.appDetails || []) : []) : (appId ? [{ id: "app-default", platform: "ANDROID", appId }] : []),
+      billingStatus: savedProfile?.billingStatus || currentAccount?.billingStatus || "ACTIVE",
+      googleTagId: savedProfile?.googleTagId || currentAccount?.googleTagId || null,
       // Marketing & Business Profile Fields
       legalBusinessName: savedProfile?.legalBusinessName || null,
       businessCategory: savedProfile?.businessCategory || null,
