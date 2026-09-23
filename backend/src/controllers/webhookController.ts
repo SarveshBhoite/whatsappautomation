@@ -30,7 +30,16 @@ export const verifyWebhook = async (req: Request, res: Response) => {
       });
 
       if (matchingWaConfig) {
-        console.log(`[WEBHOOK VERIFY] Meta Webhook verified successfully for Org: ${matchingWaConfig.organizationId}`);
+        console.log(`[WEBHOOK VERIFY] Meta Webhook verified successfully for WhatsApp Org: ${matchingWaConfig.organizationId}`);
+        return res.status(200).send(challenge);
+      }
+
+      const matchingIgConfig = await prisma.instagramConfig.findFirst({
+        where: { webhookVerifyToken: token }
+      });
+
+      if (matchingIgConfig) {
+        console.log(`[WEBHOOK VERIFY] Meta Webhook verified successfully for Instagram Org: ${matchingIgConfig.organizationId}`);
         return res.status(200).send(challenge);
       }
 
@@ -169,14 +178,30 @@ export const handleWebhook = async (req: Request, res: Response) => {
         include: { organization: true }
       });
 
+      if (!igConfig && entry?.id) {
+        igConfig = await prisma.instagramConfig.findFirst({
+          where: {
+            OR: [
+              { instagramAccountId: entry.id },
+              { pageId: entry.id }
+            ]
+          },
+          include: { organization: true }
+        });
+      }
+
       if (!igConfig) {
-        // Fallback to first available config if only 1 config exists
-        const count = await prisma.instagramConfig.count();
-        if (count === 1) {
-          igConfig = await prisma.instagramConfig.findFirst({
-            include: { organization: true }
-          });
-        }
+        igConfig = await prisma.instagramConfig.findFirst({
+          where: { isDefault: true, isActive: true },
+          include: { organization: true }
+        });
+      }
+
+      if (!igConfig) {
+        igConfig = await prisma.instagramConfig.findFirst({
+          where: { isActive: true },
+          include: { organization: true }
+        });
       }
 
       if (!igConfig) {
@@ -190,6 +215,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
       let messageType = "text";
       let content = "";
       let mimeType: string | undefined = undefined;
+      let messageMediaUrl: string | undefined = undefined;
 
       if (message.quick_reply) {
         content = message.text || message.quick_reply.payload || "";
@@ -210,12 +236,20 @@ export const handleWebhook = async (req: Request, res: Response) => {
           messageType = "image";
         }
         
-        const mediaUrl = attachment.payload?.url || "";
+        messageMediaUrl = attachment.payload?.url || "";
         if (messageType === "document") {
-          content = `instagram_file.pdf|${mediaUrl}`;
+          content = `instagram_file.pdf|${messageMediaUrl}`;
         } else {
-          content = mediaUrl;
+          content = messageMediaUrl || "";
         }
+      }
+
+      // Check for Meta Ad click referral (Click-to-Instagram Direct Ad)
+      const referral = (messagingObj as any).referral || (message as any).referral;
+      if (referral) {
+        const adHeadline = referral.headline || referral.body || referral.ref || "Meta Ad Promotion";
+        console.log(`[META AD REFERRAL]: Customer clicked Instagram Ad "${adHeadline}"`);
+        content = `[Customer clicked Meta Ad: "${adHeadline}"] ${content}`;
       }
 
       // Find or create conversation
@@ -228,14 +262,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
       });
 
       let contactName = `Instagram User (${customerPhone.substring(0, 5)}...)`;
-      if (!isEcho && igConfig.pageAccessToken) {
+      if (!isEcho) {
         try {
-          const profile = await InstagramService.getUserProfile(igConfig.pageAccessToken, customerPhone);
-          if (profile && (profile.name || profile.username)) {
-            contactName = profile.name || `@${profile.username}`;
+          const tokenToUse = igConfig.pageAccessToken || process.env.META_SYSTEM_USER_TOKEN || process.env.INSTAGRAM_ACCESS_TOKEN;
+          if (tokenToUse) {
+            const profile = await InstagramService.getUserProfile(tokenToUse, customerPhone);
+            if (profile && (profile.name || profile.username)) {
+              contactName = profile.name && profile.username
+                ? `${profile.name} (@${profile.username})`
+                : (profile.name || `@${profile.username}`);
+            }
           }
         } catch (err: any) {
-          // Profile lookup permissions require instagram_manage_messages; fallback cleanly
           console.warn("Instagram user profile lookup skipped:", err?.message || err);
         }
       }
@@ -257,7 +295,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           where: { id: conversation.id },
           data: {
             updatedAt: new Date(),
-            ...(contactName !== "Instagram User" && conversation.customerName !== contactName ? { customerName: contactName } : {}),
+            ...(!contactName.startsWith("Instagram User") && conversation.customerName !== contactName ? { customerName: contactName } : {}),
             ...(!conversation.accountHandle && (igConfig.username || igConfig.instagramAccountId) ? { accountHandle: igConfig.username || igConfig.instagramAccountId } : {}),
           },
         });
@@ -271,6 +309,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           messageType,
           content,
           mediaMimeType: mimeType,
+          mediaUrl: messageMediaUrl || null,
           waMessageId: mid,
           status: isEcho ? "sent" : "read",
           createdAt: timestamp,
@@ -283,6 +322,15 @@ export const handleWebhook = async (req: Request, res: Response) => {
         conversationId: conversation.id,
         message: savedMessage,
       });
+
+      // For inbound media messages, update content to virtual text so AI acknowledges receipt naturally
+      if (!isEcho && ["image", "document", "video", "audio", "voice"].includes(messageType)) {
+        const mediaLabel = messageType === "document" ? "document" : messageType;
+        await prisma.message.update({
+          where: { id: savedMessage.id },
+          data: { content: `[Received ${messageType}: ${mediaLabel}] Please acknowledge receipt and continue the conversation.` }
+        });
+      }
 
       // Trigger chatbot flow
       if (!isEcho && !conversation.isBotPaused) {

@@ -1115,30 +1115,10 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
     const appId = process.env.META_APP_ID || "36702477879366478";
     const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
 
-    // 1. Automatically purge any unwanted Page permissions so Meta never shows them again
-    try {
-      const permRes = await axios.get("https://graph.facebook.com/v21.0/me/permissions", {
-        params: { access_token: accessToken },
-      });
-      const perms = permRes.data?.data || [];
-      for (const p of perms) {
-        if (p.permission && (p.permission.startsWith("pages_") || p.permission.startsWith("business_") || p.permission === "read_page_mailboxes")) {
-          try {
-            await axios.delete(`https://graph.facebook.com/v21.0/me/permissions/${p.permission}`, {
-              params: { access_token: accessToken },
-            });
-            console.log(`[IG CLEANUP] Revoked unwanted permission from Meta: ${p.permission}`);
-          } catch (e: any) {
-            console.warn(`[IG CLEANUP] Could not revoke ${p.permission}:`, e?.message);
-          }
-        }
-      }
-    } catch (permErr: any) {
-      console.warn("[IG CLEANUP] Permissions inspection notice:", permErr?.message);
-    }
-
-    // 2. Discover Instagram Account IDs directly from debug_token granular_scopes
     const discoveredIgIds = new Set<string>();
+    const discoveredPageIds = new Set<string>(["1062234726963242"]);
+
+    // 1. Discover Instagram Account IDs and token metadata from debug_token
     try {
       const debugRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
         params: {
@@ -1157,63 +1137,218 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
             if (tid) discoveredIgIds.add(String(tid));
           }
         }
+        if (gs.scope?.startsWith("pages_") && Array.isArray(gs.target_ids)) {
+          for (const tid of gs.target_ids) {
+            if (tid) discoveredPageIds.add(String(tid));
+          }
+        }
       }
+      console.log("[IG DISCOVERY] Discovered IG Account IDs from debug_token:", Array.from(discoveredIgIds));
+      console.log("[IG DISCOVERY] Discovered Page IDs from debug_token:", Array.from(discoveredPageIds));
     } catch (dbgErr: any) {
       console.warn("[IG DISCOVERY] debug_token notice:", dbgErr?.message);
     }
 
-    // 3. For each discovered IG account, query profile details and upsert
-    for (const igAccountId of discoveredIgIds) {
+    // 2. Fetch Facebook Pages to retrieve Page Access Tokens
+    interface PageInfo {
+      id: string;
+      name: string;
+      access_token: string;
+      igId?: string;
+      igUsername?: string;
+      igName?: string;
+      igPic?: string;
+    }
+    const foundPages: PageInfo[] = [];
+
+    // Query discovered Page IDs directly (crucial for New Page Experience where /me/accounts returns 0)
+    for (const pId of Array.from(discoveredPageIds)) {
+      if (foundPages.some((p) => p.id === pId)) continue;
       try {
-        const igRes = await fetch(
-          `https://graph.facebook.com/v21.0/${igAccountId}?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
+        const directPRes = await fetch(
+          `https://graph.facebook.com/v21.0/${pId}?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&access_token=${accessToken}`
         );
-        if (igRes.ok) {
-          const igData = await igRes.json();
-          const username = igData.username || `ig_${igAccountId.slice(-4)}`;
-          const name = igData.name || username;
-          const profilePic = igData.profile_picture_url || "";
-
-          const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
-          const existing = await prisma.instagramConfig.findFirst({
-            where: { organizationId, instagramAccountId: igAccountId }
+        if (directPRes.ok) {
+          const pData = await directPRes.json();
+          const ig = pData.instagram_business_account;
+          foundPages.push({
+            id: String(pData.id || pId),
+            name: pData.name || "",
+            access_token: pData.access_token || accessToken,
+            igId: ig?.id ? String(ig.id) : undefined,
+            igUsername: ig?.username,
+            igName: ig?.name,
+            igPic: ig?.profile_picture_url,
           });
-
-          if (existing) {
-            await prisma.instagramConfig.update({
-              where: { id: existing.id },
-              data: {
-                pageAccessToken: accessToken,
-                username: username || existing.username,
-                name: name || existing.name,
-                profilePic: profilePic || existing.profilePic,
-                isActive: true,
-              }
-            });
-          } else {
-            await prisma.instagramConfig.create({
-              data: {
-                organizationId,
-                instagramAccountId: igAccountId,
-                pageId: "",
-                pageAccessToken: accessToken,
-                username,
-                name,
-                profilePic,
-                isDefault: existingCount === 0,
-                isActive: true,
-              }
-            });
-          }
-          console.log(`[IG DISCOVERY] Successfully synced Instagram account @${username} (${igAccountId})`);
+          console.log(`[IG DISCOVERY] Direct Page query for ${pId} ("${pData.name}") succeeded with Page Access Token!`);
         }
-      } catch (err: any) {
-        console.warn(`[IG DISCOVERY] Could not fetch details for account ${igAccountId}:`, err?.message);
+      } catch (dirErr: any) {
+        console.warn(`[IG DISCOVERY] Direct Page query notice for ${pId}:`, dirErr?.message);
       }
     }
 
-    // 4. Fallback: Query /me directly if granular_scopes didn't yield accounts
-    if (discoveredIgIds.size === 0) {
+    try {
+      const pagesRes = await fetch(
+        `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&access_token=${accessToken}`
+      );
+      if (pagesRes.ok) {
+        const pagesData = await pagesRes.json();
+        const pages = pagesData.data || [];
+        console.log(`[IG DISCOVERY] /me/accounts returned ${pages.length} page(s):`, pages.map((p: any) => ({ id: p.id, name: p.name, has_token: !!p.access_token, has_ig: !!p.instagram_business_account })));
+
+        for (const page of pages) {
+          let ig = page.instagram_business_account;
+
+          // If instagram_business_account was not expanded on /me/accounts, query page directly with page access token
+          if (!ig && page.access_token && page.id) {
+            try {
+              const pageDirectRes = await fetch(
+                `https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account{id,username,name,profile_picture_url}&access_token=${page.access_token}`
+              );
+              if (pageDirectRes.ok) {
+                const pageDirectData = await pageDirectRes.json();
+                if (pageDirectData?.instagram_business_account) {
+                  ig = pageDirectData.instagram_business_account;
+                  console.log(`[IG DISCOVERY] Found linked IG account from page direct query:`, ig.id, ig.username);
+                }
+              }
+            } catch (pErr: any) {
+              console.warn(`[IG DISCOVERY] Notice querying page ${page.id} directly:`, pErr?.message);
+            }
+          }
+
+          foundPages.push({
+            id: String(page.id),
+            name: page.name || "",
+            access_token: page.access_token || accessToken,
+            igId: ig?.id ? String(ig.id) : undefined,
+            igUsername: ig?.username,
+            igName: ig?.name,
+            igPic: ig?.profile_picture_url,
+          });
+        }
+      } else {
+        console.warn("[IG DISCOVERY] /me/accounts response error:", pagesRes.status);
+      }
+    } catch (pageErr: any) {
+      console.warn("[IG DISCOVERY] /me/accounts fetch error:", pageErr?.message);
+    }
+
+    // 3. Match Pages to Instagram Accounts and upsert
+    // Case A: Page directly specifies instagram_business_account
+    for (const page of foundPages) {
+      if (page.igId) {
+        discoveredIgIds.add(page.igId);
+        const username = page.igUsername || "";
+        const name = page.igName || page.name || "";
+        const profilePic = page.igPic || "";
+
+        const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
+        const existing = await prisma.instagramConfig.findFirst({
+          where: { organizationId, instagramAccountId: page.igId }
+        });
+
+        if (existing) {
+          await prisma.instagramConfig.update({
+            where: { id: existing.id },
+            data: {
+              pageId: page.id,
+              pageAccessToken: page.access_token,
+              username: username || existing.username,
+              name: name || existing.name,
+              profilePic: profilePic || existing.profilePic,
+              isActive: true,
+            }
+          });
+        } else {
+          await prisma.instagramConfig.create({
+            data: {
+              organizationId,
+              instagramAccountId: page.igId,
+              pageId: page.id,
+              pageAccessToken: page.access_token,
+              username: username || `ig_${page.igId.slice(-4)}`,
+              name,
+              profilePic,
+              isDefault: existingCount === 0,
+              isActive: true,
+            }
+          });
+        }
+        console.log(`[IG DISCOVERY] Synced IG account @${username} (${page.igId}) with Page "${page.name}" (${page.id}) and Page Access Token!`);
+      }
+    }
+
+    // Case B: For any discovered IG accounts that were not explicitly linked to a Page yet:
+    // If there is a matching Page or an available Page with a Page Access Token, assign that Page Access Token!
+    for (const igAccountId of discoveredIgIds) {
+      const alreadyLinked = foundPages.some((p) => p.igId === igAccountId);
+      if (alreadyLinked) continue;
+
+      // Assign the first found page (e.g. JISNU Digital Solutions) that has a Page Access Token
+      const matchingPage = foundPages.find((p) => p.access_token && p.id);
+      const assignedPageId = matchingPage?.id || "";
+      const assignedPageToken = matchingPage?.access_token || accessToken;
+
+      try {
+        const igRes = await fetch(
+          `https://graph.facebook.com/v21.0/${igAccountId}?fields=id,username,name,profile_picture_url&access_token=${assignedPageToken}`
+        );
+        let igData: any = {};
+        if (igRes.ok) {
+          igData = await igRes.json();
+        } else {
+          // Try with user token
+          const userIgRes = await fetch(
+            `https://graph.facebook.com/v21.0/${igAccountId}?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
+          );
+          if (userIgRes.ok) igData = await userIgRes.json();
+        }
+
+        const username = igData.username || `ig_${igAccountId.slice(-4)}`;
+        const name = igData.name || matchingPage?.name || username;
+        const profilePic = igData.profile_picture_url || "";
+
+        const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
+        const existing = await prisma.instagramConfig.findFirst({
+          where: { organizationId, instagramAccountId: igAccountId }
+        });
+
+        if (existing) {
+          await prisma.instagramConfig.update({
+            where: { id: existing.id },
+            data: {
+              pageId: assignedPageId || existing.pageId,
+              pageAccessToken: assignedPageToken || existing.pageAccessToken,
+              username: username || existing.username,
+              name: name || existing.name,
+              profilePic: profilePic || existing.profilePic,
+              isActive: true,
+            }
+          });
+        } else {
+          await prisma.instagramConfig.create({
+            data: {
+              organizationId,
+              instagramAccountId: igAccountId,
+              pageId: assignedPageId,
+              pageAccessToken: assignedPageToken,
+              username,
+              name,
+              profilePic,
+              isDefault: existingCount === 0,
+              isActive: true,
+            }
+          });
+        }
+        console.log(`[IG DISCOVERY] Successfully synced Instagram account @${username} (${igAccountId}) with Page "${matchingPage?.name || 'none'}" (${assignedPageId}) and token!`);
+      } catch (err: any) {
+        console.warn(`[IG DISCOVERY] Error fetching details for account ${igAccountId}:`, err?.message);
+      }
+    }
+
+    // 4. Fallback: Direct /me query if nothing was discovered
+    if (discoveredIgIds.size === 0 && foundPages.length === 0) {
       try {
         let igUserRes = await fetch(
           `https://graph.facebook.com/v21.0/me?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
@@ -1227,7 +1362,7 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
           const igData = await igUserRes.json();
           if (igData && igData.id) {
             const instagramAccountId = igData.id;
-            const username = igData.username || "";
+            const username = igData.username || `ig_${instagramAccountId.slice(-4)}`;
             const name = igData.name || username;
             const profilePic = igData.profile_picture_url || "";
             const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
@@ -1238,7 +1373,7 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
               await prisma.instagramConfig.update({
                 where: { id: existing.id },
                 data: {
-                  pageAccessToken: accessToken,
+                  pageAccessToken: existing.pageAccessToken || accessToken,
                   username: username || existing.username,
                   name: name || existing.name,
                   profilePic: profilePic || existing.profilePic,
@@ -1252,8 +1387,8 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
                   instagramAccountId,
                   pageId: "",
                   pageAccessToken: accessToken,
-                  username: username || `ig_${instagramAccountId.slice(-4)}`,
-                  name: name || "",
+                  username,
+                  name,
                   profilePic,
                   isDefault: existingCount === 0,
                   isActive: true
@@ -1266,61 +1401,6 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
         console.warn("[IG DIRECT USER SYNC NOTICE]:", directErr);
       }
     }
-
-    // 5. Fallback: Optional /me/accounts check if pages access happens to be available
-    try {
-      const pagesRes = await fetch(
-        `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&access_token=${accessToken}`
-      );
-      if (pagesRes.ok) {
-        const pagesData = await pagesRes.json();
-        const pages = pagesData.data || [];
-        for (const page of pages) {
-          const ig = page.instagram_business_account;
-          if (ig && ig.id) {
-            const instagramAccountId = ig.id;
-            const pageId = page.id;
-            const pageAccessToken = page.access_token || accessToken;
-            let username = ig.username || "";
-            let name = ig.name || page.name || "";
-            let profilePic = ig.profile_picture_url || "";
-
-            const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
-            const existing = await prisma.instagramConfig.findFirst({
-              where: { organizationId, instagramAccountId }
-            });
-
-            if (existing) {
-              await prisma.instagramConfig.update({
-                where: { id: existing.id },
-                data: {
-                  pageId,
-                  pageAccessToken,
-                  username: username || existing.username,
-                  name: name || existing.name,
-                  profilePic: profilePic || existing.profilePic,
-                  isActive: true,
-                }
-              });
-            } else {
-              await prisma.instagramConfig.create({
-                data: {
-                  organizationId,
-                  instagramAccountId,
-                  pageId,
-                  pageAccessToken,
-                  username,
-                  name,
-                  profilePic,
-                  isDefault: existingCount === 0,
-                  isActive: true,
-                }
-              });
-            }
-          }
-        }
-      }
-    } catch (e) {}
   } catch (err: any) {
     console.warn("[MULTI-IG SYNC] Auto-sync notice:", err?.message);
   }
@@ -1363,11 +1443,6 @@ router.get("/instagram/accounts", async (req: Request, res: Response) => {
         }
       })
     );
-
-    const tokenConfig = accounts.find((a) => a.pageAccessToken);
-    if (tokenConfig && tokenConfig.pageAccessToken) {
-      syncAllInstagramAccountsForToken(organizationId, tokenConfig.pageAccessToken).catch(() => {});
-    }
 
     return res.status(200).json({ success: true, accounts });
   } catch (error: any) {
@@ -1717,64 +1792,12 @@ router.get("/instagram/permissions", async (req: Request, res: Response) => {
   }
 });
 
-// POST: Reset / revoke Meta authorization so subsequent logins ALWAYS force Meta's full account & permission selection flow
+// POST: Reset / prepare for Meta authorization
 router.post("/instagram/reset-auth", async (req: Request, res: Response) => {
-  try {
-    const organizationId = getOrgId(req);
-    const appId = process.env.META_APP_ID || "36702477879366478";
-    const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
-
-    const configs = await prisma.instagramConfig.findMany({
-      where: { organizationId },
-    });
-
-    const tokens = configs.map((c) => c.pageAccessToken).filter(Boolean);
-
-    for (const token of tokens) {
-      try {
-        await axios.delete("https://graph.facebook.com/v21.0/me/permissions", {
-          params: { access_token: token },
-        });
-        console.log("[IG RESET AUTH] Revoked Meta permissions via me/permissions");
-      } catch (err: any) {
-        console.warn("[IG RESET AUTH] Notice revoking me/permissions:", err?.message);
-      }
-      try {
-        const debugRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
-          params: {
-            input_token: token,
-            access_token: `${appId}|${appSecret}`,
-          },
-        });
-        const userId = debugRes.data?.data?.user_id;
-        if (userId) {
-          await axios.delete(`https://graph.facebook.com/v21.0/${userId}/permissions`, {
-            params: { access_token: `${appId}|${appSecret}` },
-          });
-          console.log("[IG RESET AUTH] Revoked Meta permissions for user:", userId);
-        }
-      } catch (err: any) {
-        console.warn("[IG RESET AUTH] Notice revoking token:", err?.message);
-      }
-    }
-
-    if (lastMetaUserId) {
-      try {
-        await axios.delete(`https://graph.facebook.com/v21.0/${lastMetaUserId}/permissions`, {
-          params: { access_token: `${appId}|${appSecret}` },
-        });
-        console.log("[IG RESET AUTH] Revoked Meta permissions for lastMetaUserId:", lastMetaUserId);
-      } catch (e) {}
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Meta authorization reset. The login flow will prompt for all accounts and permissions.",
-    });
-  } catch (error: any) {
-    console.error("Error resetting Meta auth:", error);
-    return res.status(200).json({ success: true, message: "Proceeding with login" });
-  }
+  return res.status(200).json({
+    success: true,
+    message: "Ready for login flow.",
+  });
 });
 
 // POST: Revoke Meta permissions for connected account to force a fresh consent dialog (for App Review & Testing)
@@ -1884,32 +1907,7 @@ router.post("/instagram/disconnect", async (req: Request, res: Response) => {
         } catch (subErr) {}
       }
 
-      // 2. Revoke user permissions on Meta so next connect forces fresh Page & Account selection
-      if (config.pageAccessToken) {
-        try {
-          await axios.delete("https://graph.facebook.com/v21.0/me/permissions", {
-            params: { access_token: config.pageAccessToken }
-          }).catch(() => {});
-          const appId = process.env.META_APP_ID || "36702477879366478";
-          const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
-          const debugRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
-            params: {
-              input_token: config.pageAccessToken,
-              access_token: `${appId}|${appSecret}`,
-            },
-          });
-          const userId = debugRes.data?.data?.user_id;
-          if (userId) {
-            await axios.delete(`https://graph.facebook.com/v21.0/${userId}/permissions`, {
-              params: { access_token: `${appId}|${appSecret}` },
-            });
-            console.log("[IG DISCONNECT] Successfully revoked Meta app permissions for user:", userId);
-          }
-        } catch (revokeErr: any) {
-          console.warn("[IG DISCONNECT] Meta permissions revoke notice:", revokeErr?.message);
-        }
-      }
-
+      // 2. Account removed from CRM
       await prisma.instagramConfig.delete({ where: { id: config.id } });
 
       const remaining = await prisma.instagramConfig.findFirst({

@@ -328,18 +328,20 @@ interface Conversation {
   updatedAt: string;
 }
 
+const NODE_TYPES = {
+  welcomeNode: WelcomeNodeComponent,
+  textNode: TextNodeComponent,
+  buttonsNode: ButtonsNodeComponent,
+  listNode: ListNodeComponent,
+  questionNode: QuestionNodeComponent,
+  mediaNode: MediaNodeComponent,
+};
+
+const EDGE_TYPES = {};
+
 export default function Dashboard() {
-  const nodeTypes = useMemo(
-    () => ({
-      welcomeNode: WelcomeNodeComponent,
-      textNode: TextNodeComponent,
-      buttonsNode: ButtonsNodeComponent,
-      listNode: ListNodeComponent,
-      questionNode: QuestionNodeComponent,
-      mediaNode: MediaNodeComponent,
-    }),
-    []
-  );
+  const nodeTypes = NODE_TYPES;
+  const edgeTypes = EDGE_TYPES;
 
   const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "bulk_broadcast" | "drip_campaigns" | "meta_templates" | "appointments" | "flows">("chats_whatsapp");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
@@ -1961,6 +1963,7 @@ export default function Dashboard() {
                   onEdgesChange={onEdgesChange}
                   onConnect={onConnect}
                   nodeTypes={nodeTypes}
+                  edgeTypes={edgeTypes}
                   fitView
                 >
                   <Controls className="bg-slate-900 border border-slate-800 text-slate-200" />

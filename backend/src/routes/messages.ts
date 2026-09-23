@@ -87,7 +87,7 @@ router.post("/send", async (req: Request, res: Response) => {
         return res.status(400).json({ error: "WhatsApp credentials not configured for this organization" });
       }
     } else if (isInstagram) {
-      if (!igConfig || !igConfig.pageId || !igConfig.pageAccessToken) {
+      if (!igConfig || (!igConfig.pageId && !igConfig.instagramAccountId) || !igConfig.pageAccessToken) {
         return res.status(400).json({ error: "Instagram credentials not configured for this organization" });
       }
     } else if (isYouTube) {

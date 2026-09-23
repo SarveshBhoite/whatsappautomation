@@ -355,18 +355,20 @@ interface YouTubeConfig {
   refreshToken: string;
 }
 
+const NODE_TYPES = {
+  welcomeNode: WelcomeNodeComponent,
+  textNode: TextNodeComponent,
+  buttonsNode: ButtonsNodeComponent,
+  listNode: ListNodeComponent,
+  questionNode: QuestionNodeComponent,
+  mediaNode: MediaNodeComponent,
+};
+
+const EDGE_TYPES = {};
+
 export default function Dashboard() {
-  const nodeTypes = useMemo(
-    () => ({
-      welcomeNode: WelcomeNodeComponent,
-      textNode: TextNodeComponent,
-      buttonsNode: ButtonsNodeComponent,
-      listNode: ListNodeComponent,
-      questionNode: QuestionNodeComponent,
-      mediaNode: MediaNodeComponent,
-    }),
-    []
-  );
+  const nodeTypes = NODE_TYPES;
+  const edgeTypes = EDGE_TYPES;
 
   const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "flows" | "settings">("settings");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
@@ -1614,7 +1616,10 @@ print(res.json())`;
   const META_INSTAGRAM_SCOPES_LIST = [
     "instagram_basic",
     "instagram_manage_messages",
-    "instagram_manage_comments"
+    "instagram_manage_comments",
+    "pages_show_list",
+    "pages_manage_metadata",
+    "pages_read_engagement"
   ];
 
   // Inspect Live Meta Scopes & Permissions for connected account
@@ -1676,25 +1681,15 @@ print(res.json())`;
 
     setIgEmbeddedConnecting(true);
 
-    // Call backend to pre-reset Meta authorization cache so Meta ALWAYS asks the user which accounts, pages, and permissions to grant
-    try {
-      await fetch(`${BACKEND_URL}/api/admin/instagram/reset-auth`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-organization-id": getOrgId(),
-        },
-      });
-    } catch (err) {
-      console.warn("Notice pre-resetting Meta auth:", err);
-    }
-
     const FB = (window as any).FB;
 
     const INSTAGRAM_SCOPES = [
       "instagram_basic",
       "instagram_manage_messages",
-      "instagram_manage_comments"
+      "instagram_manage_comments",
+      "pages_show_list",
+      "pages_manage_metadata",
+      "pages_read_engagement"
     ].join(",");
     const configId = process.env.NEXT_PUBLIC_META_INSTAGRAM_CONFIG_ID || "";
 
@@ -3322,6 +3317,7 @@ print(res.json())`;
                   onEdgesChange={onEdgesChange}
                   onConnect={onConnect}
                   nodeTypes={nodeTypes}
+                  edgeTypes={edgeTypes}
                   fitView
                 >
                   <Controls className="bg-slate-900 border border-slate-800 text-slate-200" />
