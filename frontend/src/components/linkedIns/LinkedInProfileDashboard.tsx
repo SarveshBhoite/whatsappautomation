@@ -30,6 +30,7 @@ import {
   MapPin,
   TrendingUp,
   Award,
+  Users,
   Image as ImageIcon,
   Video as VideoIcon,
   FileText as DocIcon
@@ -44,6 +45,9 @@ interface LinkedInProfileDashboardProps {
     picture?: string;
     vanityName?: string;
     profileUrl?: string;
+    about?: string;
+    description?: string;
+    followersCount?: number | null;
     locale?: string;
     createdAt?: string;
   } | null;
@@ -55,6 +59,9 @@ interface LinkedInProfileDashboardProps {
     memberPicture?: string;
     headline?: string;
     companyName?: string;
+    about?: string;
+    description?: string;
+    followersCount?: number | null;
     tokenExpiry?: string;
     updatedAt?: string;
     createdAt?: string;
@@ -76,6 +83,7 @@ interface LinkedInProfileDashboardProps {
   onDisconnect?: () => void;
   onOpenAIAssistant?: () => void;
   onApplyContent?: (text: string) => void;
+  onSwitchToCompany?: () => void;
 }
 
 export function LinkedInProfileDashboard({
@@ -88,7 +96,8 @@ export function LinkedInProfileDashboard({
   onRefreshProfile,
   onDisconnect,
   onOpenAIAssistant,
-  onApplyContent
+  onApplyContent,
+  onSwitchToCompany
 }: LinkedInProfileDashboardProps) {
   const isConnected = Boolean(config.accessToken && config.accessToken.trim().length > 10);
   const isExpired = Boolean(config.tokenExpiry && new Date() > new Date(config.tokenExpiry));
@@ -192,6 +201,14 @@ export function LinkedInProfileDashboard({
           >
             <Calendar className="h-3.5 w-3.5 text-amber-600" /> 📅 Schedule Post
           </button>
+          {onSwitchToCompany && (
+            <button
+              onClick={onSwitchToCompany}
+              className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0A66C2] border border-blue-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+            >
+              <Building2 className="h-3.5 w-3.5 text-blue-600" /> Go to Company Page
+            </button>
+          )}
           {onRefreshProfile && (
             <button
               onClick={async () => {
@@ -268,6 +285,13 @@ export function LinkedInProfileDashboard({
                   </>
                 )}
               </p>
+
+              {/* Real LinkedIn About / Bio Description (if available) */}
+              {(profile?.about || profile?.description || config.about || config.description) && (
+                <p className="text-xs text-slate-700 bg-slate-50/80 border border-slate-200/80 rounded-xl p-3 leading-relaxed max-w-2xl">
+                  {profile?.about || profile?.description || config.about || config.description}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -313,7 +337,19 @@ export function LinkedInProfileDashboard({
           <TrendingUp className="h-4 w-4 text-[#0A66C2]" /> Performance & Activity Statistics
         </h3>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className={`grid grid-cols-2 ${(profile?.followersCount !== undefined && profile?.followersCount !== null) || (config?.followersCount !== undefined && config?.followersCount !== null) ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-4`}>
+          {/* Real Total Followers (if returned by LinkedIn API) */}
+          {((profile?.followersCount !== undefined && profile?.followersCount !== null) || (config?.followersCount !== undefined && config?.followersCount !== null)) && (
+            <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-1 shadow-xs hover:border-slate-300 transition-colors">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                <Users className="h-3.5 w-3.5 text-[#0A66C2]" /> Total Followers
+              </span>
+              <p className="text-2xl font-bold text-[#0A66C2]">
+                {(profile?.followersCount ?? config?.followersCount)?.toLocaleString() || 0}
+              </p>
+            </div>
+          )}
+
           <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-1 shadow-xs hover:border-slate-300 transition-colors">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Published Posts</span>
             <p className="text-2xl font-bold text-slate-900">{posts.length}</p>

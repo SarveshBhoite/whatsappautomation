@@ -91,25 +91,22 @@ export function EngagementDashboard({
           <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs font-semibold">
             <button
               onClick={() => setTimeFilter("all")}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                timeFilter === "all" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
-              }`}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${timeFilter === "all" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
+                }`}
             >
               All Time
             </button>
             <button
               onClick={() => setTimeFilter("30d")}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                timeFilter === "30d" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
-              }`}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${timeFilter === "30d" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
+                }`}
             >
               Last 30 Days
             </button>
             <button
               onClick={() => setTimeFilter("7d")}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                timeFilter === "7d" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
-              }`}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${timeFilter === "7d" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
+                }`}
             >
               Last 7 Days
             </button>

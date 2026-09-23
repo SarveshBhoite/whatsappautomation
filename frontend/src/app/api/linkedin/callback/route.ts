@@ -18,13 +18,13 @@ export async function GET(request: Request) {
 
     if (error) {
       return NextResponse.redirect(
-        `${frontendUrl}/linkedin?tab=overview&oauth=error&error=${encodeURIComponent(error)}&description=${encodeURIComponent(errorDesc || "")}`
+        `${frontendUrl}/linkedin?tab=profile&oauth=error&error=${encodeURIComponent(error)}&description=${encodeURIComponent(errorDesc || "")}`
       );
     }
 
     if (!code) {
       return NextResponse.redirect(
-        `${frontendUrl}/linkedin?tab=overview&oauth=error&error=missing_code&description=No authorization code provided.`
+        `${frontendUrl}/linkedin?tab=profile&oauth=error&error=missing_code&description=No authorization code provided.`
       );
     }
 
@@ -37,9 +37,9 @@ export async function GET(request: Request) {
       return NextResponse.redirect(response.url);
     }
 
-    return NextResponse.redirect(`${frontendUrl}/linkedin?tab=overview&oauth=success`);
+    return NextResponse.redirect(`${frontendUrl}/linkedin?tab=profile&oauth=success`);
   } catch (err: any) {
     console.error("[NEXT API LINKEDIN CALLBACK ERROR]", err);
-    return NextResponse.redirect(`http://localhost:3000/linkedin?tab=overview&oauth=error&error=server_error`);
+    return NextResponse.redirect(`http://localhost:3000/linkedin?tab=profile&oauth=error&error=server_error`);
   }
 }

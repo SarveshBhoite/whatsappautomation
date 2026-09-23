@@ -16,7 +16,7 @@ import {
   ChevronDown,
   ChevronUp
 } from "lucide-react";
-import { MediaPreview, detectMediaType } from "./MediaPreview";
+import { MediaPreview, detectMediaType } from "@/components/linkedIns/MediaPreview";
 
 export interface ScheduledPostItem {
   id: string;
@@ -129,13 +129,12 @@ export function ScheduleQueue({
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-200/60 pb-3">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span
-                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                        item.status === "SCHEDULED"
+                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${item.status === "SCHEDULED"
                           ? "bg-blue-50 text-blue-700 border-blue-200"
                           : item.status === "FAILED"
-                          ? "bg-red-50 text-red-700 border-red-200"
-                          : "bg-slate-100 text-slate-600 border-slate-200"
-                      }`}
+                            ? "bg-red-50 text-red-700 border-red-200"
+                            : "bg-slate-100 text-slate-600 border-slate-200"
+                        }`}
                     >
                       <span className={`h-1.5 w-1.5 rounded-full ${item.status === "SCHEDULED" ? "bg-[#0A66C2] animate-pulse" : "bg-red-500"}`} />
                       {item.status}
@@ -284,12 +283,12 @@ export function ScheduleQueue({
                 <span className="font-mono bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                   {previewItem.scheduledAt
                     ? new Date(previewItem.scheduledAt).toLocaleString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit"
-                      })
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })
                     : "Immediate Queue"}
                 </span>
               </div>

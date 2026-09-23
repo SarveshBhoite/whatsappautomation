@@ -3,8 +3,8 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { User, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
-import { RefreshProfileButton } from "./RefreshProfileButton";
-import { DisconnectButton } from "./DisconnectButton";
+import { RefreshProfileButton } from "@/components/linkedIns/RefreshProfileButton";
+import { DisconnectButton } from "@/components/linkedIns/DisconnectButton";
 
 interface LinkedInProfileCardProps {
   profile?: {
