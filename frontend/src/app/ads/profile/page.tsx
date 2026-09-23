@@ -20,6 +20,7 @@ import {
   Loader2,
   Sparkles,
   Plus,
+  RefreshCw,
   Trash2,
   ChevronDown,
   ChevronUp,
@@ -47,6 +48,13 @@ import {
   Trophy
 } from "lucide-react";
 import { MediaAssetsLibraryTab, MediaAssetItem } from "@/components/ads/MediaAssetsLibraryTab";
+
+// Native SVG YouTube icon (not in lucide-react)
+const YoutubeIcon = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
+    <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.522 3.5 12 3.5 12 3.5s-7.522 0-9.388.553a3.003 3.003 0 0 0-2.11 2.11C0 8.028 0 12 0 12s0 3.972.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.866.553 9.388.553 9.388.553s7.522 0 9.388-.553a3.003 3.003 0 0 0 2.11-2.11C24 15.972 24 12 24 12s0-3.972-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+  </svg>
+);
 import { ProfileSectionFooterNav } from "@/components/ads/ProfileSectionFooterNav";
 
 export interface SubPageEntry {
@@ -341,6 +349,7 @@ export interface CustomerProfileData {
   // Marketing & Business Profile Fields
   primaryWebsite?: string | null;
   additionalWebsites?: WebsiteEntry[];
+  youtubeLinks?: string[];
   businessDescription?: string | null;
   industry?: string | null;
   products?: (ProductItem | string)[];
@@ -364,7 +373,7 @@ export interface CustomerProfileData {
   approvedAt?: string | null;
 }
 
-type TabKey = "overview" | "business" | "products_services" | "target_audience" | "locations" | "conversion_goals" | "brand_profile" | "competitors" | "seo_keywords" | "faqs" | "ai_suggestions" | "media_assets" | "websites" | "merchant_apps";
+type TabKey = "overview" | "business" | "products_services" | "target_audience" | "locations" | "conversion_goals" | "brand_profile" | "competitors" | "seo_keywords" | "faqs" | "ai_suggestions" | "media_assets" | "websites" | "youtube_channel" | "merchant_apps";
 
 const PROFILE_TABS_SEQUENCE: { key: TabKey; label: string; shortLabel: string }[] = [
   { key: "business", label: "Business Information", shortLabel: "Business Info" },
@@ -378,6 +387,7 @@ const PROFILE_TABS_SEQUENCE: { key: TabKey; label: string; shortLabel: string }[
   { key: "faqs", label: "FAQs & Key Info", shortLabel: "FAQs" },
   { key: "ai_suggestions", label: "AI Suggestions", shortLabel: "AI Suggestions" },
   { key: "websites", label: "Websites & Sub-Pages", shortLabel: "Websites" },
+  { key: "youtube_channel", label: "YouTube Channel", shortLabel: "YouTube" },
   { key: "merchant_apps", label: "Merchant & Mobile Apps", shortLabel: "Merchant & Apps" },
   { key: "media_assets", label: "Media & Creative Assets", shortLabel: "Media Library" },
   { key: "overview", label: "Account Identity", shortLabel: "Account Identity" },
@@ -658,10 +668,20 @@ function ProfilePageContent() {
   const [analyzingUrl, setAnalyzingUrl] = useState<string | null>(null);
   const [expandedWebsiteUrl, setExpandedWebsiteUrl] = useState<string | null>(null);
 
+  // YouTube Channel state
+  const [youtubeLinks, setYoutubeLinks] = useState<string[]>([]);
+  const [youtubeChannels, setYoutubeChannels] = useState<{ id: string; title: string; handle?: string; url: string }[]>([]);
+  const [newYoutubeInput, setNewYoutubeInput] = useState("");
+  const [youtubeInputError, setYoutubeInputError] = useState<string | null>(null);
+  const [isYoutubeSyncing, setIsYoutubeSyncing] = useState(false);
+  const [youtubeSyncMsg, setYoutubeSyncMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+
   // Merchant Center state
   const [hasMerchantAccount, setHasMerchantAccount] = useState(false);
   const [merchantCenterId, setMerchantCenterId] = useState("");
   const [merchantStoreName, setMerchantStoreName] = useState("");
+  const [isSyncingMerchant, setIsSyncingMerchant] = useState(false);
+  const [merchantSyncMsg, setMerchantSyncMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   // Mobile Apps state
   const [hasAppAccount, setHasAppAccount] = useState(false);
@@ -670,6 +690,8 @@ function ProfilePageContent() {
   const [newAppId, setNewAppId] = useState("");
   const [newAppName, setNewAppName] = useState("");
   const [newAppUrl, setNewAppUrl] = useState("");
+  const [isSyncingApps, setIsSyncingApps] = useState(false);
+  const [appSyncMsg, setAppSyncMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   // Tag inputs
   const [newProductInput, setNewProductInput] = useState("");
@@ -708,6 +730,8 @@ function ProfilePageContent() {
         return aiSuggestions.length > 0 || Boolean(profile?.isApproved);
       case "websites":
         return Boolean(primaryWebsite && primaryWebsite.trim()) || totalWebsitesCount > 0;
+      case "youtube_channel":
+        return youtubeLinks.length > 0;
       case "merchant_apps":
         return hasMerchantAccount || hasAppAccount || appDetails.length > 0 || Boolean(profile?.isApproved);
       case "media_assets":
@@ -730,7 +754,28 @@ function ProfilePageContent() {
       const storedOrg = localStorage.getItem("organization_id");
       if (storedOrg) setOrgId(storedOrg);
     }
-  }, []);
+
+    const tabParam = searchParams.get("tab") as TabKey | null;
+    if (tabParam && PROFILE_TABS_SEQUENCE.some(t => t.key === tabParam)) {
+      setActiveTab(tabParam);
+    }
+
+    const oauthParam = searchParams.get("oauth");
+    if (oauthParam === "success") {
+      setMerchantSyncMsg({
+        type: "success",
+        text: "Google Account connected successfully! Discovered Merchant Center accounts have been synced."
+      });
+      setTimeout(() => setMerchantSyncMsg(null), 8000);
+    } else if (oauthParam === "error") {
+      const msg = searchParams.get("message") || "Failed to authenticate with Google.";
+      setMerchantSyncMsg({
+        type: "error",
+        text: `Google connection error: ${msg}`
+      });
+      setTimeout(() => setMerchantSyncMsg(null), 8000);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!customerId) {
@@ -1023,6 +1068,8 @@ function ProfilePageContent() {
 
           setPrimaryWebsite(data.primaryWebsite || "");
           setAdditionalWebsites(Array.isArray(data.additionalWebsites) ? data.additionalWebsites : []);
+          setYoutubeLinks(Array.isArray(data.youtubeLinks) ? data.youtubeLinks : []);
+          setYoutubeChannels(Array.isArray(data.youtubeChannels) ? data.youtubeChannels : []);
 
           setHasMerchantAccount(Boolean(data.hasMerchantAccount));
           setMerchantCenterId(data.merchantCenterId || "");
@@ -1158,6 +1205,29 @@ function ProfilePageContent() {
           setTargetAudience(intel.targetAudience.trim());
           autofilledCount++;
         }
+        if (intel.businessEmail && typeof intel.businessEmail === "string" && intel.businessEmail.trim()) {
+          setBusinessEmail(intel.businessEmail.trim());
+          autofilledCount++;
+        }
+        if (intel.businessPhone && typeof intel.businessPhone === "string" && intel.businessPhone.trim()) {
+          setBusinessPhone(intel.businessPhone.trim());
+          autofilledCount++;
+        }
+        if (intel.whatsappNumber && typeof intel.whatsappNumber === "string" && intel.whatsappNumber.trim()) {
+          setWhatsappNumber(intel.whatsappNumber.trim());
+          autofilledCount++;
+        }
+        if (intel.businessAddress && typeof intel.businessAddress === "string" && intel.businessAddress.trim()) {
+          setBusinessAddress(intel.businessAddress.trim());
+          autofilledCount++;
+        }
+        if (Array.isArray(intel.serviceAreas) && intel.serviceAreas.length > 0) {
+          const validAreas = intel.serviceAreas.map((a: any) => String(a).trim()).filter(Boolean);
+          if (validAreas.length > 0) {
+            setServiceAreas(validAreas);
+            autofilledCount++;
+          }
+        }
 
         // Products
         if (Array.isArray(intel.products) && intel.products.length > 0) {
@@ -1255,6 +1325,13 @@ function ProfilePageContent() {
           if (usps.length > 0) {
             setBrandUsps(usps);
             setKeyOfferings(usps);
+            autofilledCount++;
+          }
+        }
+        if (Array.isArray(intel.brandColors) && intel.brandColors.length > 0) {
+          const colors = intel.brandColors.map((c: any) => String(c).trim()).filter((c: string) => /^#[0-9a-fA-F]{3,8}$/.test(c));
+          if (colors.length > 0) {
+            setBrandColors(colors);
             autofilledCount++;
           }
         }
@@ -1538,6 +1615,38 @@ function ProfilePageContent() {
   // Remove Additional Website
   const handleRemoveAdditionalWebsite = (urlToRemove: string) => {
     setAdditionalWebsites((prev) => prev.filter((w) => w.url !== urlToRemove));
+  };
+
+  // Sync YouTube Channels from Google API
+  const handleSyncYoutubeChannels = async () => {
+    setIsYoutubeSyncing(true);
+    setYoutubeSyncMsg(null);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const res = await fetch(`${BACKEND}/api/ads/customer-profile/sync-youtube`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({ customerId })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setYoutubeSyncMsg({ type: "error", text: data.error || "Failed to sync YouTube channels." });
+      } else if (data.found === 0) {
+        setYoutubeSyncMsg({ type: "info", text: "No YouTube channels found on this Google account. You can add links manually below." });
+      } else {
+        setYoutubeLinks(data.youtubeLinks || []);
+        setYoutubeChannels(data.youtubeChannels || []);
+        setYoutubeSyncMsg({ type: "success", text: `Found and synced ${data.found} YouTube channel(s) from your Google account!` });
+      }
+    } catch (err: any) {
+      setYoutubeSyncMsg({ type: "error", text: err.message || "Network error — could not sync YouTube channels." });
+    } finally {
+      setIsYoutubeSyncing(false);
+      setTimeout(() => setYoutubeSyncMsg(null), 8000);
+    }
   };
 
   // Add App Detail
@@ -2749,6 +2858,7 @@ function ProfilePageContent() {
       languagesServed,
       primaryWebsite: primaryWebsite.trim() || undefined,
       additionalWebsites,
+      youtubeLinks,
       products,
       services,
       targetAudiences,
@@ -2820,6 +2930,164 @@ function ProfilePageContent() {
       return false;
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Sync / Query Google Merchant Center accounts via Content API
+  const handleSyncMerchantAccounts = async () => {
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    setIsSyncingMerchant(true);
+    setMerchantSyncMsg(null);
+
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/merchant-accounts?orgId=${encodeURIComponent(orgId)}`, {
+        headers: { "x-organization-id": orgId }
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to query Google Merchant Center accounts");
+      }
+
+      const accounts = data.accounts || [];
+      if (accounts.length > 0) {
+        const first = accounts[0];
+        setHasMerchantAccount(true);
+        setMerchantCenterId(first.merchantId);
+        setMerchantStoreName(first.name || "");
+        setMerchantSyncMsg({
+          type: "success",
+          text: `Found ${accounts.length} Google Merchant Center account(s)! Populated ID ${first.merchantId} (${first.name}).`
+        });
+      } else {
+        setMerchantSyncMsg({
+          type: "info",
+          text: "Google is connected, but no Merchant Center accounts were found for this Google login. You can create one at merchants.google.com or enter your ID manually."
+        });
+      }
+    } catch (err: any) {
+      setMerchantSyncMsg({
+        type: "error",
+        text: err.message || "Failed to detect Merchant Center accounts."
+      });
+    } finally {
+      setIsSyncingMerchant(false);
+    }
+  };
+
+  // Sync / Query connected mobile apps via Google Ads API & Database
+  const handleSyncConnectedApps = async () => {
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    setIsSyncingApps(true);
+    setAppSyncMsg(null);
+
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/connected-apps?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(customerId)}`, {
+        headers: { "x-organization-id": orgId }
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to query connected apps");
+      }
+
+      const apps = data.apps || [];
+      if (apps.length > 0) {
+        setHasAppAccount(true);
+        // Merge with existing apps, avoiding duplicate appIds
+        setAppDetails((prev) => {
+          const existingIds = new Set(prev.map((a) => a.appId.toLowerCase()));
+          const newOnes = apps.filter((a: any) => !existingIds.has(a.appId.toLowerCase()));
+          return [...prev, ...newOnes];
+        });
+        setAppSyncMsg({
+          type: "success",
+          text: `Successfully discovered ${apps.length} connected app(s)! Displayed in your app library below.`
+        });
+      } else {
+        setAppSyncMsg({
+          type: "info",
+          text: "Google is connected, but no mobile app assets or campaigns were found in this account. You can register your Google Play package ID or App Store ID below."
+        });
+      }
+    } catch (err: any) {
+      setAppSyncMsg({
+        type: "error",
+        text: err.message || "Failed to detect connected apps."
+      });
+    } finally {
+      setIsSyncingApps(false);
+    }
+  };
+
+  // Disconnect Google Merchant Center
+  const [isDisconnectingMerchant, setIsDisconnectingMerchant] = useState(false);
+  const handleDisconnectMerchant = async () => {
+    if (!confirm("Are you sure you want to disconnect Google Merchant Center from this account?")) return;
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    setIsDisconnectingMerchant(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/customer-profile/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({ customerId, type: "merchant" })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to disconnect Merchant Center");
+
+      setHasMerchantAccount(false);
+      setMerchantCenterId("");
+      setMerchantStoreName("");
+      setMerchantSyncMsg({
+        type: "info",
+        text: "Google Merchant Center has been disconnected from this profile."
+      });
+      setTimeout(() => setMerchantSyncMsg(null), 5000);
+    } catch (err: any) {
+      setMerchantSyncMsg({
+        type: "error",
+        text: err.message || "Failed to disconnect Merchant Center."
+      });
+    } finally {
+      setIsDisconnectingMerchant(false);
+    }
+  };
+
+  // Disconnect Google Mobile Apps
+  const [isDisconnectingApps, setIsDisconnectingApps] = useState(false);
+  const handleDisconnectApps = async () => {
+    if (!confirm("Are you sure you want to disconnect all linked Mobile Apps from this account?")) return;
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    setIsDisconnectingApps(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/customer-profile/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({ customerId, type: "apps" })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to disconnect Mobile Apps");
+
+      setHasAppAccount(false);
+      setAppDetails([]);
+      setAppSyncMsg({
+        type: "info",
+        text: "Mobile Apps have been disconnected from this profile."
+      });
+      setTimeout(() => setAppSyncMsg(null), 5000);
+    } catch (err: any) {
+      setAppSyncMsg({
+        type: "error",
+        text: err.message || "Failed to disconnect Mobile Apps."
+      });
+    } finally {
+      setIsDisconnectingApps(false);
     }
   };
 
@@ -3275,6 +3543,7 @@ function ProfilePageContent() {
                         tabItem.key === "faqs" ? HelpCircle :
                         tabItem.key === "ai_suggestions" ? Sparkles :
                         tabItem.key === "websites" ? Globe :
+                        tabItem.key === "youtube_channel" ? YoutubeIcon :
                         tabItem.key === "merchant_apps" ? ShoppingBag :
                         tabItem.key === "media_assets" ? ImageIcon :
                         ShieldCheck;
@@ -3289,6 +3558,7 @@ function ProfilePageContent() {
                       else if (tabItem.key === "faqs") countBadge = faqs.length;
                       else if (tabItem.key === "ai_suggestions") countBadge = aiSuggestions.filter(s => !s.applied && !s.rejected).length;
                       else if (tabItem.key === "websites") countBadge = `${totalWebsitesCount}/15`;
+                      else if (tabItem.key === "youtube_channel") countBadge = youtubeLinks.length;
                       else if (tabItem.key === "media_assets") countBadge = mediaAssets.length;
 
                       return (
@@ -9551,109 +9821,573 @@ function ProfilePageContent() {
             </div>
           )}
 
-            {/* TAB CONTENT: MERCHANT & MOBILE APPS */}
-            {activeTab === "merchant_apps" && (
+            {/* TAB CONTENT: YOUTUBE CHANNEL */}
+            {activeTab === "youtube_channel" && (
               <div className="animate-fadeIn space-y-6 transition-all duration-300">
-                {/* Google Merchant Center Card */}
-                <div
-                  className={`p-6 rounded-3xl border transition-all ${
-                    hasMerchantAccount ? "bg-emerald-50/40 border-emerald-300" : "bg-white border-slate-200"
-                  } shadow-sm`}
-                >
-                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+
+                  {/* ── Header Row ── */}
+                  <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3">
-                      <div
-                        className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
-                          hasMerchantAccount ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        <ShoppingBag className="w-5 h-5" />
+                      <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center shrink-0">
+                        <YoutubeIcon className="w-5 h-5 text-red-600" />
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold text-slate-900">Google Merchant Center</h3>
-                        <p className="text-xs text-slate-500">Shopping product feeds and multi-channel commerce</p>
+                        <h2 className="text-sm font-bold text-slate-900">YouTube Channel &amp; Video Links</h2>
+                        <p className="text-xs text-slate-500">Link channels, product videos, and Shorts for Google Video &amp; Demand Gen ads.</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-700">Merchant Account:</span>
+                    {/* Action Buttons — Connect or Sync */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Auto-Sync button (visible always; grayed if no Google account connected) */}
                       <button
+                        id="youtube-sync-channels-btn"
                         type="button"
-                        onClick={() => setHasMerchantAccount(!hasMerchantAccount)}
-                        className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border ${
-                          hasMerchantAccount
-                            ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                            : "bg-slate-200 text-slate-700 border-slate-300"
-                        }`}
+                        onClick={handleSyncYoutubeChannels}
+                        disabled={isYoutubeSyncing}
+                        className="px-3 py-1.5 rounded-xl border border-emerald-300 hover:border-emerald-400 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                        title="Auto-detect YouTube channels from your connected Google account"
                       >
-                        {hasMerchantAccount ? "Yes (Active)" : "No"}
+                        {isYoutubeSyncing ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        )}
+                        <span>{isYoutubeSyncing ? "Syncing..." : "Auto-Sync Channels"}</span>
                       </button>
+
+                      {/* Connect / Re-connect with Google OAuth */}
+                      <a
+                        id="youtube-connect-google-btn"
+                        href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/gmb/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=youtube_channel`)}&source=google_ads`}
+                        className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-semibold inline-flex items-center gap-2 transition-all shadow-sm cursor-pointer hover:shadow-md"
+                        title="Connect Google Account to auto-discover your YouTube channels"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                        </svg>
+                        <span>{youtubeLinks.length > 0 ? "Re-connect Google" : "Connect Google"}</span>
+                      </a>
+
+                      {/* Badge */}
+                      <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
+                        youtubeLinks.length > 0
+                          ? "bg-red-50 text-red-700 border-red-200"
+                          : "bg-slate-100 text-slate-500 border-slate-200"
+                      }`}>
+                        {youtubeLinks.length} {youtubeLinks.length === 1 ? "Channel" : "Channels"}
+                      </span>
                     </div>
                   </div>
 
-                  {hasMerchantAccount && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-emerald-200/60 animate-fadeIn">
+                  {/* ── Sync Status Banner ── */}
+                  {youtubeSyncMsg && (
+                    <div className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                      youtubeSyncMsg.type === "success"
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                        : youtubeSyncMsg.type === "error"
+                        ? "bg-rose-50 border-rose-200 text-rose-700"
+                        : "bg-blue-50 border-blue-200 text-blue-700"
+                    }`}>
+                      <div className="flex items-center gap-2 text-xs font-medium">
+                        {youtubeSyncMsg.type === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : youtubeSyncMsg.type === "error" ? (
+                          <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                        ) : (
+                          <YoutubeIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                        )}
+                        <span>{youtubeSyncMsg.text}</span>
+                      </div>
+                      <button type="button" onClick={() => setYoutubeSyncMsg(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ── Why This Matters Banner ── */}
+                  <div className="p-3.5 rounded-2xl bg-red-50 border border-red-100 flex items-start gap-2.5">
+                    <YoutubeIcon className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-700">
+                      <span className="font-bold">Why this matters:</span> Linking your YouTube channel enables Google to show your video ads on YouTube and across the Display Network. Required for Video campaigns, Discovery ads, and Demand Gen.
+                    </p>
+                  </div>
+
+                  {/* ── Discovered Channels (Rich Cards) ── */}
+                  {youtubeLinks.length === 0 ? (
+                    <div className="p-10 rounded-2xl border-2 border-dashed border-slate-200 text-center space-y-3">
+                      <YoutubeIcon className="w-12 h-12 text-slate-200 mx-auto" />
+                      <div>
+                        <p className="text-sm font-semibold text-slate-400">No YouTube channels connected yet</p>
+                        <p className="text-xs text-slate-400 mt-1">Click <strong>Connect Google</strong> to auto-discover your channels,<br />or add a link manually below.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <label className="text-xs font-bold text-slate-700 block">Connected Channels &amp; Links ({youtubeLinks.length})</label>
+                      {youtubeLinks.map((yt, idx) => {
+                        // Try to find a richer channel object for this URL
+                        const ch = youtubeChannels.find((c) => c.url === yt || yt.includes(c.id));
+                        return (
+                          <div
+                            key={idx}
+                            className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 hover:border-red-200 hover:bg-red-50/30 transition-colors group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                                <YoutubeIcon className="w-4 h-4 text-red-600" />
+                              </div>
+                              <div className="min-w-0">
+                                {ch ? (
+                                  <>
+                                    <p className="text-xs font-bold text-slate-900 truncate">{ch.title}</p>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      {ch.handle && (
+                                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">{ch.handle}</span>
+                                      )}
+                                      <a
+                                        href={yt}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] text-slate-500 hover:text-red-600 hover:underline truncate flex items-center gap-0.5"
+                                      >
+                                        {yt}
+                                        <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                                      </a>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <a
+                                    href={yt}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-medium text-slate-800 hover:text-red-600 truncate hover:underline flex items-center gap-1"
+                                  >
+                                    <span className="truncate">{yt}</span>
+                                    <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {ch && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Auto-detected</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setYoutubeLinks((prev) => prev.filter((l) => l !== yt));
+                                  setYoutubeChannels((prev) => prev.filter((c) => c.url !== yt && !yt.includes(c.id)));
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl transition-colors cursor-pointer hover:bg-rose-50"
+                                title="Remove"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* ── Manual Add YouTube URL ── */}
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <label className="text-xs font-bold text-slate-700">Add YouTube Link Manually</label>
+                    <div className="flex gap-2">
+                      <input
+                        id="youtube-channel-url-input"
+                        type="url"
+                        value={newYoutubeInput}
+                        onChange={(e) => {
+                          setNewYoutubeInput(e.target.value);
+                          if (youtubeInputError) setYoutubeInputError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const trimmed = newYoutubeInput.trim();
+                            if (!trimmed) return;
+                            const isYoutube = /youtube\.com|youtu\.be/i.test(trimmed);
+                            if (!isYoutube) { setYoutubeInputError("Please enter a valid YouTube URL (youtube.com or youtu.be)."); return; }
+                            if (youtubeLinks.some((l) => l.toLowerCase() === trimmed.toLowerCase())) { setYoutubeInputError("This YouTube link is already added."); return; }
+                            setYoutubeLinks((prev) => [...prev, trimmed]);
+                            setNewYoutubeInput("");
+                            setYoutubeInputError(null);
+                          }
+                        }}
+                        placeholder="https://youtube.com/@yourchannel  or  https://youtu.be/VIDEO_ID"
+                        className={`flex-1 px-4 py-2.5 text-xs rounded-xl border bg-white font-mono text-slate-800 focus:outline-none ${
+                          youtubeInputError ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-red-500"
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const trimmed = newYoutubeInput.trim();
+                          if (!trimmed) return;
+                          const isYoutube = /youtube\.com|youtu\.be/i.test(trimmed);
+                          if (!isYoutube) { setYoutubeInputError("Please enter a valid YouTube URL (youtube.com or youtu.be)."); return; }
+                          if (youtubeLinks.some((l) => l.toLowerCase() === trimmed.toLowerCase())) { setYoutubeInputError("This YouTube link is already added."); return; }
+                          setYoutubeLinks((prev) => [...prev, trimmed]);
+                          setNewYoutubeInput("");
+                          setYoutubeInputError(null);
+                        }}
+                        className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-4 h-4" /> Add Link
+                      </button>
+                    </div>
+                    {youtubeInputError && (
+                      <p className="text-[11px] text-rose-600 font-medium px-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {youtubeInputError}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-slate-400">Accepted: Channel URLs, video URLs, or YouTube Shorts links.</p>
+                  </div>
+                </div>
+                {renderSectionFooterNav()}
+              </div>
+            )}
+
+            {/* TAB CONTENT: MERCHANT & MOBILE APPS */}
+            {activeTab === "merchant_apps" && (
+              <div className="animate-fadeIn space-y-6 transition-all duration-300">
+                {/* ─── Google Merchant Center Card ─── */}
+                <div
+                  className={`p-6 rounded-3xl border transition-all duration-200 ${
+                    hasMerchantAccount
+                      ? "bg-white border-emerald-300 shadow-md shadow-emerald-500/5 ring-1 ring-emerald-200/50"
+                      : "bg-slate-50/70 border-slate-200 shadow-2xs"
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-5 flex-wrap gap-4">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div
+                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
+                          hasMerchantAccount
+                            ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/25"
+                            : "bg-white border border-slate-200 text-slate-500"
+                        }`}
+                      >
+                        <ShoppingBag className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h3 className="text-sm font-bold text-slate-900 tracking-tight">Google Merchant Center</h3>
+                          {hasMerchantAccount ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Connected
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-200/80 text-slate-600">
+                              Disconnected
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">Shopping feeds, product catalog sync, and Google Free Listings</p>
+                      </div>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="flex items-center gap-2 flex-wrap ml-auto">
+                      <a
+                        href="https://merchants.google.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                        title="Open Google Merchant Center Console in new tab"
+                      >
+                        <span>Console</span>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                      </a>
+
+                      {/* When Connected: Show Disconnect & Sync */}
+                      {hasMerchantAccount ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleSyncMerchantAccounts}
+                            disabled={isSyncingMerchant}
+                            className="px-3 py-1.5 rounded-xl border border-emerald-300 hover:border-emerald-400 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            title="Auto-detect and sync your Merchant Center ID and Store details"
+                          >
+                            {isSyncingMerchant ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            )}
+                            <span>{isSyncingMerchant ? "Syncing..." : "Live Sync"}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleDisconnectMerchant}
+                            disabled={isDisconnectingMerchant}
+                            className="px-3 py-1.5 rounded-xl border border-rose-200 hover:border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            title="Disconnect and unlink Google Merchant Center from this profile"
+                          >
+                            {isDisconnectingMerchant ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                            )}
+                            <span>{isDisconnectingMerchant ? "Disconnecting..." : "Disconnect"}</span>
+                          </button>
+                        </>
+                      ) : (
+                        /* When Disconnected: Show Connect with Google button */
+                        <a
+                          href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/gmb/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}&source=google_ads`}
+                          className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-semibold inline-flex items-center gap-2 transition-all shadow-sm cursor-pointer hover:shadow-md"
+                          title="Authorize and link Google Merchant Center via OAuth"
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                          </svg>
+                          <span>Connect Google Merchant</span>
+                        </a>
+                      )}
+
+                      <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Enable:</span>
+                        <button
+                          type="button"
+                          onClick={() => setHasMerchantAccount(!hasMerchantAccount)}
+                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border ${
+                            hasMerchantAccount
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                              : "bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300"
+                          }`}
+                        >
+                          {hasMerchantAccount ? "Yes" : "No"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {merchantSyncMsg && (
+                    <div
+                      className={`mb-4 p-3.5 rounded-2xl border text-xs flex items-start justify-between gap-2 animate-fadeIn ${
+                        merchantSyncMsg.type === "success"
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                          : merchantSyncMsg.type === "error"
+                          ? "bg-rose-50 border-rose-200 text-rose-900"
+                          : "bg-blue-50 border-blue-200 text-blue-900"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {merchantSyncMsg.type === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : merchantSyncMsg.type === "error" ? (
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        ) : (
+                          <HelpCircle className="w-4 h-4 text-blue-600 shrink-0" />
+                        )}
+                        <p>{merchantSyncMsg.text}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMerchantSyncMsg(null)}
+                        className="text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  {hasMerchantAccount ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-emerald-100 animate-fadeIn">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700">Merchant Center Account ID</label>
+                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                          <span>Merchant Center Account ID</span>
+                          <span className="text-[11px] font-normal text-slate-400 font-mono">Numeric ID</span>
+                        </label>
                         <input
                           type="text"
                           value={merchantCenterId}
                           onChange={(e) => setMerchantCenterId(e.target.value)}
                           placeholder="e.g. 123456789"
-                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 bg-white font-mono"
+                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 bg-white font-mono focus:border-emerald-500 focus:outline-none transition-colors"
                         />
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700">Primary Feed / Store Name</label>
+                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                          <span>Primary Feed / Store Name</span>
+                          <span className="text-[11px] font-normal text-slate-400">Store / Product Catalog</span>
+                        </label>
                         <input
                           type="text"
                           value={merchantStoreName}
                           onChange={(e) => setMerchantStoreName(e.target.value)}
                           placeholder="e.g. Global Product Feed"
-                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 bg-white"
+                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 bg-white focus:border-emerald-500 focus:outline-none transition-colors"
                         />
                       </div>
+                    </div>
+                  ) : (
+                    <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs text-slate-500">
+                      <span>Merchant Center integration is currently disabled. Toggle &quot;Enable&quot; or connect your Google account to activate Shopping Feeds.</span>
                     </div>
                   )}
                 </div>
 
-                {/* Mobile App Management Card */}
+                {/* ─── Mobile App Campaigns Card ─── */}
                 <div
-                  className={`p-6 rounded-3xl border transition-all ${
-                    hasAppAccount ? "bg-blue-50/40 border-blue-300" : "bg-white border-slate-200"
-                  } shadow-sm`}
+                  className={`p-6 rounded-3xl border transition-all duration-200 ${
+                    hasAppAccount
+                      ? "bg-white border-blue-300 shadow-md shadow-blue-500/5 ring-1 ring-blue-200/50"
+                      : "bg-slate-50/70 border-slate-200 shadow-2xs"
+                  }`}
                 >
-                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-start justify-between mb-5 flex-wrap gap-4">
+                    <div className="flex items-center gap-3.5 min-w-0">
                       <div
-                        className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
-                          hasAppAccount ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
+                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
+                          hasAppAccount
+                            ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
+                            : "bg-white border border-slate-200 text-slate-500"
                         }`}
                       >
-                        <Smartphone className="w-5 h-5" />
+                        <Smartphone className="w-6 h-6" />
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold text-slate-900">Mobile App Campaigns</h3>
-                        <p className="text-xs text-slate-500">Android Google Play and iOS App Store campaign assets</p>
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h3 className="text-sm font-bold text-slate-900 tracking-tight">Mobile App Campaigns</h3>
+                          {hasAppAccount ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                              {appDetails.length > 0 ? `${appDetails.length} App${appDetails.length > 1 ? "s" : ""} Linked` : "Connected"}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-200/80 text-slate-600">
+                              Disconnected
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">Android Google Play &amp; iOS App Store campaign assets, deep links, and install tracking</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-700">App Account:</span>
-                      <button
-                        type="button"
-                        onClick={() => setHasAppAccount(!hasAppAccount)}
-                        className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border ${
-                          hasAppAccount
-                            ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                            : "bg-slate-200 text-slate-700 border-slate-300"
-                        }`}
+                    {/* Action Bar */}
+                    <div className="flex items-center gap-2 flex-wrap ml-auto">
+                      <a
+                        href="https://play.google.com/console"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                        title="Open Google Play Console in new tab"
                       >
-                        {hasAppAccount ? "Yes (Active)" : "No"}
-                      </button>
+                        <span>Play Console</span>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                      </a>
+
+                      {/* When Connected: Show Live Sync & Disconnect */}
+                      {hasAppAccount ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleSyncConnectedApps}
+                            disabled={isSyncingApps}
+                            className="px-3 py-1.5 rounded-xl border border-blue-300 hover:border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            title="Auto-discover all linked apps from Google Ads API and campaign assets"
+                          >
+                            {isSyncingApps ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            )}
+                            <span>{isSyncingApps ? "Discovering..." : "Live Sync Apps"}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleDisconnectApps}
+                            disabled={isDisconnectingApps}
+                            className="px-3 py-1.5 rounded-xl border border-rose-200 hover:border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            title="Disconnect and unlink all Mobile Apps from this profile"
+                          >
+                            {isDisconnectingApps ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                            )}
+                            <span>{isDisconnectingApps ? "Disconnecting..." : "Disconnect"}</span>
+                          </button>
+                        </>
+                      ) : (
+                        /* When Disconnected: Show Connect with Google button */
+                        <a
+                          href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/gmb/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}&source=google_ads`}
+                          className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-semibold inline-flex items-center gap-2 transition-all shadow-sm cursor-pointer hover:shadow-md"
+                          title="Authorize and link Google account via OAuth"
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                          </svg>
+                          <span>Connect Google Apps</span>
+                        </a>
+                      )}
+
+                      <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Enable:</span>
+                        <button
+                          type="button"
+                          onClick={() => setHasAppAccount(!hasAppAccount)}
+                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border ${
+                            hasAppAccount
+                              ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                              : "bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300"
+                          }`}
+                        >
+                          {hasAppAccount ? "Yes" : "No"}
+                        </button>
+                      </div>
                     </div>
                   </div>
+
+                  {appSyncMsg && (
+                    <div
+                      className={`mb-4 p-3.5 rounded-2xl border text-xs flex items-start justify-between gap-2 animate-fadeIn ${
+                        appSyncMsg.type === "success"
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                          : appSyncMsg.type === "error"
+                          ? "bg-rose-50 border-rose-200 text-rose-900"
+                          : "bg-blue-50 border-blue-200 text-blue-900"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {appSyncMsg.type === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : appSyncMsg.type === "error" ? (
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        ) : (
+                          <HelpCircle className="w-4 h-4 text-blue-600 shrink-0" />
+                        )}
+                        <p>{appSyncMsg.text}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setAppSyncMsg(null)}
+                        className="text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
 
                   {hasAppAccount && (
                     <div className="space-y-4 pt-4 border-t border-blue-200/60 animate-fadeIn">

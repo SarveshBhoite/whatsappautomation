@@ -1132,8 +1132,8 @@ router.post("/create-campaign", async (req, res) => {
     (state as any).source = "AI_GUIDED";
 
     if (state.campaignType === "PERFORMANCE_MAX" || state.campaignType === "DISPLAY") {
-      const DEFAULT_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
-      const DEFAULT_LOGO = "https://ik.imagekit.io/automationjds/tr:w-500,h-500,fo-auto/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+      const DEFAULT_IMAGE = "https://ik.imagekit.io/automationjds/tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+      const DEFAULT_LOGO = "https://ik.imagekit.io/automationjds/tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
 
       if (state.campaignType === "DISPLAY") {
         // Strip out pre-existing customer asset resource strings (which may not match 1:1 Display logo spec)

@@ -10,7 +10,7 @@ import {
   Activity, Calendar, Filter, Download, Bot, Settings, Users,
   Layers, FileText, TrendingDown, Award, Star, RotateCcw, 
   Building2, Check, Minus, BadgePercent, ShieldCheck, MessageSquare,
-  Copy, ExternalLink, Sliders
+  Copy, ExternalLink, Sliders, LogOut
 } from "lucide-react";
 import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 
@@ -273,10 +273,12 @@ function AccountSelector({ accounts, selected, onSelect, loading, orgId }: any) 
 function AccountPickerScreen({
   orgId,
   onAccountSelected,
+  onDisconnect,
   showToast
 }: {
   orgId: string;
   onAccountSelected: (id: string) => void;
+  onDisconnect?: () => void;
   showToast: (msg: string) => void;
 }) {
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -299,48 +301,34 @@ function AccountPickerScreen({
       const text = await res.text();
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${text}`);
       const data = JSON.parse(text);
-      const ids: string[] = data.customerIds || [];
-      log(ids.length > 0 ? "info" : "warn", `Found ${ids.length} accessible customer IDs: ${ids.join(", ") || "(none)"}`);
-      setAccessibleCids(ids);
+      setAccessibleCids(data.customerIds || []);
+      log("info", `Found ${data.customerIds?.length || 0} accessible accounts`);
     } catch (e: any) {
-      log("error", `Error: ${e.message}`);
-      showToast("Failed to fetch accounts — see debug panel");
+      log("error", `fetchAccessible failed: ${e.message}`);
+      showToast("Could not fetch accounts from Google profile");
     } finally {
       setLoading(false);
     }
   }
 
   async function connectAndSelect(cid: string) {
-    const cleanCid = cid.replace(/-/g, "");
+    const cleanCid = cid.replace(/-/g, "").trim();
     setConnecting(cleanCid);
-    log("info", `Connecting account ${cleanCid}…`);
+    log("info", `Connecting customer ${cleanCid}…`);
     try {
-      const infoRes = await fetch(`${BACKEND_URL}/api/ads/customer-info?orgId=${orgId}&customerId=${cleanCid}`);
-      let info: any = null;
-      if (infoRes.ok) {
-        info = await infoRes.json();
-      }
-
       const res = await fetch(`${BACKEND_URL}/api/ads/connect-customer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orgId,
-          customerId: cleanCid,
-          name: info?.descriptiveName || `Account ${cleanCid}`,
-          currencyCode: info?.currencyCode,
-          timeZone: info?.timeZone,
-          isManager: info?.manager || false
-        })
+        body: JSON.stringify({ orgId, customerId: cleanCid })
       });
-      const resText = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${resText}`);
-
-      showToast(`Account ${cleanCid} connected!`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to connect account");
+      log("info", `Customer ${cleanCid} connected successfully! Selecting…`);
+      showToast(`Connected account ${cleanCid} ✓`);
       onAccountSelected(cleanCid);
     } catch (e: any) {
-      log("error", `Failed: ${e.message}`);
-      showToast(`Failed to connect account: ${e.message}`);
+      log("error", `connectAndSelect failed: ${e.message}`);
+      showToast(`Error: ${e.message}`);
     } finally {
       setConnecting(null);
     }
@@ -361,6 +349,16 @@ function AccountPickerScreen({
           <p className="text-slate-500 text-xs max-w-sm mx-auto">
             Choose which Google Ads account to manage in this workspace. You can switch accounts at any time.
           </p>
+          {onDisconnect && (
+            <div className="pt-1">
+              <button
+                onClick={onDisconnect}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Disconnect Google
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Account list card */}
@@ -478,6 +476,8 @@ interface SettingsTabProps {
   onAccountsRefresh: () => void;
   showToast: (msg: string) => void;
   onOpenProfile?: () => void;
+  onDisconnect?: () => void;
+  isDisconnecting?: boolean;
 }
 
 function SettingsTab({
@@ -487,7 +487,9 @@ function SettingsTab({
   onSelectAccount,
   onAccountsRefresh,
   showToast,
-  onOpenProfile
+  onOpenProfile,
+  onDisconnect,
+  isDisconnecting
 }: SettingsTabProps) {
   const [accessibleCids, setAccessibleCids] = useState<string[]>([]);
   const [loadingAccessible, setLoadingAccessible] = useState(false);
@@ -596,11 +598,21 @@ function SettingsTab({
               Google Ads Profile
             </button>
           )}
+          {onDisconnect && (
+            <button
+              onClick={onDisconnect}
+              disabled={isDisconnecting}
+              className="text-xs px-3.5 py-1.5 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 transition-all font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {isDisconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
+              {isDisconnecting ? "Disconnecting..." : "Disconnect Google"}
+            </button>
+          )}
           <a
-            href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads`}
+            href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads&source=google_ads`}
             className="text-xs px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-all font-bold shadow-2xs"
           >
-            Reconnect Google
+            Switch Account
           </a>
         </div>
       </div>
@@ -855,6 +867,27 @@ export default function GoogleAdsPage() {
       setActiveTab("settings");
       if (oauthStatus === "success") {
         showToast("✅ Google account connected! Fetching your ad accounts…");
+        // Re-fetch config & accounts after reconnect so old data appears immediately
+        (async () => {
+          try {
+            const res = await fetch(`${BACKEND}/api/gmb/config?orgId=${getOrgId()}`);
+            const data = await res.json();
+            const connected = !!data.googleRefreshToken;
+            setIsConnected(connected);
+            if (data.googleAdsCustomerId) {
+              const cid = data.googleAdsCustomerId.replace(/-/g, "");
+              setSelectedCustomerId(cid);
+            }
+            if (connected) {
+              // Re-fetch accounts list (re-activated on backend)
+              const accRes = await api(`/accounts?orgId=${getOrgId()}`);
+              const accData = await accRes.json();
+              if (Array.isArray(accData)) setAccounts(accData);
+            }
+          } catch (e) {
+            console.warn("Failed to re-fetch config after OAuth:", e);
+          }
+        })();
       }
     }
     if (oauthStatus === "error") {
@@ -987,6 +1020,38 @@ export default function GoogleAdsPage() {
     if (activeTab === "audiences") loadAudiences(cid);
     if (activeTab === "reports") loadReports(cid);
   }, [activeTab, selectedCustomerId, isConnected, dateRange, loadOverview, loadCampaigns, loadAdGroups, loadAds, loadKeywords, loadExtensions, loadConversions, loadAudiences, loadReports]);
+
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  const handleDisconnectGoogleAds = async () => {
+    if (!confirm("Are you sure you want to disconnect Google Ads and log out? You will need to reconnect to view your campaigns.")) return;
+    setIsDisconnecting(true);
+    try {
+      const res = await api("/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to disconnect Google Ads");
+      setIsConnected(false);
+      setSelectedCustomerId("");
+      setAccounts([]);
+      setCampaigns([]);
+      setAdGroups([]);
+      setAds([]);
+      setKeywords([]);
+      setExtensions([]);
+      setConversions([]);
+      setAudiences([]);
+      setOverview(null);
+      showToast("Successfully disconnected Google Ads.");
+    } catch (e: any) {
+      showToast(`Error: ${e.message || "Failed to disconnect"}`);
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
 
   const handleSelectAccount = async (cid: string) => {
     setSelectedCustomerId(cid);
@@ -1223,7 +1288,7 @@ export default function GoogleAdsPage() {
               ))}
             </div>
             <a
-              href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads`}
+              href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads&source=google_ads`}
               className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold text-xs transition-all shadow-sm mx-auto w-fit"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
@@ -1241,7 +1306,14 @@ export default function GoogleAdsPage() {
   }
 
   if (isConnected && !selectedCustomerId) {
-    return <AccountPickerScreen orgId={orgId} onAccountSelected={handleSelectAccount} showToast={showToast} />;
+    return (
+      <AccountPickerScreen
+        orgId={orgId}
+        onAccountSelected={handleSelectAccount}
+        onDisconnect={handleDisconnectGoogleAds}
+        showToast={showToast}
+      />
+    );
   }
 
   return (
@@ -1258,25 +1330,34 @@ export default function GoogleAdsPage() {
           </div>
           <div>
             <h1 className="font-bold text-slate-900 text-sm leading-none">Google Ads</h1>
-            <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Search, Performance Max &amp; YouTube Ads</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Campaigns, Performance, Keywords &amp; Optimization</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <AccountSelector accounts={accounts} selected={selectedCustomerId} onSelect={handleSelectAccount} loading={accountsLoading} orgId={orgId} />
+        {/* Header Right Actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {isConnected && (
+            <AccountSelector
+              accounts={accounts}
+              selected={selectedCustomerId}
+              onSelect={handleSelectAccount}
+              loading={accountsLoading}
+              orgId={orgId}
+            />
+          )}
 
           <select
             value={dateRange}
             onChange={e => setDateRange(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer"
+            className="bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 rounded-xl px-3 py-2 focus:bg-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer shadow-2xs"
           >
-            {DATE_RANGES.map(d => <option key={d.value} value={d.value} className="bg-white text-slate-900">{d.label}</option>)}
+            {DATE_RANGES.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
 
           <button
-            onClick={() => { if (selectedCustomerId) { loadCampaigns(selectedCustomerId); loadOverview(selectedCustomerId); } }}
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
-            title="Refresh Campaigns"
+            onClick={() => selectedCustomerId && activeTab === "overview" ? loadOverview(selectedCustomerId) : selectedCustomerId && loadCampaigns(selectedCustomerId)}
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 transition-all cursor-pointer shadow-2xs"
+            title="Refresh"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
@@ -1301,19 +1382,35 @@ export default function GoogleAdsPage() {
             </button>
           )}
 
-          <a
-            href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads`}
-            title="Connect or switch Google account"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-all cursor-pointer"
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-            </svg>
-            Connect Google
-          </a>
+          {isConnected ? (
+            <button
+              onClick={handleDisconnectGoogleAds}
+              disabled={isDisconnecting}
+              title="Disconnect Google Ads and log out"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+            >
+              {isDisconnecting ? (
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+              ) : (
+                <LogOut className="h-4 w-4 shrink-0" />
+              )}
+              <span>{isDisconnecting ? "Disconnecting..." : "Disconnect"}</span>
+            </button>
+          ) : (
+            <a
+              href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads&source=google_ads`}
+              title="Connect Google account"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-all cursor-pointer"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              <span>Connect Google</span>
+            </a>
+          )}
         </div>
       </header>
 
@@ -1863,6 +1960,8 @@ export default function GoogleAdsPage() {
               onAccountsRefresh={() => api(`/accounts?orgId=${orgId}`).then(r => r.json()).then(d => { if (Array.isArray(d)) setAccounts(d); })}
               showToast={showToast}
               onOpenProfile={() => router.push(`/ads/profile?customerId=${selectedCustomerId}`)}
+              onDisconnect={handleDisconnectGoogleAds}
+              isDisconnecting={isDisconnecting}
             />
           )}
         </div>

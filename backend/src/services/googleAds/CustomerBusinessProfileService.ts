@@ -475,6 +475,7 @@ export interface BusinessProfilePayload {
   languagesServed?: string[] | string;
   primaryWebsite?: string;
   additionalWebsites?: WebsiteEntry[];
+  youtubeLinks?: string[];
   products?: (ProductItem | string)[];
   services?: (ServiceItem | string)[];
   targetAudiences?: TargetAudienceItem[];
@@ -783,6 +784,12 @@ export class CustomerBusinessProfileService {
               updatedAt: m.updatedAt || new Date().toISOString()
             }))
           : [];
+
+        // Normalize YouTube Links
+        const rawYt = profile.metadata?.youtubeLinks || (profile as any).youtubeLinks;
+        profile.youtubeLinks = Array.isArray(rawYt)
+          ? rawYt.map((y: any) => String(y).trim()).filter(Boolean)
+          : (typeof rawYt === "string" && rawYt.trim() ? [rawYt.trim()] : []);
       }
       return profile;
     } catch (err: any) {
@@ -1207,6 +1214,7 @@ export class CustomerBusinessProfileService {
     const locations = cleanList(data.locations);
     const serviceAreas = cleanList(data.serviceAreas);
     const languagesServed = cleanList(data.languagesServed);
+    const youtubeLinks = cleanList(data.youtubeLinks);
 
     // 3. Sanitize App Details
     let appDetails: AppDetailEntry[] = [];
@@ -1278,7 +1286,8 @@ export class CustomerBusinessProfileService {
         negativeKeywords,
         faqs,
         aiSuggestions,
-        mediaAssets
+        mediaAssets,
+        youtubeLinks
       }
     };
 
@@ -1308,6 +1317,7 @@ export class CustomerBusinessProfileService {
     profile.faqs = faqs;
     profile.aiSuggestions = aiSuggestions;
     profile.mediaAssets = mediaAssets;
+    profile.youtubeLinks = youtubeLinks;
 
     return profile;
   }
@@ -1438,6 +1448,141 @@ export class CustomerBusinessProfileService {
         sourceUrl,
         status,
         explanation
+      });
+    }
+
+    // 1b. Business Email
+    if (ai.businessEmail && typeof ai.businessEmail === "string" && ai.businessEmail.trim()) {
+      const suggested = ai.businessEmail.trim();
+      const current = existingProfile?.businessEmail ? String(existingProfile.businessEmail).trim() : "";
+      let status: AiSuggestionStatus = "new";
+      let explanation = "Business contact email discovered from website";
+      if (current) {
+        if (norm(suggested) === norm(current)) {
+          status = "existing";
+          explanation = `Matches existing business email "${current}"`;
+        } else {
+          status = "conflict";
+          explanation = `Suggested email "${suggested}" differs from existing "${current}"`;
+        }
+      }
+      suggestions.push({
+        id: `sugg-email-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        section: "business",
+        field: "businessEmail",
+        label: "Business Email",
+        suggestedValue: suggested,
+        currentValue: current || undefined,
+        sourceUrl,
+        status,
+        explanation
+      });
+    }
+
+    // 1c. Business Phone
+    if (ai.businessPhone && typeof ai.businessPhone === "string" && ai.businessPhone.trim()) {
+      const suggested = ai.businessPhone.trim();
+      const current = existingProfile?.businessPhone ? String(existingProfile.businessPhone).trim() : "";
+      let status: AiSuggestionStatus = "new";
+      let explanation = "Business contact phone discovered from website";
+      if (current) {
+        if (norm(suggested) === norm(current)) {
+          status = "existing";
+          explanation = `Matches existing business phone "${current}"`;
+        } else {
+          status = "conflict";
+          explanation = `Suggested phone "${suggested}" differs from existing "${current}"`;
+        }
+      }
+      suggestions.push({
+        id: `sugg-phone-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        section: "business",
+        field: "businessPhone",
+        label: "Business Phone",
+        suggestedValue: suggested,
+        currentValue: current || undefined,
+        sourceUrl,
+        status,
+        explanation
+      });
+    }
+
+    // 1d. WhatsApp Number
+    if (ai.whatsappNumber && typeof ai.whatsappNumber === "string" && ai.whatsappNumber.trim()) {
+      const suggested = ai.whatsappNumber.trim();
+      const current = existingProfile?.whatsappNumber ? String(existingProfile.whatsappNumber).trim() : "";
+      let status: AiSuggestionStatus = "new";
+      let explanation = "WhatsApp contact number discovered from website";
+      if (current) {
+        if (norm(suggested) === norm(current)) {
+          status = "existing";
+          explanation = `Matches existing WhatsApp number "${current}"`;
+        } else {
+          status = "conflict";
+          explanation = `Suggested WhatsApp "${suggested}" differs from existing "${current}"`;
+        }
+      }
+      suggestions.push({
+        id: `sugg-wa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        section: "business",
+        field: "whatsappNumber",
+        label: "WhatsApp Number",
+        suggestedValue: suggested,
+        currentValue: current || undefined,
+        sourceUrl,
+        status,
+        explanation
+      });
+    }
+
+    // 1e. Business Address
+    if (ai.businessAddress && typeof ai.businessAddress === "string" && ai.businessAddress.trim()) {
+      const suggested = ai.businessAddress.trim();
+      const current = existingProfile?.businessAddress ? String(existingProfile.businessAddress).trim() : "";
+      let status: AiSuggestionStatus = "new";
+      let explanation = "Physical business address discovered from website";
+      if (current) {
+        if (norm(suggested) === norm(current) || current.toLowerCase().includes(suggested.toLowerCase()) || suggested.toLowerCase().includes(current.toLowerCase())) {
+          status = "existing";
+          explanation = `Matches or overlaps existing address "${current}"`;
+        } else {
+          status = "conflict";
+          explanation = `Suggested address "${suggested}" differs from existing "${current}"`;
+        }
+      }
+      suggestions.push({
+        id: `sugg-addr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        section: "business",
+        field: "businessAddress",
+        label: "Business Address",
+        suggestedValue: suggested,
+        currentValue: current || undefined,
+        sourceUrl,
+        status,
+        explanation
+      });
+    }
+
+    // 1f. Service Areas
+    const existingServiceAreas: string[] = (existingProfile?.serviceAreas || []).map((s: any) =>
+      typeof s === "string" ? s : s?.name || ""
+    );
+    if (Array.isArray(ai.serviceAreas)) {
+      ai.serviceAreas.forEach((area: any, idx: number) => {
+        const aName = typeof area === "string" ? area.trim() : (area?.name ? String(area.name).trim() : "");
+        if (!aName) return;
+        const exists = existingServiceAreas.some((ea) => norm(ea) === norm(aName));
+        suggestions.push({
+          id: `sugg-sarea-${idx}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          section: "business",
+          field: "serviceAreas",
+          label: `Service Area: ${aName}`,
+          suggestedValue: aName,
+          currentValue: exists ? aName : undefined,
+          sourceUrl,
+          status: exists ? "existing" : "new",
+          explanation: exists ? `Service area "${aName}" already exists in profile` : `Target service area discovered from website content`
+        });
       });
     }
 
@@ -1713,6 +1858,29 @@ export class CustomerBusinessProfileService {
       });
     }
 
+    // 9b. Brand Colors
+    const existingBrandColors: string[] = (existingProfile?.brandProfile?.brandColors || []).map((c: any) =>
+      String(c).trim().toLowerCase()
+    );
+    if (Array.isArray(ai.brandColors) && ai.brandColors.length > 0) {
+      ai.brandColors.forEach((color: any, idx: number) => {
+        const hex = typeof color === "string" ? color.trim() : "";
+        if (!hex || !/^#[0-9a-fA-F]{3,8}$/.test(hex)) return;
+        const exists = existingBrandColors.includes(hex.toLowerCase());
+        suggestions.push({
+          id: `sugg-color-${idx}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          section: "brand_profile",
+          field: "brandColors",
+          label: `Brand Color: ${hex}`,
+          suggestedValue: hex,
+          currentValue: exists ? hex : undefined,
+          sourceUrl,
+          status: exists ? "existing" : "new",
+          explanation: exists ? `Brand color ${hex} already configured` : `Brand palette color discovered from website styling`
+        });
+      });
+    }
+
     // 10. Competitors
     const existingCompetitors: string[] = (existingProfile?.competitors || []).map((c: any) =>
       c?.competitorName || c?.name || ""
@@ -1856,6 +2024,13 @@ export class CustomerBusinessProfileService {
 
     // 2. Groq AI Comprehensive Business Intelligence Extraction
     let derivedBusinessName = "";
+    let businessEmail = scraped.extractedEmails?.[0] || scraped.schemaOrg?.email || "";
+    let businessPhone = scraped.extractedPhones?.[0] || scraped.schemaOrg?.telephone || "";
+    let whatsappNumber = scraped.extractedWhatsapp?.[0] || "";
+    let businessAddress = scraped.extractedAddress || scraped.schemaOrg?.address || "";
+    let serviceAreas: string[] = [];
+    let brandColors: string[] = [];
+    let projects: any[] = [];
     let industry = "";
     let products: any[] = [];
     let services: any[] = [];
@@ -1897,26 +2072,43 @@ Key Headings: ${JSON.stringify(scraped.headings || [])}
 Discovered Sub-Pages: ${JSON.stringify(discoveredSubPages.slice(0, 8))}
 Content Snippet: "${(scraped.mainTextSnippet || "").slice(0, 2500)}"
 Target URL: "${rawUrl}"
+Extracted Emails from HTML: ${JSON.stringify(scraped.extractedEmails || [])}
+Extracted Phones from HTML: ${JSON.stringify(scraped.extractedPhones || [])}
+Extracted WhatsApp from HTML: ${JSON.stringify(scraped.extractedWhatsapp || [])}
+Extracted Address from HTML: "${scraped.extractedAddress || ""}"
+Schema.org Structured Data: ${JSON.stringify(scraped.schemaOrg || {})}
 
 Extract:
 1. "businessName": Clean brand name (under 30 chars).
-2. "industry": Primary industry or niche (e.g., "Healthcare", "E-Commerce", "Digital Marketing", "Industrial Manufacturing", "SaaS").
-3. "businessDescription": Concise, compelling 1-2 sentence business description (100-250 chars).
-4. "products": Distinct tangible or digital products offered (array of 2-6 objects { "name": string, "description": string } or strings). If purely service-based, return empty array.
-5. "services": Professional services offered (array of 2-6 objects { "name": string, "description": string } or strings). If purely retail/products, return empty array.
-6. "targetAudience": Ideal customer profile summary (under 120 chars).
-7. "customerPersonas": Array of 1-3 buyer persona titles with optional summary { "personaTitle": string, "description": string }.
-8. "locations": Target geographic regions, cities, states, or countries inferred from address, contact info, or service areas (array of strings, e.g., ["Maharashtra", "India"]).
-9. "brandTagline": Memorable tagline or motto if present.
-10. "brandVoice": Recommended tone of voice (e.g., "Professional & Authoritative", "Friendly & Approachable", "Technical & Precise").
-11. "brandUsps": Core value propositions, USPs, guarantees, or special features (array of 3-5 punchy phrases, each <= 40 chars).
-12. "competitors": Array of 1-3 common competitors or market alternatives in this industry { "competitorName": string, "notes": string }.
-13. "seoKeywords": Array of 3-8 target search keywords { "keyword": string, "keywordType": "Primary"|"Secondary"|"Long-tail", "searchIntent": "Commercial"|"Transactional"|"Informational" }.
-14. "faqs": Array of 2-4 common customer questions & answers { "question": string, "answer": string, "category": string }.
+2. "businessEmail": Business email address from text/contacts (prioritize extracted emails if valid, or empty string).
+3. "businessPhone": Primary customer service or business phone number (prioritize extracted phone, or empty string).
+4. "whatsappNumber": WhatsApp business chat number if identifiable (digits only with country code, e.g., 919876543210, or empty string).
+5. "businessAddress": Physical business address (street, city, state, postal code if present, or empty string).
+6. "serviceAreas": Cities, states, or regions served (array of strings, e.g. ["Mumbai", "Maharashtra", "India"]).
+7. "industry": Primary industry or niche (e.g., "Healthcare", "E-Commerce", "Digital Marketing", "Industrial Manufacturing", "SaaS").
+8. "businessDescription": Concise, compelling 1-2 sentence business description (100-250 chars).
+9. "products": Distinct tangible or digital products offered (array of 2-6 objects { "name": string, "description": string } or strings). If purely service-based, return empty array.
+10. "services": Professional services offered (array of 2-6 objects { "name": string, "description": string } or strings). If purely retail/products, return empty array.
+11. "targetAudience": Ideal customer profile summary (under 120 chars).
+12. "customerPersonas": Array of 1-3 buyer persona titles with optional summary { "personaTitle": string, "description": string }.
+13. "locations": Target geographic regions, cities, states, or countries inferred from address, contact info, or service areas (array of strings, e.g., ["Maharashtra", "India"]).
+14. "brandTagline": Memorable tagline or motto if present.
+15. "brandVoice": Recommended tone of voice (e.g., "Professional & Authoritative", "Friendly & Approachable", "Technical & Precise").
+16. "brandColors": Array of 1-3 hex color codes identifiable from brand mentions or theme (e.g., ["#0052cc", "#ffffff"]).
+17. "brandUsps": Core value propositions, USPs, guarantees, or special features (array of 3-5 punchy phrases, each <= 40 chars).
+18. "competitors": Array of 1-3 common competitors or market alternatives in this industry { "competitorName": string, "notes": string }.
+19. "seoKeywords": Array of 3-8 target search keywords { "keyword": string, "keywordType": "Primary"|"Secondary"|"Long-tail", "searchIntent": "Commercial"|"Transactional"|"Informational" }.
+20. "faqs": Array of 2-4 common customer questions & answers { "question": string, "answer": string, "category": string }.
+21. "projects": Array of 1-4 key projects, case studies, or portfolio items mentioned { "name": string, "description": string }.
 
 Return ONLY JSON matching this format:
 {
   "businessName": "string",
+  "businessEmail": "string",
+  "businessPhone": "string",
+  "whatsappNumber": "string",
+  "businessAddress": "string",
+  "serviceAreas": ["string"],
   "industry": "string",
   "businessDescription": "string",
   "products": [{ "name": "string", "description": "string" }],
@@ -1926,10 +2118,12 @@ Return ONLY JSON matching this format:
   "locations": ["string"],
   "brandTagline": "string",
   "brandVoice": "string",
+  "brandColors": ["string"],
   "brandUsps": ["string"],
   "competitors": [{ "competitorName": "string", "notes": "string" }],
   "seoKeywords": [{ "keyword": "string", "keywordType": "Primary", "searchIntent": "Commercial" }],
-  "faqs": [{ "question": "string", "answer": "string", "category": "string" }]
+  "faqs": [{ "question": "string", "answer": "string", "category": "string" }],
+  "projects": [{ "name": "string", "description": "string" }]
 }`;
 
         const groqResult = await GoogleAdsAiAssistantService.executeGroqChat({
@@ -1948,6 +2142,27 @@ Return ONLY JSON matching this format:
         const parsed = JSON.parse(groqResult.content || "{}");
         if (parsed.businessName && typeof parsed.businessName === "string") {
           derivedBusinessName = parsed.businessName.trim();
+        }
+        if (parsed.businessEmail && typeof parsed.businessEmail === "string" && parsed.businessEmail.trim()) {
+          businessEmail = parsed.businessEmail.trim();
+        }
+        if (parsed.businessPhone && typeof parsed.businessPhone === "string" && parsed.businessPhone.trim()) {
+          businessPhone = parsed.businessPhone.trim();
+        }
+        if (parsed.whatsappNumber && typeof parsed.whatsappNumber === "string" && parsed.whatsappNumber.trim()) {
+          whatsappNumber = parsed.whatsappNumber.trim();
+        }
+        if (parsed.businessAddress && typeof parsed.businessAddress === "string" && parsed.businessAddress.trim()) {
+          businessAddress = parsed.businessAddress.trim();
+        }
+        if (Array.isArray(parsed.serviceAreas)) {
+          serviceAreas = parsed.serviceAreas.map((a: any) => String(a).trim()).filter(Boolean);
+        }
+        if (Array.isArray(parsed.brandColors)) {
+          brandColors = parsed.brandColors.map((c: any) => String(c).trim()).filter((c: string) => /^#[0-9a-fA-F]{3,8}$/.test(c));
+        }
+        if (Array.isArray(parsed.projects)) {
+          projects = parsed.projects;
         }
         if (parsed.industry && typeof parsed.industry === "string") {
           industry = parsed.industry.trim();
@@ -1996,6 +2211,13 @@ Return ONLY JSON matching this format:
 
     const aiIntelligence = {
       businessName: derivedBusinessName,
+      businessEmail,
+      businessPhone,
+      whatsappNumber,
+      businessAddress,
+      serviceAreas,
+      brandColors,
+      projects,
       industry,
       businessDescription,
       products,
@@ -2009,7 +2231,8 @@ Return ONLY JSON matching this format:
       brandUsps,
       competitors,
       seoKeywords,
-      faqs
+      faqs,
+      youtubeLinks: scraped.extractedYoutubeLinks || []
     };
 
     // 3. Load existing profile for intelligence mapping & classification

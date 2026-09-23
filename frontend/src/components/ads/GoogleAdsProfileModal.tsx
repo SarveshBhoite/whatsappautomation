@@ -20,6 +20,7 @@ import {
   Loader2,
   Sparkles,
   Plus,
+  RefreshCw,
   Trash2,
   ChevronDown,
   ChevronUp,
@@ -46,6 +47,19 @@ import {
   Image as ImageIcon
 } from "lucide-react";
 import { MediaAssetsLibraryTab, MediaAssetItem } from "./MediaAssetsLibraryTab";
+
+// Native SVG representation of YouTube icon
+const Youtube = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    {...props}
+  >
+    <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.522 3.5 12 3.5 12 3.5s-7.522 0-9.388.553a3.003 3.003 0 0 0-2.11 2.11C0 8.028 0 12 0 12s0 3.972.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.866.553 9.388.553 9.388.553s7.522 0 9.388-.553a3.003 3.003 0 0 0 2.11-2.11C24 15.972 24 12 24 12s0-3.972-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+  </svg>
+);
 
 export interface SubPageEntry {
   text: string;
@@ -339,6 +353,7 @@ export interface CustomerProfileData {
   // Marketing & Business Profile Fields
   primaryWebsite?: string | null;
   additionalWebsites?: WebsiteEntry[];
+  youtubeLinks?: string[];
   businessDescription?: string | null;
   industry?: string | null;
   products?: (ProductItem | string)[];
@@ -642,6 +657,9 @@ export function GoogleAdsProfileModal({
   const [primarySubPages, setPrimarySubPages] = useState<SubPageEntry[]>([]);
   const [additionalWebsites, setAdditionalWebsites] = useState<WebsiteEntry[]>([]);
   const [newWebsiteInput, setNewWebsiteInput] = useState("");
+  const [youtubeLinks, setYoutubeLinks] = useState<string[]>([]);
+  const [newYoutubeInput, setNewYoutubeInput] = useState("");
+  const [youtubeInputError, setYoutubeInputError] = useState<string | null>(null);
   const [analyzingUrl, setAnalyzingUrl] = useState<string | null>(null);
   const [expandedWebsiteUrl, setExpandedWebsiteUrl] = useState<string | null>(null);
 
@@ -649,6 +667,8 @@ export function GoogleAdsProfileModal({
   const [hasMerchantAccount, setHasMerchantAccount] = useState(false);
   const [merchantCenterId, setMerchantCenterId] = useState("");
   const [merchantStoreName, setMerchantStoreName] = useState("");
+  const [isSyncingMerchant, setIsSyncingMerchant] = useState(false);
+  const [merchantSyncMsg, setMerchantSyncMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   // Mobile Apps state
   const [hasAppAccount, setHasAppAccount] = useState(false);
@@ -657,6 +677,8 @@ export function GoogleAdsProfileModal({
   const [newAppId, setNewAppId] = useState("");
   const [newAppName, setNewAppName] = useState("");
   const [newAppUrl, setNewAppUrl] = useState("");
+  const [isSyncingApps, setIsSyncingApps] = useState(false);
+  const [appSyncMsg, setAppSyncMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   // Tag inputs
   const [newProductInput, setNewProductInput] = useState("");
@@ -960,6 +982,7 @@ export function GoogleAdsProfileModal({
 
           setPrimaryWebsite(data.primaryWebsite || "");
           setAdditionalWebsites(Array.isArray(data.additionalWebsites) ? data.additionalWebsites : []);
+          setYoutubeLinks(Array.isArray(data.youtubeLinks) ? data.youtubeLinks : []);
 
           setHasMerchantAccount(Boolean(data.hasMerchantAccount));
           setMerchantCenterId(data.merchantCenterId || "");
@@ -1063,7 +1086,236 @@ export function GoogleAdsProfileModal({
       }
       setExpandedWebsiteUrl(targetUrl);
 
-      // Collect AI Suggestions for user review (Data protection: NEVER automatically overwrite profile data)
+      // AUTOFILL PARAMETERS DIRECTLY INTO PROFILE (For empty fields, or primary website analysis)
+      let autofilledCount = 0;
+      if (data.aiIntelligence) {
+        const intel = data.aiIntelligence;
+
+        if (intel.businessName && typeof intel.businessName === "string" && intel.businessName.trim() && (!businessName || isPrimary)) {
+          setBusinessName(intel.businessName.trim());
+          setLegalBusinessName(intel.businessName.trim());
+          autofilledCount++;
+        }
+        if (intel.industry && typeof intel.industry === "string" && intel.industry.trim() && (!industry || isPrimary)) {
+          setIndustry(intel.industry.trim());
+          setBusinessCategory(intel.industry.trim());
+          autofilledCount++;
+        }
+        if (intel.businessDescription && typeof intel.businessDescription === "string" && intel.businessDescription.trim() && (!businessDescription || isPrimary)) {
+          setBusinessDescription(intel.businessDescription.trim());
+          autofilledCount++;
+        }
+        if (intel.targetAudience && typeof intel.targetAudience === "string" && intel.targetAudience.trim() && (!targetAudience || isPrimary)) {
+          setTargetAudience(intel.targetAudience.trim());
+          autofilledCount++;
+        }
+        if (intel.businessEmail && typeof intel.businessEmail === "string" && intel.businessEmail.trim() && (!businessEmail || isPrimary)) {
+          setBusinessEmail(intel.businessEmail.trim());
+          autofilledCount++;
+        }
+        if (intel.businessPhone && typeof intel.businessPhone === "string" && intel.businessPhone.trim() && (!businessPhone || isPrimary)) {
+          setBusinessPhone(intel.businessPhone.trim());
+          autofilledCount++;
+        }
+        if (intel.whatsappNumber && typeof intel.whatsappNumber === "string" && intel.whatsappNumber.trim() && (!whatsappNumber || isPrimary)) {
+          setWhatsappNumber(intel.whatsappNumber.trim());
+          autofilledCount++;
+        }
+        if (intel.businessAddress && typeof intel.businessAddress === "string" && intel.businessAddress.trim() && (!businessAddress || isPrimary)) {
+          setBusinessAddress(intel.businessAddress.trim());
+          autofilledCount++;
+        }
+        if (Array.isArray(intel.youtubeLinks) && intel.youtubeLinks.length > 0) {
+          const validYt = intel.youtubeLinks.map((y: any) => String(y).trim()).filter(Boolean);
+          if (validYt.length > 0) {
+            setYoutubeLinks((prev) => {
+              const combined = [...prev];
+              validYt.forEach((link: string) => {
+                if (!combined.some((ex) => ex.toLowerCase() === link.toLowerCase())) {
+                  combined.push(link);
+                }
+              });
+              return combined;
+            });
+            autofilledCount++;
+          }
+        }
+        if (Array.isArray(intel.serviceAreas) && intel.serviceAreas.length > 0 && (serviceAreas.length === 0 || isPrimary)) {
+          const validAreas = intel.serviceAreas.map((a: any) => String(a).trim()).filter(Boolean);
+          if (validAreas.length > 0) {
+            setServiceAreas(validAreas);
+            autofilledCount++;
+          }
+        }
+
+        // Products
+        if (Array.isArray(intel.products) && intel.products.length > 0 && (products.length === 0 || isPrimary)) {
+          const newProds: ProductItem[] = intel.products
+            .map((p: any, idx: number) => {
+              const pName = typeof p === "object" ? p?.name : String(p);
+              const pDesc = typeof p === "object" ? p?.description : undefined;
+              return {
+                id: `prod-ai-${Date.now()}-${idx}`,
+                name: pName?.trim() || "",
+                description: pDesc?.trim() || undefined,
+                currency: profile?.currencyCode || "INR",
+                isActive: true
+              };
+            })
+            .filter((p: ProductItem) => Boolean(p.name));
+          if (newProds.length > 0) {
+            setProducts(newProds);
+            autofilledCount++;
+          }
+        }
+
+        // Services
+        if (Array.isArray(intel.services) && intel.services.length > 0 && (services.length === 0 || isPrimary)) {
+          const newServs: ServiceItem[] = intel.services
+            .map((s: any, idx: number) => {
+              const sName = typeof s === "object" ? s?.name : String(s);
+              const sDesc = typeof s === "object" ? s?.description : undefined;
+              return {
+                id: `serv-ai-${Date.now()}-${idx}`,
+                name: sName?.trim() || "",
+                description: sDesc?.trim() || undefined,
+                currency: profile?.currencyCode || "INR",
+                isActive: true
+              };
+            })
+            .filter((s: ServiceItem) => Boolean(s.name));
+          if (newServs.length > 0) {
+            setServices(newServs);
+            autofilledCount++;
+          }
+        }
+
+        // Customer Personas
+        if (Array.isArray(intel.customerPersonas) && intel.customerPersonas.length > 0 && (customerPersonas.length === 0 || isPrimary)) {
+          const newPersonas: CustomerPersonaItem[] = intel.customerPersonas
+            .map((cp: any, idx: number) => {
+              const title = typeof cp === "object" ? cp?.personaTitle || cp?.name : String(cp);
+              const desc = typeof cp === "object" ? cp?.description || cp?.summary : undefined;
+              return {
+                id: `pers-ai-${Date.now()}-${idx}`,
+                name: title?.trim() || "Target Customer",
+                shortDescription: desc?.trim() || title?.trim() || "Target Audience Persona",
+                painPoints: [],
+                needs: [],
+                isActive: true
+              };
+            })
+            .filter((cp: CustomerPersonaItem) => Boolean(cp.name));
+          if (newPersonas.length > 0) {
+            setCustomerPersonas(newPersonas);
+            autofilledCount++;
+          }
+        }
+
+        // Locations
+        if (Array.isArray(intel.locations) && intel.locations.length > 0 && (locations.length === 0 || isPrimary)) {
+          const validLocs = intel.locations.map((l: any) => String(l).trim()).filter(Boolean);
+          if (validLocs.length > 0) {
+            setLocations(validLocs);
+            const newLocRecords: LocationItem[] = validLocs.map((locName: string, idx: number) => ({
+              id: `loc-ai-${Date.now()}-${idx}`,
+              locationName: locName,
+              country: "India",
+              city: locName,
+              locationType: "Service Area",
+              isActive: true
+            }));
+            setLocationRecords(newLocRecords);
+            autofilledCount++;
+          }
+        }
+
+        // Brand Profile
+        if (intel.brandTagline && typeof intel.brandTagline === "string" && intel.brandTagline.trim() && (!brandTagline || isPrimary)) {
+          setBrandTagline(intel.brandTagline.trim());
+          autofilledCount++;
+        }
+        if (intel.brandVoice && typeof intel.brandVoice === "string" && intel.brandVoice.trim() && (brandVoice.length === 0 || isPrimary)) {
+          setBrandVoice([intel.brandVoice.trim()]);
+          autofilledCount++;
+        }
+        if (Array.isArray(intel.brandUsps) && intel.brandUsps.length > 0 && (brandUsps.length === 0 || isPrimary)) {
+          const usps = intel.brandUsps.map((u: any) => String(u).trim()).filter(Boolean);
+          if (usps.length > 0) {
+            setBrandUsps(usps);
+            setKeyOfferings(usps);
+            autofilledCount++;
+          }
+        }
+        if (Array.isArray(intel.brandColors) && intel.brandColors.length > 0 && (brandColors.length === 0 || isPrimary)) {
+          const colors = intel.brandColors.map((c: any) => String(c).trim()).filter((c: string) => /^#[0-9a-fA-F]{3,8}$/.test(c));
+          if (colors.length > 0) {
+            setBrandColors(colors);
+            autofilledCount++;
+          }
+        }
+
+        // Competitors
+        if (Array.isArray(intel.competitors) && intel.competitors.length > 0 && (competitors.length === 0 || isPrimary)) {
+          const newComps: CompetitorItem[] = intel.competitors
+            .map((c: any, idx: number) => {
+              const cName = typeof c === "object" ? c?.competitorName || c?.name : String(c);
+              const cDesc = typeof c === "object" ? c?.notes || c?.description : undefined;
+              return {
+                id: `comp-ai-${Date.now()}-${idx}`,
+                competitorName: cName?.trim() || "Competitor",
+                competitorDescription: cDesc?.trim() || undefined,
+                isActive: true
+              };
+            })
+            .filter((c: CompetitorItem) => Boolean(c.competitorName));
+          if (newComps.length > 0) {
+            setCompetitors(newComps);
+            autofilledCount++;
+          }
+        }
+
+        // SEO Keywords
+        if (Array.isArray(intel.seoKeywords) && intel.seoKeywords.length > 0 && (seoKeywords.length === 0 || isPrimary)) {
+          const newKws: SeoKeywordItem[] = intel.seoKeywords
+            .map((k: any, idx: number) => {
+              const kw = typeof k === "object" ? k?.keyword : String(k);
+              const kwType = (typeof k === "object" && k?.keywordType) || "Primary";
+              const searchIntent = (typeof k === "object" && k?.searchIntent) || "Commercial";
+              return {
+                id: `kw-ai-${Date.now()}-${idx}`,
+                keyword: kw?.trim() || "Keyword",
+                keywordType: kwType,
+                searchIntent: searchIntent,
+                isActive: true
+              };
+            })
+            .filter((k: SeoKeywordItem) => Boolean(k.keyword));
+          if (newKws.length > 0) {
+            setSeoKeywords(newKws);
+            autofilledCount++;
+          }
+        }
+
+        // FAQs
+        if (Array.isArray(intel.faqs) && intel.faqs.length > 0 && (faqs.length === 0 || isPrimary)) {
+          const newFaqs: BusinessFaqItem[] = intel.faqs
+            .map((f: any, idx: number) => ({
+              id: `faq-ai-${Date.now()}-${idx}`,
+              question: f?.question?.trim() || "FAQ Question",
+              answer: f?.answer?.trim() || "FAQ Answer",
+              category: f?.category?.trim() || "General",
+              isActive: true
+            }))
+            .filter((f: BusinessFaqItem) => Boolean(f.question && f.answer));
+          if (newFaqs.length > 0) {
+            setFaqs(newFaqs);
+            autofilledCount++;
+          }
+        }
+      }
+
+      // Collect AI Suggestions for user review
       const newSuggestions: AiSuggestionItem[] = Array.isArray(data.aiSuggestions) ? data.aiSuggestions : [];
       if (newSuggestions.length > 0) {
         setAiSuggestions((prev) => {
@@ -1072,13 +1324,23 @@ export function GoogleAdsProfileModal({
         });
         const newCount = newSuggestions.filter((s) => s.status === "new").length;
         const conflictCount = newSuggestions.filter((s) => s.status === "conflict").length;
-        setSuggestionSuccessMsg(
-          `Analysis complete! ${newSuggestions.length} AI suggestions discovered (${newCount} new, ${conflictCount} potential conflicts). Review them in the AI Suggestions tab.`
-        );
+        if (autofilledCount > 0) {
+          setSuggestionSuccessMsg(
+            `✨ Grok AI analyzed ${targetUrl}! Autofilled ${autofilledCount} fields (Email, Phone, WhatsApp, Address, Services, Products, etc.) and discovered ${newSuggestions.length} suggestions (${newCount} new, ${conflictCount} potential conflicts).`
+          );
+        } else {
+          setSuggestionSuccessMsg(
+            `Analysis complete! ${newSuggestions.length} AI suggestions discovered (${newCount} new, ${conflictCount} potential conflicts). Review them in the AI Suggestions tab.`
+          );
+        }
         setTimeout(() => setSuggestionSuccessMsg(null), 8000);
       } else {
-        setSaveSuccessMsg(`AI analyzed ${targetUrl} and discovered ${subPages.length} relevant sub-pages!`);
-        setTimeout(() => setSaveSuccessMsg(null), 4000);
+        if (autofilledCount > 0) {
+          setSaveSuccessMsg(`✨ Grok AI analyzed ${targetUrl}! Autofilled ${autofilledCount} profile fields and discovered ${subPages.length} relevant sub-pages!`);
+        } else {
+          setSaveSuccessMsg(`AI analyzed ${targetUrl} and discovered ${subPages.length} relevant sub-pages!`);
+        }
+        setTimeout(() => setSaveSuccessMsg(null), 5000);
       }
     } catch (err: any) {
       setError(err.message || "Failed to analyze website");
@@ -1099,6 +1361,14 @@ export function GoogleAdsProfileModal({
       else if (sugg.field === "industry") setIndustry(String(val));
       else if (sugg.field === "businessDescription") setBusinessDescription(String(val));
       else if (sugg.field === "businessCategory") setBusinessCategory(String(val));
+      else if (sugg.field === "businessEmail") setBusinessEmail(String(val));
+      else if (sugg.field === "businessPhone") setBusinessPhone(String(val));
+      else if (sugg.field === "whatsappNumber") setWhatsappNumber(String(val));
+      else if (sugg.field === "businessAddress") setBusinessAddress(String(val));
+      else if (sugg.field === "serviceAreas") {
+        const areaStr = String(val).trim();
+        if (areaStr) setServiceAreas((prev) => (prev.includes(areaStr) ? prev : [...prev, areaStr]));
+      }
     } else if (sugg.section === "products") {
       const pName = typeof val === "object" ? val?.name : String(val);
       const pDesc = typeof val === "object" ? val?.description : undefined;
@@ -1178,6 +1448,11 @@ export function GoogleAdsProfileModal({
         if (uspStr) {
           setBrandUsps((prev) => (prev.includes(uspStr) ? prev : [...prev, uspStr]));
           setKeyOfferings((prev) => (prev.includes(uspStr) ? prev : [...prev, uspStr]));
+        }
+      } else if (sugg.field === "brandColors") {
+        const colorStr = String(val).trim();
+        if (colorStr && /^#[0-9a-fA-F]{3,8}$/.test(colorStr)) {
+          setBrandColors((prev) => (prev.includes(colorStr) ? prev : [...prev, colorStr]));
         }
       }
     } else if (sugg.section === "competitors") {
@@ -1282,6 +1557,35 @@ export function GoogleAdsProfileModal({
   // Remove Additional Website
   const handleRemoveAdditionalWebsite = (urlToRemove: string) => {
     setAdditionalWebsites((prev) => prev.filter((w) => w.url !== urlToRemove));
+  };
+
+  // YouTube Links Handlers
+  const handleAddYoutubeLink = () => {
+    setYoutubeInputError(null);
+    const trimmed = newYoutubeInput.trim();
+    if (!trimmed) return;
+
+    // Validate YouTube URL
+    const isYtUrl = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:channel\/|c\/|user\/|@|watch\?v=|embed\/|shorts\/)[\w\-_?&=%]+|youtu\.be\/[\w\-_?&=%]+)/i.test(trimmed);
+    if (!isYtUrl && !trimmed.toLowerCase().includes("youtube.com") && !trimmed.toLowerCase().includes("youtu.be")) {
+      setYoutubeInputError("Please enter a valid YouTube channel, video, or shorts URL.");
+      return;
+    }
+
+    const formatted = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+    if (youtubeLinks.some((l) => l.toLowerCase() === formatted.toLowerCase())) {
+      setYoutubeInputError("This YouTube URL is already added.");
+      return;
+    }
+
+    setYoutubeLinks((prev) => [...prev, formatted]);
+    setNewYoutubeInput("");
+    setYoutubeInputError(null);
+  };
+
+  const handleRemoveYoutubeLink = (linkToRemove: string) => {
+    setYoutubeLinks((prev) => prev.filter((l) => l !== linkToRemove));
   };
 
   // Add App Detail
@@ -2494,6 +2798,7 @@ export function GoogleAdsProfileModal({
       languagesServed,
       primaryWebsite: primaryWebsite.trim() || undefined,
       additionalWebsites,
+      youtubeLinks,
       products,
       services,
       targetAudiences,
@@ -2563,6 +2868,164 @@ export function GoogleAdsProfileModal({
       setError(err.message || "Failed to save profile");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Sync / Query Google Merchant Center accounts via Content API
+  const handleSyncMerchantAccounts = async () => {
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    setIsSyncingMerchant(true);
+    setMerchantSyncMsg(null);
+
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/merchant-accounts?orgId=${encodeURIComponent(orgId)}`, {
+        headers: { "x-organization-id": orgId }
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to query Google Merchant Center accounts");
+      }
+
+      const accounts = data.accounts || [];
+      if (accounts.length > 0) {
+        const first = accounts[0];
+        setHasMerchantAccount(true);
+        setMerchantCenterId(first.merchantId);
+        setMerchantStoreName(first.name || "");
+        setMerchantSyncMsg({
+          type: "success",
+          text: `Found ${accounts.length} Google Merchant Center account(s)! Populated ID ${first.merchantId} (${first.name}).`
+        });
+      } else {
+        setMerchantSyncMsg({
+          type: "info",
+          text: "Google is connected, but no Merchant Center accounts were found for this Google login. You can create one at merchants.google.com or enter your ID manually."
+        });
+      }
+    } catch (err: any) {
+      setMerchantSyncMsg({
+        type: "error",
+        text: err.message || "Failed to detect Merchant Center accounts."
+      });
+    } finally {
+      setIsSyncingMerchant(false);
+    }
+  };
+
+  // Sync / Query connected mobile apps via Google Ads API & Database
+  const handleSyncConnectedApps = async () => {
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    setIsSyncingApps(true);
+    setAppSyncMsg(null);
+
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/connected-apps?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(customerId)}`, {
+        headers: { "x-organization-id": orgId }
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to query connected apps");
+      }
+
+      const apps = data.apps || [];
+      if (apps.length > 0) {
+        setHasAppAccount(true);
+        // Merge with existing apps, avoiding duplicate appIds
+        setAppDetails((prev) => {
+          const existingIds = new Set(prev.map((a) => a.appId.toLowerCase()));
+          const newOnes = apps.filter((a: any) => !existingIds.has(a.appId.toLowerCase()));
+          return [...prev, ...newOnes];
+        });
+        setAppSyncMsg({
+          type: "success",
+          text: `Successfully discovered ${apps.length} connected app(s)! Displayed in your app library below.`
+        });
+      } else {
+        setAppSyncMsg({
+          type: "info",
+          text: "Google is connected, but no mobile app assets or campaigns were found in this account. You can register your Google Play package ID or App Store ID below."
+        });
+      }
+    } catch (err: any) {
+      setAppSyncMsg({
+        type: "error",
+        text: err.message || "Failed to detect connected apps."
+      });
+    } finally {
+      setIsSyncingApps(false);
+    }
+  };
+
+  // Disconnect Google Merchant Center
+  const [isDisconnectingMerchant, setIsDisconnectingMerchant] = useState(false);
+  const handleDisconnectMerchant = async () => {
+    if (!confirm("Are you sure you want to disconnect Google Merchant Center from this account?")) return;
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    setIsDisconnectingMerchant(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/customer-profile/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({ customerId, type: "merchant" })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to disconnect Merchant Center");
+
+      setHasMerchantAccount(false);
+      setMerchantCenterId("");
+      setMerchantStoreName("");
+      setMerchantSyncMsg({
+        type: "info",
+        text: "Google Merchant Center has been disconnected from this profile."
+      });
+      setTimeout(() => setMerchantSyncMsg(null), 5000);
+    } catch (err: any) {
+      setMerchantSyncMsg({
+        type: "error",
+        text: err.message || "Failed to disconnect Merchant Center."
+      });
+    } finally {
+      setIsDisconnectingMerchant(false);
+    }
+  };
+
+  // Disconnect Google Mobile Apps
+  const [isDisconnectingApps, setIsDisconnectingApps] = useState(false);
+  const handleDisconnectApps = async () => {
+    if (!confirm("Are you sure you want to disconnect all linked Mobile Apps from this account?")) return;
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    setIsDisconnectingApps(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/customer-profile/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({ customerId, type: "apps" })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to disconnect Mobile Apps");
+
+      setHasAppAccount(false);
+      setAppDetails([]);
+      setAppSyncMsg({
+        type: "info",
+        text: "Mobile Apps have been disconnected from this profile."
+      });
+      setTimeout(() => setAppSyncMsg(null), 5000);
+    } catch (err: any) {
+      setAppSyncMsg({
+        type: "error",
+        text: err.message || "Failed to disconnect Mobile Apps."
+      });
+    } finally {
+      setIsDisconnectingApps(false);
     }
   };
 
@@ -3179,6 +3642,97 @@ export function GoogleAdsProfileModal({
                             <Plus className="w-3.5 h-3.5" />
                           </button>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* YouTube Channel & Video Links */}
+                    <div className="pt-3 border-t border-slate-100 space-y-2.5">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Youtube className="w-4 h-4 text-red-600" />
+                          <span>YouTube Links ({youtubeLinks.length})</span>
+                          <span className="text-[10px] font-normal text-slate-500">
+                            (Channels, Videos, or Shorts for video ads &amp; reach)
+                          </span>
+                        </label>
+                        {youtubeLinks.length > 0 && (
+                          <span className="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
+                            {youtubeLinks.length} {youtubeLinks.length === 1 ? "Link" : "Links"} connected
+                          </span>
+                        )}
+                      </div>
+
+                      {youtubeLinks.length > 0 ? (
+                        <div className="flex flex-col gap-1.5">
+                          {youtubeLinks.map((link, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs hover:bg-slate-100/60 transition-colors"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Youtube className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                                <a
+                                  href={link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-slate-800 hover:text-red-600 truncate hover:underline flex items-center gap-1"
+                                >
+                                  <span>{link}</span>
+                                  <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                                </a>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveYoutubeLink(link)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer shrink-0"
+                                title="Remove YouTube link"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 italic py-0.5">
+                          No YouTube links added yet. Enter your YouTube channel or video link below, or auto-extract with website screening.
+                        </p>
+                      )}
+
+                      <div className="space-y-1">
+                        <div className="flex gap-1.5">
+                          <input
+                            type="url"
+                            value={newYoutubeInput}
+                            onChange={(e) => {
+                              setNewYoutubeInput(e.target.value);
+                              if (youtubeInputError) setYoutubeInputError(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddYoutubeLink();
+                              }
+                            }}
+                            placeholder="https://youtube.com/@yourchannel or https://youtu.be/..."
+                            className={`flex-1 px-3 py-1.5 text-xs rounded-xl border bg-white font-mono ${
+                              youtubeInputError ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-red-500"
+                            } focus:outline-none`}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddYoutubeLink}
+                            className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-red-600 hover:bg-red-700 text-white cursor-pointer transition-colors shadow-2xs inline-flex items-center gap-1.5 shrink-0"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add Link</span>
+                          </button>
+                        </div>
+                        {youtubeInputError && (
+                          <p className="text-[11px] text-rose-600 font-medium px-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {youtubeInputError}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -8930,6 +9484,95 @@ export function GoogleAdsProfileModal({
                       </p>
                     )}
                   </div>
+
+                  {/* YouTube Channel & Video Links Card */}
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <Youtube className="w-4 h-4 text-red-600" />
+                        <span className="text-xs font-bold text-slate-900">YouTube Channel &amp; Video Links</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
+                          {youtubeLinks.length} {youtubeLinks.length === 1 ? "Link" : "Links"}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-500">
+                        Essential for Google Video Campaigns &amp; Demand Gen ads
+                      </span>
+                    </div>
+
+                    {youtubeLinks.length === 0 ? (
+                      <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                        No YouTube links connected yet. Add your brand channel, product overview videos, or Shorts below.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {youtubeLinks.map((yt, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Youtube className="w-4 h-4 text-red-600 shrink-0" />
+                              <a
+                                href={yt}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-medium text-slate-800 hover:text-red-600 truncate hover:underline flex items-center gap-1"
+                              >
+                                <span className="truncate">{yt}</span>
+                                <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                              </a>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveYoutubeLink(yt)}
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer shrink-0"
+                              title="Remove YouTube Link"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add YouTube URL Input */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={newYoutubeInput}
+                          onChange={(e) => {
+                            setNewYoutubeInput(e.target.value);
+                            if (youtubeInputError) setYoutubeInputError(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddYoutubeLink();
+                            }
+                          }}
+                          placeholder="https://youtube.com/@channel or https://youtu.be/..."
+                          className={`flex-1 px-3.5 py-2 text-xs rounded-xl border bg-white font-mono text-slate-800 ${
+                            youtubeInputError ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-red-500"
+                          } focus:outline-none`}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddYoutubeLink}
+                          className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                        >
+                          <Plus className="w-4 h-4" /> Add YouTube Link
+                        </button>
+                      </div>
+                      {youtubeInputError && (
+                        <p className="text-[11px] text-rose-600 font-medium px-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {youtubeInputError}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -8942,7 +9585,7 @@ export function GoogleAdsProfileModal({
                       hasMerchantAccount ? "bg-emerald-50/40 border-emerald-300" : "bg-slate-50 border-slate-200"
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <div className="flex items-center gap-3">
                         <div
                           className={`w-9 h-9 rounded-xl flex items-center justify-center ${
@@ -8952,51 +9595,164 @@ export function GoogleAdsProfileModal({
                           <ShoppingBag className="w-5 h-5" />
                         </div>
                         <div>
-                          <h4 className="text-xs font-bold text-slate-900">Google Merchant Center</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-bold text-slate-900">Google Merchant Center</h4>
+                            {hasMerchantAccount ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Connected
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600">
+                                Disconnected
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-slate-500">Shopping product feeds and local inventory feeds</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-700">Merchant Account:</span>
-                        <button
-                          type="button"
-                          onClick={() => setHasMerchantAccount(!hasMerchantAccount)}
-                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border ${
-                            hasMerchantAccount
-                              ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                              : "bg-slate-200 text-slate-700 border-slate-300"
-                          }`}
+                      <div className="flex items-center gap-2 flex-wrap ml-auto">
+                        <a
+                          href="https://merchants.google.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-slate-700 text-[11px] font-semibold inline-flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
+                          title="Open Google Merchant Center Console in a new tab"
                         >
-                          {hasMerchantAccount ? "Yes (Active)" : "No"}
-                        </button>
+                          <span>Console</span>
+                          <ExternalLink className="w-3 h-3 text-slate-400" />
+                        </a>
+
+                        {hasMerchantAccount ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleSyncMerchantAccounts}
+                              disabled={isSyncingMerchant}
+                              className="px-2.5 py-1 rounded-xl border border-emerald-300 hover:border-emerald-400 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-semibold inline-flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                              title="Detect and auto-populate your Google Merchant Center accounts"
+                            >
+                              {isSyncingMerchant ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="w-3 h-3" />
+                              )}
+                              <span>{isSyncingMerchant ? "Syncing..." : "Live Sync"}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleDisconnectMerchant}
+                              disabled={isDisconnectingMerchant}
+                              className="px-2.5 py-1 rounded-xl border border-rose-200 hover:border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-semibold inline-flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                              title="Disconnect Google Merchant Center"
+                            >
+                              {isDisconnectingMerchant ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3 h-3 text-rose-500" />
+                              )}
+                              <span>{isDisconnectingMerchant ? "Disconnecting..." : "Disconnect"}</span>
+                            </button>
+                          </>
+                        ) : (
+                          <a
+                            href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/gmb/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}&source=google_ads`}
+                            className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-black text-white text-[11px] font-semibold inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                            title="Authorize Google Merchant Center scope via OAuth"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24">
+                              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                            </svg>
+                            <span>Connect Merchant</span>
+                          </a>
+                        )}
+
+                        <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+                          <span className="text-[11px] font-bold text-slate-500">Enable:</span>
+                          <button
+                            type="button"
+                            onClick={() => setHasMerchantAccount(!hasMerchantAccount)}
+                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                              hasMerchantAccount
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                : "bg-slate-200 text-slate-700 border-slate-300"
+                            }`}
+                          >
+                            {hasMerchantAccount ? "Yes" : "No"}
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    {hasMerchantAccount && (
+                    {merchantSyncMsg && (
+                      <div
+                        className={`mb-3 p-3 rounded-xl border text-xs flex items-start justify-between gap-2 animate-fadeIn ${
+                          merchantSyncMsg.type === "success"
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                            : merchantSyncMsg.type === "error"
+                            ? "bg-rose-50 border-rose-200 text-rose-900"
+                            : "bg-blue-50 border-blue-200 text-blue-900"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {merchantSyncMsg.type === "success" ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          ) : merchantSyncMsg.type === "error" ? (
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          ) : (
+                            <HelpCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          )}
+                          <p>{merchantSyncMsg.text}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setMerchantSyncMsg(null)}
+                          className="text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {hasMerchantAccount ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-emerald-200/60 animate-fadeIn">
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-700">Merchant Center Account ID</label>
+                          <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                            <span>Merchant Center Account ID</span>
+                            <span className="text-[11px] font-normal text-slate-400 font-mono">Numeric ID</span>
+                          </label>
                           <input
                             type="text"
                             value={merchantCenterId}
                             onChange={(e) => setMerchantCenterId(e.target.value)}
                             placeholder="e.g. 123456789"
-                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-mono"
+                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-mono focus:border-emerald-500 focus:outline-none"
                           />
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-700">Primary Feed / Store Name</label>
+                          <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                            <span>Primary Feed / Store Name</span>
+                            <span className="text-[11px] font-normal text-slate-400">Store / Product Catalog</span>
+                          </label>
                           <input
                             type="text"
                             value={merchantStoreName}
                             onChange={(e) => setMerchantStoreName(e.target.value)}
                             placeholder="e.g. Main Online Store Feed"
-                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white"
+                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:border-emerald-500 focus:outline-none"
                           />
                         </div>
                       </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 italic pt-2 border-t border-slate-100">
+                        Merchant Center is disconnected. Connect with Google or enable the switch to configure product catalogs.
+                      </p>
                     )}
                   </div>
 
@@ -9006,7 +9762,7 @@ export function GoogleAdsProfileModal({
                       hasAppAccount ? "bg-blue-50/40 border-blue-300" : "bg-slate-50 border-slate-200"
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <div className="flex items-center gap-3">
                         <div
                           className={`w-9 h-9 rounded-xl flex items-center justify-center ${
@@ -9016,26 +9772,129 @@ export function GoogleAdsProfileModal({
                           <Smartphone className="w-5 h-5" />
                         </div>
                         <div>
-                          <h4 className="text-xs font-bold text-slate-900">Mobile App Campaigns</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-bold text-slate-900">Mobile App Campaigns</h4>
+                            {hasAppAccount ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                                {appDetails.length > 0 ? `${appDetails.length} App${appDetails.length > 1 ? "s" : ""} Linked` : "Connected"}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600">
+                                Disconnected
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-slate-500">Android and iOS App Store / Firebase links</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-700">App Account:</span>
-                        <button
-                          type="button"
-                          onClick={() => setHasAppAccount(!hasAppAccount)}
-                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border ${
-                            hasAppAccount
-                              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                              : "bg-slate-200 text-slate-700 border-slate-300"
-                          }`}
+                      <div className="flex items-center gap-2 flex-wrap ml-auto">
+                        <a
+                          href="https://play.google.com/console"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-slate-700 text-[11px] font-semibold inline-flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
+                          title="Open Google Play Console in a new tab"
                         >
-                          {hasAppAccount ? "Yes (Active)" : "No"}
-                        </button>
+                          <span>Play Console</span>
+                          <ExternalLink className="w-3 h-3 text-slate-400" />
+                        </a>
+
+                        {hasAppAccount ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleSyncConnectedApps}
+                              disabled={isSyncingApps}
+                              className="px-2.5 py-1 rounded-xl border border-blue-300 hover:border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-800 text-[11px] font-semibold inline-flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                              title="Detect and auto-populate your connected mobile apps"
+                            >
+                              {isSyncingApps ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="w-3 h-3" />
+                              )}
+                              <span>{isSyncingApps ? "Discovering..." : "Live Sync"}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleDisconnectApps}
+                              disabled={isDisconnectingApps}
+                              className="px-2.5 py-1 rounded-xl border border-rose-200 hover:border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-semibold inline-flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                              title="Disconnect all Mobile Apps"
+                            >
+                              {isDisconnectingApps ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3 h-3 text-rose-500" />
+                              )}
+                              <span>{isDisconnectingApps ? "Disconnecting..." : "Disconnect"}</span>
+                            </button>
+                          </>
+                        ) : (
+                          <a
+                            href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/gmb/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}&source=google_ads`}
+                            className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-black text-white text-[11px] font-semibold inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                            title="Authorize Google account via OAuth"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24">
+                              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                            </svg>
+                            <span>Connect Apps</span>
+                          </a>
+                        )}
+
+                        <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+                          <span className="text-[11px] font-bold text-slate-500">Enable:</span>
+                          <button
+                            type="button"
+                            onClick={() => setHasAppAccount(!hasAppAccount)}
+                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                              hasAppAccount
+                                ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                                : "bg-slate-200 text-slate-700 border-slate-300"
+                            }`}
+                          >
+                            {hasAppAccount ? "Yes" : "No"}
+                          </button>
+                        </div>
                       </div>
                     </div>
+
+                    {appSyncMsg && (
+                      <div
+                        className={`mb-3 p-3 rounded-xl border text-xs flex items-start justify-between gap-2 animate-fadeIn ${
+                          appSyncMsg.type === "success"
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                            : appSyncMsg.type === "error"
+                            ? "bg-rose-50 border-rose-200 text-rose-900"
+                            : "bg-blue-50 border-blue-200 text-blue-900"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {appSyncMsg.type === "success" ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          ) : appSyncMsg.type === "error" ? (
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          ) : (
+                            <HelpCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          )}
+                          <p>{appSyncMsg.text}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAppSyncMsg(null)}
+                          className="text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
 
                     {hasAppAccount && (
                       <div className="space-y-4 pt-3 border-t border-blue-200/60 animate-fadeIn">

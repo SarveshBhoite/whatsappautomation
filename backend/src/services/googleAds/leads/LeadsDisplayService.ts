@@ -1175,22 +1175,23 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
         const aspectRatio = typeof img === "object" && img?.aspectRatio ? img.aspectRatio : null;
 
         if (fieldType === "MARKETING_IMAGE" || aspectRatio === "1.91:1") {
-          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,fo-auto");
+          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
           landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
           const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Land_${Date.now()}`, landscapeUrl);
           if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
             createdAssets.marketingImages.push(landscapeRef);
           }
         } else if (fieldType === "SQUARE_MARKETING_IMAGE" || aspectRatio === "1:1") {
-          let squareUrl = aspectRatio === "1:1" ? raw : toImageKitTransform(raw, "tr:w-1200,h-1200,fo-auto");
+          let squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
           squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
           const squareRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Sq_${Date.now()}`, squareUrl);
           if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
             createdAssets.squareMarketingImages.push(squareRef);
           }
         } else if (fieldType === "LOGO") {
-          let logoUrl = aspectRatio === "1:1" ? raw : toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
-          logoUrl = toPollinationsTransform(logoUrl, 500, 500);
+          // 1:1 Logo (min 128x128, recommend 1200x1200)
+          let logoUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+          logoUrl = toPollinationsTransform(logoUrl, 1200, 1200);
           if (!raw.startsWith("customers/")) {
             const logoRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Logo_${Date.now()}`, logoUrl);
             if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
@@ -1198,14 +1199,14 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
             }
           }
         } else {
-          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,fo-auto");
+          let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
           landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
           const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Land_${Date.now()}`, landscapeUrl);
           if (landscapeRef && !createdAssets.marketingImages.includes(landscapeRef)) {
             createdAssets.marketingImages.push(landscapeRef);
           }
 
-          let squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,fo-auto");
+          let squareUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
           squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
           const squareRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Sq_${Date.now()}`, squareUrl);
           if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
@@ -1214,7 +1215,7 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
         }
       }
 
-      // Upload logos (Strict 1:1 Square: min 128x128, recommended 500x500 or 1200x1200)
+      // Upload logos (Strict 1:1 Square: min 128x128, recommended 1200x1200)
       for (const logo of rawLogos) {
         const raw = typeof logo === "string" ? logo : logo?.url || logo?.data || "";
         if (!raw) continue;
@@ -1222,15 +1223,8 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
           continue;
         }
 
-        let logoUrl = raw;
-        if (typeof raw === "string" && raw.includes("ik.imagekit.io")) {
-          logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
-        } else if (typeof logo === "object" && (logo?.aspectRatio === "1:1" || logo?.fieldType === "LOGO")) {
-          logoUrl = raw;
-        } else {
-          logoUrl = toImageKitTransform(raw, "tr:w-500,h-500,fo-auto");
-        }
-        logoUrl = toPollinationsTransform(logoUrl, 500, 500);
+        let logoUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
+        logoUrl = toPollinationsTransform(logoUrl, 1200, 1200);
         const logoRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Logo_${Date.now()}`, logoUrl);
         if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
           createdAssets.logoImages.push(logoRef);
@@ -1238,9 +1232,9 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
       }
 
       // If no valid marketing images or square marketing images, upload default clean marketing images
-      const DEFAULT_DISP_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
+      const DEFAULT_DISP_IMAGE = "https://ik.imagekit.io/automationjds/tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
       if (createdAssets.marketingImages.length === 0) {
-        let landscapeUrl = toImageKitTransform(DEFAULT_DISP_IMAGE, "tr:w-1200,h-628,fo-auto");
+        let landscapeUrl = toImageKitTransform(DEFAULT_DISP_IMAGE, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
         landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
         const landscapeRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Land_${Date.now()}`, landscapeUrl);
         if (landscapeRef) {
@@ -1248,7 +1242,7 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
         }
       }
       if (createdAssets.squareMarketingImages.length === 0) {
-        let squareUrl = toImageKitTransform(DEFAULT_DISP_IMAGE, "tr:w-1200,h-1200,fo-auto");
+        let squareUrl = toImageKitTransform(DEFAULT_DISP_IMAGE, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
         squareUrl = toPollinationsTransform(squareUrl, 1200, 1200);
         const squareRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Sq_${Date.now()}`, squareUrl);
         if (squareRef) {
@@ -1258,7 +1252,7 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
 
       // If no valid logo image was created, upload guaranteed 1:1 fallback logo
       if (createdAssets.logoImages.length === 0) {
-        const DEFAULT_DISP_LOGO = "https://ik.imagekit.io/automationjds/tr:w-500,h-500,fo-auto/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
+        const DEFAULT_DISP_LOGO = "https://ik.imagekit.io/automationjds/tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
         const fallbackLogoRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Logo_${Date.now()}`, DEFAULT_DISP_LOGO);
         if (fallbackLogoRef) {
           createdAssets.logoImages.push(fallbackLogoRef);
