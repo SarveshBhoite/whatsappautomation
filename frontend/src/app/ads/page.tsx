@@ -842,6 +842,15 @@ export default function GoogleAdsPage() {
   const [analysis, setAnalysis] = useState<any>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
+  // Account Readiness & Health State
+  const [accountReadiness, setAccountReadiness] = useState<{
+    overallStatus: "READY" | "WARNING" | "BLOCKED" | "UNKNOWN";
+    summary?: { readyCount: number; warningCount: number; blockedCount: number };
+    checks?: { key: string; status: string; classification: string; message: string }[];
+    blockedReason?: string;
+  } | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+
   // Campaign Details states
   const [selectedCampaignDetails, setSelectedCampaignDetails] = useState<any>(null);
   const [activeDetailsTab, setActiveDetailsTab] = useState<"info" | "assets" | "targeting" | "all" | "ad-groups" | "ads" | "keywords" | "ai">("info");
@@ -917,8 +926,33 @@ export default function GoogleAdsPage() {
       .finally(() => setAccountsLoading(false));
   }, [isConnected, orgId]);
 
+  const loadReadiness = useCallback(async (cid: string) => {
+    if (!cid) return;
+    setReadinessLoading(true);
+    try {
+      const res = await api(`/account-readiness?orgId=${orgId}&customerId=${cid}`);
+      if (res.ok) {
+        const rawData = await res.json();
+        const data = rawData.readiness || rawData;
+        const checksList = Array.isArray(data.checks) ? data.checks : [];
+        const blockedCheck = checksList.find((c: any) => c.status === "BLOCKED");
+        setAccountReadiness({
+          overallStatus: data.overallStatus || "UNKNOWN",
+          summary: data.summary,
+          checks: checksList,
+          blockedReason: blockedCheck ? `${blockedCheck.key}: ${blockedCheck.message}` : undefined
+        });
+      }
+    } catch (e: any) {
+      console.warn("Readiness check error:", e.message);
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, [orgId]);
+
   const loadOverview = useCallback(async (cid: string) => {
     setOverviewLoading(true);
+    loadReadiness(cid);
     try {
       const [ovRes, campRes] = await Promise.all([
         api(`/reports/overview?orgId=${orgId}&customerId=${cid}&dateRange=${dateRange}`),
@@ -1362,21 +1396,66 @@ export default function GoogleAdsPage() {
             <RefreshCw className="h-4 w-4" />
           </button>
 
+          {/* Unified Google Ads Profile & Account Status Button */}
           {selectedCustomerId && (
             <button
               onClick={() => router.push(`/ads/profile?customerId=${selectedCustomerId}`)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs"
-              title="View Google Ads Profile and Merchant/App Settings"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs"
+              title="View Google Ads Profile, Health Status & Business Settings"
             >
               <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
               <span>Google Ads Profile</span>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  accountReadiness?.overallStatus === "READY"
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : accountReadiness?.overallStatus === "BLOCKED"
+                    ? "bg-rose-100 text-rose-800 border border-rose-300"
+                    : accountReadiness?.overallStatus === "WARNING"
+                    ? "bg-amber-100 text-amber-800 border border-amber-300"
+                    : "bg-slate-200 text-slate-600 border border-slate-300"
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    accountReadiness?.overallStatus === "READY"
+                      ? "bg-emerald-600 animate-pulse"
+                      : accountReadiness?.overallStatus === "BLOCKED"
+                      ? "bg-rose-600"
+                      : accountReadiness?.overallStatus === "WARNING"
+                      ? "bg-amber-500"
+                      : "bg-slate-400"
+                  }`}
+                />
+                {readinessLoading
+                  ? "Checking..."
+                  : accountReadiness?.overallStatus === "READY"
+                  ? "Active"
+                  : accountReadiness?.overallStatus === "BLOCKED"
+                  ? "Action Required"
+                  : accountReadiness?.overallStatus === "WARNING"
+                  ? "Attention"
+                  : "Health"}
+              </span>
             </button>
           )}
 
           {selectedCustomerId && (
             <button
-              onClick={() => router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
+              onClick={() => {
+                if (accountReadiness?.overallStatus === "BLOCKED") {
+                  showToast(`Cannot create campaigns: ${accountReadiness.blockedReason || "Account has a confirmed blocker."}`);
+                  return;
+                }
+                router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`);
+              }}
+              disabled={accountReadiness?.overallStatus === "BLOCKED"}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                accountReadiness?.overallStatus === "BLOCKED"
+                  ? "bg-slate-300 text-slate-500 cursor-not-allowed border border-slate-300"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+              title={accountReadiness?.overallStatus === "BLOCKED" ? `Campaign creation blocked: ${accountReadiness.blockedReason}` : "Create a new campaign"}
             >
               <Plus className="h-4 w-4" /> New Campaign
             </button>

@@ -47,6 +47,7 @@ import {
   Image as ImageIcon
 } from "lucide-react";
 import { MediaAssetsLibraryTab, MediaAssetItem } from "./MediaAssetsLibraryTab";
+import { GoogleAdsAccountHealthSection } from "./GoogleAdsAccountHealthSection";
 
 // Native SVG representation of YouTube icon
 const Youtube = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -3277,6 +3278,15 @@ export function GoogleAdsProfileModal({
               {/* TAB 1: OVERVIEW & GOOGLE ADS ACCOUNT DETAILS */}
               {activeTab === "overview" && profile && (
                 <div className="space-y-6">
+                  {/* Google Ads Account Health & Compliance (Client-friendly with admin diagnostics) */}
+                  <GoogleAdsAccountHealthSection
+                    customerId={customerId}
+                    orgId={orgId}
+                    primaryWebsite={primaryWebsite}
+                    onNavigateToBusinessProfile={() => setActiveTab("business")}
+                    userRole={profile.userRole}
+                  />
+
                   {/* Account Identity Card */}
                   <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-1 min-w-0">

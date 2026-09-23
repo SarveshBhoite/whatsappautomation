@@ -352,8 +352,8 @@ router.get("/oauth/callback", async (req, res) => {
     // Auto-connect Merchant Center and Mobile Apps ONLY when connecting from /ads
     const targetCid = googleAdsCustomerId || existingConfig?.googleAdsCustomerId;
     if (isFromAdsPage && targetCid) {
+      const cleanCid = targetCid.replace(/-/g, "").trim();
       try {
-        const cleanCid = targetCid.replace(/-/g, "").trim();
 
         // Check if there are mobile app campaigns to link
         const appCampaigns = await prisma.googleAdCampaign.findMany({

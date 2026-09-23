@@ -2875,6 +2875,709 @@ export class GoogleAdsService {
       };
     }
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // BILLING SETUP (GAP-1)
+  // ─────────────────────────────────────────────────────────────────────────
+  public static async getBillingSetup(organizationId: string, customerId: string): Promise<{
+    status: "APPROVED" | "PENDING" | "APPROVED_HELD" | "CANCELLED" | "MISSING" | "UNKNOWN";
+    paymentsAccountId?: string;
+    paymentsAccountName?: string;
+    paymentsProfileId?: string;
+    startDateTime?: string;
+    endDateTime?: string;
+  }> {
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    try {
+      const rows = await this.gaqlSearch(organizationId, cleanCid, `
+        SELECT
+          billing_setup.id,
+          billing_setup.status,
+          billing_setup.payments_account,
+          billing_setup.payments_account_info.payments_account_id,
+          billing_setup.payments_account_info.payments_account_name,
+          billing_setup.payments_account_info.payments_profile_id,
+          billing_setup.start_date_time,
+          billing_setup.end_date_time
+        FROM billing_setup
+        ORDER BY billing_setup.id DESC
+      `);
+
+      if (!rows || rows.length === 0) {
+        // Cache to DB
+        await prisma.googleAdAccount.updateMany({
+          where: { organizationId, customerId: cleanCid },
+          data: { billingStatus: "MISSING", lastHealthCheck: new Date() }
+        }).catch(() => {});
+        return { status: "MISSING" };
+      }
+
+      // Find an approved setup if any, or the most recent one
+      const approvedRow = rows.find((r: any) => r.billingSetup?.status === "APPROVED");
+      const targetRow = approvedRow || rows[0];
+      const bs = targetRow.billingSetup;
+
+      let status: "APPROVED" | "PENDING" | "APPROVED_HELD" | "CANCELLED" | "MISSING" | "UNKNOWN" = "UNKNOWN";
+      if (bs?.status === "APPROVED") status = "APPROVED";
+      else if (bs?.status === "PENDING") status = "PENDING";
+      else if (bs?.status === "APPROVED_HELD") status = "APPROVED_HELD";
+      else if (bs?.status === "CANCELLED") status = "CANCELLED";
+
+      // Cache to DB
+      await prisma.googleAdAccount.updateMany({
+        where: { organizationId, customerId: cleanCid },
+        data: { billingStatus: status, lastHealthCheck: new Date() }
+      }).catch(() => {});
+
+      return {
+        status,
+        paymentsAccountId: bs?.paymentsAccountInfo?.paymentsAccountId || undefined,
+        paymentsAccountName: bs?.paymentsAccountInfo?.paymentsAccountName || undefined,
+        paymentsProfileId: bs?.paymentsAccountInfo?.paymentsProfileId || undefined,
+        startDateTime: bs?.startDateTime || undefined,
+        endDateTime: bs?.endDateTime || undefined
+      };
+    } catch (err: any) {
+      console.warn(`[getBillingSetup] Error querying billing_setup for cid ${cleanCid}:`, err?.response?.data || err.message);
+      return { status: "UNKNOWN" };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GOOGLE TAG & CONVERSION TRACKING SETTING (GAP-2)
+  // ─────────────────────────────────────────────────────────────────────────
+  public static async getConversionTrackingSetting(organizationId: string, customerId: string): Promise<{
+    googleTagId?: string;
+    conversionTrackingId?: string;
+    conversionTrackingStatus: string;
+    googleAdsConversionCustomer?: string;
+    enhancedConversionsForLeadsEnabled: boolean;
+  }> {
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    try {
+      const rows = await this.gaqlSearch(organizationId, cleanCid, `
+        SELECT
+          customer.id,
+          customer.conversion_tracking_setting.conversion_tracking_status,
+          customer.conversion_tracking_setting.conversion_tracking_id,
+          customer.conversion_tracking_setting.cross_account_conversion_tracking_id,
+          customer.conversion_tracking_setting.google_ads_conversion_customer,
+          customer.conversion_tracking_setting.enhanced_conversions_for_leads_enabled
+        FROM customer
+        LIMIT 1
+      `);
+
+      const c = rows[0]?.customer?.conversionTrackingSetting;
+      const trackId = c?.conversionTrackingId ? String(c.conversionTrackingId) : undefined;
+      const googleTagId = trackId ? `AW-${trackId}` : undefined;
+
+      if (googleTagId) {
+        await prisma.googleAdAccount.updateMany({
+          where: { organizationId, customerId: cleanCid },
+          data: { googleTagId }
+        }).catch(() => {});
+      }
+
+      return {
+        googleTagId,
+        conversionTrackingId: trackId,
+        conversionTrackingStatus: c?.conversionTrackingStatus || "UNKNOWN",
+        googleAdsConversionCustomer: c?.googleAdsConversionCustomer ? String(c.googleAdsConversionCustomer).split("/").pop() : undefined,
+        enhancedConversionsForLeadsEnabled: Boolean(c?.enhancedConversionsForLeadsEnabled)
+      };
+    } catch (err: any) {
+      console.warn(`[getConversionTrackingSetting] Error for cid ${cleanCid}:`, err?.response?.data || err.message);
+      return {
+        conversionTrackingStatus: "UNKNOWN",
+        enhancedConversionsForLeadsEnabled: false
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CUSTOMER CONVERSION GOALS (GAP-3)
+  // ─────────────────────────────────────────────────────────────────────────
+  public static async getCustomerConversionGoals(organizationId: string, customerId: string): Promise<Array<{
+    resourceName: string;
+    category: string;
+    origin: string;
+    biddable: boolean;
+  }>> {
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    try {
+      const rows = await this.gaqlSearch(organizationId, cleanCid, `
+        SELECT
+          customer_conversion_goal.resource_name,
+          customer_conversion_goal.category,
+          customer_conversion_goal.origin,
+          customer_conversion_goal.biddable
+        FROM customer_conversion_goal
+      `);
+
+      return (rows || []).map((r: any) => ({
+        resourceName: r.customerConversionGoal?.resourceName,
+        category: r.customerConversionGoal?.category,
+        origin: r.customerConversionGoal?.origin,
+        biddable: Boolean(r.customerConversionGoal?.biddable)
+      }));
+    } catch (err: any) {
+      console.warn(`[getCustomerConversionGoals] Error for cid ${cleanCid}:`, err?.response?.data || err.message);
+      return [];
+    }
+  }
+
+  public static async syncCustomerConversionGoal(
+    organizationId: string,
+    customerId: string,
+    category: string,
+    origin: string,
+    biddable: boolean
+  ): Promise<{ success: boolean; resourceName?: string; error?: string }> {
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    try {
+      const { headers } = await this.getAdsHeaders(organizationId, cleanCid);
+      const resourceName = `customers/${cleanCid}/customerConversionGoals/${category}~${origin}`;
+      const payload = {
+        operations: [
+          {
+            update: {
+              resourceName,
+              biddable
+            },
+            updateMask: "biddable"
+          }
+        ]
+      };
+
+      const res = await axios.post(`${ADS_BASE}/customers/${cleanCid}/customerConversionGoals:mutate`, payload, { headers });
+      const updatedRef = res.data?.results?.[0]?.resourceName || resourceName;
+      return { success: true, resourceName: updatedRef };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error?.message || err.message;
+      console.error(`[syncCustomerConversionGoal] Mutate failed for ${cleanCid}:`, errMsg);
+      return { success: false, error: errMsg };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // USER ACCESS AUDIT (GAP-5)
+  // ─────────────────────────────────────────────────────────────────────────
+  public static async getCustomerUserAccess(organizationId: string, customerId: string): Promise<{
+    users: Array<{
+      userId: string;
+      emailAddress: string;
+      accessRole: string;
+      accessCreationDateTime: string;
+      inviterUserEmailAddress?: string;
+    }>;
+    invitations: Array<{
+      invitationId: string;
+      emailAddress: string;
+      accessRole: string;
+      creationDateTime: string;
+      invitationStatus: string;
+    }>;
+  }> {
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    let users: any[] = [];
+    let invitations: any[] = [];
+
+    // 1. Query active users
+    try {
+      const rows = await this.gaqlSearch(organizationId, cleanCid, `
+        SELECT
+          customer_user_access.user_id,
+          customer_user_access.email_address,
+          customer_user_access.access_role,
+          customer_user_access.access_creation_date_time,
+          customer_user_access.inviter_user_email_address
+        FROM customer_user_access
+      `);
+      users = (rows || []).map((r: any) => ({
+        userId: String(r.customerUserAccess?.userId),
+        emailAddress: r.customerUserAccess?.emailAddress || "unknown@domain.com",
+        accessRole: r.customerUserAccess?.accessRole || "UNKNOWN",
+        accessCreationDateTime: r.customerUserAccess?.accessCreationDateTime || "",
+        inviterUserEmailAddress: r.customerUserAccess?.inviterUserEmailAddress || undefined
+      }));
+    } catch (err: any) {
+      console.warn(`[getCustomerUserAccess] Users query error for cid ${cleanCid}:`, err?.response?.data || err.message);
+    }
+
+    // 2. Query pending invitations
+    try {
+      const invRows = await this.gaqlSearch(organizationId, cleanCid, `
+        SELECT
+          customer_user_access_invitation.invitation_id,
+          customer_user_access_invitation.email_address,
+          customer_user_access_invitation.access_role,
+          customer_user_access_invitation.creation_date_time,
+          customer_user_access_invitation.invitation_status
+        FROM customer_user_access_invitation
+      `);
+      invitations = (invRows || []).map((r: any) => ({
+        invitationId: String(r.customerUserAccessInvitation?.invitationId),
+        emailAddress: r.customerUserAccessInvitation?.emailAddress || "",
+        accessRole: r.customerUserAccessInvitation?.accessRole || "UNKNOWN",
+        creationDateTime: r.customerUserAccessInvitation?.creationDateTime || "",
+        invitationStatus: r.customerUserAccessInvitation?.invitationStatus || "UNKNOWN"
+      }));
+    } catch (err: any) {
+      // customer_user_access_invitation might be empty or restricted
+      console.warn(`[getCustomerUserAccess] Invitations query error for cid ${cleanCid}:`, err?.message);
+    }
+
+    return { users, invitations };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // UNIFIED ACCOUNT READINESS CHECKER (GAP-7)
+  // ─────────────────────────────────────────────────────────────────────────
+  public static async getAccountReadiness(organizationId: string, customerId: string): Promise<{
+    overallStatus: "READY" | "WARNING" | "BLOCKED" | "UNKNOWN";
+    summary: string;
+    checkedAt: string;
+    checks: Array<{
+      key: string;
+      name: string;
+      status: "PASS" | "WARNING" | "FAIL" | "UNKNOWN";
+      classification:
+        | "API_VERIFIABLE"
+        | "API_PARTIALLY_VERIFIABLE"
+        | "WEBSITE_VERIFICATION_REQUIRED"
+        | "MANUAL_UI_REQUIRED"
+        | "EXTERNAL_GOOGLE_API_REQUIRED"
+        | "LOCAL_DB_CHECK";
+      message: string;
+      details?: Record<string, any>;
+    }>;
+  }> {
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const checks: any[] = [];
+    const checkedAt = new Date().toISOString();
+
+    // 1. OAuth Connection Check
+    let oauthConnected = false;
+    let config: any = null;
+    try {
+      config = await prisma.googleBusinessConfig.findUnique({ where: { organizationId } });
+      if (config?.googleRefreshToken) {
+        await getGoogleAccessToken(this.CLIENT_ID, this.CLIENT_SECRET, config.googleRefreshToken);
+        oauthConnected = true;
+        checks.push({
+          key: "oauth_connection",
+          name: "OAuth Connection",
+          status: "PASS",
+          classification: "API_VERIFIABLE",
+          message: "Google OAuth credentials active and refresh token valid."
+        });
+      } else {
+        checks.push({
+          key: "oauth_connection",
+          name: "OAuth Connection",
+          status: "FAIL",
+          classification: "API_VERIFIABLE",
+          message: "Google account not connected for this organization. Re-authentication required."
+        });
+      }
+    } catch (oauthErr: any) {
+      checks.push({
+        key: "oauth_connection",
+        name: "OAuth Connection",
+        status: "FAIL",
+        classification: "API_VERIFIABLE",
+        message: `Failed to refresh Google OAuth token: ${oauthErr.message}`
+      });
+    }
+
+    if (!oauthConnected) {
+      return {
+        overallStatus: "BLOCKED",
+        summary: "Account is blocked: Google OAuth is not connected or token is invalid.",
+        checkedAt,
+        checks
+      };
+    }
+
+    // 2. Developer Token Probe
+    let devTokenValid = false;
+    try {
+      if (!this.DEVELOPER_TOKEN) {
+        checks.push({
+          key: "developer_token",
+          name: "Developer Token",
+          status: "FAIL",
+          classification: "API_VERIFIABLE",
+          message: "GOOGLE_ADS_DEVELOPER_TOKEN is not configured on the server."
+        });
+      } else {
+        await this.listAccessibleCustomers(organizationId);
+        devTokenValid = true;
+        checks.push({
+          key: "developer_token",
+          name: "Developer Token",
+          status: "PASS",
+          classification: "API_VERIFIABLE",
+          message: "Google Ads developer token approved and functioning."
+        });
+      }
+    } catch (devErr: any) {
+      const errMsg = devErr?.message || "";
+      if (errMsg.includes("DEVELOPER_TOKEN_NOT_APPROVED") || errMsg.includes("403")) {
+        checks.push({
+          key: "developer_token",
+          name: "Developer Token",
+          status: "FAIL",
+          classification: "API_VERIFIABLE",
+          message: "Google Ads developer token rejected or unapproved for this action."
+        });
+      } else {
+        // Other API error
+        checks.push({
+          key: "developer_token",
+          name: "Developer Token",
+          status: "WARNING",
+          classification: "API_VERIFIABLE",
+          message: `Developer token probe returned a warning: ${errMsg}`
+        });
+      }
+    }
+
+    // 3. Customer Account Status & Info
+    let accountStatus = "UNKNOWN";
+    try {
+      const custInfo = await this.getCustomerInfo(organizationId, cleanCid);
+      if (custInfo) {
+        accountStatus = custInfo.status || "ENABLED";
+        if (accountStatus === "ENABLED") {
+          checks.push({
+            key: "account_status",
+            name: "Customer Account Status",
+            status: "PASS",
+            classification: "API_VERIFIABLE",
+            message: `Account is active (${accountStatus}) in ${custInfo.currencyCode} (${custInfo.timeZone}).`,
+            details: {
+              descriptiveName: custInfo.descriptiveName,
+              currencyCode: custInfo.currencyCode,
+              timeZone: custInfo.timeZone,
+              optimizationScore: custInfo.optimizationScore
+            }
+          });
+        } else {
+          checks.push({
+            key: "account_status",
+            name: "Customer Account Status",
+            status: "FAIL",
+            classification: "API_VERIFIABLE",
+            message: `Account is ${accountStatus}. Active ad serving is suspended by Google.`
+          });
+        }
+      } else {
+        checks.push({
+          key: "account_status",
+          name: "Customer Account Status",
+          status: "WARNING",
+          classification: "API_VERIFIABLE",
+          message: "Unable to retrieve live customer status. Verify login credentials."
+        });
+      }
+    } catch (accErr: any) {
+      checks.push({
+        key: "account_status",
+        name: "Customer Account Status",
+        status: "WARNING",
+        classification: "API_VERIFIABLE",
+        message: `Account status check error: ${accErr.message}`
+      });
+    }
+
+    // 4. MCC / login-customer-id Alignment
+    try {
+      const managerAccount = await prisma.googleAdAccount.findFirst({
+        where: { organizationId, isManager: true }
+      });
+      if (managerAccount) {
+        checks.push({
+          key: "mcc_alignment",
+          name: "Manager (MCC) Hierarchy",
+          status: "PASS",
+          classification: "API_VERIFIABLE",
+          message: `MCC Manager Account active (ID: ${managerAccount.customerId}). Routed via login-customer-id.`
+        });
+      } else {
+        checks.push({
+          key: "mcc_alignment",
+          name: "Manager (MCC) Hierarchy",
+          status: "PASS",
+          classification: "API_VERIFIABLE",
+          message: "Direct individual client account connection (No MCC manager header required)."
+        });
+      }
+    } catch (_mccErr) {}
+
+    // 5. Billing Setup Verification (GAP-1)
+    let billingStatusResult: any = { status: "UNKNOWN" };
+    try {
+      billingStatusResult = await this.getBillingSetup(organizationId, cleanCid);
+      if (billingStatusResult.status === "APPROVED") {
+        checks.push({
+          key: "billing_setup",
+          name: "Billing & Payments Setup",
+          status: "PASS",
+          classification: "API_VERIFIABLE",
+          message: "Billing setup is approved. Account has valid payment authorization.",
+          details: billingStatusResult
+        });
+      } else if (billingStatusResult.status === "PENDING" || billingStatusResult.status === "APPROVED_HELD") {
+        checks.push({
+          key: "billing_setup",
+          name: "Billing & Payments Setup",
+          status: "WARNING",
+          classification: "API_VERIFIABLE",
+          message: `Billing setup is ${billingStatusResult.status}. Awaiting payment profile activation.`,
+          details: billingStatusResult
+        });
+      } else if (billingStatusResult.status === "MISSING") {
+        checks.push({
+          key: "billing_setup",
+          name: "Billing & Payments Setup",
+          status: "FAIL",
+          classification: "API_VERIFIABLE",
+          message: "No billing setup found. Ad campaigns cannot deliver without an approved payment method.",
+          details: billingStatusResult
+        });
+      } else {
+        checks.push({
+          key: "billing_setup",
+          name: "Billing & Payments Setup",
+          status: "WARNING",
+          classification: "API_VERIFIABLE",
+          message: `Billing status is ${billingStatusResult.status}. Check Google Ads Billing in UI.`,
+          details: billingStatusResult
+        });
+      }
+    } catch (billErr: any) {
+      checks.push({
+        key: "billing_setup",
+        name: "Billing & Payments Setup",
+        status: "WARNING",
+        classification: "API_VERIFIABLE",
+        message: `Could not verify billing setup: ${billErr.message}`
+      });
+    }
+
+    // 6. Google Tag Account Configuration (GAP-2)
+    let detectedTagId: string | undefined;
+    try {
+      const tagSetting = await this.getConversionTrackingSetting(organizationId, cleanCid);
+      detectedTagId = tagSetting.googleTagId;
+      if (detectedTagId) {
+        checks.push({
+          key: "account_google_tag",
+          name: "Account Google Tag ID",
+          status: "PASS",
+          classification: "API_VERIFIABLE",
+          message: `Google Tag configured on account: ${detectedTagId}`,
+          details: tagSetting
+        });
+      } else {
+        checks.push({
+          key: "account_google_tag",
+          name: "Account Google Tag ID",
+          status: "WARNING",
+          classification: "API_VERIFIABLE",
+          message: "No conversion tracking ID found. Create a conversion action to initialize the Google Tag.",
+          details: tagSetting
+        });
+      }
+    } catch (tagErr: any) {
+      checks.push({
+        key: "account_google_tag",
+        name: "Account Google Tag ID",
+        status: "WARNING",
+        classification: "API_VERIFIABLE",
+        message: `Unable to inspect Google Tag settings: ${tagErr.message}`
+      });
+    }
+
+    // 7. Conversion Goals & Smart Bidding (GAP-3)
+    try {
+      const goals = await this.getCustomerConversionGoals(organizationId, cleanCid);
+      const biddableCount = goals.filter((g) => g.biddable).length;
+      if (biddableCount > 0) {
+        checks.push({
+          key: "conversion_goals",
+          name: "Conversion Goals",
+          status: "PASS",
+          classification: "API_VERIFIABLE",
+          message: `${biddableCount} biddable conversion goal(s) active for Smart Bidding optimization.`,
+          details: { totalGoals: goals.length, biddableCount }
+        });
+      } else if (goals.length > 0) {
+        checks.push({
+          key: "conversion_goals",
+          name: "Conversion Goals",
+          status: "WARNING",
+          classification: "API_VERIFIABLE",
+          message: "Account has conversion goals, but none are marked biddable. Smart Bidding will be suboptimal.",
+          details: { totalGoals: goals.length, biddableCount: 0 }
+        });
+      } else {
+        checks.push({
+          key: "conversion_goals",
+          name: "Conversion Goals",
+          status: "WARNING",
+          classification: "API_VERIFIABLE",
+          message: "No conversion goals initialized. Recommended to configure lead or purchase goals."
+        });
+      }
+    } catch (goalsErr: any) {
+      checks.push({
+        key: "conversion_goals",
+        name: "Conversion Goals",
+        status: "WARNING",
+        classification: "API_VERIFIABLE",
+        message: `Conversion goals verification warning: ${goalsErr.message}`
+      });
+    }
+
+    // 8. User Access Permissions (GAP-5)
+    try {
+      const accessData = await this.getCustomerUserAccess(organizationId, cleanCid);
+      if (accessData.users.length > 0) {
+        const adminUsers = accessData.users.filter((u) => u.accessRole === "ADMIN");
+        const standardUsers = accessData.users.filter((u) => u.accessRole === "STANDARD");
+        checks.push({
+          key: "user_access",
+          name: "User Access Permissions",
+          status: "PASS",
+          classification: "API_VERIFIABLE",
+          message: `${accessData.users.length} verified user(s) (${adminUsers.length} Admin, ${standardUsers.length} Standard).`,
+          details: {
+            userCount: accessData.users.length,
+            pendingInvitations: accessData.invitations.length
+          }
+        });
+      } else {
+        checks.push({
+          key: "user_access",
+          name: "User Access Permissions",
+          status: "WARNING",
+          classification: "API_VERIFIABLE",
+          message: "User list could not be verified directly. Confirm you have Administrative access."
+        });
+      }
+    } catch (uErr: any) {
+      checks.push({
+        key: "user_access",
+        name: "User Access Permissions",
+        status: "WARNING",
+        classification: "API_VERIFIABLE",
+        message: `User permissions audit error: ${uErr.message}`
+      });
+    }
+
+    // 9. GA4 Integration Status (GAP-4)
+    try {
+      const convActions = await this.listConversions(organizationId, cleanCid);
+      const ga4Convs = (convActions || []).filter((ca: any) =>
+        String(ca.type || "").startsWith("GOOGLE_ANALYTICS_4")
+      );
+      if (ga4Convs.length > 0) {
+        checks.push({
+          key: "ga4_linkage",
+          name: "Google Analytics 4 (GA4)",
+          status: "PASS",
+          classification: "API_PARTIALLY_VERIFIABLE",
+          message: `GA4 link verified: Importing ${ga4Convs.length} GA4 conversion event(s).`,
+          details: { ga4Conversions: ga4Convs.map((c: any) => c.name) }
+        });
+      } else {
+        checks.push({
+          key: "ga4_linkage",
+          name: "Google Analytics 4 (GA4)",
+          status: "WARNING",
+          classification: "API_PARTIALLY_VERIFIABLE",
+          message: "No imported GA4 conversions detected. GA4 linking can be completed in Google Ads UI or Google Analytics Admin."
+        });
+      }
+    } catch (_ga4Err) {
+      checks.push({
+        key: "ga4_linkage",
+        name: "Google Analytics 4 (GA4)",
+        status: "WARNING",
+        classification: "API_PARTIALLY_VERIFIABLE",
+        message: "GA4 linkage status unverified (Informational)."
+      });
+    }
+
+    // 10. Local CRM Business Profile Completeness
+    try {
+      const profile = await (prisma as any).googleAdsCustomerProfile.findUnique({
+        where: {
+          organizationId_customerId: {
+            organizationId,
+            customerId: cleanCid
+          }
+        }
+      });
+      if (profile) {
+        const hasBusName = Boolean(profile.businessName);
+        const hasWeb = Boolean(profile.primaryWebsite);
+        const hasProds = Array.isArray(profile.products) && profile.products.length > 0;
+        const hasServs = Array.isArray(profile.services) && profile.services.length > 0;
+        const hasLocs = Array.isArray(profile.locationRecords) && profile.locationRecords.length > 0;
+
+        if (hasBusName && hasWeb && (hasProds || hasServs) && hasLocs) {
+          checks.push({
+            key: "crm_business_profile",
+            name: "CRM Business & Marketing Profile",
+            status: "PASS",
+            classification: "LOCAL_DB_CHECK",
+            message: "Marketing catalog, website, target locations, and business identity are complete."
+          });
+        } else {
+          checks.push({
+            key: "crm_business_profile",
+            name: "CRM Business & Marketing Profile",
+            status: "WARNING",
+            classification: "LOCAL_DB_CHECK",
+            message: "Marketing profile is partially complete. Adding products, services, and locations improves AI Ad Copy."
+          });
+        }
+      } else {
+        checks.push({
+          key: "crm_business_profile",
+          name: "CRM Business & Marketing Profile",
+          status: "WARNING",
+          classification: "LOCAL_DB_CHECK",
+          message: "No local marketing profile saved for this account yet. Configure in Profile tab."
+        });
+      }
+    } catch (_profErr) {}
+
+    // Evaluate overall readiness status
+    const hasFailures = checks.some((c) => c.status === "FAIL");
+    const hasWarnings = checks.some((c) => c.status === "WARNING");
+
+    let overallStatus: "READY" | "WARNING" | "BLOCKED" | "UNKNOWN" = "READY";
+    let summary = "Google Ads account is healthy and ready to publish campaigns.";
+
+    if (hasFailures) {
+      overallStatus = "BLOCKED";
+      summary = "Account has critical blockers preventing ad delivery (e.g. missing billing, unapproved developer token, or suspended account).";
+    } else if (hasWarnings) {
+      overallStatus = "WARNING";
+      summary = "Account is operational but has items requiring attention (e.g. Google Tag or Conversion Goals).";
+    }
+
+    return {
+      overallStatus,
+      summary,
+      checkedAt,
+      checks
+    };
+  }
 }
 
 

@@ -487,6 +487,9 @@ model GoogleAdAccount {
   timeZone        String       @default("UTC")
   isManager       Boolean      @default(false)
   isActive        Boolean      @default(true)
+  billingStatus   String?      @default("UNKNOWN")
+  googleTagId     String?
+  lastHealthCheck DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
