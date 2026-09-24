@@ -3161,7 +3161,7 @@ export class GoogleAdsService {
     let oauthConnected = false;
     let config: any = null;
     try {
-      config = await prisma.googleBusinessConfig.findUnique({ where: { organizationId } });
+      config = await prisma.googleBusinessConfig.findFirst({ where: { organizationId } });
       if (config?.googleRefreshToken) {
         await getGoogleAccessToken(this.CLIENT_ID, this.CLIENT_SECRET, config.googleRefreshToken);
         oauthConnected = true;
