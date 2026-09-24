@@ -10,6 +10,20 @@ import {
   MediaAssetItem
 } from "../services/googleAds/CustomerBusinessProfileService";
 import { getGoogleAccessToken } from "../services/gmbSyncService";
+import { GoogleAdsAssetPolicyService } from "../services/googleAds/GoogleAdsAssetPolicyService";
+import { GoogleAdsAssetTypesService } from "../services/googleAds/GoogleAdsAssetTypesService";
+import { GoogleAdsAudienceService } from "../services/googleAds/GoogleAdsAudienceService";
+import { GoogleAdsBiddingService } from "../services/googleAds/GoogleAdsBiddingService";
+import { GoogleAdsReportingService } from "../services/googleAds/GoogleAdsReportingService";
+import { GoogleAdsShoppingService } from "../services/googleAds/GoogleAdsShoppingService";
+import { GoogleAdsExperimentsService } from "../services/googleAds/GoogleAdsExperimentsService";
+import { GoogleAdsDataManagerService } from "../services/googleAds/GoogleAdsDataManagerService";
+import { GoogleAdsBillingService } from "../services/googleAds/GoogleAdsBillingService";
+import { GoogleAdsAssetGroupService } from "../services/googleAds/GoogleAdsAssetGroupService";
+import { GoogleAdsDemographicsService } from "../services/googleAds/GoogleAdsDemographicsService";
+import { GoogleAdsContentTargetingService } from "../services/googleAds/GoogleAdsContentTargetingService";
+import { GoogleAdsKeywordTargetingService } from "../services/googleAds/GoogleAdsKeywordTargetingService";
+import { GoogleAdsAdScheduleService } from "../services/googleAds/GoogleAdsAdScheduleService";
 
 const router = Router();
 const DEFAULT_ORG_ID = "";
@@ -1388,24 +1402,121 @@ router.get("/campaigns/drafts", async (req, res) => {
   }
 });
 
-// PUT /api/ads/campaigns/:id — update campaign
-
-
-
-
-
-
-
-
-
-router.put("/campaigns/:id", async (req, res) => {
+// GET /api/ads/campaigns/:id — fetch single campaign details from database and Google Ads API v24
+router.get("/campaigns/:id", async (req, res) => {
   try {
     const orgId = getOrgId(req);
-    const { customerId, name, status, budget, endDate, finalUrl, headlines, descriptions, keywords, biddingStrategy, geoTargets, languages, searchThemes, audienceSignal } = req.body;
     const campaign = await prisma.googleAdCampaign.findFirst({ where: { id: req.params.id, organizationId: orgId } });
     if (!campaign) return res.status(404).json({ error: "Campaign not found" });
 
-    const cid = customerId || campaign.customerId;
+    const rawCid = (req.query.customerId as string) || campaign.customerId;
+    const cid = rawCid ? rawCid.replace(/-/g, "") : "";
+    const isOwned = await validateCustomerOwnership(orgId, cid);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    let liveGoogleDetails: any = null;
+    if (campaign.googleAdsCampaignId) {
+      try {
+        const rows = await GoogleAdsService.gaqlSearch(orgId, cid, `
+          SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type,
+                 campaign.bidding_strategy_type, campaign.maximize_conversions.target_cpa_micros,
+                 campaign.maximize_conversion_value.target_roas,
+                 campaign.start_date_time, campaign.end_date_time,
+                 campaign.network_settings.target_google_search,
+                 campaign.network_settings.target_search_network,
+                 campaign.network_settings.target_content_network,
+                 campaign.network_settings.target_partner_search_network,
+                 campaign.geo_target_type_setting.positive_geo_target_type,
+                 campaign.geo_target_type_setting.negative_geo_target_type,
+                 campaign.tracking_url_template, campaign.final_url_suffix,
+                 campaign_budget.amount_micros, campaign_budget.resource_name, campaign_budget.id,
+                 metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.ctr
+          FROM campaign
+          WHERE campaign.id = ${campaign.googleAdsCampaignId}
+          LIMIT 1
+        `);
+
+        if (rows && rows.length > 0) {
+          const r = rows[0];
+          liveGoogleDetails = {
+            id: String(r.campaign?.id),
+            resourceName: r.campaign?.resourceName,
+            name: r.campaign?.name,
+            status: r.campaign?.status,
+            channelType: r.campaign?.advertisingChannelType,
+            biddingStrategyType: r.campaign?.biddingStrategyType,
+            targetCpaMicros: r.campaign?.maximizeConversions?.targetCpaMicros ? Number(r.campaign.maximizeConversions.targetCpaMicros) : null,
+            targetRoas: r.campaign?.maximizeConversionValue?.targetRoas ? Number(r.campaign.maximizeConversionValue.targetRoas) : null,
+            startDateTime: r.campaign?.startDateTime,
+            endDateTime: r.campaign?.endDateTime,
+            networkSettings: r.campaign?.networkSettings || null,
+            geoTargetTypeSetting: r.campaign?.geoTargetTypeSetting || null,
+            trackingUrlTemplate: r.campaign?.trackingUrlTemplate || "",
+            finalUrlSuffix: r.campaign?.finalUrlSuffix || "",
+            budgetAmountMicros: r.campaignBudget?.amountMicros ? Number(r.campaignBudget.amountMicros) : null,
+            budgetDailyAmount: r.campaignBudget?.amountMicros ? Number(r.campaignBudget.amountMicros) / 1_000_000 : null,
+            budgetResourceName: r.campaignBudget?.resourceName,
+            metrics: {
+              impressions: Number(r.metrics?.impressions || 0),
+              clicks: Number(r.metrics?.clicks || 0),
+              conversions: Number(r.metrics?.conversions || 0),
+              cost: (Number(r.metrics?.costMicros || 0) / 1_000_000).toFixed(2),
+              ctr: (Number(r.metrics?.ctr || 0) * 100).toFixed(2) + "%"
+            }
+          };
+        }
+      } catch (liveErr: any) {
+        console.warn("[getCampaignById] Could not fetch live Google Ads v24 details:", liveErr?.message);
+      }
+    }
+
+    res.status(200).json({
+      ...campaign,
+      amountMicros: Number(campaign.amountMicros || 0),
+      costMicros: Number(campaign.costMicros || 0),
+      impressions: Number(campaign.impressions || 0),
+      clicks: Number(campaign.clicks || 0),
+      live: liveGoogleDetails
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/ads/campaigns/:id — update campaign
+router.put("/campaigns/:id", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId,
+      name,
+      status,
+      budget,
+      startDate,
+      endDate,
+      finalUrl,
+      headlines,
+      descriptions,
+      keywords,
+      biddingStrategy,
+      targetCpa,
+      targetRoas,
+      networkSettings,
+      geoTargetTypeSetting,
+      trackingUrlTemplate,
+      finalUrlSuffix,
+      geoTargets,
+      languages,
+      searchThemes,
+      audienceSignal
+    } = req.body;
+    const campaign = await prisma.googleAdCampaign.findFirst({ where: { id: req.params.id, organizationId: orgId } });
+    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+
+    const rawCid = customerId || campaign.customerId;
+    const cid = rawCid ? rawCid.replace(/-/g, "") : "";
     const isOwned = await validateCustomerOwnership(orgId, cid);
     if (!isOwned) {
       return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
@@ -1413,12 +1524,43 @@ router.put("/campaigns/:id", async (req, res) => {
 
     if (campaign.googleAdsCampaignId) {
       const resourceName = `customers/${cid}/campaigns/${campaign.googleAdsCampaignId}`;
-      await GoogleAdsService.updateCampaign(orgId, cid, resourceName, { name, status, endDate });
+
+      // Convert targetCpa / targetRoas to micros if provided
+      const targetCpaMicros = targetCpa && Number(targetCpa) > 0 ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
+      const validRoas = targetRoas && Number(targetRoas) > 0 ? Number(targetRoas) : undefined;
+
+      await GoogleAdsService.updateCampaign(orgId, cid, resourceName, {
+        name,
+        status,
+        startDate,
+        endDate,
+        biddingStrategy,
+        targetCpaMicros,
+        targetRoas: validRoas,
+        networkSettings,
+        geoTargetTypeSetting,
+        trackingUrlTemplate,
+        finalUrlSuffix,
+        channelType: campaign.campaignType || undefined
+      });
       
       if (budget !== undefined && budget !== null && Number(budget) > 0) {
-        if (campaign.budgetResourceName) {
+        let budgetRes = campaign.budgetResourceName;
+        // If not in DB, query the campaign's active budget from Google Ads
+        if (!budgetRes) {
           try {
-            await GoogleAdsService.updateBudget(orgId, cid, campaign.budgetResourceName, Number(budget));
+            const rows = await GoogleAdsService.gaqlSearch(orgId, cid, `SELECT campaign_budget.resource_name FROM campaign WHERE campaign.id = ${campaign.googleAdsCampaignId} LIMIT 1`);
+            if (rows && rows[0]?.campaignBudget?.resourceName) {
+              budgetRes = rows[0].campaignBudget.resourceName;
+            }
+          } catch (qErr: any) {
+            console.warn("[updateCampaign] budget query error:", qErr.message);
+          }
+        }
+
+        if (budgetRes) {
+          try {
+            await GoogleAdsService.updateBudget(orgId, cid, budgetRes, Number(budget));
           } catch (bErr: any) {
             console.warn("[updateCampaign] updateBudget error:", bErr.message);
           }
@@ -2211,10 +2353,71 @@ router.get("/reports/search-terms", async (req, res) => {
     const orgId = getOrgId(req);
     const customerId = getCustomerId(req);
     const dateRange = (req.query.dateRange as string) || "LAST_30_DAYS";
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const campaignId = req.query.campaignId as string | undefined;
+    const adGroupId = req.query.adGroupId as string | undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
     if (!customerId) return res.status(400).json({ error: "customerId required" });
-    const data = await GoogleAdsService.getSearchTermsReport(orgId, customerId, dateRange);
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const data = await GoogleAdsReportingService.listSearchTerms(orgId, customerId, {
+      dateRange,
+      startDate,
+      endDate,
+      campaignId,
+      adGroupId,
+      limit
+    });
     res.status(200).json(data);
   } catch (error: any) {
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+/**
+ * POST /api/ads/search-terms/add-keyword
+ * Adds a search term as a positive keyword (Ad Group level) or negative keyword (Ad Group or Campaign level)
+ * Reuses GoogleAdsKeywordTargetingService directly for Google Ads API v24 mutation.
+ */
+router.post("/search-terms/add-keyword", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    const { campaignId, adGroupId, adGroupResourceName, text, matchType, isNegative, scope, cpcBid } = req.body;
+
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+    if (!campaignId) return res.status(400).json({ error: "campaignId required" });
+    if (!text || !text.trim()) return res.status(400).json({ error: "Keyword text required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const result = await GoogleAdsKeywordTargetingService.addKeyword(orgId, customerId, {
+      campaignId,
+      adGroupId,
+      adGroupResourceName,
+      text: text.trim(),
+      matchType: (matchType || "EXACT").toUpperCase(),
+      isNegative: Boolean(isNegative),
+      scope: scope === "CAMPAIGN" ? "CAMPAIGN" : "AD_GROUP",
+      cpcBid: cpcBid ? Number(cpcBid) : undefined
+    });
+
+    res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("[POST /search-terms/add-keyword] error:", error.response?.data || error.message);
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
   }
 });
@@ -2229,6 +2432,501 @@ router.get("/reports/ads", async (req, res) => {
     const data = await GoogleAdsService.getAdPerformanceReport(orgId, customerId, dateRange);
     res.status(200).json(data);
   } catch (error: any) {
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// GET /api/ads/reports/auction-insights
+router.get("/reports/auction-insights", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { dateRange, startDate, endDate, campaignId, adGroupId, limit } = req.query;
+    const result = await GoogleAdsReportingService.listAuctionInsights(orgId, customerId, {
+      dateRange: dateRange as string,
+      startDate: startDate as string,
+      endDate: endDate as string,
+      campaignId: campaignId as string,
+      adGroupId: adGroupId as string,
+      limit: limit ? parseInt(limit as string, 10) : undefined
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[GET /api/ads/reports/auction-insights] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// GET /api/ads/reports/landing-pages
+router.get("/reports/landing-pages", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { dateRange, startDate, endDate, campaignId, limit } = req.query;
+    const result = await GoogleAdsReportingService.listLandingPagePerformance(orgId, customerId, {
+      dateRange: dateRange as string,
+      startDate: startDate as string,
+      endDate: endDate as string,
+      campaignId: campaignId as string,
+      limit: limit ? parseInt(limit as string, 10) : undefined
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[GET /api/ads/reports/landing-pages] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHOPPING: PRODUCT DIAGNOSTICS & LISTING GROUPS (Google Ads API v24 & MC Content API)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/ads/shopping/product-diagnostics (Read-only)
+router.get("/shopping/product-diagnostics", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { status, severity, country, destination, merchantId, limit, pageToken } = req.query;
+    const result = await GoogleAdsShoppingService.listProductDiagnostics(orgId, customerId, {
+      status: status as string,
+      severity: severity as string,
+      country: country as string,
+      destination: destination as string,
+      merchantId: merchantId as string,
+      limit: limit ? parseInt(limit as string, 10) : undefined,
+      pageToken: pageToken as string
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[GET /api/ads/shopping/product-diagnostics] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// GET /api/ads/shopping/listing-groups
+router.get("/shopping/listing-groups", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { campaignId, adGroupId, assetGroupId } = req.query;
+    const result = await GoogleAdsShoppingService.listListingGroups(orgId, customerId, {
+      campaignId: campaignId as string,
+      adGroupId: adGroupId as string,
+      assetGroupId: assetGroupId as string
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[GET /api/ads/shopping/listing-groups] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/shopping/listing-groups (Mutations: Create subdivision or unit)
+router.post("/shopping/listing-groups", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { adGroupId, parentCriterionResourceName, type, isExcluded, cpcBidMicros, dimension, value } = req.body;
+    const result = await GoogleAdsShoppingService.mutateShoppingListingGroup(orgId, customerId, "create", {
+      adGroupId,
+      parentCriterionResourceName,
+      type,
+      isExcluded,
+      cpcBidMicros: cpcBidMicros ? Number(cpcBidMicros) : undefined,
+      dimension,
+      value
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/shopping/listing-groups] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// DELETE /api/ads/shopping/listing-groups (Mutations: Remove listing group criterion)
+router.delete("/shopping/listing-groups", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { criterionResourceName } = req.body;
+    const result = await GoogleAdsShoppingService.mutateShoppingListingGroup(orgId, customerId, "remove", {
+      criterionResourceName
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[DELETE /api/ads/shopping/listing-groups] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GOOGLE ADS EXPERIMENTS (Google Ads API v24)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/ads/experiments
+router.get("/experiments", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { status, limit } = req.query;
+    const result = await GoogleAdsExperimentsService.listExperiments(orgId, customerId, {
+      status: status as string,
+      limit: limit ? parseInt(limit as string, 10) : undefined
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[GET /api/ads/experiments] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/experiments
+router.post("/experiments", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { name, description, suffix, type, startDate, endDate, campaignId, trafficSplitPercent } = req.body;
+    const result = await GoogleAdsExperimentsService.createExperiment(orgId, customerId, {
+      name,
+      description,
+      suffix,
+      type,
+      startDate,
+      endDate,
+      campaignId,
+      trafficSplitPercent: trafficSplitPercent ? parseInt(trafficSplitPercent, 10) : 50
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/experiments] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/experiments/schedule
+router.post("/experiments/schedule", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { resourceName } = req.body;
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const result = await GoogleAdsExperimentsService.scheduleExperiment(orgId, customerId, resourceName);
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/experiments/schedule] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/experiments/promote
+router.post("/experiments/promote", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { resourceName } = req.body;
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const result = await GoogleAdsExperimentsService.promoteExperiment(orgId, customerId, resourceName);
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/experiments/promote] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/experiments/end
+router.post("/experiments/end", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { resourceName } = req.body;
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const result = await GoogleAdsExperimentsService.endExperiment(orgId, customerId, resourceName);
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/experiments/end] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// DELETE /api/ads/experiments
+router.delete("/experiments", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { resourceName } = req.body;
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const result = await GoogleAdsExperimentsService.removeExperiment(orgId, customerId, resourceName);
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[DELETE /api/ads/experiments] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA MANAGER & FIRST-PARTY DATA INTEGRATIONS (Google Ads API v24)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/ads/data-manager/data-links
+router.get("/data-manager/data-links", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { status, limit } = req.query;
+    const result = await GoogleAdsDataManagerService.listDataLinks(orgId, customerId, {
+      status: status as string,
+      limit: limit ? parseInt(limit as string, 10) : undefined
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[GET /api/ads/data-manager/data-links] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// GET /api/ads/data-manager/offline-conversions
+router.get("/data-manager/offline-conversions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsDataManagerService.listOfflineConversionActions(orgId, customerId);
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[GET /api/ads/data-manager/offline-conversions] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/data-manager/offline-conversions
+router.post("/data-manager/offline-conversions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { name, category, defaultValue, currencyCode } = req.body;
+    const result = await GoogleAdsDataManagerService.createOfflineConversionAction(orgId, customerId, {
+      name,
+      category,
+      defaultValue: defaultValue !== undefined ? Number(defaultValue) : undefined,
+      currencyCode
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/data-manager/offline-conversions] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/data-manager/upload-conversion
+router.post("/data-manager/upload-conversion", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { conversionActionId, gclid, gbraid, wbraid, conversionDateTime, conversionValue, currencyCode, orderId } = req.body;
+    const result = await GoogleAdsDataManagerService.uploadClickConversion(orgId, customerId, {
+      conversionActionId,
+      gclid,
+      gbraid,
+      wbraid,
+      conversionDateTime,
+      conversionValue: conversionValue !== undefined ? Number(conversionValue) : undefined,
+      currencyCode,
+      orderId
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/data-manager/upload-conversion] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// GET /api/ads/data-manager/user-data-jobs
+router.get("/data-manager/user-data-jobs", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsDataManagerService.listOfflineUserDataJobs(orgId, customerId);
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[GET /api/ads/data-manager/user-data-jobs] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GOOGLE ADS BILLING MANAGEMENT (Google Ads API v24)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/ads/billing/overview
+router.get("/billing/overview", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const overview = await GoogleAdsBillingService.getBillingOverview(orgId, customerId);
+    res.status(200).json({ success: true, billing: overview });
+  } catch (error: any) {
+    console.error("[GET /api/ads/billing/overview] error:", error);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// GET /api/ads/billing/spend-history
+router.get("/billing/spend-history", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 30;
+    const history = await GoogleAdsBillingService.getRecentSpendHistory(orgId, customerId, limit);
+    res.status(200).json(history);
+  } catch (error: any) {
+    console.error("[GET /api/ads/billing/spend-history] error:", error);
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
   }
 });
@@ -2925,6 +3623,1766 @@ router.get("/account-readiness", async (req, res) => {
       error: error?.message || "Failed to perform account readiness audit",
       code: error?.code || "READINESS_CHECK_ERROR"
     });
+  }
+});
+
+/**
+ * GET /api/ads/asset-policy
+ * Retrieves asset-level policy information and disapproval/review status for the specified Google Ads customer.
+ * Strictly READ-ONLY. Enforces organizationId + customerId ownership validation.
+ * Supports optional filters: campaignId, assetType, policyStatus, page, limit.
+ */
+router.get("/asset-policy", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId query parameter is required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const { campaignId, assetType, policyStatus, page, limit } = req.query;
+
+    const result = await GoogleAdsAssetPolicyService.listAssetPolicyIssues(orgId, customerId, {
+      campaignId: campaignId ? String(campaignId) : undefined,
+      assetType: assetType ? String(assetType) : undefined,
+      policyStatus: policyStatus ? String(policyStatus) : undefined,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[asset-policy GET] error:", error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error?.message || "Failed to retrieve asset policy data",
+      code: error?.code || "ASSET_POLICY_FETCH_ERROR"
+    });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ASSET TYPES: STRUCTURED SNIPPETS, PROMOTIONS, LEAD FORMS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ads/assets/structured-snippets
+ */
+router.get("/assets/structured-snippets", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const snippets = await GoogleAdsAssetTypesService.listStructuredSnippets(orgId, customerId);
+    res.status(200).json({ success: true, items: snippets });
+  } catch (error: any) {
+    console.error("[structured-snippets GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list structured snippets" });
+  }
+});
+
+/**
+ * POST /api/ads/assets/structured-snippets
+ */
+router.post("/assets/structured-snippets", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { header, values, name, campaignResourceName } = req.body;
+    if (!header || !Array.isArray(values) || values.length === 0) {
+      return res.status(400).json({ error: "header and at least 3 values are required for a structured snippet" });
+    }
+
+    const result = await GoogleAdsAssetTypesService.createStructuredSnippet(orgId, customerId, {
+      header,
+      values,
+      name,
+      campaignResourceName
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[structured-snippets POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create structured snippet" });
+  }
+});
+
+/**
+ * PATCH /api/ads/assets/structured-snippets
+ */
+router.patch("/assets/structured-snippets", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { resourceName, header, values, name } = req.body;
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required to update an asset" });
+
+    const result = await GoogleAdsAssetTypesService.updateStructuredSnippet(orgId, customerId, resourceName, {
+      header,
+      values,
+      name
+    });
+
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[structured-snippets PATCH] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to update structured snippet" });
+  }
+});
+
+/**
+ * GET /api/ads/assets/promotions
+ */
+router.get("/assets/promotions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const promotions = await GoogleAdsAssetTypesService.listPromotions(orgId, customerId);
+    res.status(200).json({ success: true, items: promotions });
+  } catch (error: any) {
+    console.error("[promotions GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list promotions" });
+  }
+});
+
+/**
+ * POST /api/ads/assets/promotions
+ */
+router.post("/assets/promotions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const {
+      promotionTarget,
+      discountType,
+      percentOff,
+      moneyAmountOff,
+      occasion,
+      promotionCode,
+      startDate,
+      endDate,
+      finalUrl,
+      campaignResourceName,
+      name
+    } = req.body;
+
+    if (!promotionTarget || !finalUrl) {
+      return res.status(400).json({ error: "promotionTarget and finalUrl are required" });
+    }
+
+    const result = await GoogleAdsAssetTypesService.createPromotion(orgId, customerId, {
+      promotionTarget,
+      discountType: discountType || (percentOff ? "PERCENT_OFF" : "MONEY_AMOUNT_OFF"),
+      percentOff,
+      moneyAmountOff,
+      occasion,
+      promotionCode,
+      startDate,
+      endDate,
+      finalUrl,
+      campaignResourceName,
+      name
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[promotions POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create promotion" });
+  }
+});
+
+/**
+ * PATCH /api/ads/assets/promotions
+ */
+router.patch("/assets/promotions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { resourceName, promotionTarget, discountType, percentOff, moneyAmountOff, occasion, promotionCode, startDate, endDate, finalUrl, name } = req.body;
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const result = await GoogleAdsAssetTypesService.updatePromotion(orgId, customerId, resourceName, {
+      promotionTarget,
+      discountType,
+      percentOff,
+      moneyAmountOff,
+      occasion,
+      promotionCode,
+      startDate,
+      endDate,
+      finalUrl,
+      name
+    });
+
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[promotions PATCH] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to update promotion" });
+  }
+});
+
+/**
+ * GET /api/ads/assets/lead-forms
+ */
+router.get("/assets/lead-forms", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const forms = await GoogleAdsAssetTypesService.listLeadForms(orgId, customerId);
+    res.status(200).json({ success: true, items: forms });
+  } catch (error: any) {
+    console.error("[lead-forms GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list lead forms" });
+  }
+});
+
+/**
+ * POST /api/ads/assets/lead-forms
+ */
+router.post("/assets/lead-forms", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const {
+      businessName,
+      headline,
+      description,
+      privacyPolicyUrl,
+      callToActionType,
+      callToActionDescription,
+      postSubmitHeadline,
+      postSubmitDescription,
+      fields,
+      campaignResourceName,
+      name
+    } = req.body;
+
+    if (!businessName || !headline || !description || !privacyPolicyUrl) {
+      return res.status(400).json({ error: "businessName, headline, description, and privacyPolicyUrl are required for Lead Form" });
+    }
+
+    const result = await GoogleAdsAssetTypesService.createLeadForm(orgId, customerId, {
+      businessName,
+      headline,
+      description,
+      privacyPolicyUrl,
+      callToActionType,
+      callToActionDescription,
+      postSubmitHeadline,
+      postSubmitDescription,
+      fields,
+      campaignResourceName,
+      name
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[lead-forms POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create lead form" });
+  }
+});
+
+/**
+ * DELETE /api/ads/assets
+ * Common deletion endpoint for assets (structured snippets, promotions, lead forms, etc.)
+ */
+router.delete("/assets", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const resourceName = (req.query.resourceName || req.body.resourceName) as string;
+
+    if (!rawCid || !resourceName) {
+      return res.status(400).json({ error: "customerId and resourceName are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsAssetTypesService.removeAsset(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[assets DELETE] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to delete asset" });
+  }
+});
+
+/**
+ * POST /api/ads/assets/associate
+ * Associate asset to a campaign
+ */
+router.post("/assets/associate", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { campaignResourceName, assetResourceName, fieldType } = req.body;
+
+    if (!rawCid || !campaignResourceName || !assetResourceName || !fieldType) {
+      return res.status(400).json({ error: "customerId, campaignResourceName, assetResourceName, and fieldType are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsAssetTypesService.associateAssetToCampaign(
+      orgId,
+      customerId,
+      campaignResourceName,
+      assetResourceName,
+      fieldType
+    );
+
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[assets/associate POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to associate asset" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AUDIENCES: CUSTOMER MATCH & CUSTOM AUDIENCES / SEGMENTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ads/audiences/customer-match
+ */
+router.get("/audiences/customer-match", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const lists = await GoogleAdsAudienceService.listCustomerMatchLists(orgId, customerId);
+    res.status(200).json({ success: true, items: lists });
+  } catch (error: any) {
+    console.error("[customer-match GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list Customer Match lists" });
+  }
+});
+
+/**
+ * POST /api/ads/audiences/customer-match
+ */
+router.post("/audiences/customer-match", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { name, description, membershipLifeSpanDays, uploadKeyType } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Audience name is required" });
+    }
+
+    const result = await GoogleAdsAudienceService.createCustomerMatchList(orgId, customerId, {
+      name,
+      description,
+      membershipLifeSpanDays,
+      uploadKeyType
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[customer-match POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create Customer Match list" });
+  }
+});
+
+/**
+ * POST /api/ads/audiences/customer-match/upload
+ */
+router.post("/audiences/customer-match/upload", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { userListResourceName, members } = req.body;
+    if (!userListResourceName) {
+      return res.status(400).json({ error: "userListResourceName is required" });
+    }
+    if (!Array.isArray(members) || members.length === 0) {
+      return res.status(400).json({ error: "At least one member record is required for Customer Match upload" });
+    }
+
+    // Process and hash in memory; never log raw member data
+    const result = await GoogleAdsAudienceService.uploadCustomerMatchData(
+      orgId,
+      customerId,
+      userListResourceName,
+      members
+    );
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[customer-match/upload POST] error:", error?.message);
+    res.status(500).json({ error: error?.message || "Failed to process Customer Match upload" });
+  }
+});
+
+/**
+ * GET /api/ads/audiences/custom
+ */
+router.get("/audiences/custom", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const customAudiences = await GoogleAdsAudienceService.listCustomAudiences(orgId, customerId);
+    res.status(200).json({ success: true, items: customAudiences });
+  } catch (error: any) {
+    console.error("[custom-audiences GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list custom audiences" });
+  }
+});
+
+/**
+ * POST /api/ads/audiences/custom
+ */
+router.post("/audiences/custom", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { name, description, type, members } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "Custom audience name is required" });
+    if (!Array.isArray(members) || members.length === 0) {
+      return res.status(400).json({ error: "At least one member keyword, URL, or app bundle is required" });
+    }
+
+    const result = await GoogleAdsAudienceService.createCustomAudience(orgId, customerId, {
+      name,
+      description,
+      type,
+      members
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[custom-audiences POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create custom audience" });
+  }
+});
+
+/**
+ * DELETE /api/ads/audiences/custom
+ */
+router.delete("/audiences/custom", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const resourceName = (req.query.resourceName || req.body.resourceName) as string;
+
+    if (!rawCid || !resourceName) {
+      return res.status(400).json({ error: "customerId and resourceName are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsAudienceService.removeCustomAudience(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[custom-audiences DELETE] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to delete custom audience" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// BIDDING: PORTFOLIO BID STRATEGIES & BIDDING DATA EXCLUSIONS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ads/bidding/portfolio-strategies
+ */
+router.get("/bidding/portfolio-strategies", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const strategies = await GoogleAdsBiddingService.listPortfolioStrategies(orgId, customerId);
+    res.status(200).json({ success: true, items: strategies });
+  } catch (error: any) {
+    console.error("[portfolio-strategies GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list portfolio strategies" });
+  }
+});
+
+/**
+ * POST /api/ads/bidding/portfolio-strategies
+ */
+router.post("/bidding/portfolio-strategies", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { name, type, targetCpa, targetRoas, cpcBidCeiling } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "Strategy name is required" });
+    if (!type) return res.status(400).json({ error: "Strategy type is required" });
+
+    const result = await GoogleAdsBiddingService.createPortfolioStrategy(orgId, customerId, {
+      name,
+      type,
+      targetCpa: targetCpa ? Number(targetCpa) : undefined,
+      targetRoas: targetRoas ? Number(targetRoas) : undefined,
+      cpcBidCeiling: cpcBidCeiling ? Number(cpcBidCeiling) : undefined
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[portfolio-strategies POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create portfolio strategy" });
+  }
+});
+
+/**
+ * PATCH /api/ads/bidding/portfolio-strategies
+ */
+router.patch("/bidding/portfolio-strategies", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { resourceName, name, targetCpa, targetRoas } = req.body;
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required to update strategy" });
+
+    const result = await GoogleAdsBiddingService.updatePortfolioStrategy(orgId, customerId, resourceName, {
+      name,
+      targetCpa: targetCpa ? Number(targetCpa) : undefined,
+      targetRoas: targetRoas ? Number(targetRoas) : undefined
+    });
+
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[portfolio-strategies PATCH] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to update portfolio strategy" });
+  }
+});
+
+/**
+ * DELETE /api/ads/bidding/portfolio-strategies
+ */
+router.delete("/bidding/portfolio-strategies", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const resourceName = (req.query.resourceName || req.body.resourceName) as string;
+
+    if (!rawCid || !resourceName) {
+      return res.status(400).json({ error: "customerId and resourceName are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsBiddingService.removePortfolioStrategy(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[portfolio-strategies DELETE] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to delete portfolio strategy" });
+  }
+});
+
+/**
+ * POST /api/ads/bidding/portfolio-strategies/assign
+ */
+router.post("/bidding/portfolio-strategies/assign", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { campaignResourceName, biddingStrategyResourceName } = req.body;
+
+    if (!rawCid || !campaignResourceName || !biddingStrategyResourceName) {
+      return res.status(400).json({ error: "customerId, campaignResourceName, and biddingStrategyResourceName are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsBiddingService.assignStrategyToCampaign(
+      orgId,
+      customerId,
+      campaignResourceName,
+      biddingStrategyResourceName
+    );
+
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[portfolio-strategies/assign POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to assign strategy to campaign" });
+  }
+});
+
+/**
+ * GET /api/ads/bidding/data-exclusions
+ */
+router.get("/bidding/data-exclusions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const exclusions = await GoogleAdsBiddingService.listDataExclusions(orgId, customerId);
+    res.status(200).json({ success: true, items: exclusions });
+  } catch (error: any) {
+    console.error("[data-exclusions GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list data exclusions" });
+  }
+});
+
+/**
+ * POST /api/ads/bidding/data-exclusions
+ */
+router.post("/bidding/data-exclusions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { name, description, startDateTime, endDateTime, campaignIds, devices, scope } = req.body;
+    if (!name || !startDateTime || !endDateTime) {
+      return res.status(400).json({ error: "name, startDateTime, and endDateTime are required" });
+    }
+
+    const result = await GoogleAdsBiddingService.createDataExclusion(orgId, customerId, {
+      name,
+      description,
+      startDateTime,
+      endDateTime,
+      campaignIds,
+      devices,
+      scope
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[data-exclusions POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create data exclusion" });
+  }
+});
+
+/**
+ * PATCH /api/ads/bidding/data-exclusions
+ */
+router.patch("/bidding/data-exclusions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { resourceName, name, description, startDateTime, endDateTime, campaignIds, devices } = req.body;
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const result = await GoogleAdsBiddingService.updateDataExclusion(orgId, customerId, resourceName, {
+      name,
+      description,
+      startDateTime,
+      endDateTime,
+      campaignIds,
+      devices
+    });
+
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[data-exclusions PATCH] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to update data exclusion" });
+  }
+});
+
+/**
+ * DELETE /api/ads/bidding/data-exclusions
+ */
+router.delete("/bidding/data-exclusions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const resourceName = (req.query.resourceName || req.body.resourceName) as string;
+
+    if (!rawCid || !resourceName) {
+      return res.status(400).json({ error: "customerId and resourceName are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsBiddingService.removeDataExclusion(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[data-exclusions DELETE] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to delete data exclusion" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CAMPAIGN BID ADJUSTMENTS (Google Ads API v24)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/bidding/bid-adjustments
+ * Read all campaign bid adjustment criteria (Device, Location, Ad Schedule, Audience).
+ */
+router.get("/bidding/bid-adjustments", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const campaignId = (req.query.campaignId || req.query.campaignResourceName) as string;
+
+    if (!rawCid || !campaignId) {
+      return res.status(400).json({ error: "customerId and campaignId are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const data = await GoogleAdsBiddingService.getCampaignBidAdjustments(orgId, customerId, campaignId);
+    res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    console.error("[GET /api/ads/bidding/bid-adjustments] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to fetch bid adjustments" });
+  }
+});
+
+/**
+ * PATCH /api/ads/bidding/bid-adjustments
+ * Update the bid_modifier on a campaign criterion (Device, Location, Schedule, etc.).
+ */
+router.patch("/bidding/bid-adjustments", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { resourceName, bidModifier } = req.body;
+
+    if (!rawCid || !resourceName || bidModifier === undefined) {
+      return res.status(400).json({ error: "customerId, resourceName, and bidModifier are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsBiddingService.updateBidModifier(
+      orgId,
+      customerId,
+      resourceName,
+      Number(bidModifier)
+    );
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[PATCH /api/ads/bidding/bid-adjustments] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to update bid adjustment" });
+  }
+});
+
+/**
+ * POST /api/ads/bidding/bid-adjustments/location
+ * Add a Location bid adjustment for a campaign.
+ */
+router.post("/bidding/bid-adjustments/location", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { campaignId, geoTargetConstantId, bidModifier } = req.body;
+
+    if (!rawCid || !campaignId || !geoTargetConstantId) {
+      return res.status(400).json({ error: "customerId, campaignId, and geoTargetConstantId are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsBiddingService.addLocationBidAdjustment(orgId, customerId, {
+      campaignId,
+      geoTargetConstantId,
+      bidModifier: bidModifier !== undefined ? Number(bidModifier) : undefined
+    });
+
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[POST /api/ads/bidding/bid-adjustments/location] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to add location bid adjustment" });
+  }
+});
+
+/**
+ * POST /api/ads/bidding/bid-adjustments/schedule
+ * Add an Ad Schedule bid adjustment for a campaign.
+ */
+router.post("/bidding/bid-adjustments/schedule", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { campaignId, dayOfWeek, startHour, startMinute, endHour, endMinute, bidModifier } = req.body;
+
+    if (!rawCid || !campaignId || !dayOfWeek) {
+      return res.status(400).json({ error: "customerId, campaignId, and dayOfWeek are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsBiddingService.addScheduleBidAdjustment(orgId, customerId, {
+      campaignId,
+      dayOfWeek,
+      startHour: Number(startHour || 0),
+      startMinute: startMinute || "ZERO",
+      endHour: Number(endHour || 24),
+      endMinute: endMinute || "ZERO",
+      bidModifier: bidModifier !== undefined ? Number(bidModifier) : undefined
+    });
+
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[POST /api/ads/bidding/bid-adjustments/schedule] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to add schedule bid adjustment" });
+  }
+});
+
+/**
+ * DELETE /api/ads/bidding/bid-adjustments
+ * Remove a campaign bid adjustment criterion.
+ */
+router.delete("/bidding/bid-adjustments", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const resourceName = (req.query.resourceName || req.body.resourceName) as string;
+
+    if (!rawCid || !resourceName) {
+      return res.status(400).json({ error: "customerId and resourceName are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsBiddingService.removeCampaignCriterion(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[DELETE /api/ads/bidding/bid-adjustments] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to remove bid adjustment criterion" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PERFORMANCE MAX ASSET GROUPS (Google Ads API v24)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/asset-groups
+ * List Asset Groups for a customer, optionally filtered by PMax campaign.
+ */
+router.get("/asset-groups", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const campaignId = (req.query.campaignId || req.query.campaignResourceName) as string | undefined;
+    const result = await GoogleAdsAssetGroupService.listAssetGroups(orgId, customerId, campaignId);
+    res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("[GET /api/ads/asset-groups] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list Asset Groups" });
+  }
+});
+
+/**
+ * GET /api/ads/asset-groups/detail
+ * Get details of a single Asset Group (metadata, associated assets grouped by fieldType, signals).
+ */
+router.get("/asset-groups/detail", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const resourceName = req.query.resourceName as string;
+
+    if (!rawCid || !resourceName) {
+      return res.status(400).json({ error: "customerId and resourceName are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const detail = await GoogleAdsAssetGroupService.getAssetGroupDetail(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, detail });
+  } catch (error: any) {
+    console.error("[GET /api/ads/asset-groups/detail] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to get Asset Group details" });
+  }
+});
+
+/**
+ * POST /api/ads/asset-groups
+ * Create an Asset Group in a PMax campaign.
+ */
+router.post("/asset-groups", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { campaignId, campaignResourceName, name, finalUrls, finalMobileUrls, path1, path2, status } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "Asset Group name is required" });
+    if (!finalUrls || !Array.isArray(finalUrls) || !finalUrls.length) {
+      return res.status(400).json({ error: "At least one valid final URL is required" });
+    }
+
+    const result = await GoogleAdsAssetGroupService.createAssetGroup(orgId, customerId, {
+      campaignId,
+      campaignResourceName,
+      name,
+      finalUrls,
+      finalMobileUrls,
+      path1,
+      path2,
+      status
+    });
+
+    res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("[POST /api/ads/asset-groups] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create Asset Group" });
+  }
+});
+
+/**
+ * PATCH /api/ads/asset-groups
+ * Update Asset Group name, status, finalUrls, or display paths.
+ */
+router.patch("/asset-groups", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { resourceName, name, status, finalUrls, finalMobileUrls, path1, path2 } = req.body;
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const result = await GoogleAdsAssetGroupService.updateAssetGroup(orgId, customerId, resourceName, {
+      name,
+      status,
+      finalUrls,
+      finalMobileUrls,
+      path1,
+      path2
+    });
+
+    res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("[PATCH /api/ads/asset-groups] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to update Asset Group" });
+  }
+});
+
+/**
+ * POST /api/ads/asset-groups/assets
+ * Associate an existing Google Ads asset with an Asset Group.
+ */
+router.post("/asset-groups/assets", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { assetGroupResourceName, assetResourceName, fieldType } = req.body;
+    if (!assetGroupResourceName || !assetResourceName || !fieldType) {
+      return res.status(400).json({ error: "assetGroupResourceName, assetResourceName, and fieldType are required" });
+    }
+
+    const result = await GoogleAdsAssetGroupService.associateAsset(
+      orgId,
+      customerId,
+      assetGroupResourceName,
+      assetResourceName,
+      fieldType
+    );
+
+    res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("[POST /api/ads/asset-groups/assets] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to associate asset" });
+  }
+});
+
+/**
+ * DELETE /api/ads/asset-groups/assets
+ * Remove an asset association from an Asset Group using asset_group_asset resourceName.
+ */
+router.delete("/asset-groups/assets", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const resourceName = (req.query.resourceName || req.body.resourceName) as string;
+
+    if (!rawCid || !resourceName) {
+      return res.status(400).json({ error: "customerId and resourceName are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsAssetGroupService.removeAssetAssociation(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("[DELETE /api/ads/asset-groups/assets] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to remove asset association" });
+  }
+});
+
+/**
+ * GET /api/ads/asset-groups/account-assets
+ * List existing account assets to select for linking to an Asset Group.
+ */
+router.get("/asset-groups/account-assets", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const typeFilter = req.query.type as string | undefined;
+    const assets = await GoogleAdsAssetGroupService.listAccountAssets(orgId, customerId, typeFilter);
+    res.status(200).json({ success: true, assets });
+  } catch (error: any) {
+    console.error("[GET /api/ads/asset-groups/account-assets] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list account assets" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CAMPAIGN DEMOGRAPHIC TARGETING ROUTES (Google Ads API v24)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ads/demographics
+ * Fetch customer-scoped demographic targeting criteria for a selected campaign.
+ */
+router.get("/demographics", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const campaignId = (req.query.campaignId || req.query.campaignResource) as string;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!campaignId) return res.status(400).json({ error: "campaignId or campaignResource is required" });
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const demographics = await GoogleAdsDemographicsService.getCampaignDemographics(
+      orgId,
+      customerId,
+      campaignId
+    );
+
+    res.status(200).json({ success: true, demographics });
+  } catch (error: any) {
+    console.error("[GET /api/ads/demographics] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to fetch demographic targeting" });
+  }
+});
+
+/**
+ * POST /api/ads/demographics
+ * Add a campaign-level demographic exclusion criterion.
+ */
+router.post("/demographics", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { campaignId, dimension, typeValue, negative } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!campaignId || !dimension || !typeValue) {
+      return res.status(400).json({ error: "campaignId, dimension, and typeValue are required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsDemographicsService.addDemographicCriterion(
+      orgId,
+      customerId,
+      {
+        campaignId,
+        dimension,
+        typeValue,
+        negative: negative !== undefined ? Boolean(negative) : true
+      }
+    );
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/demographics] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to add demographic criterion" });
+  }
+});
+
+/**
+ * DELETE /api/ads/demographics
+ * Remove an existing demographic criterion from a campaign.
+ */
+router.delete("/demographics", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const resourceName = (req.query.resourceName || req.body.resourceName) as string;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsDemographicsService.removeDemographicCriterion(
+      orgId,
+      customerId,
+      resourceName
+    );
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[DELETE /api/ads/demographics] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to remove demographic criterion" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CAMPAIGN CONTENT TARGETING ROUTES: PLACEMENTS & TOPICS (Google Ads API v24)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ads/content-targeting
+ * Fetch customer-scoped Placement and Topic criteria for a selected campaign.
+ */
+router.get("/content-targeting", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const campaignId = (req.query.campaignId || req.query.campaignResource) as string;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!campaignId) return res.status(400).json({ error: "campaignId or campaignResource is required" });
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const contentTargeting = await GoogleAdsContentTargetingService.getCampaignContentTargeting(
+      orgId,
+      customerId,
+      campaignId
+    );
+
+    res.status(200).json({ success: true, contentTargeting });
+  } catch (error: any) {
+    console.error("[GET /api/ads/content-targeting] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to fetch content targeting" });
+  }
+});
+
+/**
+ * POST /api/ads/content-targeting/placement
+ * Add a campaign-level placement exclusion criterion.
+ */
+router.post("/content-targeting/placement", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { campaignId, url, negative } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!campaignId || !url) {
+      return res.status(400).json({ error: "campaignId and url are required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsContentTargetingService.addPlacementCriterion(
+      orgId,
+      customerId,
+      {
+        campaignId,
+        url,
+        negative: negative !== undefined ? Boolean(negative) : true
+      }
+    );
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/content-targeting/placement] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to add placement criterion" });
+  }
+});
+
+/**
+ * POST /api/ads/content-targeting/topic
+ * Add a campaign-level topic exclusion criterion.
+ */
+router.post("/content-targeting/topic", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { campaignId, topicConstantOrId, negative } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!campaignId || !topicConstantOrId) {
+      return res.status(400).json({ error: "campaignId and topicConstantOrId are required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsContentTargetingService.addTopicCriterion(
+      orgId,
+      customerId,
+      {
+        campaignId,
+        topicConstantOrId,
+        negative: negative !== undefined ? Boolean(negative) : true
+      }
+    );
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/content-targeting/topic] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to add topic criterion" });
+  }
+});
+
+/**
+ * DELETE /api/ads/content-targeting
+ * Remove an existing placement or topic criterion from a campaign.
+ */
+router.delete("/content-targeting", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const resourceName = (req.query.resourceName || req.body.resourceName) as string;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsContentTargetingService.removeContentCriterion(
+      orgId,
+      customerId,
+      resourceName
+    );
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[DELETE /api/ads/content-targeting] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to remove content criterion" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KEYWORD TARGETING MANAGEMENT ROUTES (Google Ads API v24)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ads/keyword-targeting
+ * Retrieve keywords (positive & negative) across campaign and ad-groups with ownership validation.
+ */
+router.get("/keyword-targeting", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const campaignId = (req.query.campaignId || req.query.campaignResource) as string;
+    const adGroupId = req.query.adGroupId as string | undefined;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!campaignId) return res.status(400).json({ error: "campaignId is required" });
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const data = await GoogleAdsKeywordTargetingService.getCampaignKeywords(
+      orgId,
+      customerId,
+      campaignId,
+      adGroupId
+    );
+
+    res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    console.error("[GET /api/ads/keyword-targeting] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to fetch keyword targeting" });
+  }
+});
+
+/**
+ * POST /api/ads/keyword-targeting
+ * Create a positive or negative keyword in an Ad Group or Campaign.
+ */
+router.post("/keyword-targeting", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { campaignId, adGroupId, adGroupResourceName, text, matchType, isNegative, scope, cpcBid } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!campaignId || !text || !matchType) {
+      return res.status(400).json({ error: "campaignId, text, and matchType are required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsKeywordTargetingService.addKeyword(
+      orgId,
+      customerId,
+      {
+        campaignId,
+        adGroupId,
+        adGroupResourceName,
+        text,
+        matchType,
+        isNegative,
+        scope: scope || "AD_GROUP",
+        cpcBid
+      }
+    );
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/keyword-targeting] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to add keyword" });
+  }
+});
+
+/**
+ * PATCH /api/ads/keyword-targeting
+ * Update an existing keyword status (ENABLED / PAUSED) or cpcBid.
+ */
+router.patch("/keyword-targeting", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { resourceName, status, cpcBid } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsKeywordTargetingService.updateKeyword(
+      orgId,
+      customerId,
+      resourceName,
+      { status, cpcBid }
+    );
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[PATCH /api/ads/keyword-targeting] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to update keyword" });
+  }
+});
+
+/**
+ * DELETE /api/ads/keyword-targeting
+ * Remove a keyword criterion from Google Ads.
+ */
+router.delete("/keyword-targeting", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const resourceName = (req.query.resourceName || req.body.resourceName) as string;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsKeywordTargetingService.removeKeyword(
+      orgId,
+      customerId,
+      resourceName
+    );
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[DELETE /api/ads/keyword-targeting] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to remove keyword" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CAMPAIGN AD SCHEDULE MANAGEMENT ROUTES (Google Ads API v24)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ads/ad-schedules
+ * Fetch existing ad schedule criteria (serving hours) for a campaign.
+ */
+router.get("/ad-schedules", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const campaignId = req.query.campaignId as string;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!campaignId) return res.status(400).json({ error: "campaignId is required" });
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const data = await GoogleAdsAdScheduleService.getCampaignAdSchedules(orgId, customerId, campaignId);
+    res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    console.error("[GET /api/ads/ad-schedules] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to fetch ad schedules" });
+  }
+});
+
+/**
+ * POST /api/ads/ad-schedules
+ * Create a new ad schedule criterion for a campaign.
+ */
+router.post("/ad-schedules", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { campaignId, dayOfWeek, startHour, startMinute, endHour, endMinute, bidModifier } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!campaignId || !dayOfWeek) {
+      return res.status(400).json({ error: "campaignId and dayOfWeek are required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsAdScheduleService.addAdSchedule(orgId, customerId, {
+      campaignId,
+      dayOfWeek,
+      startHour: Number(startHour ?? 0),
+      startMinute: startMinute || "ZERO",
+      endHour: Number(endHour ?? 24),
+      endMinute: endMinute || "ZERO",
+      bidModifier: bidModifier !== undefined ? Number(bidModifier) : undefined
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/ad-schedules] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create ad schedule" });
+  }
+});
+
+/**
+ * PATCH /api/ads/ad-schedules
+ * Update an existing ad schedule criterion.
+ */
+router.patch("/ad-schedules", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { resourceName, campaignId, dayOfWeek, startHour, startMinute, endHour, endMinute, bidModifier } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsAdScheduleService.updateAdSchedule(orgId, customerId, {
+      resourceName,
+      campaignId,
+      dayOfWeek,
+      startHour: startHour !== undefined ? Number(startHour) : undefined,
+      startMinute,
+      endHour: endHour !== undefined ? Number(endHour) : undefined,
+      endMinute,
+      bidModifier: bidModifier !== undefined ? Number(bidModifier) : undefined
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[PATCH /api/ads/ad-schedules] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to update ad schedule" });
+  }
+});
+
+/**
+ * DELETE /api/ads/ad-schedules
+ * Remove an ad schedule criterion from a campaign.
+ */
+router.delete("/ad-schedules", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const resourceName = (req.query.resourceName || req.body.resourceName) as string;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!resourceName) return res.status(400).json({ error: "resourceName is required" });
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const result = await GoogleAdsAdScheduleService.removeAdSchedule(orgId, customerId, resourceName);
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[DELETE /api/ads/ad-schedules] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to remove ad schedule" });
   }
 });
 

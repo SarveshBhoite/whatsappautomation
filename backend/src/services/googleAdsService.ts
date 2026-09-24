@@ -440,17 +440,119 @@ export class GoogleAdsService {
   }
 
   public static async updateCampaign(organizationId: string, customerId: string, campaignResourceName: string, updates: {
-    name?: string; status?: string; endDate?: string;
+    name?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string | null;
+    biddingStrategy?: string;
+    targetCpaMicros?: number;
+    targetRoas?: number;
+    networkSettings?: {
+      targetGoogleSearch?: boolean;
+      targetSearchNetwork?: boolean;
+      targetContentNetwork?: boolean;
+      targetPartnerSearchNetwork?: boolean;
+    };
+    geoTargetTypeSetting?: {
+      positiveGeoTargetType?: "PRESENCE" | "PRESENCE_OR_INTEREST";
+      negativeGeoTargetType?: "PRESENCE";
+    };
+    trackingUrlTemplate?: string | null;
+    finalUrlSuffix?: string | null;
+    channelType?: string;
   }) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
     const updateObj: any = { resourceName: campaignResourceName };
     const maskFields: string[] = [];
-    if (updates.name) { updateObj.name = updates.name; maskFields.push("name"); }
-    if (updates.status) { updateObj.status = updates.status; maskFields.push("status"); }
-    if (updates.endDate) {
-      const endDateTime = updates.endDate.includes(" ") ? updates.endDate : `${updates.endDate} 23:59:59`;
-      updateObj.endDateTime = endDateTime;
-      maskFields.push("endDateTime");
+
+    if (updates.name !== undefined && updates.name.trim()) {
+      updateObj.name = updates.name.trim();
+      maskFields.push("name");
+    }
+
+    if (updates.status !== undefined && ["ENABLED", "PAUSED"].includes(updates.status)) {
+      updateObj.status = updates.status;
+      maskFields.push("status");
+    }
+
+    if (updates.startDate) {
+      const startDateTime = updates.startDate.includes(" ") ? updates.startDate : `${updates.startDate} 00:00:00`;
+      updateObj.startDateTime = startDateTime;
+      maskFields.push("startDateTime");
+    }
+
+    if (updates.endDate !== undefined) {
+      if (updates.endDate === null || updates.endDate === "") {
+        // Clear end date if null or empty string
+        updateObj.endDateTime = null;
+        maskFields.push("endDateTime");
+      } else {
+        const endDateTime = updates.endDate.includes(" ") ? updates.endDate : `${updates.endDate} 23:59:59`;
+        updateObj.endDateTime = endDateTime;
+        maskFields.push("endDateTime");
+      }
+    }
+
+    // Network settings: only allowed for non-Performance Max campaigns
+    const isPMax = updates.channelType === "PERFORMANCE_MAX";
+    if (!isPMax && updates.networkSettings) {
+      updateObj.networkSettings = {
+        targetGoogleSearch: updates.networkSettings.targetGoogleSearch !== false,
+        targetSearchNetwork: updates.networkSettings.targetSearchNetwork !== false,
+        targetContentNetwork: updates.networkSettings.targetContentNetwork === true,
+        targetPartnerSearchNetwork: updates.networkSettings.targetPartnerSearchNetwork === true
+      };
+      maskFields.push("networkSettings.targetGoogleSearch");
+      maskFields.push("networkSettings.targetSearchNetwork");
+      maskFields.push("networkSettings.targetContentNetwork");
+      maskFields.push("networkSettings.targetPartnerSearchNetwork");
+    }
+
+    // Geo Target Type Setting (Presence vs Presence or Interest)
+    if (updates.geoTargetTypeSetting) {
+      updateObj.geoTargetTypeSetting = {
+        positiveGeoTargetType: updates.geoTargetTypeSetting.positiveGeoTargetType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST",
+        negativeGeoTargetType: "PRESENCE"
+      };
+      maskFields.push("geoTargetTypeSetting.positiveGeoTargetType");
+      maskFields.push("geoTargetTypeSetting.negativeGeoTargetType");
+    }
+
+    // Tracking Template
+    if (updates.trackingUrlTemplate !== undefined) {
+      updateObj.trackingUrlTemplate = updates.trackingUrlTemplate || "";
+      maskFields.push("trackingUrlTemplate");
+    }
+
+    // Final URL Suffix
+    if (updates.finalUrlSuffix !== undefined) {
+      updateObj.finalUrlSuffix = updates.finalUrlSuffix || "";
+      maskFields.push("finalUrlSuffix");
+    }
+
+    // Bidding strategy updates
+    if (updates.biddingStrategy) {
+      const strat = updates.biddingStrategy.toUpperCase().replace(/\s+/g, "_");
+      if (strat.includes("MAXIMIZE_CONVERSIONS") || strat === "TARGET_CPA") {
+        const cpa = updates.targetCpaMicros && updates.targetCpaMicros > 0 ? String(updates.targetCpaMicros) : undefined;
+        updateObj.maximizeConversions = cpa ? { targetCpaMicros: cpa } : {};
+        maskFields.push("maximizeConversions");
+      } else if (strat.includes("MAXIMIZE_CONVERSION_VALUE") || strat === "TARGET_ROAS") {
+        const rawRoas = updates.targetRoas && Number(updates.targetRoas) > 0 ? Number(updates.targetRoas) : undefined;
+        const validRoas = rawRoas ? (rawRoas > 10 ? rawRoas / 100 : rawRoas) : undefined;
+        updateObj.maximizeConversionValue = validRoas ? { targetRoas: validRoas } : {};
+        maskFields.push("maximizeConversionValue");
+      } else if (strat.includes("MAXIMIZE_CLICKS") && !isPMax) {
+        updateObj.targetSpend = {};
+        maskFields.push("targetSpend");
+      } else if (strat.includes("MANUAL_CPC") && !isPMax) {
+        updateObj.manualCpc = { enhancedCpcEnabled: false };
+        maskFields.push("manualCpc");
+      }
+    }
+
+    if (maskFields.length === 0) {
+      return { message: "No update fields specified" };
     }
 
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaigns:mutate`, {

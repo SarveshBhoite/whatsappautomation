@@ -10,9 +10,26 @@ import {
   Activity, Calendar, Filter, Download, Bot, Settings, Users,
   Layers, FileText, TrendingDown, Award, Star, RotateCcw, 
   Building2, Check, Minus, BadgePercent, ShieldCheck, MessageSquare,
-  Copy, ExternalLink, Sliders, LogOut, History, User
+  Copy, ExternalLink, Sliders, LogOut, History, User, ShieldAlert,
+  ShoppingBag, FlaskConical, Database, CreditCard
 } from "lucide-react";
 import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
+import { AssetPolicyDisapprovalsSection } from "@/components/ads/AssetPolicyDisapprovalsSection";
+import { GoogleAdsAssetsSection } from "@/components/ads/GoogleAdsAssetsSection";
+import { GoogleAdsAudienceSection } from "@/components/ads/GoogleAdsAudienceSection";
+import { GoogleAdsBiddingSection } from "@/components/ads/GoogleAdsBiddingSection";
+import { GoogleAdsReportingSection } from "@/components/ads/GoogleAdsReportingSection";
+import { GoogleAdsShoppingSection } from "@/components/ads/GoogleAdsShoppingSection";
+import { GoogleAdsExperimentsSection } from "@/components/ads/GoogleAdsExperimentsSection";
+import { GoogleAdsDataManagerSection } from "@/components/ads/GoogleAdsDataManagerSection";
+import { GoogleAdsBillingSection } from "@/components/ads/GoogleAdsBillingSection";
+import { GoogleAdsAssetGroupsSection } from "@/components/ads/GoogleAdsAssetGroupsSection";
+import { GoogleAdsBidAdjustmentsSection } from "@/components/ads/GoogleAdsBidAdjustmentsSection";
+import { GoogleAdsDemographicsSection } from "@/components/ads/GoogleAdsDemographicsSection";
+import { GoogleAdsContentTargetingSection } from "@/components/ads/GoogleAdsContentTargetingSection";
+import { GoogleAdsKeywordTargetingSection } from "@/components/ads/GoogleAdsKeywordTargetingSection";
+import { GoogleAdsSearchTermsSection } from "@/components/ads/GoogleAdsSearchTermsSection";
+import { GoogleAdsAdScheduleSection } from "@/components/ads/GoogleAdsAdScheduleSection";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -450,21 +467,28 @@ function AccountPickerScreen({
 // ─────────────────────────────────────────────────────────────────────────────
 // TABS
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "overview" | "recommendations" | "campaigns" | "ad-groups" | "ads" | "keywords" | "extensions" | "conversions" | "audiences" | "reports" | "history" | "settings";
+type Tab = "overview" | "recommendations" | "campaigns" | "ad-groups" | "asset-groups" | "ads" | "policy-disapprovals" | "keywords" | "extensions" | "conversions" | "bidding" | "audiences" | "shopping" | "experiments" | "data-manager" | "reports" | "history" | "billing" | "settings";
 
 const TABS: { id: Tab; label: string; icon: any }[] = [
-  { id: "overview",         label: "Overview",         icon: LayoutGrid    },
-  { id: "recommendations",  label: "Recommendations",  icon: Sparkles      },
-  { id: "campaigns",        label: "Campaigns",        icon: Megaphone     },
-  { id: "ad-groups",        label: "Ad Groups",        icon: Layers        },
-  { id: "ads",              label: "Ads",              icon: FileText      },
-  { id: "keywords",         label: "Keywords",         icon: Tag           },
-  { id: "extensions",       label: "Extensions",       icon: Link2         },
-  { id: "conversions",      label: "Conversions",      icon: Target        },
-  { id: "audiences",        label: "Audiences",        icon: Users         },
-  { id: "reports",          label: "Reports",          icon: BarChart2     },
-  { id: "history",          label: "Change History",   icon: History       },
-  { id: "settings",         label: "Settings",         icon: Settings      },
+  { id: "overview",             label: "Overview",             icon: LayoutGrid    },
+  { id: "recommendations",      label: "Recommendations",      icon: Sparkles      },
+  { id: "campaigns",            label: "Campaigns",            icon: Megaphone     },
+  { id: "ad-groups",            label: "Ad Groups",            icon: Layers        },
+  { id: "asset-groups",         label: "Asset Groups (PMax)",  icon: Layers        },
+  { id: "ads",                  label: "Ads",                  icon: FileText      },
+  { id: "policy-disapprovals",  label: "Policy & Disapprovals", icon: ShieldAlert  },
+  { id: "keywords",             label: "Keywords",             icon: Tag           },
+  { id: "extensions",           label: "Assets & Extensions",  icon: Link2         },
+  { id: "conversions",          label: "Conversions",          icon: Target        },
+  { id: "bidding",              label: "Bidding Strategies",   icon: TrendingUp    },
+  { id: "audiences",            label: "Audiences",            icon: Users         },
+  { id: "shopping",             label: "Shopping",             icon: ShoppingBag   },
+  { id: "experiments",          label: "Experiments",          icon: FlaskConical  },
+  { id: "data-manager",         label: "Data Manager",         icon: Database      },
+  { id: "reports",              label: "Reports",              icon: BarChart2     },
+  { id: "history",              label: "Change History",       icon: History       },
+  { id: "billing",              label: "Billing",              icon: CreditCard    },
+  { id: "settings",             label: "Settings",             icon: Settings      },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -875,12 +899,23 @@ export default function GoogleAdsPage() {
   const [selectedCampaignDetails, setSelectedCampaignDetails] = useState<any>(null);
   const [activeDetailsTab, setActiveDetailsTab] = useState<"info" | "assets" | "targeting" | "all" | "ad-groups" | "ads" | "keywords" | "ai">("info");
   const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [detailLoadingLive, setDetailLoadingLive] = useState(false);
+  const [detailError, setDetailError] = useState("");
   const [detailName, setDetailName] = useState("");
   const [detailBudget, setDetailBudget] = useState(500);
   const [detailStatus, setDetailStatus] = useState("PAUSED");
+  const [detailStartDate, setDetailStartDate] = useState("");
   const [detailEndDate, setDetailEndDate] = useState("");
   const [detailFinalUrl, setDetailFinalUrl] = useState("");
   const [detailBiddingStrategy, setDetailBiddingStrategy] = useState("");
+  const [detailTargetCpa, setDetailTargetCpa] = useState<number | string>("");
+  const [detailTargetRoas, setDetailTargetRoas] = useState<number | string>("");
+  const [detailNetworkSearch, setDetailNetworkSearch] = useState(true);
+  const [detailNetworkSearchPartners, setDetailNetworkSearchPartners] = useState(false);
+  const [detailNetworkDisplay, setDetailNetworkDisplay] = useState(false);
+  const [detailPositiveGeoTargetType, setDetailPositiveGeoTargetType] = useState<"PRESENCE" | "PRESENCE_OR_INTEREST">("PRESENCE_OR_INTEREST");
+  const [detailTrackingUrlTemplate, setDetailTrackingUrlTemplate] = useState("");
+  const [detailFinalUrlSuffix, setDetailFinalUrlSuffix] = useState("");
   const [newHeadlineInput, setNewHeadlineInput] = useState("");
   const [newDescInput, setNewDescInput] = useState("");
   const [newKeywordInput, setNewKeywordInput] = useState("");
@@ -1305,40 +1340,128 @@ export default function GoogleAdsPage() {
     } catch (e: any) { showToast(`Analysis failed: ${e.message}`); setShowAnalysis(false); } finally { setAnalyzing(false); }
   }
 
+  const openEditCampaignModal = async (c: any, tab: "info" | "assets" | "targeting" | "all" = "info") => {
+    setSelectedCampaignDetails(c);
+    setActiveDetailsTab(tab);
+    setDetailError("");
+    setDetailName(c.name || "");
+    setDetailBudget(c.budget || (c.live?.budgetDailyAmount) || 500);
+    setDetailStatus(c.liveStatus || c.status || "PAUSED");
+    setDetailStartDate(c.startDate ? new Date(c.startDate).toISOString().split("T")[0] : "");
+    setDetailEndDate(c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "");
+    setDetailFinalUrl(c.finalUrl || "");
+    setDetailBiddingStrategy(c.biddingStrategy || c.live?.biddingStrategyType || "Maximize conversions");
+    setDetailTargetCpa(c.live?.targetCpaMicros ? c.live.targetCpaMicros / 1_000_000 : "");
+    setDetailTargetRoas(c.live?.targetRoas ? c.live.targetRoas : "");
+    setDetailNetworkSearch(c.live?.networkSettings?.targetGoogleSearch !== false);
+    setDetailNetworkSearchPartners(c.live?.networkSettings?.targetPartnerSearchNetwork === true);
+    setDetailNetworkDisplay(c.live?.networkSettings?.targetContentNetwork === true);
+    setDetailPositiveGeoTargetType(c.live?.geoTargetTypeSetting?.positiveGeoTargetType || "PRESENCE_OR_INTEREST");
+    setDetailTrackingUrlTemplate(c.live?.trackingUrlTemplate || "");
+    setDetailFinalUrlSuffix(c.live?.finalUrlSuffix || "");
+    setEditingParamField(null);
+
+    // Fetch fresh Google Ads API v24 data for this campaign if saved
+    if (c.id) {
+      setDetailLoadingLive(true);
+      try {
+        const res = await api(`/campaigns/${c.id}?customerId=${selectedCustomerId}&orgId=${orgId}`);
+        if (res.ok) {
+          const freshData = await res.json();
+          setSelectedCampaignDetails(freshData);
+          if (freshData.name) setDetailName(freshData.name);
+          if (freshData.budget) setDetailBudget(freshData.budget);
+          if (freshData.status) setDetailStatus(freshData.status);
+          if (freshData.startDate) setDetailStartDate(new Date(freshData.startDate).toISOString().split("T")[0]);
+          if (freshData.endDate) setDetailEndDate(new Date(freshData.endDate).toISOString().split("T")[0]);
+          if (freshData.finalUrl) setDetailFinalUrl(freshData.finalUrl);
+          if (freshData.biddingStrategy) setDetailBiddingStrategy(freshData.biddingStrategy);
+
+          const live = freshData.live;
+          if (live) {
+            if (live.name) setDetailName(live.name);
+            if (live.status) setDetailStatus(live.status);
+            if (live.budgetDailyAmount) setDetailBudget(live.budgetDailyAmount);
+            if (live.startDateTime) setDetailStartDate(live.startDateTime.split(" ")[0]);
+            if (live.endDateTime) setDetailEndDate(live.endDateTime.split(" ")[0]);
+            if (live.biddingStrategyType) setDetailBiddingStrategy(live.biddingStrategyType);
+            if (live.targetCpaMicros) setDetailTargetCpa(live.targetCpaMicros / 1_000_000);
+            if (live.targetRoas) setDetailTargetRoas(live.targetRoas);
+            if (live.networkSettings) {
+              setDetailNetworkSearch(live.networkSettings.targetGoogleSearch !== false);
+              setDetailNetworkSearchPartners(live.networkSettings.targetPartnerSearchNetwork === true);
+              setDetailNetworkDisplay(live.networkSettings.targetContentNetwork === true);
+            }
+            if (live.geoTargetTypeSetting?.positiveGeoTargetType) {
+              setDetailPositiveGeoTargetType(live.geoTargetTypeSetting.positiveGeoTargetType);
+            }
+            if (live.trackingUrlTemplate !== undefined) setDetailTrackingUrlTemplate(live.trackingUrlTemplate || "");
+            if (live.finalUrlSuffix !== undefined) setDetailFinalUrlSuffix(live.finalUrlSuffix || "");
+          }
+        }
+      } catch (fErr: any) {
+        console.warn("Could not refresh campaign live data:", fErr.message);
+      } finally {
+        setDetailLoadingLive(false);
+      }
+    }
+  };
+
   async function saveCampaignDetails() {
     if (!selectedCampaignDetails || !detailName.trim()) { showToast("Campaign name is required"); return; }
     setIsSavingDetails(true);
+    setDetailError("");
     try {
+      const payload: any = {
+        orgId,
+        customerId: selectedCustomerId,
+        name: detailName.trim(),
+        budget: Number(detailBudget) || undefined,
+        status: detailStatus,
+        startDate: detailStartDate || undefined,
+        endDate: detailEndDate || null,
+        finalUrl: detailFinalUrl || undefined,
+        biddingStrategy: detailBiddingStrategy || undefined,
+        targetCpa: detailTargetCpa !== "" ? Number(detailTargetCpa) : undefined,
+        targetRoas: detailTargetRoas !== "" ? Number(detailTargetRoas) : undefined,
+        networkSettings: {
+          targetGoogleSearch: detailNetworkSearch,
+          targetSearchNetwork: detailNetworkSearch,
+          targetContentNetwork: detailNetworkDisplay,
+          targetPartnerSearchNetwork: detailNetworkSearchPartners
+        },
+        geoTargetTypeSetting: {
+          positiveGeoTargetType: detailPositiveGeoTargetType,
+          negativeGeoTargetType: "PRESENCE"
+        },
+        trackingUrlTemplate: detailTrackingUrlTemplate,
+        finalUrlSuffix: detailFinalUrlSuffix
+      };
+
       const res = await api(`/campaigns/${selectedCampaignDetails.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orgId,
-          customerId: selectedCustomerId,
-          name: detailName.trim(),
-          budget: Number(detailBudget) || undefined,
-          status: detailStatus,
-          endDate: detailEndDate || undefined,
-          finalUrl: detailFinalUrl || undefined,
-          biddingStrategy: detailBiddingStrategy || undefined
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Update failed");
-      showToast("Campaign settings updated live ✓");
+      showToast("Campaign settings updated live in Google Ads ✓");
       setSelectedCampaignDetails((prev: any) => ({
         ...prev,
         name: detailName.trim(),
         budget: Number(detailBudget) || prev.budget,
         status: detailStatus,
         liveStatus: detailStatus,
+        startDate: detailStartDate ? new Date(detailStartDate) : prev.startDate,
         endDate: detailEndDate ? new Date(detailEndDate) : null,
         finalUrl: detailFinalUrl,
         biddingStrategy: detailBiddingStrategy
       }));
       loadCampaigns(selectedCustomerId);
     } catch (e: any) {
-      showToast(`Error: ${e.message}`);
+      const msg = e.message || "Failed to update campaign";
+      setDetailError(msg);
+      showToast(`Error: ${msg}`);
     } finally {
       setIsSavingDetails(false);
     }
@@ -2030,17 +2153,7 @@ export default function GoogleAdsPage() {
                           <tr key={c.id} className="hover:bg-slate-50/80 transition-all group">
                             <td className="p-4 min-w-[180px]">
                               <button
-                                onClick={() => {
-                                  setSelectedCampaignDetails(c);
-                                  setActiveDetailsTab("info");
-                                  setDetailName(c.name || "");
-                                  setDetailBudget(c.budget || 500);
-                                  setDetailStatus(c.liveStatus || c.status || "PAUSED");
-                                  setDetailEndDate(c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "");
-                                  setDetailFinalUrl(c.finalUrl || "");
-                                  setDetailBiddingStrategy(c.biddingStrategy || "Maximize conversions");
-                                  setEditingParamField(null);
-                                }}
+                                onClick={() => openEditCampaignModal(c, "info")}
                                 className="font-bold text-blue-600 hover:text-blue-800 hover:underline text-left text-xs truncate max-w-[200px] block focus:outline-none cursor-pointer"
                               >
                                 {c.name}
@@ -2058,21 +2171,12 @@ export default function GoogleAdsPage() {
                             <td className="p-4">
                               <div className="flex items-center gap-1">
                                 <button
-                                  onClick={() => {
-                                    setSelectedCampaignDetails(c);
-                                    setActiveDetailsTab("info");
-                                    setDetailName(c.name || "");
-                                    setDetailBudget(c.budget || 500);
-                                    setDetailStatus(c.liveStatus || c.status || "PAUSED");
-                                    setDetailEndDate(c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "");
-                                    setDetailFinalUrl(c.finalUrl || "");
-                                    setDetailBiddingStrategy(c.biddingStrategy || "Maximize conversions");
-                                    setEditingParamField(null);
-                                  }}
-                                  title="View Details & Settings"
-                                  className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
+                                  onClick={() => openEditCampaignModal(c, "info")}
+                                  title="Edit Campaign Settings"
+                                  className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-all cursor-pointer flex items-center gap-1 font-semibold text-[11px]"
                                 >
                                   <Edit3 className="h-3.5 w-3.5" />
+                                  <span className="hidden sm:inline">Edit</span>
                                 </button>
                                 <button
                                   onClick={() => toggleCampaign(c)}
@@ -2184,99 +2288,56 @@ export default function GoogleAdsPage() {
 
           {/* ══ KEYWORDS TAB ══ */}
           {activeTab === "keywords" && (
-            <>
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                  <input
-                    value={kwSearch}
-                    onChange={e => setKwSearch(e.target.value)}
-                    placeholder="Search keywords..."
-                    className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => loadKeywords(selectedCustomerId)}
-                    className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => setShowAddKeyword(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
-                  >
-                    <Plus className="h-4 w-4" /> Add Keywords
-                  </button>
-                </div>
-              </div>
+            <div className="space-y-6">
+              <GoogleAdsKeywordTargetingSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+                campaigns={campaigns.map((c: any) => ({
+                  id: String(c.id),
+                  name: c.name,
+                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
+                  campaignType: c.campaignType || c.advertisingChannelType
+                }))}
+              />
+            </div>
+          )}
+
+          {/* ══ EXTENSIONS / ASSETS TAB ══ */}
+          {activeTab === "extensions" && (
+            <div className="space-y-6">
+              <GoogleAdsAssetsSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+                campaigns={campaigns.map((c: any) => ({
+                  id: String(c.id),
+                  name: c.name,
+                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`
+                }))}
+              />
 
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
-                {kwLoading ? (
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Link2 className="h-4 w-4 text-blue-600" />Legacy Campaign Ad Assets &amp; Sitelinks <span className="text-slate-500 font-normal">({extensions.length})</span></h2>
+                  <button onClick={() => loadExtensions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                </div>
+                {extLoading ? (
                   <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
-                ) : filteredKw.length === 0 ? (
-                  <EmptyState icon={Tag} title="No keywords found" sub="Add keywords to trigger your ads on Google searches." action="Add Keywords" onAction={() => setShowAddKeyword(true)} />
+                ) : extensions.length === 0 ? (
+                  <EmptyState icon={Link2} title="No legacy extensions" sub="All new extensions can be created and managed in the Structured Snippets, Promotions, and Lead Forms sections above." />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
-                          {["Keyword", "Match Type", "Category", "Status", "Ad Group", "Actions"].map(h => (
-                            <th key={h} className="p-4">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {filteredKw.map(kw => (
-                          <tr key={kw.id} className="hover:bg-slate-50/80 transition-all">
-                            <td className="p-4 font-bold text-slate-900">{kw.text}</td>
-                            <td className="p-4"><span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-700">{kw.matchType}</span></td>
-                            <td className="p-4">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${kw.isNegative ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
-                                {kw.isNegative ? "Negative" : "Positive"}
-                              </span>
-                            </td>
-                            <td className="p-4"><Pill status={kw.status} /></td>
-                            <td className="p-4 text-slate-600">{kw.adGroupName}</td>
-                            <td className="p-4">
-                              <button onClick={() => deleteKeyword(kw)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-all cursor-pointer">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="divide-y divide-slate-100">
+                    {extensions.map(ext => (
+                      <div key={ext.id} className="p-4 hover:bg-slate-50/80 transition-all flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-slate-900 text-xs">{ext.text || ext.name}</p>
+                          <p className="text-[11px] text-slate-500 font-mono mt-0.5">{ext.type} · {ext.url || "No link"}</p>
+                        </div>
+                        <Pill status={ext.status || "ENABLED"} />
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
-            </>
-          )}
-
-          {/* ══ EXTENSIONS TAB ══ */}
-          {activeTab === "extensions" && (
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Link2 className="h-4 w-4 text-blue-600" />Ad Assets &amp; Extensions <span className="text-slate-500 font-normal">({extensions.length})</span></h2>
-                <button onClick={() => loadExtensions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
-              </div>
-              {extLoading ? (
-                <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
-              ) : extensions.length === 0 ? (
-                <EmptyState icon={Link2} title="No extensions" sub="Extensions add extra information to your ads like sitelinks and callouts." />
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {extensions.map(ext => (
-                    <div key={ext.id} className="p-4 hover:bg-slate-50/80 transition-all flex items-center justify-between">
-                      <div>
-                        <p className="font-bold text-slate-900 text-xs">{ext.text || ext.name}</p>
-                        <p className="text-[11px] text-slate-500 font-mono mt-0.5">{ext.type} · {ext.url || "No link"}</p>
-                      </div>
-                      <Pill status={ext.status || "ENABLED"} />
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 
@@ -2315,72 +2376,126 @@ export default function GoogleAdsPage() {
             </div>
           )}
 
+          {/* ══ BIDDING STRATEGIES & BID ADJUSTMENTS TAB ══ */}
+          {activeTab === "bidding" && (
+            <div className="space-y-6">
+              <GoogleAdsBiddingSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+                campaigns={campaigns.map((c: any) => ({
+                  id: String(c.id),
+                  name: c.name,
+                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`
+                }))}
+              />
+
+              <GoogleAdsBidAdjustmentsSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+                campaigns={campaigns.map((c: any) => ({
+                  id: String(c.id),
+                  name: c.name,
+                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
+                  campaignType: c.campaignType || c.advertisingChannelType
+                }))}
+              />
+
+              <GoogleAdsAdScheduleSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+                campaigns={campaigns.map((c: any) => ({
+                  id: String(c.id),
+                  name: c.name,
+                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
+                  campaignType: c.campaignType || c.advertisingChannelType
+                }))}
+              />
+            </div>
+          )}
+
           {/* ══ AUDIENCES TAB ══ */}
           {activeTab === "audiences" && (
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Users className="h-4 w-4 text-purple-600" />Audiences <span className="text-slate-500 font-normal">({audiences.length})</span></h2>
-                <button onClick={() => loadAudiences(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
-              </div>
-              {audLoading ? (
-                <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
-              ) : audiences.length === 0 ? (
-                <EmptyState icon={Users} title="No audiences" sub="Audiences help you reach people who have visited your site or match specific interests." />
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {audiences.map((aud: any) => (
-                    <div key={aud.id} className="p-4 flex items-center gap-4 hover:bg-slate-50/80 transition-all">
-                      <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 flex items-center justify-center shrink-0 font-bold"><Users className="h-5 w-5" /></div>
-                      <div className="flex-1">
-                        <p className="font-bold text-slate-900 text-xs">{aud.name}</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{aud.type} · {aud.description || "—"}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-bold text-slate-900">{aud.sizeForSearch ? Number(aud.sizeForSearch).toLocaleString() : "—"}</p>
-                        <p className="text-[10px] text-slate-500">Search size</p>
-                      </div>
-                      <Pill status={aud.membershipStatus || "OPEN"} />
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="space-y-6">
+              <GoogleAdsDemographicsSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+                campaigns={campaigns.map((c: any) => ({
+                  id: String(c.id),
+                  name: c.name,
+                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
+                  campaignType: c.campaignType || c.advertisingChannelType
+                }))}
+              />
+
+              <GoogleAdsContentTargetingSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+                campaigns={campaigns.map((c: any) => ({
+                  id: String(c.id),
+                  name: c.name,
+                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
+                  campaignType: c.campaignType || c.advertisingChannelType
+                }))}
+              />
+
+              <GoogleAdsAudienceSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+                legacyAudiences={audiences}
+              />
+            </div>
+          )}
+
+          {/* ══ SHOPPING TAB (PRODUCT DIAGNOSTICS & LISTING GROUPS) ══ */}
+          {activeTab === "shopping" && (
+            <div className="space-y-6">
+              <GoogleAdsShoppingSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+              />
+            </div>
+          )}
+
+          {/* ══ EXPERIMENTS TAB (A/B TESTING) ══ */}
+          {activeTab === "experiments" && (
+            <div className="space-y-6">
+              <GoogleAdsExperimentsSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+              />
+            </div>
+          )}
+
+          {/* ══ DATA MANAGER TAB (FIRST-PARTY & OFFLINE DATA) ══ */}
+          {activeTab === "data-manager" && (
+            <div className="space-y-6">
+              <GoogleAdsDataManagerSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+              />
             </div>
           )}
 
           {/* ══ REPORTS TAB ══ */}
           {activeTab === "reports" && (
             <div className="space-y-6">
-              {/* Search Terms Report */}
-              <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
-                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                  <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Search className="h-4 w-4 text-blue-600" />Search Terms Report <span className="text-slate-500 font-normal">({searchTerms.length})</span></h2>
-                  <button onClick={() => loadReports(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
-                </div>
-                {searchTerms.length === 0 ? (
-                  <EmptyState icon={Search} title="No search terms data" sub="Search term reports show what users searched to trigger your ads." />
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead><tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">{["Search Term", "Campaign", "Ad Group", "Status", "Impressions", "Clicks", "CTR", "Spend", "Conv."].map(h => <th key={h} className="p-4">{h}</th>)}</tr></thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {searchTerms.map((st: any, i: number) => (
-                          <tr key={i} className="hover:bg-slate-50/80 transition-all">
-                            <td className="p-4 font-bold text-slate-900">{st.searchTerm}</td>
-                            <td className="p-4 text-slate-600">{st.campaignName}</td>
-                            <td className="p-4 text-slate-600">{st.adGroupName}</td>
-                            <td className="p-4 font-mono">{st.status}</td>
-                            <td className="p-4 font-semibold text-slate-900">{Number(st.impressions || 0).toLocaleString()}</td>
-                            <td className="p-4 font-semibold text-slate-900">{Number(st.clicks || 0).toLocaleString()}</td>
-                            <td className="p-4 font-semibold text-slate-900">{st.ctr}</td>
-                            <td className="p-4 font-bold text-emerald-700">₹{st.cost}</td>
-                            <td className="p-4 font-semibold text-purple-700">{Number(st.conversions || 0).toFixed(1)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+              {/* Specialized Google Ads API v24 Reports: Auction Insights & Landing Page Performance */}
+              <GoogleAdsReportingSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+              />
+
+              {/* Search Terms Management (API v24 Live Reporting & Keyword Promoting/Exclusion) */}
+              <GoogleAdsSearchTermsSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+                campaigns={campaigns.map((c: any) => ({
+                  id: String(c.id),
+                  name: c.name,
+                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
+                  campaignType: c.campaignType || c.advertisingChannelType
+                }))}
+              />
 
               {/* Ad Performance Report */}
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
@@ -2415,6 +2530,14 @@ export default function GoogleAdsPage() {
                 )}
               </div>
             </div>
+          )}
+
+          {/* ══ ASSET POLICY & DISAPPROVALS TAB (READ-ONLY) ══ */}
+          {activeTab === "policy-disapprovals" && (
+            <AssetPolicyDisapprovalsSection
+              customerId={selectedCustomerId}
+              orgId={orgId}
+            />
           )}
 
           {/* ══ CHANGE HISTORY TAB (READ-ONLY) ══ */}
@@ -2590,6 +2713,27 @@ export default function GoogleAdsPage() {
             </div>
           )}
 
+          {/* ══ BILLING MANAGEMENT TAB ══ */}
+          {activeTab === "billing" && (
+            <div className="space-y-6">
+              <GoogleAdsBillingSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+              />
+            </div>
+          )}
+
+          {/* ══ PERFORMANCE MAX ASSET GROUPS TAB ══ */}
+          {activeTab === "asset-groups" && (
+            <div className="space-y-6">
+              <GoogleAdsAssetGroupsSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+                campaigns={campaigns}
+              />
+            </div>
+          )}
+
           {/* ══ SETTINGS TAB ══ */}
           {activeTab === "settings" && (
             <SettingsTab
@@ -2671,12 +2815,31 @@ export default function GoogleAdsPage() {
             {/* TAB 1: General Settings & Budget Edit */}
             {activeDetailsTab === "info" && (
               <div className="space-y-4">
+                {/* Live Loading Indicator */}
+                {detailLoadingLive && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 font-medium">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Fetching live Google Ads API v24 campaign configuration...</span>
+                  </div>
+                )}
+
+                {/* API Validation Error Display */}
+                {detailError && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-bold">Google Ads API Validation Notice</p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed">{detailError}</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-xs font-bold text-slate-700">Campaign Name *</label>
                       <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                        <Edit3 className="h-3 w-3" /> Editable
+                        <Edit3 className="h-3 w-3" /> Google Ads API Mutable
                       </span>
                     </div>
                     <Input
@@ -2690,7 +2853,7 @@ export default function GoogleAdsPage() {
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-xs font-bold text-slate-700">Daily Budget (₹) *</label>
                       <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                        <Edit3 className="h-3 w-3" /> Editable
+                        <Edit3 className="h-3 w-3" /> Mutable
                       </span>
                     </div>
                     <Input
@@ -2702,23 +2865,9 @@ export default function GoogleAdsPage() {
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700">End Date (optional)</label>
-                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                        <Edit3 className="h-3 w-3" /> Editable
-                      </span>
-                    </div>
-                    <Input
-                      type="date"
-                      value={detailEndDate}
-                      onChange={(e: any) => setDetailEndDate(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
                       <label className="text-xs font-bold text-slate-700">Status</label>
                       <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                        <Edit3 className="h-3 w-3" /> Editable
+                        <Edit3 className="h-3 w-3" /> Mutable
                       </span>
                     </div>
                     <Select
@@ -2728,6 +2877,34 @@ export default function GoogleAdsPage() {
                       <option value="ENABLED">Enabled (Active)</option>
                       <option value="PAUSED">Paused</option>
                     </Select>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-700">Start Date</label>
+                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                        <Edit3 className="h-3 w-3" /> Mutable
+                      </span>
+                    </div>
+                    <Input
+                      type="date"
+                      value={detailStartDate}
+                      onChange={(e: any) => setDetailStartDate(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-700">End Date</label>
+                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                        <Edit3 className="h-3 w-3" /> Mutable
+                      </span>
+                    </div>
+                    <Input
+                      type="date"
+                      value={detailEndDate}
+                      onChange={(e: any) => setDetailEndDate(e.target.value)}
+                    />
                   </div>
 
                   <div>
@@ -2742,6 +2919,95 @@ export default function GoogleAdsPage() {
                       <option value="Target ROAS">Target ROAS</option>
                       <option value="Manual CPC">Manual CPC</option>
                     </Select>
+                  </div>
+
+                  {/* Target CPA / Target ROAS inputs depending on strategy */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      {detailBiddingStrategy.toLowerCase().includes("roas") ? "Target ROAS (%)" : "Target CPA (₹)"}
+                    </label>
+                    {detailBiddingStrategy.toLowerCase().includes("roas") ? (
+                      <Input
+                        type="number"
+                        placeholder="e.g. 400 for 400%"
+                        value={detailTargetRoas}
+                        onChange={(e: any) => setDetailTargetRoas(e.target.value)}
+                      />
+                    ) : (
+                      <Input
+                        type="number"
+                        placeholder="e.g. 50 (optional target CPA)"
+                        value={detailTargetCpa}
+                        onChange={(e: any) => setDetailTargetCpa(e.target.value)}
+                      />
+                    )}
+                  </div>
+
+                  {/* Location Target Type Mode */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Geographic Location Target Type</label>
+                    <Select
+                      value={detailPositiveGeoTargetType}
+                      onChange={(e: any) => setDetailPositiveGeoTargetType(e.target.value)}
+                    >
+                      <option value="PRESENCE_OR_INTEREST">Presence or Interest (People in, regularly in, or who have shown interest)</option>
+                      <option value="PRESENCE">Presence only (People regularly in or located in your targeted locations)</option>
+                    </Select>
+                  </div>
+
+                  {/* Network Settings (Search / Display / Search Partners) - Search & standard campaigns only */}
+                  {(selectedCampaignDetails.campaignType !== "PERFORMANCE_MAX" && selectedCampaignDetails.advertisingChannelType !== "PERFORMANCE_MAX") && (
+                    <div className="sm:col-span-2 p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                      <p className="text-xs font-bold text-slate-800">Google Network Distribution</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={detailNetworkSearch}
+                            onChange={(e) => setDetailNetworkSearch(e.target.checked)}
+                            className="rounded text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-slate-700 font-medium">Google Search</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={detailNetworkSearchPartners}
+                            onChange={(e) => setDetailNetworkSearchPartners(e.target.checked)}
+                            className="rounded text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-slate-700 font-medium">Search Partners</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={detailNetworkDisplay}
+                            onChange={(e) => setDetailNetworkDisplay(e.target.checked)}
+                            className="rounded text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-slate-700 font-medium">Google Display Network</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tracking Template & Final URL Suffix */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Tracking Template</label>
+                    <Input
+                      placeholder="e.g. {lpurl}?utm_source=google"
+                      value={detailTrackingUrlTemplate}
+                      onChange={(e: any) => setDetailTrackingUrlTemplate(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Final URL Suffix</label>
+                    <Input
+                      placeholder="e.g. utm_source=google&utm_medium=cpc"
+                      value={detailFinalUrlSuffix}
+                      onChange={(e: any) => setDetailFinalUrlSuffix(e.target.value)}
+                    />
                   </div>
 
                   <div className="sm:col-span-2">
@@ -2772,7 +3038,7 @@ export default function GoogleAdsPage() {
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <p className="text-[10px] text-slate-500 font-bold uppercase">Start Date</p>
                     <p className="text-xs font-bold text-slate-900 truncate mt-0.5">
-                      {selectedCampaignDetails.startDate ? new Date(selectedCampaignDetails.startDate).toISOString().split("T")[0] : "Today"}
+                      {detailStartDate || (selectedCampaignDetails.startDate ? new Date(selectedCampaignDetails.startDate).toISOString().split("T")[0] : "Today")}
                     </p>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
