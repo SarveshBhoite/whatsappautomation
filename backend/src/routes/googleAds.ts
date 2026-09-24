@@ -420,7 +420,10 @@ router.get("/customer-profile", async (req, res) => {
         ? savedProfile.locations
         : (gmbLocation ? [gmbLocation] : ["India"]),
       isApproved: Boolean(savedProfile?.isApproved),
-      approvedAt: savedProfile?.approvedAt || null
+      approvedAt: savedProfile?.approvedAt || null,
+      billingStatus: currentAccount?.billingStatus || "UNKNOWN",
+      googleTagId: currentAccount?.googleTagId || null,
+      lastHealthCheck: currentAccount?.lastHealthCheck || null
     });
   } catch (error: any) {
     console.error("[customer-profile] error:", error);
@@ -2480,6 +2483,450 @@ Return ONLY a JSON object:
     res.status(200).json(analysis);
   } catch (error: any) {
     res.status(500).json({ error: "Campaign analysis failed." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NATIVE GOOGLE ADS RECOMMENDATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/recommendations
+ * Fetches official recommendations from Google Ads API for the specified customer.
+ */
+router.get("/recommendations", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const recommendations = await GoogleAdsService.listRecommendations(orgId, customerId);
+    res.status(200).json({ success: true, recommendations });
+  } catch (error: any) {
+    console.error("[recommendations GET] error:", error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.message || "Failed to retrieve Google Ads recommendations",
+      code: error?.code || "RECOMMENDATIONS_FETCH_ERROR"
+    });
+  }
+});
+
+/**
+ * POST /api/ads/recommendations/apply
+ * Applies a specific recommendation on Google Ads.
+ * Body: { customerId, resourceName }
+ */
+router.post("/recommendations/apply", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const { resourceName } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!resourceName || typeof resourceName !== "string") {
+      return res.status(400).json({ error: "resourceName is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const result = await GoogleAdsService.applyRecommendation(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, message: "Recommendation applied successfully", result });
+  } catch (error: any) {
+    console.error("[recommendations/apply POST] error:", error?.message);
+    res.status(500).json({
+      error: error?.message || "Failed to apply recommendation",
+      code: "RECOMMENDATION_APPLY_ERROR"
+    });
+  }
+});
+
+/**
+ * POST /api/ads/recommendations/dismiss
+ * Dismisses a specific recommendation on Google Ads.
+ * Body: { customerId, resourceName }
+ */
+router.post("/recommendations/dismiss", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const { resourceName } = req.body;
+
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!resourceName || typeof resourceName !== "string") {
+      return res.status(400).json({ error: "resourceName is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const result = await GoogleAdsService.dismissRecommendation(orgId, customerId, resourceName);
+    res.status(200).json({ success: true, message: "Recommendation dismissed", result });
+  } catch (error: any) {
+    console.error("[recommendations/dismiss POST] error:", error?.message);
+    res.status(500).json({
+      error: error?.message || "Failed to dismiss recommendation",
+      code: "RECOMMENDATION_DISMISS_ERROR"
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANGE HISTORY (change_event) - READ ONLY
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/change-history
+ * Retrieves read-only change events from Google Ads API for the specified customer.
+ * Query params: customerId, startDate, endDate, changeResourceType, userEmail, limit
+ */
+router.get("/change-history", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const { startDate, endDate, changeResourceType, userEmail, limit } = req.query;
+
+    const changeHistory = await GoogleAdsService.listChangeHistory(orgId, customerId, {
+      startDate: startDate as string,
+      endDate: endDate as string,
+      changeResourceType: changeResourceType as string,
+      userEmail: userEmail as string,
+      limit: limit ? Number(limit) : 50
+    });
+
+    res.status(200).json({ success: true, changeHistory });
+  } catch (error: any) {
+    console.error("[change-history GET] error:", error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.message || "Failed to retrieve Google Ads change history",
+      code: error?.code || "CHANGE_HISTORY_FETCH_ERROR"
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GOOGLE ADS ACCOUNT HEALTH, BILLING, TRACKING, GOALS & READINESS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/billing-setup
+ * Queries billing_setup resource to verify approved payments account setup.
+ */
+router.get("/billing-setup", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const billingInfo = await GoogleAdsService.getBillingSetup(orgId, customerId);
+    res.status(200).json({ success: true, billing: billingInfo });
+  } catch (error: any) {
+    console.error("[billing-setup GET] error:", error);
+    res.status(500).json({
+      error: error?.message || "Failed to retrieve billing setup",
+      code: error?.code || "BILLING_SETUP_ERROR"
+    });
+  }
+});
+
+/**
+ * GET /api/ads/conversion-tracking
+ * Queries customer.conversion_tracking_setting for Google Tag ID and lead tracking.
+ */
+router.get("/conversion-tracking", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const trackingSetting = await GoogleAdsService.getConversionTrackingSetting(orgId, customerId);
+    res.status(200).json({ success: true, trackingSetting });
+  } catch (error: any) {
+    console.error("[conversion-tracking GET] error:", error);
+    res.status(500).json({
+      error: error?.message || "Failed to retrieve conversion tracking setting",
+      code: error?.code || "CONVERSION_TRACKING_ERROR"
+    });
+  }
+});
+
+/**
+ * POST /api/ads/verify-website-tag
+ * Checks the customer primaryWebsite for the presence of the Google Tag AW-XXXXX.
+ */
+router.post("/verify-website-tag", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    // 1. Get primary website from customer profile
+    const profile = await CustomerBusinessProfileService.getProfile(orgId, customerId);
+    const websiteUrl = profile?.primaryWebsite || req.body?.websiteUrl;
+    if (!websiteUrl) {
+      return res.status(400).json({
+        error: "No primary website registered for this customer. Please save website URL in business profile first."
+      });
+    }
+
+    // 2. Get Google Tag ID from Google Ads account
+    let googleTagId: string | null = null;
+    let accountTagConfigured = false;
+    try {
+      const trackingSetting = await GoogleAdsService.getConversionTrackingSetting(orgId, customerId);
+      googleTagId = trackingSetting.googleTagId || null;
+      accountTagConfigured = !!googleTagId;
+    } catch (e: any) {
+      console.warn("[verify-website-tag] Could not fetch Google Tag ID from API:", e?.message);
+    }
+
+    // Fallback: check cached account
+    if (!googleTagId) {
+      const acc = await prisma.googleAdAccount.findFirst({
+        where: { organizationId: orgId, customerId }
+      });
+      googleTagId = acc?.googleTagId || null;
+      accountTagConfigured = !!googleTagId;
+    }
+
+    // 3. Fetch website HTML safely
+    let htmlContent = "";
+    try {
+      const cleanedUrl = websiteUrl.trim().replace(/^["'(\[]+|["')\].,]+$/g, "");
+      const resp = await axios.get(cleanedUrl, {
+        timeout: 10000,
+        maxContentLength: 4 * 1024 * 1024,
+        maxRedirects: 5,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        }
+      });
+      htmlContent = typeof resp.data === "string" ? resp.data : "";
+    } catch (netErr: any) {
+      console.warn("[verify-website-tag] Failed to fetch website HTML:", netErr.message);
+      return res.status(200).json({
+        websiteUrl,
+        googleTagId,
+        accountTagConfigured,
+        websiteTagDetected: false,
+        detectionMethod: "NETWORK_ERROR",
+        status: "UNKNOWN",
+        message: `Could not reach website ${websiteUrl}: ${netErr.message}`,
+        checkedAt: new Date().toISOString()
+      });
+    }
+
+    // 4. Run regex inspection for Google Tag patterns
+    let websiteTagDetected = false;
+    let detectionMethod = "NONE";
+
+    if (googleTagId) {
+      const tagNumericOnly = googleTagId.replace(/^AW-/, "");
+      // Exact gtag config pattern
+      const gtagRegex = new RegExp(`gtag\\s*\\(\\s*['"]config['"]\\s*,\\s*['"](AW-)?${tagNumericOnly}['"]`, "i");
+      // Script src pattern
+      const scriptSrcRegex = new RegExp(`googletagmanager\\.com\\/gtag\\/js\\?id=(AW-)?${tagNumericOnly}`, "i");
+
+      if (gtagRegex.test(htmlContent)) {
+        websiteTagDetected = true;
+        detectionMethod = "GTAG_CONFIG_MATCH";
+      } else if (scriptSrcRegex.test(htmlContent)) {
+        websiteTagDetected = true;
+        detectionMethod = "SCRIPT_SRC_MATCH";
+      }
+    }
+
+    // If tag ID was unknown, search for any AW- pattern
+    if (!websiteTagDetected && !googleTagId) {
+      const genericAwRegex = /gtag\s*\(\s*['"]config['"]\s*,\s*['"](AW-[0-9]+)['"]/i;
+      const m = htmlContent.match(genericAwRegex);
+      if (m) {
+        websiteTagDetected = true;
+        googleTagId = m[1];
+        detectionMethod = "GENERIC_AW_DETECTED";
+      }
+    }
+
+    // Check GTM container presence (informational)
+    const hasGtm = /googletagmanager\.com\/gtm\.js\?id=GTM-[A-Z0-9]+/i.test(htmlContent);
+
+    res.status(200).json({
+      websiteUrl,
+      googleTagId,
+      accountTagConfigured,
+      websiteTagDetected,
+      hasGtmContainer: hasGtm,
+      detectionMethod,
+      status: websiteTagDetected ? "VERIFIED" : (accountTagConfigured ? "NOT_DETECTED_ON_PAGE" : "NOT_CONFIGURED"),
+      message: websiteTagDetected
+        ? `Google Tag (${googleTagId || "detected"}) successfully found on ${websiteUrl}`
+        : `Google Tag ${googleTagId ? `(${googleTagId}) ` : ""}was not found in direct HTML of ${websiteUrl}. Note: if fired dynamically via Google Tag Manager, ensure tag container is active.`,
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error("[verify-website-tag POST] error:", error);
+    res.status(500).json({
+      error: error?.message || "Failed to verify website Google Tag",
+      code: "TAG_VERIFICATION_ERROR"
+    });
+  }
+});
+
+/**
+ * GET /api/ads/conversion-goals
+ * Lists customer conversion goals and their biddable status.
+ */
+router.get("/conversion-goals", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const goals = await GoogleAdsService.getCustomerConversionGoals(orgId, customerId);
+    res.status(200).json({ success: true, goals });
+  } catch (error: any) {
+    console.error("[conversion-goals GET] error:", error);
+    res.status(500).json({
+      error: error?.message || "Failed to retrieve conversion goals",
+      code: error?.code || "CONVERSION_GOALS_ERROR"
+    });
+  }
+});
+
+/**
+ * POST /api/ads/conversion-goals/sync
+ * Mutates customer conversion goal biddable status (primary/secondary).
+ * Body: { customerId, category, origin, biddable }
+ */
+router.post("/conversion-goals/sync", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const { category, origin, biddable } = req.body;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    if (!category || !origin || biddable === undefined) {
+      return res.status(400).json({ error: "category, origin, and biddable (boolean) are required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const result = await GoogleAdsService.syncCustomerConversionGoal(
+      orgId,
+      customerId,
+      category,
+      origin,
+      Boolean(biddable)
+    );
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[conversion-goals/sync POST] error:", error);
+    res.status(500).json({
+      error: error?.message || "Failed to update conversion goal",
+      code: error?.code || "CONVERSION_GOAL_SYNC_ERROR"
+    });
+  }
+});
+
+/**
+ * GET /api/ads/user-access
+ * Queries customer_user_access and customer_user_access_invitation.
+ */
+router.get("/user-access", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const accessData = await GoogleAdsService.getCustomerUserAccess(orgId, customerId);
+    res.status(200).json({ success: true, ...accessData });
+  } catch (error: any) {
+    console.error("[user-access GET] error:", error);
+    res.status(500).json({
+      error: error?.message || "Failed to retrieve Google Ads user access",
+      code: error?.code || "USER_ACCESS_ERROR"
+    });
+  }
+});
+
+/**
+ * GET /api/ads/account-readiness
+ * Unified readiness check across OAuth, Dev Token, Account, MCC, Billing, Tag, Goals, Access, GA4, and CRM Profile.
+ */
+router.get("/account-readiness", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. Customer ID does not belong to this organization." });
+    }
+
+    const readiness = await GoogleAdsService.getAccountReadiness(orgId, customerId);
+    res.status(200).json({ success: true, ...readiness });
+  } catch (error: any) {
+    console.error("[account-readiness GET] error:", error);
+    res.status(500).json({
+      error: error?.message || "Failed to perform account readiness audit",
+      code: error?.code || "READINESS_CHECK_ERROR"
+    });
   }
 });
 

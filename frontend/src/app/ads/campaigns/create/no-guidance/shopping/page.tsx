@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall,
   ShoppingBag, AlertCircle, ChevronDown, ChevronUp, Info, MoreVertical, ExternalLink,
-  Target, Layers, Zap, Upload, Image as ImageIcon, MapPin, Edit3
+  Target, Layers, Zap, Upload, Image as ImageIcon, MapPin, Edit3, CheckCircle2
 } from "lucide-react";
 
 // Helper: Get user's local date as YYYY-MM-DD
@@ -587,6 +587,8 @@ export default function NoGuidanceShoppingPage() {
     }
   };
 
+  const [customerProfile, setCustomerProfile] = useState<any>(null);
+
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
@@ -602,6 +604,18 @@ export default function NoGuidanceShoppingPage() {
         .catch(() => {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
         });
+
+      fetch(`${BACKEND}/api/ads/customer-profile?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(customerId)}`)
+        .then(r => r.json())
+        .then(prof => {
+          if (prof && prof.success !== false) {
+            setCustomerProfile(prof);
+            if (prof.merchantCenterId) {
+              setMerchantCenterId(String(prof.merchantCenterId));
+            }
+          }
+        })
+        .catch(() => {});
     }
   }, [customerId]);
 
@@ -729,6 +743,35 @@ export default function NoGuidanceShoppingPage() {
 
         {/* Main Content Area */}
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-6 max-w-4xl mx-auto pb-32">
+          {/* Merchant Connection Status Alert Banner */}
+          {customerProfile && (!customerProfile.hasMerchantAccount || !customerProfile.merchantCenterId) && (
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/80 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-amber-100 text-amber-700 shrink-0 mt-0.5">
+                    <ShoppingBag className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-900">Google Merchant Center Not Connected</h4>
+                    <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                      A connected Google Merchant Center account is required to publish and run this Shopping campaign.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
+                >
+                  <span>Connect Now</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p className="text-[11px] text-amber-800/80 pl-11">
+                Go to Google Ads Profile &gt; <strong>Merchant &amp; Mobile Apps</strong> tab to connect your Merchant Center ID.
+              </p>
+            </div>
+          )}
 
           {/* STEP 1: BUDGET AND BIDDING */}
           {wizardStep === "BUDGET_BIDDING" && (
@@ -1545,7 +1588,20 @@ export default function NoGuidanceShoppingPage() {
                         <h3 className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
                           <ShoppingBag className="h-4 w-4 text-primary" /> Shopping Settings & Merchant Center
                         </h3>
-                        <span className="text-[10px] text-blue-600 font-semibold bg-blue-100 px-2 py-0.5 rounded">Required for Shopping</span>
+                        {customerProfile?.hasMerchantAccount && customerProfile?.merchantCenterId ? (
+                          <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Connected in Profile
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}
+                            className="text-[10px] text-amber-800 font-bold bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-all"
+                          >
+                            <span>Connect Merchant Now</span>
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </button>
+                        )}
                       </div>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">

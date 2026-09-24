@@ -10,7 +10,7 @@ import {
   Activity, Calendar, Filter, Download, Bot, Settings, Users,
   Layers, FileText, TrendingDown, Award, Star, RotateCcw, 
   Building2, Check, Minus, BadgePercent, ShieldCheck, MessageSquare,
-  Copy, ExternalLink, Sliders, LogOut
+  Copy, ExternalLink, Sliders, LogOut, History, User
 } from "lucide-react";
 import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 
@@ -450,19 +450,21 @@ function AccountPickerScreen({
 // ─────────────────────────────────────────────────────────────────────────────
 // TABS
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "overview" | "campaigns" | "ad-groups" | "ads" | "keywords" | "extensions" | "conversions" | "audiences" | "reports" | "settings";
+type Tab = "overview" | "recommendations" | "campaigns" | "ad-groups" | "ads" | "keywords" | "extensions" | "conversions" | "audiences" | "reports" | "history" | "settings";
 
 const TABS: { id: Tab; label: string; icon: any }[] = [
-  { id: "overview",     label: "Overview",     icon: LayoutGrid    },
-  { id: "campaigns",    label: "Campaigns",    icon: Megaphone     },
-  { id: "ad-groups",    label: "Ad Groups",    icon: Layers        },
-  { id: "ads",          label: "Ads",          icon: FileText      },
-  { id: "keywords",     label: "Keywords",     icon: Tag           },
-  { id: "extensions",   label: "Extensions",   icon: Link2         },
-  { id: "conversions",  label: "Conversions",  icon: Target        },
-  { id: "audiences",    label: "Audiences",    icon: Users         },
-  { id: "reports",      label: "Reports",      icon: BarChart2     },
-  { id: "settings",     label: "Settings",     icon: Settings      },
+  { id: "overview",         label: "Overview",         icon: LayoutGrid    },
+  { id: "recommendations",  label: "Recommendations",  icon: Sparkles      },
+  { id: "campaigns",        label: "Campaigns",        icon: Megaphone     },
+  { id: "ad-groups",        label: "Ad Groups",        icon: Layers        },
+  { id: "ads",              label: "Ads",              icon: FileText      },
+  { id: "keywords",         label: "Keywords",         icon: Tag           },
+  { id: "extensions",       label: "Extensions",       icon: Link2         },
+  { id: "conversions",      label: "Conversions",      icon: Target        },
+  { id: "audiences",        label: "Audiences",        icon: Users         },
+  { id: "reports",          label: "Reports",          icon: BarChart2     },
+  { id: "history",          label: "Change History",   icon: History       },
+  { id: "settings",         label: "Settings",         icon: Settings      },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -823,6 +825,24 @@ export default function GoogleAdsPage() {
   const [overview, setOverview] = useState<any>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
 
+  // Native Google Ads Recommendations State
+  const [nativeRecommendations, setNativeRecommendations] = useState<any[]>([]);
+  const [recsLoading, setRecsLoading] = useState(false);
+  const [applyingRecId, setApplyingRecId] = useState<string | null>(null);
+  const [dismissingRecId, setDismissingRecId] = useState<string | null>(null);
+  const [recFilter, setRecFilter] = useState<string>("ALL");
+  const [selectedRecDetails, setSelectedRecDetails] = useState<any>(null);
+  const [confirmApplyRec, setConfirmApplyRec] = useState<any>(null);
+  const [confirmDismissRec, setConfirmDismissRec] = useState<any>(null);
+
+  // Change History State (READ-ONLY)
+  const [changeHistory, setChangeHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<string>("ALL");
+  const [historyUserFilter, setHistoryUserFilter] = useState<string>("");
+  const [historyDateFilter, setHistoryDateFilter] = useState<string>("LAST_30_DAYS");
+  const [selectedChangeDetail, setSelectedChangeDetail] = useState<any | null>(null);
+
   const [searchTerms, setSearchTerms] = useState<any[]>([]);
   const [adReport, setAdReport] = useState<any[]>([]);
 
@@ -841,6 +861,15 @@ export default function GoogleAdsPage() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [analyzing, setAnalyzing] = useState(false);
+
+  // Account Readiness & Health State
+  const [accountReadiness, setAccountReadiness] = useState<{
+    overallStatus: "READY" | "WARNING" | "BLOCKED" | "UNKNOWN";
+    summary?: { readyCount: number; warningCount: number; blockedCount: number };
+    checks?: { key: string; status: string; classification: string; message: string }[];
+    blockedReason?: string;
+  } | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
 
   // Campaign Details states
   const [selectedCampaignDetails, setSelectedCampaignDetails] = useState<any>(null);
@@ -919,8 +948,33 @@ export default function GoogleAdsPage() {
       .finally(() => setAccountsLoading(false));
   }, [isConnected, orgId]);
 
+  const loadReadiness = useCallback(async (cid: string) => {
+    if (!cid) return;
+    setReadinessLoading(true);
+    try {
+      const res = await api(`/account-readiness?orgId=${orgId}&customerId=${cid}`);
+      if (res.ok) {
+        const rawData = await res.json();
+        const data = rawData.readiness || rawData;
+        const checksList = Array.isArray(data.checks) ? data.checks : [];
+        const blockedCheck = checksList.find((c: any) => c.status === "BLOCKED");
+        setAccountReadiness({
+          overallStatus: data.overallStatus || "UNKNOWN",
+          summary: data.summary,
+          checks: checksList,
+          blockedReason: blockedCheck ? `${blockedCheck.key}: ${blockedCheck.message}` : undefined
+        });
+      }
+    } catch (e: any) {
+      console.warn("Readiness check error:", e.message);
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, [orgId]);
+
   const loadOverview = useCallback(async (cid: string) => {
     setOverviewLoading(true);
+    loadReadiness(cid);
     try {
       const [ovRes, campRes] = await Promise.allSettled([
         api(`/reports/overview?orgId=${orgId}&customerId=${cid}&dateRange=${dateRange}`),
@@ -1008,6 +1062,76 @@ export default function GoogleAdsPage() {
     } catch { showToast("Failed to load audiences"); } finally { setAudLoading(false); }
   }, [orgId]);
 
+  const loadRecommendations = useCallback(async (cid: string) => {
+    setRecsLoading(true);
+    try {
+      const res = await api(`/recommendations?orgId=${orgId}&customerId=${cid}`);
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.recommendations)) {
+        setNativeRecommendations(data.recommendations);
+      } else {
+        setNativeRecommendations([]);
+      }
+    } catch {
+      showToast("Failed to load Google Ads recommendations");
+      setNativeRecommendations([]);
+    } finally {
+      setRecsLoading(false);
+    }
+  }, [orgId]);
+
+  const handleApplyRecommendation = async (rec: any) => {
+    if (!rec?.resourceName || !selectedCustomerId) return;
+    setApplyingRecId(rec.id);
+    try {
+      const res = await api("/recommendations/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          customerId: selectedCustomerId,
+          resourceName: rec.resourceName
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to apply recommendation");
+      showToast("Google Ads recommendation applied successfully ✓");
+      setConfirmApplyRec(null);
+      setSelectedRecDetails(null);
+      loadRecommendations(selectedCustomerId);
+    } catch (err: any) {
+      showToast(`Error: ${err.message || "Failed to apply recommendation"}`);
+    } finally {
+      setApplyingRecId(null);
+    }
+  };
+
+  const handleDismissRecommendation = async (rec: any) => {
+    if (!rec?.resourceName || !selectedCustomerId) return;
+    setDismissingRecId(rec.id);
+    try {
+      const res = await api("/recommendations/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          customerId: selectedCustomerId,
+          resourceName: rec.resourceName
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to dismiss recommendation");
+      showToast("Recommendation dismissed from Google Ads ✓");
+      setConfirmDismissRec(null);
+      setSelectedRecDetails(null);
+      loadRecommendations(selectedCustomerId);
+    } catch (err: any) {
+      showToast(`Error: ${err.message || "Failed to dismiss recommendation"}`);
+    } finally {
+      setDismissingRecId(null);
+    }
+  };
+
   const loadReports = useCallback(async (cid: string) => {
     try {
       const [stRes, adRep] = await Promise.all([
@@ -1021,10 +1145,42 @@ export default function GoogleAdsPage() {
     } catch { showToast("Failed to load reports"); }
   }, [orgId, dateRange]);
 
+  const loadChangeHistory = useCallback(async (cid: string) => {
+    setHistoryLoading(true);
+    try {
+      const params = new URLSearchParams({
+        orgId,
+        customerId: cid,
+        dateRange: historyDateFilter,
+        limit: "50",
+      });
+      if (historyTypeFilter !== "ALL") {
+        params.append("changeResourceType", historyTypeFilter);
+      }
+      if (historyUserFilter.trim()) {
+        params.append("userEmail", historyUserFilter.trim());
+      }
+      const res = await api(`/change-history?${params.toString()}`);
+      const data = await res.json();
+      const list = Array.isArray(data.changeHistory) ? data.changeHistory : (Array.isArray(data.changes) ? data.changes : []);
+      if (res.ok) {
+        setChangeHistory(list);
+      } else {
+        setChangeHistory([]);
+      }
+    } catch {
+      showToast("Failed to load Google Ads change history");
+      setChangeHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [orgId, historyDateFilter, historyTypeFilter, historyUserFilter]);
+
   useEffect(() => {
     if (!isConnected || !selectedCustomerId) return;
     const cid = selectedCustomerId;
     if (activeTab === "overview") loadOverview(cid);
+    if (activeTab === "recommendations") loadRecommendations(cid);
     if (activeTab === "campaigns") loadCampaigns(cid);
     if (activeTab === "ad-groups") loadAdGroups(cid);
     if (activeTab === "ads") loadAds(cid);
@@ -1033,7 +1189,8 @@ export default function GoogleAdsPage() {
     if (activeTab === "conversions") loadConversions(cid);
     if (activeTab === "audiences") loadAudiences(cid);
     if (activeTab === "reports") loadReports(cid);
-  }, [activeTab, selectedCustomerId, isConnected, dateRange, loadOverview, loadCampaigns, loadAdGroups, loadAds, loadKeywords, loadExtensions, loadConversions, loadAudiences, loadReports]);
+    if (activeTab === "history") loadChangeHistory(cid);
+  }, [activeTab, selectedCustomerId, isConnected, dateRange, loadOverview, loadRecommendations, loadCampaigns, loadAdGroups, loadAds, loadKeywords, loadExtensions, loadConversions, loadAudiences, loadReports, loadChangeHistory]);
 
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
@@ -1376,21 +1533,66 @@ export default function GoogleAdsPage() {
             <RefreshCw className="h-4 w-4" />
           </button>
 
+          {/* Unified Google Ads Profile & Account Status Button */}
           {selectedCustomerId && (
             <button
               onClick={() => router.push(`/ads/profile?customerId=${selectedCustomerId}`)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs"
-              title="View Google Ads Profile and Merchant/App Settings"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs"
+              title="View Google Ads Profile, Health Status & Business Settings"
             >
               <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
               <span>Google Ads Profile</span>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  accountReadiness?.overallStatus === "READY"
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : accountReadiness?.overallStatus === "BLOCKED"
+                    ? "bg-rose-100 text-rose-800 border border-rose-300"
+                    : accountReadiness?.overallStatus === "WARNING"
+                    ? "bg-amber-100 text-amber-800 border border-amber-300"
+                    : "bg-slate-200 text-slate-600 border border-slate-300"
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    accountReadiness?.overallStatus === "READY"
+                      ? "bg-emerald-600 animate-pulse"
+                      : accountReadiness?.overallStatus === "BLOCKED"
+                      ? "bg-rose-600"
+                      : accountReadiness?.overallStatus === "WARNING"
+                      ? "bg-amber-500"
+                      : "bg-slate-400"
+                  }`}
+                />
+                {readinessLoading
+                  ? "Checking..."
+                  : accountReadiness?.overallStatus === "READY"
+                  ? "Active"
+                  : accountReadiness?.overallStatus === "BLOCKED"
+                  ? "Action Required"
+                  : accountReadiness?.overallStatus === "WARNING"
+                  ? "Attention"
+                  : "Health"}
+              </span>
             </button>
           )}
 
           {selectedCustomerId && (
             <button
-              onClick={() => router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
+              onClick={() => {
+                if (accountReadiness?.overallStatus === "BLOCKED") {
+                  showToast(`Cannot create campaigns: ${accountReadiness.blockedReason || "Account has a confirmed blocker."}`);
+                  return;
+                }
+                router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`);
+              }}
+              disabled={accountReadiness?.overallStatus === "BLOCKED"}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                accountReadiness?.overallStatus === "BLOCKED"
+                  ? "bg-slate-300 text-slate-500 cursor-not-allowed border border-slate-300"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+              title={accountReadiness?.overallStatus === "BLOCKED" ? `Campaign creation blocked: ${accountReadiness.blockedReason}` : "Create a new campaign"}
             >
               <Plus className="h-4 w-4" /> New Campaign
             </button>
@@ -1526,6 +1728,257 @@ export default function GoogleAdsPage() {
                 </>
               )}
             </>
+          )}
+
+          {/* ══ RECOMMENDATIONS TAB ══ */}
+          {activeTab === "recommendations" && (
+            <div className="space-y-6">
+              {/* Header and Control Bar */}
+              <div className="flex items-center justify-between gap-3 flex-wrap bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs">
+                <div>
+                  <h2 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-blue-600" />
+                    Google Ads &amp; CRM Recommendations
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Official live optimization suggestions from Google Ads API alongside Jisnu AI intelligence.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold text-slate-600">
+                    <button
+                      onClick={() => setRecFilter("ALL")}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        recFilter === "ALL" ? "bg-white text-slate-900 shadow-2xs font-bold" : "hover:text-slate-900"
+                      }`}
+                    >
+                      All ({nativeRecommendations.length})
+                    </button>
+                    <button
+                      onClick={() => setRecFilter("APPLIABLE")}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        recFilter === "APPLIABLE" ? "bg-white text-slate-900 shadow-2xs font-bold" : "hover:text-slate-900"
+                      }`}
+                    >
+                      Actionable ({nativeRecommendations.filter(r => r.isAppliable).length})
+                    </button>
+                    <button
+                      onClick={() => setRecFilter("VIEW_ONLY")}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        recFilter === "VIEW_ONLY" ? "bg-white text-slate-900 shadow-2xs font-bold" : "hover:text-slate-900"
+                      }`}
+                    >
+                      View Only ({nativeRecommendations.filter(r => !r.isAppliable).length})
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => loadRecommendations(selectedCustomerId)}
+                    disabled={recsLoading}
+                    className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
+                    title="Refresh Google Ads Recommendations"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${recsLoading ? "animate-spin" : ""}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Two Separate Clear Sections */}
+              <div className="space-y-6">
+                {/* 1. Official Google Ads Recommendations */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                        Google Ads Recommendations
+                      </h3>
+                      <p className="text-[11px] text-slate-500">Official recommendations retrieved directly from your Google Ads account via Google Ads API</p>
+                    </div>
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      Google Ads API v24
+                    </span>
+                  </div>
+
+                  {recsLoading ? (
+                    <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-slate-200 shadow-2xs gap-3">
+                      <Loader2 className="h-7 w-7 text-blue-600 animate-spin" />
+                      <p className="text-xs font-semibold text-slate-500">Retrieving official recommendations from Google Ads...</p>
+                    </div>
+                  ) : nativeRecommendations.length === 0 ? (
+                    <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center space-y-2 shadow-2xs">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto text-emerald-600">
+                        <CheckCircle className="h-6 w-6" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-900">No Pending Google Ads Recommendations</p>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto">
+                        Your Google Ads account is fully optimized according to Google Ads guidelines, or there are no new automated suggestions for this customer account at this time.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {nativeRecommendations
+                        .filter(r => {
+                          if (recFilter === "APPLIABLE") return r.isAppliable;
+                          if (recFilter === "VIEW_ONLY") return !r.isAppliable;
+                          return true;
+                        })
+                        .map(rec => (
+                          <div
+                            key={rec.id || rec.resourceName}
+                            className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between gap-4 hover:border-blue-300 transition-all shadow-2xs group"
+                          >
+                            <div className="space-y-2.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-1">
+                                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold font-mono border border-slate-200 uppercase">
+                                    {rec.type.replace(/_/g, " ")}
+                                  </span>
+                                  <h4 className="text-sm font-bold text-slate-900">
+                                    {rec.type.split("_").map((w: string) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ")}
+                                  </h4>
+                                </div>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                                  rec.isAppliable 
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                    : "bg-slate-100 text-slate-600 border-slate-200"
+                                }`}>
+                                  {rec.isAppliable ? "Actionable in API" : "Manual / View Only"}
+                                </span>
+                              </div>
+
+                              <p className="text-xs text-slate-600 leading-relaxed">
+                                {rec.campaignName ? (
+                                  <>Applicable to campaign: <strong className="text-slate-800">{rec.campaignName}</strong></>
+                                ) : (
+                                  <>Account-wide Google Ads optimization opportunity.</>
+                                )}
+                              </p>
+
+                              {/* Impact Stats if available */}
+                              {rec.impact?.hasImpact && (
+                                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-3 gap-2 text-center text-[10px]">
+                                  <div>
+                                    <p className="text-slate-500 font-semibold">Clicks</p>
+                                    <p className={`font-bold ${rec.impact.deltaClicks >= 0 ? "text-emerald-600" : "text-slate-700"}`}>
+                                      {rec.impact.deltaClicks > 0 ? `+${rec.impact.deltaClicks}` : rec.impact.deltaClicks}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-slate-500 font-semibold">Est. Cost</p>
+                                    <p className="font-bold text-slate-800">₹{rec.impact.potentialCost.toFixed(2)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-slate-500 font-semibold">Conversions</p>
+                                    <p className={`font-bold ${rec.impact.deltaConversions >= 0 ? "text-purple-600" : "text-slate-700"}`}>
+                                      {rec.impact.deltaConversions > 0 ? `+${rec.impact.deltaConversions.toFixed(1)}` : rec.impact.deltaConversions.toFixed(1)}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                              <button
+                                onClick={() => setSelectedRecDetails(rec)}
+                                className="px-3 py-1.5 rounded-xl text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                              >
+                                View Details
+                              </button>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => setConfirmDismissRec(rec)}
+                                  disabled={dismissingRecId === rec.id}
+                                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer disabled:opacity-50"
+                                >
+                                  {dismissingRecId === rec.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Dismiss"}
+                                </button>
+
+                                {rec.isAppliable ? (
+                                  <button
+                                    onClick={() => setConfirmApplyRec(rec)}
+                                    disabled={applyingRecId === rec.id}
+                                    className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  >
+                                    {applyingRecId === rec.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                    Apply
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => setSelectedRecDetails(rec)}
+                                    className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                                  >
+                                    Review in Google
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Jisnu AI Recommendations */}
+                <div className="space-y-3 pt-4 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <Bot className="h-4 w-4 text-purple-600" />
+                        Jisnu AI Recommendations
+                      </h3>
+                      <p className="text-[11px] text-slate-500">AI-generated recommendations and performance audits based on CRM business context and live campaign search terms</p>
+                    </div>
+                    {campaigns.length > 0 && (
+                      <button
+                        onClick={() => analyzeCampaign(campaigns[0])}
+                        className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-purple-600" /> Run AI Audit
+                      </button>
+                    )}
+                  </div>
+
+                  {analysis ? (
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-2xs">
+                      <div className="flex items-center gap-4 pb-3 border-b border-slate-100">
+                        <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-center font-black text-xl text-purple-700">
+                          {analysis.score}/10
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">Campaign Health Assessment</p>
+                          <p className="text-[11px] text-slate-600 mt-0.5">{analysis.assessment}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {(analysis.recommendations || []).map((r: any, i: number) => (
+                          <div key={i} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-bold text-slate-900">{r.title}</p>
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                r.impact === "HIGH" ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                              }`}>{r.impact}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">{r.action}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 text-center space-y-2 shadow-2xs">
+                      <p className="text-xs font-bold text-slate-800">No active AI campaign audit cached</p>
+                      <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                        Click &quot;Run AI Audit&quot; or select any campaign from the Campaigns tab to analyze search terms, negative keywords, and budget efficiency.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* ══ CAMPAIGNS TAB ══ */}
@@ -1956,6 +2409,179 @@ export default function GoogleAdsPage() {
                             <td className="p-4 font-semibold text-purple-700">{Number(ad.conversions || 0).toFixed(1)}</td>
                           </tr>
                         ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ══ CHANGE HISTORY TAB (READ-ONLY) ══ */}
+          {activeTab === "history" && (
+            <div className="space-y-6">
+              {/* Header and Filter Toolbar */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <History className="h-5 w-5 text-indigo-600" />
+                    <h2 className="text-lg font-bold text-slate-900">Change History (Audit Log)</h2>
+                    <span className="text-[11px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                      Read-Only
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Track configuration and performance modifications across campaigns, ad groups, budgets, and ads directly from Google Ads change events.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => selectedCustomerId && loadChangeHistory(selectedCustomerId)}
+                    disabled={historyLoading}
+                    className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                    title="Refresh Change History"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${historyLoading ? "animate-spin text-indigo-600" : ""}`} />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Date Range
+                  </label>
+                  <select
+                    value={historyDateFilter}
+                    onChange={(e) => setHistoryDateFilter(e.target.value)}
+                    className="w-full text-xs font-medium bg-white border border-slate-200 rounded-lg p-2 text-slate-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="TODAY">Today</option>
+                    <option value="LAST_7_DAYS">Last 7 Days</option>
+                    <option value="LAST_30_DAYS">Last 30 Days (Default)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Resource Type
+                  </label>
+                  <select
+                    value={historyTypeFilter}
+                    onChange={(e) => setHistoryTypeFilter(e.target.value)}
+                    className="w-full text-xs font-medium bg-white border border-slate-200 rounded-lg p-2 text-slate-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="ALL">All Resource Types</option>
+                    <option value="CAMPAIGN">Campaign</option>
+                    <option value="CAMPAIGN_BUDGET">Campaign Budget</option>
+                    <option value="AD_GROUP">Ad Group</option>
+                    <option value="AD_GROUP_AD">Ad Group Ad</option>
+                    <option value="AD_GROUP_CRITERION">Ad Group Criterion (Keyword/Target)</option>
+                    <option value="CUSTOMER">Customer</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    User Email (Filter)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Search by user email..."
+                    value={historyUserFilter}
+                    onChange={(e) => setHistoryUserFilter(e.target.value)}
+                    className="w-full text-xs font-medium bg-white border border-slate-200 rounded-lg p-2 text-slate-700 placeholder-slate-400 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Table / List */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                {historyLoading ? (
+                  <div className="flex flex-col items-center justify-center p-12 text-slate-400 space-y-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                    <p className="text-xs font-medium">Fetching Google Ads change events...</p>
+                  </div>
+                ) : changeHistory.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 space-y-2">
+                    <History className="h-8 w-8 mx-auto text-slate-300" />
+                    <p className="text-sm font-semibold text-slate-600">No change history events found</p>
+                    <p className="text-xs text-slate-400">
+                      No changes were logged for this customer account within the selected date range and filters.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                          <th className="p-4">Date & Time</th>
+                          <th className="p-4">User</th>
+                          <th className="p-4">Resource Type</th>
+                          <th className="p-4">Operation</th>
+                          <th className="p-4">Campaign</th>
+                          <th className="p-4">Ad Group</th>
+                          <th className="p-4">Client / Source</th>
+                          <th className="p-4 text-right">Details</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {changeHistory.map((item: any, i: number) => {
+                          const op = item.resourceChangeOperation || item.operation || "CHANGED";
+                          const resType = item.changeResourceType || item.resourceType || "UNKNOWN";
+                          const campName = item.campaignName || item.campaign?.name || "—";
+                          const agName = item.adGroupName || item.adGroup?.name || "—";
+
+                          const opColor =
+                            op === "CREATE"
+                              ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                              : op === "UPDATE"
+                              ? "text-blue-700 bg-blue-50 border-blue-200"
+                              : op === "REMOVE"
+                              ? "text-rose-700 bg-rose-50 border-rose-200"
+                              : "text-slate-600 bg-slate-50 border-slate-200";
+
+                          return (
+                            <tr key={item.resourceName || item.id || i} className="hover:bg-slate-50/80 transition-all">
+                              <td className="p-4 font-mono text-slate-600 whitespace-nowrap">
+                                {item.changeDateTime ? new Date(item.changeDateTime).toLocaleString() : "—"}
+                              </td>
+                              <td className="p-4 font-medium text-slate-800 whitespace-nowrap">
+                                <div className="flex items-center gap-1.5">
+                                  <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                  <span className="truncate max-w-[180px]">{item.userEmail || "Google System / Automated"}</span>
+                                </div>
+                              </td>
+                              <td className="p-4 font-semibold text-slate-900 whitespace-nowrap">
+                                <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[11px] font-mono">
+                                  {resType.replace(/_/g, " ")}
+                                </span>
+                              </td>
+                              <td className="p-4 whitespace-nowrap">
+                                <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold border ${opColor}`}>
+                                  {op}
+                                </span>
+                              </td>
+                              <td className="p-4 text-slate-700 font-medium">
+                                {campName}
+                              </td>
+                              <td className="p-4 text-slate-600 font-medium">
+                                {agName}
+                              </td>
+                              <td className="p-4 text-slate-500 font-mono text-[11px]">
+                                {item.clientType?.replace(/_/g, " ") || "GOOGLE_ADS_WEB_CLIENT"}
+                              </td>
+                              <td className="p-4 text-right whitespace-nowrap">
+                                <button
+                                  onClick={() => setSelectedChangeDetail(item)}
+                                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 text-slate-600 text-xs font-semibold transition-all shadow-sm cursor-pointer"
+                                >
+                                  View Details
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -3180,6 +3806,363 @@ export default function GoogleAdsPage() {
               </div>
             </div>
           ) : null}
+        </Modal>
+      )}
+
+      {/* Native Google Ads Recommendation Details Modal */}
+      {selectedRecDetails && (
+        <Modal
+          title={`Google Ads Recommendation: ${selectedRecDetails.type.replace(/_/g, " ")}`}
+          onClose={() => setSelectedRecDetails(null)}
+          wide
+        >
+          <div className="space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="space-y-0.5">
+                <p className="text-xs font-bold text-slate-900">{selectedRecDetails.type.replace(/_/g, " ")}</p>
+                <p className="text-[11px] font-mono text-slate-500 truncate max-w-md">{selectedRecDetails.resourceName}</p>
+              </div>
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                selectedRecDetails.isAppliable 
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                  : "bg-slate-100 text-slate-600 border-slate-200"
+              }`}>
+                {selectedRecDetails.isAppliable ? "Actionable via Google Ads API" : "Manual / View Only"}
+              </span>
+            </div>
+
+            {/* Target Resource Association */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Associated Campaign</span>
+                <p className="text-xs font-bold text-slate-900 truncate">
+                  {selectedRecDetails.campaignName || "Account-Wide / Not Campaign-Specific"}
+                </p>
+                {selectedRecDetails.campaignStatus && (
+                  <p className="text-[10px] text-slate-500 font-mono">Status: {selectedRecDetails.campaignStatus}</p>
+                )}
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Associated Ad Group</span>
+                <p className="text-xs font-bold text-slate-900 truncate">
+                  {selectedRecDetails.adGroupName || "None / Campaign Level"}
+                </p>
+                {selectedRecDetails.adGroupStatus && (
+                  <p className="text-[10px] text-slate-500 font-mono">Status: {selectedRecDetails.adGroupStatus}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Impact Breakdown */}
+            {selectedRecDetails.impact?.hasImpact ? (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 space-y-3">
+                <h4 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                  <TrendingUp className="h-4 w-4 text-blue-600" />
+                  Estimated Impact from Google Ads
+                </h4>
+                <div className="grid grid-cols-3 gap-3 text-center text-xs">
+                  <div className="bg-white p-2.5 rounded-xl border border-blue-100">
+                    <p className="text-[10px] text-slate-500 font-semibold">Weekly Clicks</p>
+                    <p className="text-sm font-bold text-slate-900 mt-0.5">
+                      {selectedRecDetails.impact.potentialClicks.toLocaleString()}
+                    </p>
+                    <span className="text-[10px] font-bold text-emerald-600">
+                      {selectedRecDetails.impact.deltaClicks >= 0 ? `+${selectedRecDetails.impact.deltaClicks}` : selectedRecDetails.impact.deltaClicks}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-blue-100">
+                    <p className="text-[10px] text-slate-500 font-semibold">Weekly Cost</p>
+                    <p className="text-sm font-bold text-slate-900 mt-0.5">
+                      ₹{selectedRecDetails.impact.potentialCost.toFixed(2)}
+                    </p>
+                    <span className="text-[10px] font-semibold text-slate-600">
+                      (Base: ₹{selectedRecDetails.impact.baseCost.toFixed(2)})
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-blue-100">
+                    <p className="text-[10px] text-slate-500 font-semibold">Weekly Conversions</p>
+                    <p className="text-sm font-bold text-slate-900 mt-0.5">
+                      {selectedRecDetails.impact.potentialConversions.toFixed(1)}
+                    </p>
+                    <span className="text-[10px] font-bold text-purple-600">
+                      {selectedRecDetails.impact.deltaConversions >= 0 ? `+${selectedRecDetails.impact.deltaConversions.toFixed(1)}` : selectedRecDetails.impact.deltaConversions.toFixed(1)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600">
+                Google Ads has not provided numeric traffic/cost impact estimates for this specific recommendation type.
+              </div>
+            )}
+
+            {/* Recommendation Specific Configuration & Parameters */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-900">Google Ads API Technical Details</h4>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono space-y-1 max-h-48 overflow-y-auto">
+                {Object.entries(selectedRecDetails.details || {})
+                  .filter(([k]) => !["resourceName", "type", "impact", "dismissed"].includes(k))
+                  .map(([k, v]) => (
+                    <div key={k} className="flex items-start justify-between py-1 border-b border-slate-200 last:border-0">
+                      <span className="text-slate-600 capitalize text-[11px]">{k.replace(/([A-Z])/g, " $1")}:</span>
+                      <span className="font-semibold text-slate-900 text-right text-[11px]">
+                        {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setConfirmDismissRec(selectedRecDetails)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Dismiss Recommendation
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedRecDetails(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+
+                {selectedRecDetails.isAppliable ? (
+                  <button
+                    onClick={() => {
+                      const recToApply = selectedRecDetails;
+                      setSelectedRecDetails(null);
+                      setConfirmApplyRec(recToApply);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-all shadow-sm cursor-pointer"
+                  >
+                    Apply to Google Ads
+                  </button>
+                ) : (
+                  <a
+                    href={`https://ads.google.com/aw/recommendations?ocid=${selectedCustomerId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all shadow-sm inline-flex items-center gap-1.5"
+                  >
+                    Open in Google Ads <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Confirmation Modal: Apply Recommendation */}
+      {confirmApplyRec && (
+        <Modal
+          title="Confirm Apply Google Ads Recommendation"
+          onClose={() => setConfirmApplyRec(null)}
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-900 space-y-1">
+                <p className="font-bold">Explicit Confirmation Required</p>
+                <p className="text-[11px] leading-relaxed">
+                  Are you sure you want to apply <strong>{confirmApplyRec.type.replace(/_/g, " ")}</strong> to your live Google Ads account ({selectedCustomerId})?
+                </p>
+                {confirmApplyRec.campaignName && (
+                  <p className="text-[11px]">
+                    Target Campaign: <strong className="font-semibold">{confirmApplyRec.campaignName}</strong>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              This action executes Google Ads API <code>RecommendationService:applyRecommendations</code>. The changes will immediately take effect on your live Google Ads campaign or budget.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setConfirmApplyRec(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleApplyRecommendation(confirmApplyRec)}
+                disabled={applyingRecId === confirmApplyRec.id}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {applyingRecId === confirmApplyRec.id ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Applying to Google...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" /> Confirm &amp; Apply
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Confirmation Modal: Dismiss Recommendation */}
+      {confirmDismissRec && (
+        <Modal
+          title="Dismiss Recommendation"
+          onClose={() => setConfirmDismissRec(null)}
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to dismiss <strong>{confirmDismissRec.type.replace(/_/g, " ")}</strong>?
+            </p>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Dismissing will mark this recommendation as dismissed on your Google Ads account via <code>RecommendationService:dismissRecommendations</code>.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setConfirmDismissRec(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDismissRecommendation(confirmDismissRec)}
+                disabled={dismissingRecId === confirmDismissRec.id}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {dismissingRecId === confirmDismissRec.id ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Dismissing...
+                  </>
+                ) : (
+                  "Confirm Dismiss"
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Change Event Detail Modal (READ-ONLY) */}
+      {selectedChangeDetail && (
+        <Modal
+          title="Change Event Details"
+          onClose={() => setSelectedChangeDetail(null)}
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {(selectedChangeDetail.changeResourceType || selectedChangeDetail.resourceType || "RESOURCE")?.replace(/_/g, " ")}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded font-bold border ${
+                  (selectedChangeDetail.resourceChangeOperation || selectedChangeDetail.operation) === "CREATE"
+                    ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                    : (selectedChangeDetail.resourceChangeOperation || selectedChangeDetail.operation) === "UPDATE"
+                    ? "text-blue-700 bg-blue-50 border-blue-200"
+                    : (selectedChangeDetail.resourceChangeOperation || selectedChangeDetail.operation) === "REMOVE"
+                    ? "text-rose-700 bg-rose-50 border-rose-200"
+                    : "text-slate-600 bg-slate-50 border-slate-200"
+                }`}>
+                  {selectedChangeDetail.resourceChangeOperation || selectedChangeDetail.operation || "CHANGED"}
+                </span>
+              </div>
+              <span className="text-xs text-slate-500 font-mono">
+                {selectedChangeDetail.changeDateTime ? new Date(selectedChangeDetail.changeDateTime).toLocaleString() : "—"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">User Email</span>
+                <span className="font-semibold text-slate-800 break-all">{selectedChangeDetail.userEmail || "Google System / Automated"}</span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Client Type / Source</span>
+                <span className="font-semibold text-slate-800">{selectedChangeDetail.clientType?.replace(/_/g, " ") || "GOOGLE_ADS_WEB_CLIENT"}</span>
+              </div>
+              {(selectedChangeDetail.campaignName || selectedChangeDetail.campaign?.name) && (
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Campaign</span>
+                  <span className="font-semibold text-slate-800">{selectedChangeDetail.campaignName || selectedChangeDetail.campaign?.name}</span>
+                </div>
+              )}
+              {(selectedChangeDetail.adGroupName || selectedChangeDetail.adGroup?.name) && (
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Ad Group</span>
+                  <span className="font-semibold text-slate-800">{selectedChangeDetail.adGroupName || selectedChangeDetail.adGroup?.name}</span>
+                </div>
+              )}
+            </div>
+
+            {selectedChangeDetail.changedFields && (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Changed Field Mask</span>
+                <code className="text-xs font-mono text-slate-700 bg-white px-2 py-1 rounded border border-slate-200 block break-all">
+                  {typeof selectedChangeDetail.changedFields === "string"
+                    ? selectedChangeDetail.changedFields
+                    : JSON.stringify(selectedChangeDetail.changedFields)}
+                </code>
+              </div>
+            )}
+
+            {(selectedChangeDetail.oldResource || selectedChangeDetail.newResource) && (
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                  Snapshot Comparison (Previous vs New)
+                </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-rose-50/50 border border-rose-100 rounded-xl">
+                    <span className="text-rose-700 font-bold block mb-1.5 flex items-center gap-1">
+                      <Minus className="h-3.5 w-3.5" /> Previous Value / State
+                    </span>
+                    {selectedChangeDetail.oldResource ? (
+                      <pre className="text-[11px] font-mono text-slate-700 whitespace-pre-wrap break-all bg-white/80 p-2.5 rounded-lg border border-rose-200 max-h-48 overflow-y-auto">
+                        {JSON.stringify(selectedChangeDetail.oldResource, null, 2)}
+                      </pre>
+                    ) : (
+                      <p className="text-slate-400 italic text-[11px]">Not provided by Google Ads API</p>
+                    )}
+                  </div>
+                  <div className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl">
+                    <span className="text-emerald-700 font-bold block mb-1.5 flex items-center gap-1">
+                      <Plus className="h-3.5 w-3.5" /> New Value / State
+                    </span>
+                    {selectedChangeDetail.newResource ? (
+                      <pre className="text-[11px] font-mono text-slate-700 whitespace-pre-wrap break-all bg-white/80 p-2.5 rounded-lg border border-emerald-200 max-h-48 overflow-y-auto">
+                        {JSON.stringify(selectedChangeDetail.newResource, null, 2)}
+                      </pre>
+                    ) : (
+                      <p className="text-slate-400 italic text-[11px]">Not provided by Google Ads API</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedChangeDetail.changeResourceName && (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Target Resource</span>
+                <span className="text-[11px] font-mono text-slate-600 break-all block">{selectedChangeDetail.changeResourceName}</span>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setSelectedChangeDetail(null)}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 

@@ -5,9 +5,9 @@ import { AiCampaignAssistantModal } from "@/components/ads/AiCampaignAssistantMo
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  X, HelpCircle, ArrowRight, Check, CheckCircle, Plus, Trash2, PhoneCall,
+  X, HelpCircle, ArrowRight, Check, CheckCircle, CheckCircle2, Plus, Trash2, PhoneCall,
   Sparkles, Layers, Target, Search, Video, LayoutGrid, ShoppingBag,
-  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, SlidersHorizontal, BarChart3, Link as LinkIcon, Building2
+  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, SlidersHorizontal, BarChart3, Link as LinkIcon, Building2, ExternalLink
 } from "lucide-react";
 import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 
@@ -361,6 +361,10 @@ export default function CampaignCreatePage() {
   const [videoGoal, setVideoGoal] = useState<"views" | "reach" | "subscriptions">("views");
   const [videoContinuedToShowForm, setVideoContinuedToShowForm] = useState<boolean>(false);
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [customerProfile, setCustomerProfile] = useState<any | null>(null);
+  const [selectedMobileAppEntry, setSelectedMobileAppEntry] = useState<any | null>(null);
+  const [appPlatformState, setAppPlatformState] = useState<"ANDROID" | "IOS">("ANDROID");
+  const [customAppLookupQuery, setCustomAppLookupQuery] = useState<string>("");
 
   // Flow step management
   const [wizardStep, setWizardStep] = useState<"OBJECTIVE" | "BIDDING" | "CAMPAIGN_SETTINGS" | "KEYWORDS_ADS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY">("OBJECTIVE");
@@ -818,6 +822,27 @@ export default function CampaignCreatePage() {
         })
         .catch(() => {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
+        });
+
+      // Fetch customer profile to check mobile apps and merchant connection
+      fetch(`${BACKEND}/api/ads/customer-profile?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(customerId)}`)
+        .then(r => r.json())
+        .then(prof => {
+          if (prof && prof.success !== false) {
+            setCustomerProfile(prof);
+            const apps = Array.isArray(prof.appDetails) ? prof.appDetails : [];
+            if (apps.length > 0) {
+              setSelectedMobileAppEntry(apps[0]);
+              if (apps[0].platform === "IOS") {
+                setAppPlatformState("IOS");
+              } else {
+                setAppPlatformState("ANDROID");
+              }
+            }
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load customer profile for app connection check", err);
         });
     }
 
@@ -5928,6 +5953,7 @@ export default function CampaignCreatePage() {
             {(() => {
               const hasContacts = conversionGoals.some(g => g.id === "contacts");
               const hasDirections = conversionGoals.some(g => g.id === "get_directions");
+              const isMerchConnected = Boolean(customerProfile?.hasMerchantAccount) && Boolean(customerProfile?.merchantCenterId);
 
               let baseCampaignTypes = CAMPAIGN_TYPES_SALES;
               if (selectedObjective === "LEADS") baseCampaignTypes = CAMPAIGN_TYPES_LEADS;
@@ -5978,10 +6004,10 @@ export default function CampaignCreatePage() {
                   // If Contacts goal is present (whether alone with Phone leads, or with Get Directions, or all three): ONLY Performance Max
                   visibleCampaignTypes = baseCampaignTypes.filter(ct => ct.id === "PERFORMANCE_MAX");
                 } else if (hasDirections && !hasContacts) {
-                  // If Get directions is present (without Contacts): Performance Max, Search, Shopping
+                  // If Get directions is present (without Contacts): Performance Max, Search, Shopping (always visible)
                   visibleCampaignTypes = baseCampaignTypes.filter(ct => ["PERFORMANCE_MAX", "SEARCH", "SHOPPING"].includes(ct.id));
                 } else {
-                  // Only Phone call leads: All 6 campaign types available
+                  // Only Phone call leads: All campaign types available
                   visibleCampaignTypes = baseCampaignTypes;
                 }
               }
@@ -6012,25 +6038,39 @@ export default function CampaignCreatePage() {
                       {visibleCampaignTypes.map((type) => {
                         const Icon = type.icon;
                         const isSelected = selectedType === type.id;
+                        const isShopping = type.id === "SHOPPING";
+                        const shoppingDisconnected = isShopping && !isMerchConnected;
                         return (
                           <div
                             key={type.id}
                             onClick={() => setSelectedType(type.id)}
-                            className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between ${isSelected
+                            className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                              isSelected
                                 ? "bg-blue-50/80 border-blue-500 ring-1 ring-primary"
+                                : shoppingDisconnected
+                                ? "bg-amber-50/30 border-amber-200 hover:border-amber-300 hover:bg-amber-50"
                                 : "bg-white border-slate-200 hover:border-slate-200 hover:bg-slate-50"
-                              }`}
+                            }`}
                           >
                             {isSelected && (
                               <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
                                 <Check className="h-3 w-3 text-white stroke-[3]" />
                               </div>
                             )}
+                            {shoppingDisconnected && !isSelected && (
+                              <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                                Not Connected
+                              </div>
+                            )}
                             <div>
-                              <div className="w-8 h-8 rounded-lg bg-blue-50/80 text-blue-600 flex items-center justify-center mb-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${
+                                shoppingDisconnected ? "bg-amber-50 text-amber-600" : "bg-blue-50/80 text-blue-600"
+                              }`}>
                                 <Icon className="h-4 w-4" />
                               </div>
-                              <h3 className={`text-sm font-semibold mb-1 ${isSelected ? "text-blue-600" : "text-slate-900"}`}>
+                              <h3 className={`text-sm font-semibold mb-1 ${
+                                isSelected ? "text-blue-600" : shoppingDisconnected ? "text-amber-800" : "text-slate-900"
+                              }`}>
                                 {type.title}
                               </h3>
                               <p className="text-xs text-slate-500 leading-relaxed">
@@ -6047,6 +6087,34 @@ export default function CampaignCreatePage() {
                         Performance Max has replaced Local campaigns. Performance Max brings you the same optimization benefits, including store visits, call clicks, and directions to help you meet your offline goals.{" "}
                         <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more</a>
                       </p>
+                    )}
+
+                    {/* Inline Shopping Not Connected Warning — shown when SHOPPING is selected and merchant not connected */}
+                    {selectedType === "SHOPPING" && !isMerchConnected && (
+                      <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 flex items-start justify-between gap-4 animate-in fade-in duration-200">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-lg bg-amber-100 text-amber-700 shrink-0">
+                            <ShoppingBag className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-amber-900">Google Merchant Center Not Connected</h4>
+                            <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                              To create a Shopping campaign, you need to link your Google Merchant Center account. Connect it in your Google Ads Profile to proceed.
+                            </p>
+                            <p className="text-[11px] text-amber-800/70 mt-1">
+                              Go to Google Ads Profile &gt; <strong>Merchant &amp; Mobile Apps</strong> tab to connect your Merchant Center ID.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}
+                          className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
+                        >
+                          <span>Connect Now</span>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -6565,133 +6633,354 @@ export default function CampaignCreatePage() {
                   )}
 
                   {/* 6. SHOPPING */}
-                  {selectedType === "SHOPPING" && (
-                    <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white space-y-5 animate-in fade-in duration-200">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
-                        <input
-                          key={`${prefix}-Shopping`}
-                          defaultValue={selectedObjective === "NO_GUIDANCE" ? "Shopping-1" : `${prefix}-Shopping-1`}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
-                        />
-                      </div>
+                  {selectedType === "SHOPPING" && (() => {
+                    const isMerchantConnected = Boolean(customerProfile?.hasMerchantAccount) && Boolean(customerProfile?.merchantCenterId);
+                    const merchantId = customerProfile?.merchantCenterId || "";
+                    const merchantStoreName = customerProfile?.merchantStoreName || customerProfile?.businessName || "Connected Merchant Store";
 
-                      {/* Conversion Goals Table for No Guidance */}
-                      {selectedObjective === "NO_GUIDANCE" ? (
-                        <div className="space-y-3 pt-2 border-t border-slate-200">
-                          <h4 className="text-xs font-semibold text-slate-700">Use these conversion goals for campaign performance optimization</h4>
-                          <p className="text-xs text-slate-500">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
-                          <div className="border border-slate-200 rounded-lg overflow-visible bg-slate-50">
-                            <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-500 border-b border-slate-200">
-                              <div className="col-span-5">Conversion Goals</div>
-                              <div className="col-span-3">Conversion Source</div>
-                              <div className="col-span-2 text-right">Conversion Actions</div>
-                              <div className="col-span-2 text-right">More actions</div>
-                            </div>
-                            <div className="grid grid-cols-12 px-4 py-2.5 text-xs text-slate-900 items-center">
-                              <div className="col-span-5 font-medium text-slate-900 flex items-center gap-2">
-                                <PhoneCall className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                                Phone call leads (account default)
+                    return (
+                      <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white space-y-6 animate-in fade-in duration-200">
+                        {/* Merchant Center Connection Status Banner */}
+                        {!isMerchantConnected ? (
+                          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3">
+                                <div className="p-2 rounded-lg bg-amber-100 text-amber-700 shrink-0 mt-0.5">
+                                  <ShoppingBag className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <h4 className="text-sm font-bold text-amber-900">Google Merchant Center Not Connected</h4>
+                                  <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                                    To create a Shopping campaign, you must link your Google Merchant Center account in your Google Ads Profile.
+                                  </p>
+                                </div>
                               </div>
-                              <div className="col-span-3 text-slate-500">Call from Ads</div>
-                              <div className="col-span-2 text-right text-slate-500">1 action</div>
-                              <div className="col-span-2 text-right text-slate-500">More actions ▾</div>
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}
+                                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
+                              >
+                                <span>Connect Now</span>
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <p className="text-[11px] text-amber-800/80 pl-11">
+                              Go to Google Ads Profile &gt; <strong>Merchant &amp; Mobile Apps</strong> tab to connect your Google Merchant Center ID.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/60 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                                <span className="text-xs font-bold text-emerald-900">
+                                  Google Merchant Account Connected
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}
+                                className="text-[11px] font-semibold text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>Manage in Profile</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </button>
+                            </div>
+
+                            <div className="p-3 bg-white rounded-xl border border-emerald-200 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
+                                  <ShoppingBag className="h-4 w-4" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-slate-900">{merchantStoreName}</p>
+                                  <p className="text-[11px] font-mono text-slate-600">Merchant Center ID: {merchantId}</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md">
+                                Verified Feed Linked
+                              </span>
                             </div>
                           </div>
+                        )}
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
+                          <input
+                            key={`${prefix}-Shopping`}
+                            defaultValue={selectedObjective === "NO_GUIDANCE" ? "Shopping-1" : `${prefix}-Shopping-1`}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
+                          />
                         </div>
-                      ) : (
-                        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                          <h4 className="text-xs font-semibold text-slate-900 flex items-center gap-2">
-                            <ShoppingBag className="h-4 w-4 text-blue-600" />
-                            Add products to this campaign
-                          </h4>
-                          <p className="text-xs text-slate-500 leading-relaxed">
-                            To run a Shopping campaign, create a Merchant Center account with the products you want to advertise. You can create the account now and finish setting it up after you've published this campaign.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
+
+                        {/* Conversion Goals Table for No Guidance */}
+                        {selectedObjective === "NO_GUIDANCE" ? (
+                          <div className="space-y-3 pt-2 border-t border-slate-200">
+                            <h4 className="text-xs font-semibold text-slate-700">Use these conversion goals for campaign performance optimization</h4>
+                            <p className="text-xs text-slate-500">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
+                            <div className="border border-slate-200 rounded-lg overflow-visible bg-slate-50">
+                              <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-500 border-b border-slate-200">
+                                <div className="col-span-5">Conversion Goals</div>
+                                <div className="col-span-3">Conversion Source</div>
+                                <div className="col-span-2 text-right">Conversion Actions</div>
+                                <div className="col-span-2 text-right">More actions</div>
+                              </div>
+                              <div className="grid grid-cols-12 px-4 py-2.5 text-xs text-slate-900 items-center">
+                                <div className="col-span-5 font-medium text-slate-900 flex items-center gap-2">
+                                  <PhoneCall className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                                  Phone call leads (account default)
+                                </div>
+                                <div className="col-span-3 text-slate-500">Call from Ads</div>
+                                <div className="col-span-2 text-right text-slate-500">1 action</div>
+                                <div className="col-span-2 text-right text-slate-500">More actions ▾</div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                            <h4 className="text-xs font-semibold text-slate-900 flex items-center gap-2">
+                              <ShoppingBag className="h-4 w-4 text-blue-600" />
+                              Add products to this campaign
+                            </h4>
+                            <p className="text-xs text-slate-500 leading-relaxed">
+                              {isMerchantConnected
+                                ? `Products from connected Merchant Center (ID: ${merchantId}) will be automatically synchronized with your product feeds.`
+                                : "To run a Shopping campaign, connect your Google Merchant Center account. You can connect it now via the button above."}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* 7. APP */}
-                  {selectedType === "APP" && (
-                    <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white space-y-6 animate-in fade-in duration-200">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
-                        <input
-                          defaultValue={selectedObjective === "NO_GUIDANCE" ? "App-1" : "App promotion-App-1"}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
-                        />
-                      </div>
+                  {selectedType === "APP" && (() => {
+                    const isAppConnected = Boolean(customerProfile?.hasAppAccount) && Array.isArray(customerProfile?.appDetails) && customerProfile.appDetails.length > 0;
+                    const connectedApps = Array.isArray(customerProfile?.appDetails) ? customerProfile.appDetails : [];
+                    const filteredConnectedApps = connectedApps.filter((a: any) => a.platform === appPlatformState);
 
-                      {/* Subtype Selection */}
-                      <div className="space-y-3 pt-2 border-t border-slate-200">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-xs font-semibold text-slate-700">Select a campaign subtype</label>
-                          <a href="#" onClick={e => e.preventDefault()} className="text-xs text-blue-600 font-semibold hover:underline">Learn more</a>
+                    return (
+                      <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white space-y-6 animate-in fade-in duration-200">
+                        {/* App Connection Status Banner */}
+                        {!isAppConnected ? (
+                          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3">
+                                <div className="p-2 rounded-lg bg-amber-100 text-amber-700 shrink-0 mt-0.5">
+                                  <Smartphone className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <h4 className="text-sm font-bold text-amber-900">Mobile App Not Connected</h4>
+                                  <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                                    To create an App promotion campaign, you need to connect your Android or iOS mobile application in your Google Ads Profile.
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}
+                                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
+                              >
+                                <span>Connect Now</span>
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <p className="text-[11px] text-amber-800/80 pl-11">
+                              Check Google profile page &gt; <strong>Merchant &amp; Mobile Apps</strong> tab to enable Mobile Apps and link your Google Play or App Store package.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/60 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                                <span className="text-xs font-bold text-emerald-900">
+                                  Google App Connected ({connectedApps.length} App{connectedApps.length > 1 ? "s" : ""} Linked in Profile)
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}
+                                className="text-[11px] font-semibold text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>Manage in Profile</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </button>
+                            </div>
+
+                            {/* Connected Apps Display */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                              {connectedApps.map((app: any, idx: number) => {
+                                const isSelected = selectedMobileAppEntry?.appId === app.appId;
+                                return (
+                                  <div
+                                    key={app.id || idx}
+                                    onClick={() => {
+                                      setSelectedMobileAppEntry(app);
+                                      if (app.platform === "IOS") setAppPlatformState("IOS");
+                                      else setAppPlatformState("ANDROID");
+                                    }}
+                                    className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                                      isSelected
+                                        ? "bg-white border-blue-600 shadow-xs ring-1 ring-blue-600"
+                                        : "bg-white/80 border-emerald-200 hover:bg-white"
+                                    }`}
+                                  >
+                                    <div className="min-w-0 pr-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                          app.platform === "IOS" ? "bg-slate-900 text-white" : "bg-emerald-600 text-white"
+                                        }`}>
+                                          {app.platform === "IOS" ? "iOS" : "Android"}
+                                        </span>
+                                        <span className="text-xs font-bold text-slate-900 truncate">
+                                          {app.appName || app.appId}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] font-mono text-slate-500 truncate block mt-0.5">
+                                        {app.appId}
+                                      </span>
+                                    </div>
+                                    {isSelected && <Check className="h-4 w-4 text-blue-600 shrink-0" />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
+                          <input
+                            defaultValue={selectedObjective === "NO_GUIDANCE" ? "App-1" : "App promotion-App-1"}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
+                          />
                         </div>
-                        <div className="space-y-2">
-                          {[
-                            { id: "installs", title: "App installs", desc: "Get new people to install your app" },
-                            { id: "engagement", title: "App engagement", desc: "Get existing users to take actions in your app (Minimum 50K installs required)" },
-                            { id: "preregistration", title: "App pre-registration (Android only)", desc: "Get new users to pre-register for your app before launch" },
-                          ].map((sub) => (
-                            <label
-                              key={sub.id}
-                              onClick={() => setAppSubtype(sub.id as any)}
-                              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${appSubtype === sub.id ? "border-blue-500 bg-blue-50/50" : "border-slate-200 bg-slate-50 hover:border-slate-200"
-                                }`}
-                            >
+
+                        {/* Subtype Selection */}
+                        <div className="space-y-3 pt-2 border-t border-slate-200">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-semibold text-slate-700">Select a campaign subtype</label>
+                            <a href="#" onClick={e => e.preventDefault()} className="text-xs text-blue-600 font-semibold hover:underline">Learn more</a>
+                          </div>
+                          <div className="space-y-2">
+                            {[
+                              { id: "installs", title: "App installs", desc: "Get new people to install your app" },
+                              { id: "engagement", title: "App engagement", desc: "Get existing users to take actions in your app (Minimum 50K installs required)" },
+                              { id: "preregistration", title: "App pre-registration (Android only)", desc: "Get new users to pre-register for your app before launch" },
+                            ].map((sub) => (
+                              <label
+                                key={sub.id}
+                                onClick={() => setAppSubtype(sub.id as any)}
+                                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${appSubtype === sub.id ? "border-blue-500 bg-blue-50/50" : "border-slate-200 bg-slate-50 hover:border-slate-200"
+                                  }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="appSubtype"
+                                  checked={appSubtype === sub.id}
+                                  onChange={() => setAppSubtype(sub.id as any)}
+                                  className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                />
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-900">{sub.title}</p>
+                                  <p className="text-[11px] text-slate-500 mt-0.5">{sub.desc}</p>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Platform Selection */}
+                        <div className="space-y-2 pt-2 border-t border-slate-200">
+                          <label className="block text-xs font-semibold text-slate-700">Select your mobile app's platform</label>
+                          <div className="flex items-center gap-6">
+                            <label className="flex items-center gap-2 text-xs text-slate-900 cursor-pointer">
                               <input
                                 type="radio"
-                                name="appSubtype"
-                                checked={appSubtype === sub.id}
-                                onChange={() => setAppSubtype(sub.id as any)}
-                                className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                name="platform"
+                                checked={appPlatformState === "ANDROID"}
+                                onChange={() => {
+                                  setAppPlatformState("ANDROID");
+                                  const match = connectedApps.find((a: any) => a.platform === "ANDROID");
+                                  if (match) setSelectedMobileAppEntry(match);
+                                }}
+                                className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                               />
-                              <div>
-                                <p className="text-xs font-semibold text-slate-900">{sub.title}</p>
-                                <p className="text-[11px] text-slate-500 mt-0.5">{sub.desc}</p>
-                              </div>
+                              Android
                             </label>
-                          ))}
+                            {appSubtype !== "preregistration" && (
+                              <label className="flex items-center gap-2 text-xs text-slate-900 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="platform"
+                                  checked={appPlatformState === "IOS"}
+                                  onChange={() => {
+                                    setAppPlatformState("IOS");
+                                    const match = connectedApps.find((a: any) => a.platform === "IOS");
+                                    if (match) setSelectedMobileAppEntry(match);
+                                  }}
+                                  className="text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                />
+                                iOS
+                              </label>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Platform Selection */}
-                      <div className="space-y-2 pt-2 border-t border-slate-200">
-                        <label className="block text-xs font-semibold text-slate-700">Select your mobile app's platform</label>
-                        <div className="flex items-center gap-6">
-                          <label className="flex items-center gap-2 text-xs text-slate-900 cursor-pointer">
-                            <input type="radio" name="platform" defaultChecked className="text-blue-600 focus:ring-blue-500 h-4 w-4" />
-                            Android
+                        {/* App Lookup or Selected Connected App */}
+                        <div className="space-y-2 pt-2 border-t border-slate-200">
+                          <label className="block text-xs font-semibold text-slate-700">
+                            {appSubtype === "preregistration"
+                              ? "Look up your app that's eligible for pre-registration"
+                              : "Selected App or Package"}
                           </label>
-                          {appSubtype !== "preregistration" && (
-                            <label className="flex items-center gap-2 text-xs text-slate-900 cursor-pointer">
-                              <input type="radio" name="platform" className="text-blue-600 focus:ring-blue-500 h-4 w-4" />
-                              iOS
-                            </label>
+
+                          {selectedMobileAppEntry && (
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="p-2 rounded-lg bg-blue-600 text-white shrink-0">
+                                  <Smartphone className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-slate-900 truncate">
+                                    {selectedMobileAppEntry.appName || selectedMobileAppEntry.appId}
+                                  </p>
+                                  <p className="text-[11px] font-mono text-slate-600 truncate">
+                                    {selectedMobileAppEntry.appId} ({selectedMobileAppEntry.platform})
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 text-blue-800 rounded-md">
+                                Connected Profile App
+                              </span>
+                            </div>
                           )}
+
+                          <input
+                            value={customAppLookupQuery || selectedMobileAppEntry?.appId || ""}
+                            onChange={(e) => {
+                              setCustomAppLookupQuery(e.target.value);
+                              if (selectedMobileAppEntry && e.target.value !== selectedMobileAppEntry.appId) {
+                                setSelectedMobileAppEntry(null);
+                              }
+                            }}
+                            placeholder="Enter the app name, package name, publisher, or Play Store URL"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all font-mono"
+                          />
+                          <p className="text-[11px] text-slate-500 pt-1">
+                            {!isAppConnected ? (
+                              <span className="text-amber-700 font-semibold">
+                                Tip: Connect your app in your Google Ads Profile page for verified campaign publishing.
+                              </span>
+                            ) : (
+                              <span>Google Ads validates this application package against the real {appPlatformState === "IOS" ? "Apple App Store" : "Google Play Store"}.</span>
+                            )}
+                          </p>
                         </div>
                       </div>
-
-                      {/* App Lookup */}
-                      <div className="space-y-2 pt-2 border-t border-slate-200">
-                        <label className="block text-xs font-semibold text-slate-700">
-                          {appSubtype === "preregistration"
-                            ? "Look up your app that's eligible for pre-registration"
-                            : "Look up your app"}
-                        </label>
-                        <input
-                          placeholder="Enter the app name, package name, publisher, or Play Store URL"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all"
-                        />
-                        <p className="text-[11px] text-slate-500 pt-1">
-                          If you cannot find your app, please see these steps
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                 </div>
               );

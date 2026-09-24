@@ -56,6 +56,7 @@ const YoutubeIcon = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => 
   </svg>
 );
 import { ProfileSectionFooterNav } from "@/components/ads/ProfileSectionFooterNav";
+import { GoogleAdsAccountHealthSection } from "@/components/ads/GoogleAdsAccountHealthSection";
 
 export interface SubPageEntry {
   text: string;
@@ -754,14 +755,16 @@ function ProfilePageContent() {
   const isProfileFullyCompleted = completionPercentage >= 90 || isApproved;
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedOrg = localStorage.getItem("organization_id");
-      if (storedOrg) setOrgId(storedOrg);
-    }
-
     const tabParam = searchParams.get("tab") as TabKey | null;
     if (tabParam && PROFILE_TABS_SEQUENCE.some(t => t.key === tabParam)) {
       setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedOrg = localStorage.getItem("organization_id");
+      if (storedOrg) setOrgId(storedOrg);
     }
 
     const oauthParam = searchParams.get("oauth");
@@ -10569,6 +10572,15 @@ function ProfilePageContent() {
             {/* TAB CONTENT: IDENTITY & ACCOUNT DETAILS */}
             {activeTab === "overview" && profile && (
               <div className="animate-fadeIn space-y-6 transition-all duration-300">
+                {/* Google Ads Account Health & Compliance (Client-friendly with admin diagnostics) */}
+                <GoogleAdsAccountHealthSection
+                  customerId={customerId}
+                  orgId={orgId}
+                  primaryWebsite={primaryWebsite}
+                  onNavigateToBusinessProfile={() => setActiveTab("business")}
+                  userRole={profile.userRole}
+                />
+
                 <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     Organization &amp; Team Details

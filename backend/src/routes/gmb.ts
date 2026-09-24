@@ -591,6 +591,7 @@ router.get("/oauth/callback", async (req, res) => {
     const targetCid = googleAdsCustomerId || existingConfigs[0]?.googleAdsCustomerId;
     const cleanCid = targetCid ? targetCid.replace(/-/g, "").trim() : "";
     if (isFromAdsPage && targetCid) {
+      const cleanCid = targetCid.replace(/-/g, "").trim();
       try {
 
         // Check if there are mobile app campaigns to link

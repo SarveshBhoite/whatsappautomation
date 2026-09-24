@@ -437,9 +437,6 @@ export const getAvailableCampaignTypes = (
   const appValid = isAppVerified(customerProfileSource);
 
   if (obj === "APP_PROMOTION") {
-    if (!appValid) {
-      return [];
-    }
     return [
       {
         id: "APP",
@@ -523,16 +520,19 @@ export const getAvailableCampaignTypes = (
         id: "DEMAND_GEN",
         title: "Demand Gen",
         desc: "Drive demand and conversions on YouTube, Google Display Network, and more with image and video ads"
-      }
-    ];
-
-    if (merchantValid) {
-      types.push({
+      },
+      {
+        id: "VIDEO",
+        title: "Video",
+        desc: "Drive action on YouTube with your video ads"
+      },
+      {
         id: "SHOPPING",
         title: "Shopping",
-        desc: "Promote your products from Merchant Center on Google Search with Shopping ads"
-      });
-    }
+        desc: "Promote your products from Merchant Center on Google Search with Shopping ads",
+        needsMerchant: !merchantValid
+      } as any
+    ];
 
     return types;
   }
@@ -558,22 +558,19 @@ export const getAvailableCampaignTypes = (
         id: "DISPLAY",
         title: "Display",
         desc: "Reach potential customers across 3 million sites and apps with your creative"
-      }
-    ];
-
-    if (merchantValid) {
-      types.push({
+      },
+      {
         id: "SHOPPING",
         title: "Shopping",
-        desc: "Promote your products from Merchant Center on Google Search with Shopping ads"
-      });
-    }
-
-    types.push({
-      id: "VIDEO",
-      title: "Video",
-      desc: "Reach and engage viewers on YouTube and across the web"
-    });
+        desc: "Promote your products from Merchant Center on Google Search with Shopping ads",
+        needsMerchant: !merchantValid
+      } as any,
+      {
+        id: "VIDEO",
+        title: "Video",
+        desc: "Reach and engage viewers on YouTube and across the web"
+      }
+    ];
 
     return types;
   }
@@ -610,13 +607,13 @@ export const getAvailableCampaignTypes = (
     }
   ];
 
-  if (merchantValid) {
-    allSalesOrLeadsTypes.push({
-      id: "SHOPPING",
-      title: "Shopping",
-      desc: `Promote your products from Merchant Center on Google Search with Shopping ads`
-    });
-  }
+  // Always include Shopping — show warning if merchant not connected
+  allSalesOrLeadsTypes.push({
+    id: "SHOPPING",
+    title: "Shopping",
+    desc: `Promote your products from Merchant Center on Google Search with Shopping ads`,
+    needsMerchant: !merchantValid
+  } as any);
 
   // Manual Flow Goal Dependencies for SALES / LEADS:
   if (hasContacts) {
@@ -644,19 +641,8 @@ export const reconcileCampaignStateWithManualFlow = (
   const merchantValid = isMerchantVerified(profSource);
   const appValid = isAppVerified(profSource);
 
-  // If user selected APP_PROMOTION but app is not verified, fall back to SALES
-  if (updated.objective === "APP_PROMOTION" && !appValid) {
-    updated.objective = "SALES";
-    updated.campaignType = "PERFORMANCE_MAX";
-    updated.conversionGoals = ["phone_leads"];
-  }
-
-  // If user selected SHOPPING but merchant is not verified, fall back to PERFORMANCE_MAX
-  if (updated.campaignType === "SHOPPING" && !merchantValid) {
-    updated.campaignType = "PERFORMANCE_MAX";
-  }
-
   const obj = updated.objective || "";
+  const isAppConn = isAppVerified(profSource);
 
   if (obj === "SALES" || obj === "LEADS" || obj === "WEBSITE_TRAFFIC") {
     const rawGoal = (updated.conversionGoals && updated.conversionGoals.length > 0)
@@ -672,16 +658,10 @@ export const reconcileCampaignStateWithManualFlow = (
       updated.campaignType = (availableTypes[0]?.id || "PERFORMANCE_MAX") as any;
     }
   } else if (obj === "APP_PROMOTION") {
-    if (!appValid) {
-      updated.objective = "SALES";
-      updated.campaignType = "PERFORMANCE_MAX";
-      updated.conversionGoals = ["phone_leads"];
-    } else {
-      const rawSubtype = updated.conversionGoals?.[0] || "installs";
-      const isValid = APP_PROMOTION_SUBTYPES.some(s => s.id === rawSubtype);
-      updated.conversionGoals = [isValid ? rawSubtype : "installs"];
-      updated.campaignType = "APP";
-    }
+    const rawSubtype = updated.conversionGoals?.[0] || "installs";
+    const isValid = APP_PROMOTION_SUBTYPES.some(s => s.id === rawSubtype);
+    updated.conversionGoals = [isValid ? rawSubtype : "installs"];
+    updated.campaignType = "APP";
   } else if (obj === "AWARENESS") {
     const rawSubtype = updated.conversionGoals?.[0] || "views";
     const isValid = AWARENESS_SUBTYPES.some(s => s.id === rawSubtype);
@@ -699,10 +679,8 @@ export const reconcileCampaignStateWithManualFlow = (
       updated.locations = ["India"];
     }
   } else if (obj === "NO_GUIDANCE") {
-    const availableTypes = ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN"];
-    if (merchantValid) {
-      availableTypes.push("SHOPPING");
-    }
+    // Always allow SHOPPING & VIDEO — the UI card shows merchant warning if not connected
+    const availableTypes = ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN", "VIDEO", "SHOPPING"];
     if (!updated.campaignType || !availableTypes.includes(updated.campaignType)) {
       updated.campaignType = "PERFORMANCE_MAX";
     }
@@ -2572,8 +2550,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       return `${label} must be greater than 0.`;
     }
     const effectiveType = targetCampaignType || campaignState.campaignType;
-    if (effectiveType === "DEMAND_GEN" && !isTotal && num < 416) {
-      return "Demand Gen daily budget must be at least ₹416/day.";
+    if (effectiveType === "DEMAND_GEN" && !isTotal && num < 100) {
+      return "Demand Gen daily budget must be at least ₹100/day.";
     }
     return null;
   };
@@ -2691,7 +2669,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const checkIsCampaignReady = (state: CampaignState): boolean => {
     const cType = state.campaignType;
     const isBudgetValid = cType === "DEMAND_GEN"
-      ? (state.dailyBudget && state.dailyBudget >= 416)
+      ? (state.dailyBudget && state.dailyBudget >= 100)
       : (state.dailyBudget && state.dailyBudget > 0);
     const hasBudget = Boolean(isBudgetValid);
     const hasBizName = !!(state.businessName?.trim() || state.business?.name?.trim());
@@ -2841,11 +2819,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     }
 
     const isBudgetValid = cType === "DEMAND_GEN"
-      ? (state.dailyBudget && state.dailyBudget >= 416)
+      ? (state.dailyBudget && state.dailyBudget >= 100)
       : (state.dailyBudget && state.dailyBudget > 0);
     if (!isBudgetValid) {
       missing.push({
-        label: cType === "DEMAND_GEN" ? "Daily Budget must be at least ₹416/day" : "Daily Budget is required (min ₹100/day)",
+        label: cType === "DEMAND_GEN" ? "Daily Budget must be at least ₹100/day" : "Daily Budget is required (min ₹100/day)",
         field: "dailyBudget",
         fixAction: () => startFieldEdit("dailyBudget")
       });
@@ -5608,9 +5586,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           startFieldEdit("descriptions");
           throw new Error("Demand Gen requires at least 1 Description (up to 90 chars). Please add a description in the Live Cockpit or ask AI to generate it.");
         }
-        if (budgetNum < 416) {
+        if (budgetNum < 100) {
           startFieldEdit("dailyBudget");
-          throw new Error(`Demand Gen campaigns require a minimum Daily Budget of ₹416/day (currently ₹${budgetNum}/day).`);
+          throw new Error(`Demand Gen campaigns require a minimum Daily Budget of ₹100/day (currently ₹${budgetNum}/day).`);
         }
         const DEFAULT_DG_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
         const DEFAULT_DG_LOGO = "https://ik.imagekit.io/automationjds/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
@@ -9387,17 +9365,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                       >
                         <option value="">-- Select Objective --</option>
-                        {MANUAL_OBJECTIVES.filter(obj => {
+                        {MANUAL_OBJECTIVES.map((obj) => {
                           const effectiveProfile = customerProfile || campaignState.customerProfile;
-                          if (obj.id === "APP_PROMOTION" && !isAppVerified(effectiveProfile)) {
-                            return false;
-                          }
-                          return true;
-                        }).map((obj) => (
-                          <option key={obj.id} value={obj.id}>
-                            {obj.title}
-                          </option>
-                        ))}
+                          const isAppConn = isAppVerified(effectiveProfile);
+                          return (
+                            <option key={obj.id} value={obj.id}>
+                              {obj.title}{obj.id === "APP_PROMOTION" && !isAppConn ? " (Mobile App Disconnected)" : ""}
+                            </option>
+                          );
+                        })}
                       </select>
                       <button
                         type="button"
@@ -9417,9 +9393,16 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </button>
                     </div>
                   ) : (
-                    <span className="font-semibold text-blue-700">
-                      {campaignState.objective ? `${MANUAL_OBJECTIVES.find(o => o.id === campaignState.objective)?.title || campaignState.objective} ✓` : "Not set"}
-                    </span>
+                    <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                      <span className="font-semibold text-blue-700">
+                        {campaignState.objective ? `${MANUAL_OBJECTIVES.find(o => o.id === campaignState.objective)?.title || campaignState.objective} ✓` : "Not set"}
+                      </span>
+                      {campaignState.objective === "APP_PROMOTION" && !isAppVerified(customerProfile || campaignState.customerProfile) && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          App Disconnected
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -9554,6 +9537,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           ? tempEditValues.campaignType
                           : (availableTypes[0]?.id || "PERFORMANCE_MAX");
 
+                        const effectiveProfileForMerchant = customerProfile || campaignState.customerProfile;
+                        const isMerchConn = Boolean(isMerchantVerified(effectiveProfileForMerchant));
                         return (
                           <select
                             value={currentTypeVal}
@@ -9562,7 +9547,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           >
                             {availableTypes.map((type) => (
                               <option key={type.id} value={type.id}>
-                                {type.title}
+                                {type.title}{type.id === "SHOPPING" && !isMerchConn ? " (Not Connected)" : ""}
                               </option>
                             ))}
                           </select>
@@ -9586,16 +9571,23 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </button>
                     </div>
                   ) : (
-                    <span className="font-semibold text-purple-700 flex items-center gap-1">
-                      {campaignState.campaignType ? (
-                        <>
-                          {getCampaignIcon(campaignState.campaignType)}
-                          {formatCampaignTypeDisplay(campaignState.campaignType)}
-                        </>
-                      ) : (
-                        <span className="text-slate-400 font-normal italic">Not set</span>
+                    <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                      <span className="font-semibold text-purple-700 flex items-center gap-1">
+                        {campaignState.campaignType ? (
+                          <>
+                            {getCampaignIcon(campaignState.campaignType)}
+                            {formatCampaignTypeDisplay(campaignState.campaignType)}
+                          </>
+                        ) : (
+                          <span className="text-slate-400 font-normal italic">Not set</span>
+                        )}
+                      </span>
+                      {campaignState.campaignType === "SHOPPING" && !isMerchantVerified(customerProfile || campaignState.customerProfile) && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          Merchant Disconnected
+                        </span>
                       )}
-                    </span>
+                    </div>
                   )}
                 </div>
 
@@ -11687,7 +11679,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                               setCampaignState(prev => {
                                 const nextState = { ...prev, adFormat: fmt };
                                 const dgFormat = fmt;
-                                const isBudgetValid = nextState.dailyBudget && nextState.dailyBudget >= 416;
+                                const isBudgetValid = nextState.dailyBudget && nextState.dailyBudget >= 100;
                                 const hasLogo = (nextState.logos?.length || 0) >= 1;
                                 const hasImages = (nextState.images?.length || 0) >= 1;
                                 const hasVideos = (nextState.videos?.length || 0) >= 1;
@@ -12210,7 +12202,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                               setCampaignState(prev => {
                                 const nextState = { ...prev, adFormat: fmt };
                                 const vFormat = fmt;
-                                const isBudgetValid = nextState.dailyBudget && nextState.dailyBudget >= 416;
+                                const isBudgetValid = nextState.dailyBudget && nextState.dailyBudget >= 100;
                                 const hasLogo = (nextState.logos?.length || 0) >= 1;
                                 const hasImages = (nextState.images?.length || 0) >= 1;
                                 const hasVideos = (nextState.videos?.length || 0) >= 1;
@@ -12804,21 +12796,70 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 2c. DEDICATED SHOPPING SETTINGS & READINESS CARD (When CampaignType = SHOPPING and Merchant verified) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SHOPPING" && Boolean(isMerchantVerified(customerProfile || campaignState.customerProfile)) && (
-              <div className="bg-slate-50 border border-amber-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between border-b border-amber-200 pb-2">
-                  <div className="flex items-center gap-1.5">
-                    <ShoppingBag className="h-4 w-4 text-amber-600" />
-                    <span className="font-bold text-xs text-slate-900">Google Shopping Controls & Merchant Center</span>
-                  </div>
-                  <span className={campaignState.readyForPublish ? "text-[10px] text-emerald-600 font-bold" : "text-[10px] text-amber-600 font-semibold"}>
-                    {campaignState.readyForPublish ? "Publish Ready ✓" : "Required items missing"}
-                  </span>
-                </div>
+            {/* 2c. DEDICATED SHOPPING SETTINGS & READINESS CARD (When CampaignType = SHOPPING) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SHOPPING" && (() => {
+              const isMerchantConn = Boolean(isMerchantVerified(customerProfile || campaignState.customerProfile));
+              const effectiveProf = customerProfile || campaignState.customerProfile;
+              const merchantId = effectiveProf?.merchantCenterId || campaignState.merchantCenterId || "";
+              const merchantStoreName = effectiveProf?.merchantStoreName || effectiveProf?.businessName || "Connected Merchant Store";
 
-                <div className="space-y-2.5 text-[11px]">
-                  {/* Merchant Center ID */}
+              return (
+                <div className="bg-slate-50 border border-amber-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <ShoppingBag className="h-4 w-4 text-amber-600" />
+                      <span className="font-bold text-xs text-slate-900">Google Shopping Controls & Merchant Center</span>
+                    </div>
+                    <span className={campaignState.readyForPublish && isMerchantConn ? "text-[10px] text-emerald-600 font-bold" : "text-[10px] text-amber-600 font-semibold"}>
+                      {isMerchantConn ? (campaignState.readyForPublish ? "Publish Ready ✓" : "Required items missing") : "Merchant Disconnected"}
+                    </span>
+                  </div>
+
+                  {/* Merchant Connection Alert if not connected */}
+                  {!isMerchantConn ? (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-bold text-amber-900">Google Merchant Center Not Connected</p>
+                            <p className="text-[11px] text-amber-700 leading-tight">
+                              Connect your Google Merchant Center account in your Google Ads Profile page before publishing.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                          className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-lg shadow-xs flex items-center gap-1 shrink-0 cursor-pointer"
+                        >
+                          <span>Connect Now</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <div>
+                          <span className="font-bold text-emerald-900 block">{merchantStoreName}</span>
+                          <span className="text-[10px] font-mono text-emerald-700">Merchant Center ID: {merchantId}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                        className="text-[10px] text-emerald-700 hover:underline flex items-center gap-0.5 cursor-pointer font-semibold"
+                      >
+                        <span>Profile</span>
+                        <ExternalLink className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="space-y-2.5 text-[11px]">
+                    {/* Merchant Center ID */}
                   <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-slate-800">Merchant Center ID:</span>
@@ -12972,140 +13013,221 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   </div>
                 )}
               </div>
-            )}
+            );
+          })()}
 
-            {/* 2d. DEDICATED APP PROMOTION SETTINGS & READINESS CARD (When CampaignType = APP and App verified) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "APP" && Boolean(isAppVerified(customerProfile || campaignState.customerProfile)) && (
-              <div className="bg-slate-50 border border-indigo-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <div className="flex items-center gap-1.5">
-                    <Smartphone className="h-4 w-4 text-indigo-600" />
-                    <span className="font-bold text-xs text-slate-900">App Promotion Settings</span>
-                  </div>
-                  <span className={campaignState.readyForPublish ? "text-[10px] text-emerald-600 font-bold" : "text-[10px] text-amber-600 font-semibold"}>
-                    {campaignState.readyForPublish ? "Publish Ready ✓" : "Required items missing"}
-                  </span>
-                </div>
+            {/* 2d. DEDICATED APP PROMOTION SETTINGS & READINESS CARD (When CampaignType = APP or Objective = APP_PROMOTION) */}
+            {Boolean(campaignState.campaignType === "APP" || campaignState.objective === "APP_PROMOTION") && (() => {
+              const isAppConn = Boolean(isAppVerified(customerProfile || campaignState.customerProfile));
+              const effectiveProf = customerProfile || campaignState.customerProfile;
+              const profileApps = Array.isArray(effectiveProf?.appDetails) ? effectiveProf.appDetails : [];
 
-                <div className="space-y-2 text-[11px]">
-                  {/* Platform Selection */}
-                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                    <span className="text-slate-500">Platform:</span>
+              return (
+                <div className="bg-slate-50 border border-indigo-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                     <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setCampaignState(prev => ({ ...prev, platform: "ANDROID", appStore: "GOOGLE_APP_STORE" }))}
-                        className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
-                          campaignState.platform !== "IOS" ? "bg-indigo-600 text-white shadow-xs" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        Android
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCampaignState(prev => ({ ...prev, platform: "IOS", appStore: "APPLE_APP_STORE" }))}
-                        className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
-                          campaignState.platform === "IOS" ? "bg-indigo-600 text-white shadow-xs" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        iOS
-                      </button>
+                      <Smartphone className="h-4 w-4 text-indigo-600" />
+                      <span className="font-bold text-xs text-slate-900">App Promotion Settings</span>
                     </div>
+                    <span className={campaignState.readyForPublish && isAppConn ? "text-[10px] text-emerald-600 font-bold" : "text-[10px] text-amber-600 font-semibold"}>
+                      {isAppConn ? (campaignState.readyForPublish ? "Publish Ready ✓" : "Required items missing") : "App Disconnected"}
+                    </span>
                   </div>
 
-                  {/* App ID / Package Name */}
-                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                    <div className="flex items-center gap-1 text-slate-500">
-                      <span>App ID / Package:</span>
-                      <button
-                        type="button"
-                        onClick={() => (editingField === "appId" ? cancelFieldEdit() : startFieldEdit("appId"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                        title="Edit App Package Name / Bundle ID"
-                      >
-                        <Edit3 className="h-3 w-3" />
-                      </button>
-                    </div>
-                    {editingField === "appId" ? (
-                      <div className="flex items-center gap-1 max-w-[200px]">
-                        <input
-                          type="text"
-                          value={tempEditValues.appId || ""}
-                          onChange={(e) => setTempEditValues({ ...tempEditValues, appId: e.target.value })}
-                          onKeyDown={handleKeyDownSave}
-                          placeholder={campaignState.platform === "IOS" ? "e.g. 123456789 or bundle" : "e.g. com.example.app"}
-                          className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
-                          autoFocus
-                        />
-                        <button type="button" onClick={saveFieldEdit} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">
-                          <Check className="h-3 w-3" />
-                        </button>
-                        <button type="button" onClick={cancelFieldEdit} className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300">
-                          <X className="h-3 w-3" />
+                  {/* App Connection Alert if not connected */}
+                  {!isAppConn ? (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-bold text-amber-900">Mobile App Not Connected</p>
+                            <p className="text-[11px] text-amber-700 leading-tight">
+                              Connect your mobile app in your Google Ads Profile page before publishing.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                          className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-lg shadow-xs flex items-center gap-1 shrink-0 cursor-pointer"
+                        >
+                          <span>Connect Now</span>
+                          <ExternalLink className="h-3 w-3" />
                         </button>
                       </div>
-                    ) : (
-                      <span className="font-mono font-semibold text-slate-800 truncate max-w-[180px]">
-                        {campaignState.appId ? (
-                          <span className="text-emerald-700 font-bold">✓ {campaignState.appId}</span>
-                        ) : (
-                          <span className="text-rose-500 font-semibold flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" /> Required
-                          </span>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-emerald-900 flex items-center gap-1">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          Connected Profile Apps ({profileApps.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                          className="text-[10px] text-emerald-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <span>Profile</span>
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                      {profileApps.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {profileApps.map((pApp: any, idx: number) => {
+                            const isSelected = campaignState.appId === pApp.appId;
+                            return (
+                              <button
+                                key={pApp.id || idx}
+                                type="button"
+                                onClick={() => {
+                                  const plat = pApp.platform === "IOS" ? "IOS" : "ANDROID";
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    appId: pApp.appId,
+                                    appName: pApp.appName || pApp.appId,
+                                    platform: plat,
+                                    appStore: plat === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE"
+                                  }));
+                                }}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-semibold border flex items-center gap-1 transition-all cursor-pointer ${
+                                  isSelected
+                                    ? "bg-white border-indigo-600 text-indigo-700 shadow-2xs font-bold"
+                                    : "bg-white/70 border-emerald-200 text-slate-700 hover:bg-white"
+                                }`}
+                              >
+                                <span>{pApp.appName || pApp.appId}</span>
+                                <span className="text-[9px] text-slate-400">({pApp.platform})</span>
+                                {isSelected && <Check className="h-3 w-3 text-indigo-600 ml-0.5" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-2 text-[11px]">
+                    {/* Platform Selection */}
+                    <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                      <span className="text-slate-500">Platform:</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setCampaignState(prev => ({ ...prev, platform: "ANDROID", appStore: "GOOGLE_APP_STORE" }))}
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                            campaignState.platform !== "IOS" ? "bg-indigo-600 text-white shadow-xs" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          Android
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCampaignState(prev => ({ ...prev, platform: "IOS", appStore: "APPLE_APP_STORE" }))}
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                            campaignState.platform === "IOS" ? "bg-indigo-600 text-white shadow-xs" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          iOS
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* App ID / Package Name */}
+                    <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                      <div className="flex items-center gap-1 text-slate-500">
+                        <span>App ID / Package:</span>
+                        <button
+                          type="button"
+                          onClick={() => (editingField === "appId" ? cancelFieldEdit() : startFieldEdit("appId"))}
+                          className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                          title="Edit App Package Name / Bundle ID"
+                        >
+                          <Edit3 className="h-3 w-3" />
+                        </button>
+                      </div>
+                      {editingField === "appId" ? (
+                        <div className="flex items-center gap-1 max-w-[200px]">
+                          <input
+                            type="text"
+                            value={tempEditValues.appId || ""}
+                            onChange={(e) => setTempEditValues({ ...tempEditValues, appId: e.target.value })}
+                            onKeyDown={handleKeyDownSave}
+                            placeholder={campaignState.platform === "IOS" ? "e.g. 123456789 or bundle" : "e.g. com.example.app"}
+                            className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
+                            autoFocus
+                          />
+                          <button type="button" onClick={saveFieldEdit} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">
+                            <Check className="h-3 w-3" />
+                          </button>
+                          <button type="button" onClick={cancelFieldEdit} className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="font-mono font-semibold text-slate-800 truncate max-w-[180px]">
+                          {campaignState.appId ? (
+                            <span className="text-emerald-700 font-bold">✓ {campaignState.appId}</span>
+                          ) : (
+                            <span className="text-rose-500 font-semibold flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" /> Required
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    {editingField === "appId" && fieldError && (
+                      <div className="text-[10px] text-rose-600 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-2.5 w-2.5 shrink-0" />
+                        <span>{fieldError}</span>
+                      </div>
+                    )}
+
+                    {/* App Name if available */}
+                    {campaignState.appName && (
+                      <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                        <span className="text-slate-500">App Name:</span>
+                        <span className="font-semibold text-slate-800 truncate max-w-[180px]">{campaignState.appName}</span>
+                      </div>
+                    )}
+
+                    {/* Campaign Goal */}
+                    <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                      <span className="text-slate-500">Bidding Goal:</span>
+                      <span className="font-semibold text-slate-800">
+                        {campaignState.conversionGoals?.[0] === "engagement"
+                          ? "In-app actions"
+                          : campaignState.conversionGoals?.[0] === "preregistration"
+                          ? "Pre-registration"
+                          : "App installs"}
+                      </span>
+                    </div>
+
+                    {/* Target CPA */}
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-slate-500">Target CPA:</span>
+                      <span className="font-semibold text-slate-800">
+                        {campaignState.targetCpa ? `₹${campaignState.targetCpa}` : (
+                          <span className="text-rose-500 font-semibold">Required</span>
                         )}
                       </span>
-                    )}
+                    </div>
                   </div>
-                  {editingField === "appId" && fieldError && (
-                    <div className="text-[10px] text-rose-600 font-medium flex items-center gap-1">
-                      <AlertCircle className="h-2.5 w-2.5 shrink-0" />
-                      <span>{fieldError}</span>
+
+                  {/* Missing App ID alert */}
+                  {!campaignState.appId && (
+                    <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-800 flex items-start gap-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                      <span>Mobile App package name (Android) or bundle ID (iOS) is required before this campaign can be published.</span>
                     </div>
                   )}
-
-                  {/* App Name if available */}
-                  {campaignState.appName && (
-                    <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                      <span className="text-slate-500">App Name:</span>
-                      <span className="font-semibold text-slate-800 truncate max-w-[180px]">{campaignState.appName}</span>
-                    </div>
-                  )}
-
-                  {/* Campaign Goal */}
-                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                    <span className="text-slate-500">Bidding Goal:</span>
-                    <span className="font-semibold text-slate-800">
-                      {campaignState.conversionGoals?.[0] === "engagement"
-                        ? "In-app actions"
-                        : campaignState.conversionGoals?.[0] === "preregistration"
-                        ? "Pre-registration"
-                        : "App installs"}
-                    </span>
-                  </div>
-
-                  {/* Target CPA */}
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-500">Target CPA:</span>
-                    <span className="font-semibold text-slate-800">
-                      {campaignState.targetCpa ? `₹${campaignState.targetCpa}` : (
-                        <span className="text-rose-500 font-semibold">Required</span>
-                      )}
-                    </span>
-                  </div>
                 </div>
-
-                {/* Missing App ID alert */}
-                {!campaignState.appId && (
-                  <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-800 flex items-start gap-1.5">
-                    <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
-                    <span>Mobile App package name (Android) or bundle ID (iOS) is required before this campaign can be published.</span>
-                  </div>
-                )}
-              </div>
-            )}
+              );
+            })()}
 
             {/* 3. DYNAMIC CAMPAIGN ASSETS & THUMBNAILS CARD (PMax, Search Image/Logo Assets & Media) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "SHOPPING" && (
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "SHOPPING" && campaignState.campaignType !== "APP" && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -13114,6 +13236,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     {campaignState.campaignType === "SEARCH" && (
                       <span className="text-[9px] bg-blue-100 text-blue-800 font-semibold px-1.5 py-0.5 rounded">
                         Optional for Search (Boosts CTR)
+                      </span>
+                    )}
+                    {campaignState.campaignType === "VIDEO" && (
+                      <span className="text-[9px] bg-red-100 text-red-700 font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                        <Video className="h-2.5 w-2.5" /> YouTube Video Required
                       </span>
                     )}
                   </div>
@@ -13160,6 +13287,24 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     </button>
                   </div>
                 </div>
+                {/* Video Campaign Warning Banner */}
+                {campaignState.campaignType === "VIDEO" && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-red-100 text-red-600 shrink-0">
+                      <Video className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-red-900">YouTube Video Assets Required</p>
+                      <p className="text-[11px] text-red-700 mt-0.5 leading-relaxed">
+                        Video campaigns run on YouTube and require at least one video ad. Upload your video to YouTube first, then add the YouTube URL as a video asset below.
+                      </p>
+                      <p className="text-[10px] text-red-600/80 mt-1">
+                        Supporting image thumbnails, logos, and headlines are optional but improve ad performance.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Live Cockpit Direct AI Generation Animation Banner */}
                 {cockpitGeneratingTarget && (
                   <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 border border-purple-300 animate-in fade-in zoom-in-95 duration-200 text-xs shadow-md space-y-2.5 relative overflow-hidden">
@@ -13223,13 +13368,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         (campaignState.headlines?.length || 0) >= 3 &&
                         (campaignState.descriptions?.length || 0) >= 2 &&
                         (campaignState.website || campaignState.websiteVisitsUrl || campaignState.finalUrl) &&
-                        (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                        (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
                       ) ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
                         {Boolean(
                           (campaignState.headlines?.length || 0) >= 3 &&
                           (campaignState.descriptions?.length || 0) >= 2 &&
                           (campaignState.website || campaignState.websiteVisitsUrl || campaignState.finalUrl) &&
-                          (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                          (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
                         ) ? "Ready ✓" : "Required items missing"}
                       </span>
                     </div>
@@ -13265,9 +13410,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
-                        <span>Daily Budget (≥ ₹416):</span>
-                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        <span>Daily Budget (≥ ₹100):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
                         </span>
                       </div>
                     </div>
@@ -13474,9 +13619,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
-                        <span>Daily Budget (≥ ₹416):</span>
-                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        <span>Daily Budget (≥ ₹100):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
                         </span>
                       </div>
                     </div>
@@ -13548,9 +13693,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </div>
                       )}
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
-                        <span>Daily Budget (≥ ₹416):</span>
-                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        <span>Daily Budget (≥ ₹100):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
                         </span>
                       </div>
                     </div>
@@ -13613,16 +13758,16 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
-                        <span>Daily Budget (≥ ₹416):</span>
-                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        <span>Daily Budget (≥ ₹100):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
                         </span>
                       </div>
                     </div>
                   </div>
                 )}
                 {/* Live App Promotion Asset Requirements Checklist when type is APP and App is verified */}
-                {campaignState.campaignType === "APP" && Boolean(isAppVerified(customerProfile || campaignState.customerProfile)) && (
+                {(campaignState.campaignType as string) === "APP" && Boolean(isAppVerified(customerProfile || campaignState.customerProfile)) && (
                   <div className="p-2.5 rounded-xl bg-white border border-emerald-200 shadow-2xs space-y-1.5 text-[10px]">
                     <div className="flex items-center justify-between font-bold text-slate-800">
                       <span className="flex items-center gap-1 text-emerald-700">
@@ -13634,14 +13779,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         (campaignState.targetCpa && Number(campaignState.targetCpa) > 0) &&
                         (campaignState.headlines?.length || 0) >= 1 &&
                         (campaignState.descriptions?.length || 0) >= 1 &&
-                        (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                        (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
                       ) ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
                         {Boolean(
                           campaignState.appId?.trim() &&
                           (campaignState.targetCpa && Number(campaignState.targetCpa) > 0) &&
                           (campaignState.headlines?.length || 0) >= 1 &&
                           (campaignState.descriptions?.length || 0) >= 1 &&
-                          (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                          (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
                         ) ? "Complete ✓" : "Required items missing"}
                       </span>
                     </div>
@@ -13671,9 +13816,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                        <span>Daily Budget (≥ ₹416):</span>
-                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        <span>Daily Budget (≥ ₹100):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
                         </span>
                       </div>
                     </div>
@@ -13689,11 +13834,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </span>
                       <span className={Boolean(
                         (campaignState.merchantCenterId || (campaignState as any).merchantId) &&
-                        (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                        (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
                       ) ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
                         {Boolean(
                           (campaignState.merchantCenterId || (campaignState as any).merchantId) &&
-                          (campaignState.dailyBudget && campaignState.dailyBudget >= 416)
+                          (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
                         ) ? "Ready ✓" : "Required items missing"}
                       </span>
                     </div>
@@ -13717,9 +13862,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
-                        <span>Daily Budget (≥ ₹416):</span>
-                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 416) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹416)`}
+                        <span>Daily Budget (≥ ₹100):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
                         </span>
                       </div>
                     </div>
