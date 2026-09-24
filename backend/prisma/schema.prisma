@@ -708,6 +708,8 @@ model GoogleAdAccount {
   descriptiveName String?
   currencyCode    String       @default("USD")
   timeZone        String       @default("UTC")
+  billingStatus   String?      @default("ACTIVE") // ACTIVE, PENDING_BILLING_INFO, BILLING_HOLD, SUSPENDED
+  googleTagId     String?      // e.g. AW-123456789 or GT-XXXXXX
   isManager       Boolean      @default(false)
   isActive        Boolean      @default(true)
   createdAt       DateTime     @default(now())
@@ -746,6 +748,8 @@ model GoogleAdsCustomerProfile {
   merchantDetails      Json?
   hasAppAccount        Boolean      @default(false)
   appDetails           Json?        @default("[]")
+  billingStatus        String?      @default("ACTIVE") // ACTIVE, PENDING_BILLING_INFO, BILLING_HOLD, SUSPENDED
+  googleTagId          String?      // e.g. AW-123456789 or GT-XXXXXX
   isApproved           Boolean      @default(false)
   approvedAt           DateTime?
   metadata             Json?
@@ -838,6 +842,39 @@ model GoogleAdKeyword {
   status          String   @default("ENABLED")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model GoogleAdExtension {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  customerId         String
+  googleResourceName String?
+  extensionType      String   // SITELINK, CALLOUT, CALL, LOCATION, IMAGE, PRICE, PROMOTION
+  status             String   @default("ENABLED")
+  data               Json     // flexible blob for all extension type fields
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([organizationId, customerId])
+}
+
+model GoogleAdConversion {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  customerId         String
+  googleResourceName String?
+  googleConversionId String?
+  name               String
+  category           String   @default("PURCHASE") // PURCHASE, SIGNUP, LEAD, PAGE_VIEW, etc.
+  valuePerConversion Float?
+  countingType       String   @default("ONE_PER_CLICK") // ONE_PER_CLICK, MANY_PER_CLICK
+  conversionWindow   Int      @default(30) // days
+  status             String   @default("ENABLED")
+  tag                String?  // tracking tag snippet
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([organizationId, customerId])
 }
 
 model GmailBulkCampaign {

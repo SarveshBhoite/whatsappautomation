@@ -497,6 +497,8 @@ export interface BusinessProfilePayload {
   merchantDetails?: Record<string, any>;
   hasAppAccount?: boolean;
   appDetails?: AppDetailEntry[];
+  billingStatus?: string;
+  googleTagId?: string;
   isApproved?: boolean;
   metadata?: Record<string, any>;
 }
@@ -1271,6 +1273,8 @@ export class CustomerBusinessProfileService {
       merchantDetails: data.merchantDetails || null,
       hasAppAccount: Boolean(data.hasAppAccount),
       appDetails: data.hasAppAccount ? appDetails : [],
+      billingStatus: data.billingStatus || undefined,
+      googleTagId: data.googleTagId || undefined,
       isApproved: Boolean(isApproved),
       ...(approvedAt ? { approvedAt } : {}),
       metadata: {

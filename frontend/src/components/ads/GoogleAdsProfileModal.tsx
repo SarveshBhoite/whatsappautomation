@@ -350,6 +350,8 @@ export interface CustomerProfileData {
   hasAppAccount: boolean;
   appId?: string | null;
   appDetails?: AppDetailEntry[];
+  billingStatus?: string | null;
+  googleTagId?: string | null;
   // Marketing & Business Profile Fields
   primaryWebsite?: string | null;
   additionalWebsites?: WebsiteEntry[];
@@ -416,6 +418,8 @@ export function GoogleAdsProfileModal({
   const [languagesServed, setLanguagesServed] = useState<string[]>([]);
   const [newServiceAreaInput, setNewServiceAreaInput] = useState("");
   const [newLanguageServedInput, setNewLanguageServedInput] = useState("");
+  const [billingStatus, setBillingStatus] = useState<string>("ACTIVE");
+  const [googleTagId, setGoogleTagId] = useState<string>("");
 
   // Marketing Intelligence arrays
   const [products, setProducts] = useState<ProductItem[]>([]);
@@ -731,6 +735,8 @@ export function GoogleAdsProfileModal({
           setBusinessAddress(data.businessAddress || "");
           setServiceAreas(Array.isArray(data.serviceAreas) ? data.serviceAreas : []);
           setLanguagesServed(Array.isArray(data.languagesServed) ? data.languagesServed : []);
+          setBillingStatus(data.billingStatus || "ACTIVE");
+          setGoogleTagId(data.googleTagId || "");
 
           const defaultCurr = data.currencyCode || "INR";
           const loadedProducts: ProductItem[] = Array.isArray(data.products)
@@ -2839,6 +2845,8 @@ export function GoogleAdsProfileModal({
       merchantDetails: hasMerchantAccount ? { storeName: merchantStoreName.trim() } : undefined,
       hasAppAccount,
       appDetails: hasAppAccount ? appDetails : [],
+      billingStatus: billingStatus.trim() || "ACTIVE",
+      googleTagId: googleTagId.trim() || undefined,
       isApproved: approve
     };
 
@@ -3473,6 +3481,37 @@ export function GoogleAdsProfileModal({
                           <option value="Local Business">Local Business</option>
                           <option value="Other">Other</option>
                         </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                          <span>Account Billing Status</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Google Ads Status</span>
+                        </label>
+                        <select
+                          value={billingStatus}
+                          onChange={(e) => setBillingStatus(e.target.value)}
+                          className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 font-semibold bg-white"
+                        >
+                          <option value="ACTIVE">ACTIVE (Good Standing)</option>
+                          <option value="PENDING_BILLING_INFO">PENDING_BILLING_INFO (Setup Required)</option>
+                          <option value="BILLING_HOLD">BILLING_HOLD (Payment Pending)</option>
+                          <option value="SUSPENDED">SUSPENDED</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                          <span>Google Tag ID (gtag.js / Conversion Tag)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">e.g. AW-123456789</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={googleTagId}
+                          onChange={(e) => setGoogleTagId(e.target.value)}
+                          placeholder="AW-XXXXXXXXX or GT-XXXXXXX"
+                          className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 font-mono font-semibold"
+                        />
                       </div>
 
                       <div className="space-y-1.5">
