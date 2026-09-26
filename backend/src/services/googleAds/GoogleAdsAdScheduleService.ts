@@ -1,4 +1,5 @@
 import axios from "axios";
+import prisma from "../../utils/prisma";
 import { GoogleAdsBaseService } from "./shared/GoogleAdsBaseService";
 
 export type DayOfWeekEnum =
@@ -106,7 +107,37 @@ export class GoogleAdsAdScheduleService extends GoogleAdsBaseService {
     campaignId: string
   ): Promise<CampaignAdSchedulesResponse> {
     const cid = customerId.replace(/-/g, "").trim();
-    const cleanCampId = campaignId.replace(/\D/g, "");
+    let cleanCampId = campaignId.includes("/")
+      ? campaignId.split("/").pop()!
+      : campaignId;
+
+    // If cleanCampId is a local DB UUID (e.g. contains hyphens or letters), look up googleAdsCampaignId in DB
+    if (!/^\d+$/.test(cleanCampId)) {
+      const dbCamp = await prisma.googleAdCampaign.findFirst({
+        where: {
+          organizationId,
+          OR: [{ id: cleanCampId }, { googleAdsCampaignId: cleanCampId }]
+        }
+      });
+      if (dbCamp?.googleAdsCampaignId) {
+        cleanCampId = dbCamp.googleAdsCampaignId;
+      }
+    }
+
+    // If still not a valid numeric Google Ads campaign ID, return safe fallback
+    if (!/^\d+$/.test(cleanCampId)) {
+      return {
+        campaignId: cleanCampId,
+        campaignName: `Campaign ${cleanCampId}`,
+        campaignType: "UNKNOWN",
+        isPMax: false,
+        supportsAdSchedule: false,
+        limitationMessage: "Campaign is not yet synced to Google Ads or invalid campaign ID.",
+        schedules: [],
+        total: 0
+      };
+    }
+
     const { headers } = await this.getAdsHeaders(organizationId, cid);
 
     // 1. Fetch Campaign info to detect type and restrictions
@@ -121,15 +152,39 @@ export class GoogleAdsAdScheduleService extends GoogleAdsBaseService {
       LIMIT 1
     `;
 
-    const campRes = await axios.post(
-      `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
-      { query: campQuery },
-      { headers }
-    );
+    let campRow: any = null;
+    try {
+      const campRes = await axios.post(
+        `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
+        { query: campQuery },
+        { headers }
+      );
+      campRow = campRes.data?.results?.[0]?.campaign;
+    } catch (campErr: any) {
+      console.warn(`[GoogleAdsAdScheduleService] Campaign ${cleanCampId} query notice:`, campErr?.response?.data || campErr.message);
+      return {
+        campaignId: cleanCampId,
+        campaignName: `Campaign ${cleanCampId}`,
+        campaignType: "UNKNOWN",
+        isPMax: false,
+        supportsAdSchedule: false,
+        limitationMessage: "Unable to retrieve campaign metadata from Google Ads.",
+        schedules: [],
+        total: 0
+      };
+    }
 
-    const campRow = campRes.data?.results?.[0]?.campaign;
     if (!campRow) {
-      throw new Error(`Campaign with ID ${campaignId} not found in customer account ${cid}.`);
+      return {
+        campaignId: cleanCampId,
+        campaignName: `Campaign #${cleanCampId}`,
+        campaignType: "UNKNOWN",
+        isPMax: false,
+        supportsAdSchedule: false,
+        limitationMessage: `Campaign with ID ${cleanCampId} not found in customer account ${cid}.`,
+        schedules: [],
+        total: 0
+      };
     }
 
     const campaignName = campRow.name || `Campaign ${cleanCampId}`;
@@ -162,17 +217,40 @@ export class GoogleAdsAdScheduleService extends GoogleAdsBaseService {
       WHERE campaign.id = ${cleanCampId}
         AND campaign_criterion.type = 'AD_SCHEDULE'
         AND campaign_criterion.status != 'REMOVED'
-      ORDER BY campaign_criterion.ad_schedule.day_of_week, campaign_criterion.ad_schedule.start_hour
       LIMIT 100
     `;
 
-    const schedRes = await axios.post(
-      `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
-      { query: schedQuery },
-      { headers }
-    );
+    let rows: any[] = [];
+    try {
+      const schedRes = await axios.post(
+        `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
+        { query: schedQuery },
+        { headers }
+      );
+      rows = schedRes.data?.results || [];
+    } catch (schedErr: any) {
+      console.warn(`[GoogleAdsAdScheduleService] Ad schedule criteria query notice:`, schedErr?.response?.data || schedErr.message);
+      return {
+        campaignId: cleanCampId,
+        campaignName,
+        campaignType: channelType,
+        isPMax,
+        supportsAdSchedule,
+        limitationMessage: limitationMessage || "Campaign does not have or support ad schedule criteria in Google Ads.",
+        schedules: [],
+        total: 0
+      };
+    }
 
-    const rows = schedRes.data?.results || [];
+    const dayOrder: Record<string, number> = {
+      MONDAY: 1,
+      TUESDAY: 2,
+      WEDNESDAY: 3,
+      THURSDAY: 4,
+      FRIDAY: 5,
+      SATURDAY: 6,
+      SUNDAY: 7
+    };
 
     const schedules: AdScheduleItem[] = rows.map((r: any) => {
       const c = r.campaignCriterion || {};
@@ -207,6 +285,11 @@ export class GoogleAdsAdScheduleService extends GoogleAdsBaseService {
         campaignName,
         isMutable: supportsAdSchedule
       };
+    }).sort((a, b) => {
+      const dayDiff = (dayOrder[a.dayOfWeek] || 0) - (dayOrder[b.dayOfWeek] || 0);
+      if (dayDiff !== 0) return dayDiff;
+      if (a.startHour !== b.startHour) return a.startHour - b.startHour;
+      return a.endHour - b.endHour;
     });
 
     return {

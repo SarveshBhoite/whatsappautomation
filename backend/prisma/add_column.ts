@@ -26,6 +26,9 @@ async function addMissingColumn() {
     'ALTER TABLE "GmailConfig" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true;',
     'ALTER TABLE "Conversation" ADD COLUMN IF NOT EXISTS "phoneNumberId" TEXT;',
     'ALTER TABLE "Conversation" ADD COLUMN IF NOT EXISTS "accountHandle" TEXT;',
+    'ALTER TABLE "GoogleAdAccount" ADD COLUMN IF NOT EXISTS "billingStatus" TEXT DEFAULT \'ACTIVE\';',
+    'ALTER TABLE "GoogleAdAccount" ADD COLUMN IF NOT EXISTS "googleTagId" TEXT;',
+    'ALTER TABLE "GoogleAdAccount" ADD COLUMN IF NOT EXISTS "lastHealthCheck" TIMESTAMP(3);',
     'DROP INDEX IF EXISTS "WhatsAppConfig_organizationId_key" CASCADE;',
     'DROP INDEX IF EXISTS "InstagramConfig_organizationId_key" CASCADE;',
     `UPDATE "Conversation" SET "phoneNumberId" = '1192785647248309' WHERE "platform" = 'whatsapp' AND "phoneNumberId" IS NULL;`

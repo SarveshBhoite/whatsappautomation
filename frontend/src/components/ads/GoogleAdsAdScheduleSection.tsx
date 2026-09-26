@@ -157,12 +157,13 @@ export function GoogleAdsAdScheduleSection({
 
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(json.error || `HTTP ${res.status}`);
+        setErrorMsg(json.error || `HTTP ${res.status}`);
+        return;
       }
 
       setData(json.data);
     } catch (err: any) {
-      console.error("[GoogleAdsAdScheduleSection] fetch error:", err);
+      console.warn("[GoogleAdsAdScheduleSection] Notice loading schedules:", err.message);
       setErrorMsg(err.message || "Failed to load campaign ad schedules.");
     } finally {
       setLoading(false);

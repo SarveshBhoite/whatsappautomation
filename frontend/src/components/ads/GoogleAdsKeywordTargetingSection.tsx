@@ -314,7 +314,7 @@ export function GoogleAdsKeywordTargetingSection({
         {/* Campaign & Ad Group Selectors */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Campaign Selector */}
-          {campaigns.length > 0 ? (
+            {campaigns.length > 0 ? (
             <select
               value={selectedCampaignId}
               onChange={e => {
@@ -323,8 +323,8 @@ export function GoogleAdsKeywordTargetingSection({
               }}
               className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs max-w-[190px] truncate"
             >
-              {campaigns.map(c => (
-                <option key={c.id} value={c.id}>
+              {Array.from(new Map(campaigns.map(c => [String(c.id), c])).values()).map((c, idx) => (
+                <option key={`camp-${c.id}-${idx}`} value={c.id}>
                   {c.name} ({c.campaignType || c.advertisingChannelType || "SEARCH"})
                 </option>
               ))}
@@ -341,8 +341,8 @@ export function GoogleAdsKeywordTargetingSection({
             className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs max-w-[170px] truncate disabled:opacity-50"
           >
             <option value="">All Ad Groups</option>
-            {(data?.adGroups || []).map(ag => (
-              <option key={ag.id} value={ag.id}>
+            {Array.from(new Map((data?.adGroups || []).map(ag => [String(ag.id), ag])).values()).map((ag, idx) => (
+              <option key={`ag-${ag.id}-${idx}`} value={ag.id}>
                 {ag.name}
               </option>
             ))}
@@ -671,8 +671,8 @@ export function GoogleAdsKeywordTargetingSection({
                     onChange={e => setModalAdGroupId(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                   >
-                    {(data?.adGroups || []).map(ag => (
-                      <option key={ag.id} value={ag.id}>
+                    {Array.from(new Map((data?.adGroups || []).map(ag => [String(ag.id), ag])).values()).map((ag, idx) => (
+                      <option key={`modal-ag-${ag.id}-${idx}`} value={ag.id}>
                         {ag.name}
                       </option>
                     ))}

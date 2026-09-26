@@ -24,6 +24,11 @@ import { GoogleAdsDemographicsService } from "../services/googleAds/GoogleAdsDem
 import { GoogleAdsContentTargetingService } from "../services/googleAds/GoogleAdsContentTargetingService";
 import { GoogleAdsKeywordTargetingService } from "../services/googleAds/GoogleAdsKeywordTargetingService";
 import { GoogleAdsAdScheduleService } from "../services/googleAds/GoogleAdsAdScheduleService";
+import { GoogleAdsKeywordPlannerService } from "../services/googleAds/GoogleAdsKeywordPlannerService";
+import { GoogleAdsPerformancePlannerService } from "../services/googleAds/GoogleAdsPerformancePlannerService";
+import { GoogleAdsEnhancedConversionsService } from "../services/googleAds/GoogleAdsEnhancedConversionsService";
+import { GoogleAdsAttributionService } from "../services/googleAds/GoogleAdsAttributionService";
+import { GoogleAdsSharedSetService, KeywordMatchType } from "../services/googleAds/GoogleAdsSharedSetService";
 
 const router = Router();
 const DEFAULT_ORG_ID = "";
@@ -2477,12 +2482,13 @@ router.get("/reports/landing-pages", async (req, res) => {
       return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
     }
 
-    const { dateRange, startDate, endDate, campaignId, limit } = req.query;
+    const { dateRange, startDate, endDate, campaignId, url, limit } = req.query;
     const result = await GoogleAdsReportingService.listLandingPagePerformance(orgId, customerId, {
       dateRange: dateRange as string,
       startDate: startDate as string,
       endDate: endDate as string,
       campaignId: campaignId as string,
+      url: url as string,
       limit: limit ? parseInt(limit as string, 10) : undefined
     });
 
@@ -2490,6 +2496,177 @@ router.get("/reports/landing-pages", async (req, res) => {
   } catch (error: any) {
     console.error("[GET /api/ads/reports/landing-pages] error:", error);
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CUSTOM REPORT BUILDER (Google Ads API v24 Allowlist-based GAQL)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/ads/reports/custom/schema - Available resources, dimensions, and metrics
+router.get("/reports/custom/schema", async (req, res) => {
+  try {
+    const result = GoogleAdsReportingService.getCustomReportMetadata();
+    res.status(200).json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET & POST /api/ads/reports/custom - Execute custom report
+const handleCustomReportRequest = async (req: any, res: any) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const payload = req.method === "POST" ? req.body : req.query;
+    const {
+      resource,
+      campaignId,
+      dateRange,
+      startDate,
+      endDate,
+      searchQuery,
+      limit
+    } = payload;
+
+    // Dimensions and Metrics can come as array or comma-separated string
+    let dimensions: string[] | undefined;
+    if (payload.dimensions) {
+      dimensions = Array.isArray(payload.dimensions)
+        ? payload.dimensions
+        : String(payload.dimensions).split(",").map((s: string) => s.trim()).filter(Boolean);
+    }
+
+    let metrics: string[] | undefined;
+    if (payload.metrics) {
+      metrics = Array.isArray(payload.metrics)
+        ? payload.metrics
+        : String(payload.metrics).split(",").map((s: string) => s.trim()).filter(Boolean);
+    }
+
+    const result = await GoogleAdsReportingService.generateCustomReport(orgId, customerId, {
+      resource: resource as string,
+      dimensions,
+      metrics,
+      campaignId: campaignId as string,
+      dateRange: dateRange as string,
+      startDate: startDate as string,
+      endDate: endDate as string,
+      searchQuery: searchQuery as string,
+      limit: limit ? parseInt(limit as string, 10) : undefined
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[Custom Report Engine] error:", error);
+    const status = error.message?.includes("Invalid") || error.message?.includes("Unsupported") ? 400 : 500;
+    res.status(status).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+};
+
+router.get("/reports/custom", handleCustomReportRequest);
+router.post("/reports/custom", handleCustomReportRequest);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KEYWORD PLANNER: KEYWORD IDEAS & FORECASTING (Google Ads API v24)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/ads/planner/config - Supported languages and geo targets
+router.get("/planner/config", async (req, res) => {
+  try {
+    const config = GoogleAdsKeywordPlannerService.getPlannerConfig();
+    res.status(200).json({ success: true, config });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/ads/planner/ideas - Generate Keyword Ideas
+router.post("/planner/ideas", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId is required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const {
+      keywords,
+      url,
+      languageConstant,
+      geoTargetConstants,
+      includeAdultKeywords
+    } = req.body;
+
+    // Check if at least one seed is provided
+    const hasKeywords = Array.isArray(keywords) && keywords.filter(k => typeof k === "string" && k.trim().length > 0).length > 0;
+    const hasUrl = typeof url === "string" && url.trim().length > 0;
+
+    if (!hasKeywords && !hasUrl) {
+      return res.status(400).json({ error: "At least one seed keyword or a valid website URL must be provided." });
+    }
+
+    const result = await GoogleAdsKeywordPlannerService.generateKeywordIdeas(orgId, customerId, {
+      keywords,
+      url,
+      languageConstant,
+      geoTargetConstants,
+      includeAdultKeywords
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[Google Ads Keyword Planner Engine] error:", error);
+    const isClientError = error.message?.includes("required") || error.message?.includes("valid") || error.message?.includes("seed");
+    const status = isClientError ? 400 : 500;
+    res.status(status).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/planner/performance - Generate Campaign Performance Forecast
+router.post("/planner/performance", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    if (!customerId) return res.status(400).json({ error: "customerId is required" });
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { campaignId, startDate, endDate, customDailyBudget } = req.body;
+
+    if (!campaignId) return res.status(400).json({ error: "campaignId is required" });
+    if (!startDate || !endDate) return res.status(400).json({ error: "startDate and endDate are required" });
+
+    const result = await GoogleAdsPerformancePlannerService.generateCampaignForecast(orgId, customerId, {
+      campaignId: String(campaignId),
+      startDate: String(startDate),
+      endDate: String(endDate),
+      customDailyBudget: customDailyBudget ? Number(customDailyBudget) : undefined
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[Google Ads Performance Planner Engine] error:", error);
+    const isClientError =
+      error.message?.includes("required") ||
+      error.message?.includes("valid") ||
+      error.message?.includes("not found") ||
+      error.message?.includes("before");
+    const status = isClientError ? 400 : 500;
+    res.status(status).json({ error: error?.response?.data?.error?.message || error.message });
   }
 });
 
@@ -5383,6 +5560,455 @@ router.delete("/ad-schedules", async (req, res) => {
   } catch (error: any) {
     console.error("[DELETE /api/ads/ad-schedules] error:", error?.response?.data || error.message);
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to remove ad schedule" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MEASUREMENT & ENHANCED CONVERSIONS ROUTES (Google Ads API v24)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ads/measurement/overview
+ * Returns official Google Tag configuration, conversion actions, tag snippets,
+ * and Enhanced Conversions setup status from Google Ads API v24.
+ */
+router.get("/measurement/overview", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const data = await GoogleAdsEnhancedConversionsService.getMeasurementOverview(orgId, customerId);
+    res.status(200).json({ success: true, ...data });
+  } catch (error: any) {
+    console.error("[GET /api/ads/measurement/overview] error:", error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to fetch measurement overview"
+    });
+  }
+});
+
+/**
+ * GET /api/ads/measurement/attribution
+ * Returns official Google Ads API v24 conversion attribution settings,
+ * attribution models (Data-Driven, Last Click), lookback windows, and campaign metrics.
+ */
+router.get("/measurement/attribution", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const dateRange = (req.query.dateRange as string) || "LAST_30_DAYS";
+    const data = await GoogleAdsAttributionService.getAttributionOverview(orgId, customerId, dateRange);
+    res.status(200).json({ success: true, ...data });
+  } catch (error: any) {
+    console.error("[GET /api/ads/measurement/attribution] error:", error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to fetch conversion attribution overview"
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED NEGATIVE KEYWORD LISTS (shared_set, shared_criterion, campaign_shared_set)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/shared-negative-lists
+ * List all NEGATIVE_KEYWORDS shared sets for the given customer.
+ */
+router.get("/shared-negative-lists", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const lists = await GoogleAdsSharedSetService.listSharedNegativeLists(orgId, customerId);
+    res.status(200).json({ success: true, data: lists });
+  } catch (error: any) {
+    console.error("[GET /api/ads/shared-negative-lists] error:", error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to fetch shared negative lists"
+    });
+  }
+});
+
+/**
+ * GET /api/ads/shared-negative-lists/:sharedSetId
+ * Get a specific shared negative list.
+ */
+router.get("/shared-negative-lists/:sharedSetId", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const { sharedSetId } = req.params;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    if (!sharedSetId) {
+      return res.status(400).json({ error: "sharedSetId is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const list = await GoogleAdsSharedSetService.getSharedNegativeList(orgId, customerId, sharedSetId);
+    res.status(200).json({ success: true, data: list });
+  } catch (error: any) {
+    console.error(`[GET /api/ads/shared-negative-lists/${req.params.sharedSetId}] error:`, error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to fetch shared negative list"
+    });
+  }
+});
+
+/**
+ * POST /api/ads/shared-negative-lists
+ * Create a new NEGATIVE_KEYWORDS shared set.
+ * Body: { name: string, customerId?: string }
+ */
+router.post("/shared-negative-lists", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    const { name } = req.body;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ error: "A non-empty list name is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const result = await GoogleAdsSharedSetService.createSharedNegativeList(orgId, customerId, name.trim());
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[POST /api/ads/shared-negative-lists] error:", error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to create shared negative list"
+    });
+  }
+});
+
+/**
+ * DELETE /api/ads/shared-negative-lists/:sharedSetId
+ * Remove a shared negative list.
+ */
+router.delete("/shared-negative-lists/:sharedSetId", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const { sharedSetId } = req.params;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    if (!sharedSetId) {
+      return res.status(400).json({ error: "sharedSetId is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const result = await GoogleAdsSharedSetService.removeSharedNegativeList(orgId, customerId, sharedSetId);
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(`[DELETE /api/ads/shared-negative-lists/${req.params.sharedSetId}] error:`, error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to delete shared negative list"
+    });
+  }
+});
+
+/**
+ * GET /api/ads/shared-negative-lists/:sharedSetId/keywords
+ * List all negative keywords inside a shared set.
+ */
+router.get("/shared-negative-lists/:sharedSetId/keywords", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const { sharedSetId } = req.params;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    if (!sharedSetId) {
+      return res.status(400).json({ error: "sharedSetId is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const keywords = await GoogleAdsSharedSetService.listSharedKeywords(orgId, customerId, sharedSetId);
+    res.status(200).json({ success: true, data: keywords });
+  } catch (error: any) {
+    console.error(`[GET /api/ads/shared-negative-lists/${req.params.sharedSetId}/keywords] error:`, error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to fetch shared negative keywords"
+    });
+  }
+});
+
+/**
+ * POST /api/ads/shared-negative-lists/:sharedSetId/keywords
+ * Add a negative keyword to a shared set.
+ * Body: { text: string, matchType: 'EXACT' | 'PHRASE' | 'BROAD', customerId?: string }
+ */
+router.post("/shared-negative-lists/:sharedSetId/keywords", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const { sharedSetId } = req.params;
+    const { text, matchType } = req.body;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    if (!sharedSetId) {
+      return res.status(400).json({ error: "sharedSetId is required" });
+    }
+    if (!text || typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ error: "Keyword text is required" });
+    }
+    const cleanMatchType = (matchType || "").toUpperCase();
+    if (!["EXACT", "PHRASE", "BROAD"].includes(cleanMatchType)) {
+      return res.status(400).json({
+        error: `Invalid match type '${matchType}'. Supported match types are EXACT, PHRASE, BROAD.`
+      });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const result = await GoogleAdsSharedSetService.addKeywordToSharedList(orgId, customerId, sharedSetId, {
+      text: text.trim(),
+      matchType: cleanMatchType as KeywordMatchType
+    });
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(`[POST /api/ads/shared-negative-lists/${req.params.sharedSetId}/keywords] error:`, error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to add keyword to shared list"
+    });
+  }
+});
+
+/**
+ * DELETE /api/ads/shared-negative-lists/:sharedSetId/keywords/:criterionId
+ * Remove a negative keyword from a shared set.
+ */
+router.delete("/shared-negative-lists/:sharedSetId/keywords/:criterionId", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const { sharedSetId, criterionId } = req.params;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    if (!sharedSetId || !criterionId) {
+      return res.status(400).json({ error: "sharedSetId and criterionId are required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const result = await GoogleAdsSharedSetService.removeKeywordFromSharedList(
+      orgId,
+      customerId,
+      criterionId,
+      sharedSetId
+    );
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(`[DELETE /api/ads/shared-negative-lists/${req.params.sharedSetId}/keywords/${req.params.criterionId}] error:`, error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to remove keyword from shared list"
+    });
+  }
+});
+
+/**
+ * GET /api/ads/shared-negative-lists/:sharedSetId/campaigns
+ * List all campaigns attached to a shared set.
+ */
+router.get("/shared-negative-lists/:sharedSetId/campaigns", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const { sharedSetId } = req.params;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    if (!sharedSetId) {
+      return res.status(400).json({ error: "sharedSetId is required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const attachments = await GoogleAdsSharedSetService.listCampaignsForSharedList(orgId, customerId, sharedSetId);
+    res.status(200).json({ success: true, data: attachments });
+  } catch (error: any) {
+    console.error(`[GET /api/ads/shared-negative-lists/${req.params.sharedSetId}/campaigns] error:`, error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to fetch campaigns for shared list"
+    });
+  }
+});
+
+/**
+ * POST /api/ads/shared-negative-lists/:sharedSetId/campaigns/:campaignId
+ * Attach a shared negative list to a campaign.
+ */
+router.post("/shared-negative-lists/:sharedSetId/campaigns/:campaignId", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const { sharedSetId, campaignId } = req.params;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    if (!sharedSetId || !campaignId) {
+      return res.status(400).json({ error: "sharedSetId and campaignId are required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const result = await GoogleAdsSharedSetService.attachListToCampaign(
+      orgId,
+      customerId,
+      sharedSetId,
+      campaignId
+    );
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(`[POST /api/ads/shared-negative-lists/${req.params.sharedSetId}/campaigns/${req.params.campaignId}] error:`, error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to attach shared list to campaign"
+    });
+  }
+});
+
+/**
+ * DELETE /api/ads/shared-negative-lists/:sharedSetId/campaigns/:campaignId
+ * Detach a shared negative list from a campaign.
+ */
+router.delete("/shared-negative-lists/:sharedSetId/campaigns/:campaignId", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const { sharedSetId, campaignId } = req.params;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    if (!sharedSetId || !campaignId) {
+      return res.status(400).json({ error: "sharedSetId and campaignId are required" });
+    }
+
+    const customerId = rawCid.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const result = await GoogleAdsSharedSetService.detachListFromCampaign(
+      orgId,
+      customerId,
+      sharedSetId,
+      campaignId
+    );
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(`[DELETE /api/ads/shared-negative-lists/${req.params.sharedSetId}/campaigns/${req.params.campaignId}] error:`, error?.response?.data || error.message);
+    res.status(500).json({
+      error: error?.response?.data?.error?.message || error.message || "Failed to detach shared list from campaign"
+    });
   }
 });
 

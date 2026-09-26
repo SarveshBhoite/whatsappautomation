@@ -30,6 +30,9 @@ import { GoogleAdsContentTargetingSection } from "@/components/ads/GoogleAdsCont
 import { GoogleAdsKeywordTargetingSection } from "@/components/ads/GoogleAdsKeywordTargetingSection";
 import { GoogleAdsSearchTermsSection } from "@/components/ads/GoogleAdsSearchTermsSection";
 import { GoogleAdsAdScheduleSection } from "@/components/ads/GoogleAdsAdScheduleSection";
+import { GoogleAdsEnhancedConversionsSection } from "@/components/ads/GoogleAdsEnhancedConversionsSection";
+import { GoogleAdsAttributionSection } from "@/components/ads/GoogleAdsAttributionSection";
+import { GoogleAdsSharedNegativeListsSection } from "@/components/ads/GoogleAdsSharedNegativeListsSection";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -2288,17 +2291,50 @@ export default function GoogleAdsPage() {
 
           {/* ══ KEYWORDS TAB ══ */}
           {activeTab === "keywords" && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               <GoogleAdsKeywordTargetingSection
                 customerId={selectedCustomerId}
                 orgId={orgId}
-                campaigns={campaigns.map((c: any) => ({
-                  id: String(c.id),
-                  name: c.name,
-                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
-                  campaignType: c.campaignType || c.advertisingChannelType
-                }))}
+                campaigns={Array.from(
+                  new Map(
+                    campaigns.map((c: any) => {
+                      const googleCampId = String(c.googleAdsCampaignId || c.id);
+                      return [
+                        googleCampId,
+                        {
+                          id: googleCampId,
+                          name: c.name,
+                          resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${googleCampId}`,
+                          campaignType: c.campaignType || c.advertisingChannelType
+                        }
+                      ];
+                    })
+                  ).values()
+                )}
               />
+
+              <div className="pt-4 border-t border-slate-200">
+                <GoogleAdsSharedNegativeListsSection
+                  customerId={selectedCustomerId}
+                  orgId={orgId}
+                  campaigns={Array.from(
+                    new Map(
+                      campaigns.map((c: any) => {
+                        const googleCampId = String(c.googleAdsCampaignId || c.id);
+                        return [
+                          googleCampId,
+                          {
+                            id: googleCampId,
+                            name: c.name,
+                            resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${googleCampId}`,
+                            campaignType: c.campaignType || c.advertisingChannelType
+                          }
+                        ];
+                      })
+                    ).values()
+                  )}
+                />
+              </div>
             </div>
           )}
 
@@ -2308,11 +2344,21 @@ export default function GoogleAdsPage() {
               <GoogleAdsAssetsSection
                 customerId={selectedCustomerId}
                 orgId={orgId}
-                campaigns={campaigns.map((c: any) => ({
-                  id: String(c.id),
-                  name: c.name,
-                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`
-                }))}
+                campaigns={Array.from(
+                  new Map(
+                    campaigns.map((c: any) => {
+                      const googleCampId = String(c.googleAdsCampaignId || c.id);
+                      return [
+                        googleCampId,
+                        {
+                          id: googleCampId,
+                          name: c.name,
+                          resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${googleCampId}`
+                        }
+                      ];
+                    })
+                  ).values()
+                )}
               />
 
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
@@ -2343,36 +2389,50 @@ export default function GoogleAdsPage() {
 
           {/* ══ CONVERSIONS TAB ══ */}
           {activeTab === "conversions" && (
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Target className="h-4 w-4 text-emerald-600" />Conversion Goals <span className="text-slate-500 font-normal">({conversions.length})</span></h2>
-                <button onClick={() => loadConversions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
-              </div>
-              {convLoading ? (
-                <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
-              ) : conversions.length === 0 ? (
-                <EmptyState icon={Target} title="No conversion goals" sub="Set up conversion tracking to measure the actions that matter to your business." />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead><tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">{["Name", "Category", "Status", "Type", "Counting", "Lookback", "Conversions", "Conv. Value"].map(h => <th key={h} className="p-4">{h}</th>)}</tr></thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {conversions.map(conv => (
-                        <tr key={conv.id} className="hover:bg-slate-50/80 transition-all">
-                          <td className="p-4 font-bold text-slate-900">{conv.name}</td>
-                          <td className="p-4 text-slate-600">{conv.category}</td>
-                          <td className="p-4"><Pill status={conv.status} /></td>
-                          <td className="p-4 font-mono text-slate-500">{conv.type}</td>
-                          <td className="p-4 text-slate-600">{conv.countingType}</td>
-                          <td className="p-4 text-slate-600">{conv.lookbackWindow} days</td>
-                          <td className="p-4 font-bold text-purple-700">{Number(conv.conversions || 0).toFixed(1)}</td>
-                          <td className="p-4 font-bold text-emerald-700">₹{Number(conv.conversionsValue || 0).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            <div className="space-y-6">
+              {/* Google Tag & Enhanced Conversions Integration (API v24) */}
+              <GoogleAdsEnhancedConversionsSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+              />
+
+              {/* Conversion Attribution Reporting (API v24 Official Attribution Models & Segmentation) */}
+              <GoogleAdsAttributionSection
+                customerId={selectedCustomerId}
+                orgId={orgId}
+              />
+
+              <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Target className="h-4 w-4 text-emerald-600" />Conversion Goals <span className="text-slate-500 font-normal">({conversions.length})</span></h2>
+                  <button onClick={() => loadConversions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
                 </div>
-              )}
+                {convLoading ? (
+                  <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
+                ) : conversions.length === 0 ? (
+                  <EmptyState icon={Target} title="No conversion goals" sub="Set up conversion tracking to measure the actions that matter to your business." />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead><tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">{["Name", "Category", "Status", "Type", "Counting", "Lookback", "Conversions", "Conv. Value"].map(h => <th key={h} className="p-4">{h}</th>)}</tr></thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {conversions.map(conv => (
+                          <tr key={conv.id} className="hover:bg-slate-50/80 transition-all">
+                            <td className="p-4 font-bold text-slate-900">{conv.name}</td>
+                            <td className="p-4 text-slate-600">{conv.category}</td>
+                            <td className="p-4"><Pill status={conv.status} /></td>
+                            <td className="p-4 font-mono text-slate-500">{conv.type}</td>
+                            <td className="p-4 text-slate-600">{conv.countingType}</td>
+                            <td className="p-4 text-slate-600">{conv.lookbackWindow} days</td>
+                            <td className="p-4 font-bold text-purple-700">{Number(conv.conversions || 0).toFixed(1)}</td>
+                            <td className="p-4 font-bold text-emerald-700">₹{Number(conv.conversionsValue || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2382,33 +2442,63 @@ export default function GoogleAdsPage() {
               <GoogleAdsBiddingSection
                 customerId={selectedCustomerId}
                 orgId={orgId}
-                campaigns={campaigns.map((c: any) => ({
-                  id: String(c.id),
-                  name: c.name,
-                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`
-                }))}
+                campaigns={Array.from(
+                  new Map(
+                    campaigns.map((c: any) => {
+                      const googleCampId = String(c.googleAdsCampaignId || c.id);
+                      return [
+                        googleCampId,
+                        {
+                          id: googleCampId,
+                          name: c.name,
+                          resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${googleCampId}`
+                        }
+                      ];
+                    })
+                  ).values()
+                )}
               />
 
               <GoogleAdsBidAdjustmentsSection
                 customerId={selectedCustomerId}
                 orgId={orgId}
-                campaigns={campaigns.map((c: any) => ({
-                  id: String(c.id),
-                  name: c.name,
-                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
-                  campaignType: c.campaignType || c.advertisingChannelType
-                }))}
+                campaigns={Array.from(
+                  new Map(
+                    campaigns.map((c: any) => {
+                      const googleCampId = String(c.googleAdsCampaignId || c.id);
+                      return [
+                        googleCampId,
+                        {
+                          id: googleCampId,
+                          name: c.name,
+                          resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${googleCampId}`,
+                          campaignType: c.campaignType || c.advertisingChannelType
+                        }
+                      ];
+                    })
+                  ).values()
+                )}
               />
 
               <GoogleAdsAdScheduleSection
                 customerId={selectedCustomerId}
                 orgId={orgId}
-                campaigns={campaigns.map((c: any) => ({
-                  id: String(c.id),
-                  name: c.name,
-                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
-                  campaignType: c.campaignType || c.advertisingChannelType
-                }))}
+                campaigns={Array.from(
+                  new Map(
+                    campaigns.map((c: any) => {
+                      const googleCampId = String(c.googleAdsCampaignId || c.id);
+                      return [
+                        googleCampId,
+                        {
+                          id: googleCampId,
+                          name: c.name,
+                          resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${googleCampId}`,
+                          campaignType: c.campaignType || c.advertisingChannelType
+                        }
+                      ];
+                    })
+                  ).values()
+                )}
               />
             </div>
           )}
@@ -2419,23 +2509,43 @@ export default function GoogleAdsPage() {
               <GoogleAdsDemographicsSection
                 customerId={selectedCustomerId}
                 orgId={orgId}
-                campaigns={campaigns.map((c: any) => ({
-                  id: String(c.id),
-                  name: c.name,
-                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
-                  campaignType: c.campaignType || c.advertisingChannelType
-                }))}
+                campaigns={Array.from(
+                  new Map(
+                    campaigns.map((c: any) => {
+                      const googleCampId = String(c.googleAdsCampaignId || c.id);
+                      return [
+                        googleCampId,
+                        {
+                          id: googleCampId,
+                          name: c.name,
+                          resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${googleCampId}`,
+                          campaignType: c.campaignType || c.advertisingChannelType
+                        }
+                      ];
+                    })
+                  ).values()
+                )}
               />
 
               <GoogleAdsContentTargetingSection
                 customerId={selectedCustomerId}
                 orgId={orgId}
-                campaigns={campaigns.map((c: any) => ({
-                  id: String(c.id),
-                  name: c.name,
-                  resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${c.id}`,
-                  campaignType: c.campaignType || c.advertisingChannelType
-                }))}
+                campaigns={Array.from(
+                  new Map(
+                    campaigns.map((c: any) => {
+                      const googleCampId = String(c.googleAdsCampaignId || c.id);
+                      return [
+                        googleCampId,
+                        {
+                          id: googleCampId,
+                          name: c.name,
+                          resourceName: c.resourceName || `customers/${selectedCustomerId}/campaigns/${googleCampId}`,
+                          campaignType: c.campaignType || c.advertisingChannelType
+                        }
+                      ];
+                    })
+                  ).values()
+                )}
               />
 
               <GoogleAdsAudienceSection

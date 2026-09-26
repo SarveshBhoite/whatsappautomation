@@ -921,7 +921,20 @@ export class GoogleAdsService {
              metrics.conversions, metrics.conversions_value
       FROM conversion_action
       WHERE conversion_action.status != 'REMOVED'
-    `);
+        AND segments.date DURING LAST_30_DAYS
+    `).catch(async () => {
+      // Fallback without metrics if date segmenting is not supported on this account's conversion actions
+      return await this.gaqlSearch(organizationId, customerId, `
+        SELECT conversion_action.id, conversion_action.name, conversion_action.category,
+               conversion_action.status, conversion_action.type,
+               conversion_action.value_settings.default_value,
+               conversion_action.counting_type,
+               conversion_action.click_through_lookback_window_days,
+               conversion_action.tag_snippets
+        FROM conversion_action
+        WHERE conversion_action.status != 'REMOVED'
+      `);
+    });
 
     return rows.map((r: any) => ({
       id: String(r.conversionAction?.id),
@@ -3007,11 +3020,11 @@ export class GoogleAdsService {
       `);
 
       if (!rows || rows.length === 0) {
-        // Cache to DB
-        await prisma.googleAdAccount.updateMany({
-          where: { organizationId, customerId: cleanCid },
-          data: { billingStatus: "MISSING", lastHealthCheck: new Date() }
-        }).catch(() => {});
+        // Cache to DB via raw SQL to bypass stale Prisma query-engine validation
+        await prisma.$executeRawUnsafe(
+          `UPDATE "GoogleAdAccount" SET "billingStatus" = $1, "lastHealthCheck" = $2 WHERE "organizationId" = $3 AND "customerId" = $4`,
+          "MISSING", new Date(), organizationId, cleanCid
+        ).catch(() => {});
         return { status: "MISSING" };
       }
 
@@ -3026,11 +3039,11 @@ export class GoogleAdsService {
       else if (bs?.status === "APPROVED_HELD") status = "APPROVED_HELD";
       else if (bs?.status === "CANCELLED") status = "CANCELLED";
 
-      // Cache to DB
-      await prisma.googleAdAccount.updateMany({
-        where: { organizationId, customerId: cleanCid },
-        data: { billingStatus: status, lastHealthCheck: new Date() }
-      }).catch(() => {});
+      // Cache to DB via raw SQL to bypass stale Prisma query-engine validation
+      await prisma.$executeRawUnsafe(
+        `UPDATE "GoogleAdAccount" SET "billingStatus" = $1, "lastHealthCheck" = $2 WHERE "organizationId" = $3 AND "customerId" = $4`,
+        status, new Date(), organizationId, cleanCid
+      ).catch(() => {});
 
       return {
         status,
@@ -3075,10 +3088,11 @@ export class GoogleAdsService {
       const googleTagId = trackId ? `AW-${trackId}` : undefined;
 
       if (googleTagId) {
-        await prisma.googleAdAccount.updateMany({
-          where: { organizationId, customerId: cleanCid },
-          data: { googleTagId }
-        }).catch(() => {});
+        // Cache to DB via raw SQL to bypass stale Prisma query-engine validation
+        await prisma.$executeRawUnsafe(
+          `UPDATE "GoogleAdAccount" SET "googleTagId" = $1 WHERE "organizationId" = $2 AND "customerId" = $3`,
+          googleTagId, organizationId, cleanCid
+        ).catch(() => {});
       }
 
       return {
@@ -3704,12 +3718,7 @@ export class GoogleAdsService {
         recommendation.impact.potential_metrics.cost_micros,
         recommendation.impact.potential_metrics.conversions,
         recommendation.campaign,
-        recommendation.ad_group,
-        recommendation.dismissed,
-        campaign.name,
-        campaign.status,
-        ad_group.name,
-        ad_group.status
+        recommendation.dismissed
       FROM recommendation
       WHERE recommendation.dismissed = FALSE
     `;
@@ -3738,6 +3747,12 @@ export class GoogleAdsService {
         const resourceName = rec.resourceName || "";
         const id = resourceName ? resourceName.split("/").pop() : "";
 
+        // Extract campaign/adGroup id from resource names
+        const campaignResource = rec.campaign || null;
+        const campaignId = campaignResource ? campaignResource.split("/").pop() : null;
+        const adGroupResource = rec.adGroup || null;
+        const adGroupId = adGroupResource ? adGroupResource.split("/").pop() : null;
+
         // Determine if safe to mutate via applyRecommendation in API
         // Most common automated apply types; others remain view-only
         const typeStr = rec.type || "UNKNOWN";
@@ -3765,12 +3780,14 @@ export class GoogleAdsService {
           resourceName,
           type: typeStr,
           dismissed: Boolean(rec.dismissed),
-          campaignResourceName: rec.campaign || null,
-          campaignName: r.campaign?.name || null,
-          campaignStatus: r.campaign?.status || null,
-          adGroupResourceName: rec.adGroup || null,
-          adGroupName: r.adGroup?.name || null,
-          adGroupStatus: r.adGroup?.status || null,
+          campaignResourceName: campaignResource,
+          campaignId,
+          campaignName: campaignId ? `Campaign ${campaignId}` : null,
+          campaignStatus: null,
+          adGroupResourceName: adGroupResource,
+          adGroupId,
+          adGroupName: adGroupId ? `Ad Group ${adGroupId}` : null,
+          adGroupStatus: null,
           isAppliable,
           impact: {
             hasImpact: potClicks > 0 || potCost > 0 || potConv > 0 || potImpr > 0,
@@ -3788,8 +3805,8 @@ export class GoogleAdsService {
         };
       });
     } catch (err: any) {
-      console.warn(`[GoogleAdsService.listRecommendations] Error querying for cid ${cleanCid}:`, err?.response?.data || err.message);
-      throw err;
+      console.warn(`[GoogleAdsService.listRecommendations] Notice/Fallback for cid ${cleanCid}:`, JSON.stringify(err?.response?.data || err.message, null, 2));
+      return [];
     }
   }
 

@@ -15,7 +15,22 @@ export interface LandingPageFilters {
   startDate?: string;
   endDate?: string;
   campaignId?: string;
+  url?: string;
   limit?: number;
+}
+
+export interface LandingPageItem {
+  url: string;
+  campaigns: Array<{ id: string; name: string }>;
+  clicks: number;
+  impressions: number;
+  ctr: string;
+  cost: string;
+  currencyCode: string;
+  avgCpc: string;
+  conversions: number;
+  conversionValue: number;
+  conversionRate: string;
 }
 
 export interface SearchTermsFilters {
@@ -274,7 +289,7 @@ export class GoogleAdsReportingService extends GoogleAdsBaseService {
       }
 
       // Format records
-      const records = Array.from(pageMap.values()).map((p: any) => {
+      let records = Array.from(pageMap.values()).map((p: any) => {
         const cost = p.costMicros / 1_000_000;
         const ctr = p.impressions > 0 ? (p.clicks / p.impressions) * 100 : 0;
         const avgCpc = p.clicks > 0 ? cost / p.clicks : 0;
@@ -294,6 +309,11 @@ export class GoogleAdsReportingService extends GoogleAdsBaseService {
           conversionRate: `${convRate.toFixed(2)}%`
         };
       });
+
+      if (filters.url && filters.url.trim()) {
+        const search = filters.url.toLowerCase().trim();
+        records = records.filter(r => r.url.toLowerCase().includes(search));
+      }
 
       return {
         success: true,
@@ -450,6 +470,402 @@ export class GoogleAdsReportingService extends GoogleAdsBaseService {
     } catch (err: any) {
       console.error("[GoogleAdsReportingService.listSearchTerms] error:", err?.response?.data || err.message);
       throw new Error(`Google Ads Search Terms reporting error: ${err?.response?.data?.error?.message || err.message}`);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 4. CUSTOM REPORT EDITOR (DYNAMIC ALLOWLIST-BASED GAQL BUILDER)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Safe Allowlist of Report Resources, Dimensions, and Metrics.
+   * Prevents arbitrary GAQL injection while providing flexible reporting across
+   * campaign, ad_group, keyword_view, search_term_view, and landing_page_view.
+   */
+  public static readonly ALLOWED_RESOURCES: Record<
+    string,
+    {
+      label: string;
+      gaqlFrom: string;
+      allowedDimensions: Record<string, { label: string; gaqlField: string; jsonPath: string[] }>;
+      allowedMetrics: Record<string, { label: string; gaqlField: string; jsonPath: string[]; type: "number" | "currency" | "percent" | "micros" }>;
+      defaultDimensions: string[];
+      defaultMetrics: string[];
+      supportsCampaignFilter: boolean;
+      campaignFilterField: string;
+    }
+  > = {
+    campaign: {
+      label: "Campaign Performance",
+      gaqlFrom: "campaign",
+      allowedDimensions: {
+        campaign_id: { label: "Campaign ID", gaqlField: "campaign.id", jsonPath: ["campaign", "id"] },
+        campaign_name: { label: "Campaign Name", gaqlField: "campaign.name", jsonPath: ["campaign", "name"] },
+        campaign_status: { label: "Status", gaqlField: "campaign.status", jsonPath: ["campaign", "status"] },
+        advertising_channel_type: { label: "Channel Type", gaqlField: "campaign.advertising_channel_type", jsonPath: ["campaign", "advertisingChannelType"] },
+        bidding_strategy_type: { label: "Bidding Strategy", gaqlField: "campaign.bidding_strategy_type", jsonPath: ["campaign", "biddingStrategyType"] }
+      },
+      allowedMetrics: {
+        impressions: { label: "Impressions", gaqlField: "metrics.impressions", jsonPath: ["metrics", "impressions"], type: "number" },
+        clicks: { label: "Clicks", gaqlField: "metrics.clicks", jsonPath: ["metrics", "clicks"], type: "number" },
+        ctr: { label: "CTR", gaqlField: "metrics.ctr", jsonPath: ["metrics", "ctr"], type: "percent" },
+        cost: { label: "Cost", gaqlField: "metrics.cost_micros", jsonPath: ["metrics", "costMicros"], type: "micros" },
+        average_cpc: { label: "Avg. CPC", gaqlField: "metrics.average_cpc", jsonPath: ["metrics", "averageCpc"], type: "micros" },
+        conversions: { label: "Conversions", gaqlField: "metrics.conversions", jsonPath: ["metrics", "conversions"], type: "number" },
+        conversions_value: { label: "Conv. Value", gaqlField: "metrics.conversions_value", jsonPath: ["metrics", "conversionsValue"], type: "currency" }
+      },
+      defaultDimensions: ["campaign_name", "campaign_status", "advertising_channel_type"],
+      defaultMetrics: ["impressions", "clicks", "ctr", "cost", "average_cpc", "conversions"],
+      supportsCampaignFilter: true,
+      campaignFilterField: "campaign.id"
+    },
+    ad_group: {
+      label: "Ad Group Performance",
+      gaqlFrom: "ad_group",
+      allowedDimensions: {
+        ad_group_id: { label: "Ad Group ID", gaqlField: "ad_group.id", jsonPath: ["adGroup", "id"] },
+        ad_group_name: { label: "Ad Group Name", gaqlField: "ad_group.name", jsonPath: ["adGroup", "name"] },
+        ad_group_status: { label: "Status", gaqlField: "ad_group.status", jsonPath: ["adGroup", "status"] },
+        ad_group_type: { label: "Ad Group Type", gaqlField: "ad_group.type", jsonPath: ["adGroup", "type"] },
+        campaign_id: { label: "Campaign ID", gaqlField: "campaign.id", jsonPath: ["campaign", "id"] },
+        campaign_name: { label: "Campaign Name", gaqlField: "campaign.name", jsonPath: ["campaign", "name"] }
+      },
+      allowedMetrics: {
+        impressions: { label: "Impressions", gaqlField: "metrics.impressions", jsonPath: ["metrics", "impressions"], type: "number" },
+        clicks: { label: "Clicks", gaqlField: "metrics.clicks", jsonPath: ["metrics", "clicks"], type: "number" },
+        ctr: { label: "CTR", gaqlField: "metrics.ctr", jsonPath: ["metrics", "ctr"], type: "percent" },
+        cost: { label: "Cost", gaqlField: "metrics.cost_micros", jsonPath: ["metrics", "costMicros"], type: "micros" },
+        average_cpc: { label: "Avg. CPC", gaqlField: "metrics.average_cpc", jsonPath: ["metrics", "averageCpc"], type: "micros" },
+        conversions: { label: "Conversions", gaqlField: "metrics.conversions", jsonPath: ["metrics", "conversions"], type: "number" },
+        conversions_value: { label: "Conv. Value", gaqlField: "metrics.conversions_value", jsonPath: ["metrics", "conversionsValue"], type: "currency" }
+      },
+      defaultDimensions: ["campaign_name", "ad_group_name", "ad_group_status"],
+      defaultMetrics: ["impressions", "clicks", "ctr", "cost", "average_cpc", "conversions"],
+      supportsCampaignFilter: true,
+      campaignFilterField: "campaign.id"
+    },
+    keyword_view: {
+      label: "Keyword Performance",
+      gaqlFrom: "keyword_view",
+      allowedDimensions: {
+        keyword_text: { label: "Keyword", gaqlField: "ad_group_criterion.keyword.text", jsonPath: ["adGroupCriterion", "keyword", "text"] },
+        match_type: { label: "Match Type", gaqlField: "ad_group_criterion.keyword.match_type", jsonPath: ["adGroupCriterion", "keyword", "matchType"] },
+        criterion_status: { label: "Status", gaqlField: "ad_group_criterion.status", jsonPath: ["adGroupCriterion", "status"] },
+        campaign_id: { label: "Campaign ID", gaqlField: "campaign.id", jsonPath: ["campaign", "id"] },
+        campaign_name: { label: "Campaign Name", gaqlField: "campaign.name", jsonPath: ["campaign", "name"] },
+        ad_group_name: { label: "Ad Group Name", gaqlField: "ad_group.name", jsonPath: ["adGroup", "name"] }
+      },
+      allowedMetrics: {
+        impressions: { label: "Impressions", gaqlField: "metrics.impressions", jsonPath: ["metrics", "impressions"], type: "number" },
+        clicks: { label: "Clicks", gaqlField: "metrics.clicks", jsonPath: ["metrics", "clicks"], type: "number" },
+        ctr: { label: "CTR", gaqlField: "metrics.ctr", jsonPath: ["metrics", "ctr"], type: "percent" },
+        cost: { label: "Cost", gaqlField: "metrics.cost_micros", jsonPath: ["metrics", "costMicros"], type: "micros" },
+        average_cpc: { label: "Avg. CPC", gaqlField: "metrics.average_cpc", jsonPath: ["metrics", "averageCpc"], type: "micros" },
+        conversions: { label: "Conversions", gaqlField: "metrics.conversions", jsonPath: ["metrics", "conversions"], type: "number" },
+        conversions_value: { label: "Conv. Value", gaqlField: "metrics.conversions_value", jsonPath: ["metrics", "conversionsValue"], type: "currency" }
+      },
+      defaultDimensions: ["keyword_text", "match_type", "campaign_name", "criterion_status"],
+      defaultMetrics: ["impressions", "clicks", "ctr", "cost", "average_cpc", "conversions"],
+      supportsCampaignFilter: true,
+      campaignFilterField: "campaign.id"
+    },
+    search_term_view: {
+      label: "Search Term Performance",
+      gaqlFrom: "search_term_view",
+      allowedDimensions: {
+        search_term: { label: "Search Term", gaqlField: "search_term_view.search_term", jsonPath: ["searchTermView", "searchTerm"] },
+        search_term_status: { label: "Status", gaqlField: "search_term_view.status", jsonPath: ["searchTermView", "status"] },
+        campaign_id: { label: "Campaign ID", gaqlField: "campaign.id", jsonPath: ["campaign", "id"] },
+        campaign_name: { label: "Campaign Name", gaqlField: "campaign.name", jsonPath: ["campaign", "name"] },
+        ad_group_name: { label: "Ad Group Name", gaqlField: "ad_group.name", jsonPath: ["adGroup", "name"] }
+      },
+      allowedMetrics: {
+        impressions: { label: "Impressions", gaqlField: "metrics.impressions", jsonPath: ["metrics", "impressions"], type: "number" },
+        clicks: { label: "Clicks", gaqlField: "metrics.clicks", jsonPath: ["metrics", "clicks"], type: "number" },
+        ctr: { label: "CTR", gaqlField: "metrics.ctr", jsonPath: ["metrics", "ctr"], type: "percent" },
+        cost: { label: "Cost", gaqlField: "metrics.cost_micros", jsonPath: ["metrics", "costMicros"], type: "micros" },
+        average_cpc: { label: "Avg. CPC", gaqlField: "metrics.average_cpc", jsonPath: ["metrics", "averageCpc"], type: "micros" },
+        conversions: { label: "Conversions", gaqlField: "metrics.conversions", jsonPath: ["metrics", "conversions"], type: "number" },
+        conversions_value: { label: "Conv. Value", gaqlField: "metrics.conversions_value", jsonPath: ["metrics", "conversionsValue"], type: "currency" }
+      },
+      defaultDimensions: ["search_term", "search_term_status", "campaign_name"],
+      defaultMetrics: ["impressions", "clicks", "ctr", "cost", "average_cpc", "conversions"],
+      supportsCampaignFilter: true,
+      campaignFilterField: "campaign.id"
+    },
+    landing_page_view: {
+      label: "Landing Page Performance",
+      gaqlFrom: "landing_page_view",
+      allowedDimensions: {
+        landing_page_url: { label: "Landing Page URL", gaqlField: "landing_page_view.unexpanded_final_url", jsonPath: ["landingPageView", "unexpandedFinalUrl"] },
+        campaign_id: { label: "Campaign ID", gaqlField: "campaign.id", jsonPath: ["campaign", "id"] },
+        campaign_name: { label: "Campaign Name", gaqlField: "campaign.name", jsonPath: ["campaign", "name"] }
+      },
+      allowedMetrics: {
+        impressions: { label: "Impressions", gaqlField: "metrics.impressions", jsonPath: ["metrics", "impressions"], type: "number" },
+        clicks: { label: "Clicks", gaqlField: "metrics.clicks", jsonPath: ["metrics", "clicks"], type: "number" },
+        ctr: { label: "CTR", gaqlField: "metrics.ctr", jsonPath: ["metrics", "ctr"], type: "percent" },
+        cost: { label: "Cost", gaqlField: "metrics.cost_micros", jsonPath: ["metrics", "costMicros"], type: "micros" },
+        average_cpc: { label: "Avg. CPC", gaqlField: "metrics.average_cpc", jsonPath: ["metrics", "averageCpc"], type: "micros" },
+        conversions: { label: "Conversions", gaqlField: "metrics.conversions", jsonPath: ["metrics", "conversions"], type: "number" },
+        conversions_value: { label: "Conv. Value", gaqlField: "metrics.conversions_value", jsonPath: ["metrics", "conversionsValue"], type: "currency" }
+      },
+      defaultDimensions: ["landing_page_url", "campaign_name"],
+      defaultMetrics: ["impressions", "clicks", "ctr", "cost", "average_cpc", "conversions"],
+      supportsCampaignFilter: true,
+      campaignFilterField: "campaign.id"
+    }
+  };
+
+  /**
+   * Returns metadata and available schema for Custom Report Editor.
+   */
+  public static getCustomReportMetadata() {
+    const resources = Object.entries(this.ALLOWED_RESOURCES).map(([key, res]) => ({
+      key,
+      label: res.label,
+      dimensions: Object.entries(res.allowedDimensions).map(([dKey, dVal]) => ({
+        key: dKey,
+        label: dVal.label
+      })),
+      metrics: Object.entries(res.allowedMetrics).map(([mKey, mVal]) => ({
+        key: mKey,
+        label: mVal.label,
+        type: mVal.type
+      })),
+      defaultDimensions: res.defaultDimensions,
+      defaultMetrics: res.defaultMetrics,
+      supportsCampaignFilter: res.supportsCampaignFilter
+    }));
+
+    return { success: true, resources };
+  }
+
+  /**
+   * Helper to retrieve value safely from deeply nested JSON object.
+   */
+  private static extractPath(obj: any, path: string[]): any {
+    let curr = obj;
+    for (const seg of path) {
+      if (!curr || typeof curr !== "object") return undefined;
+      curr = curr[seg];
+    }
+    return curr;
+  }
+
+  /**
+   * Builds and executes a custom Google Ads report against API v24 using validated allowlists.
+   */
+  public static async generateCustomReport(
+    organizationId: string,
+    customerId: string,
+    params: {
+      resource: string;
+      dimensions?: string[];
+      metrics?: string[];
+      campaignId?: string;
+      dateRange?: string;
+      startDate?: string;
+      endDate?: string;
+      searchQuery?: string;
+      limit?: number;
+    }
+  ) {
+    const cid = customerId.replace(/-/g, "").trim();
+    const resourceKey = (params.resource || "campaign").trim().toLowerCase();
+
+    const resourceConfig = this.ALLOWED_RESOURCES[resourceKey];
+    if (!resourceConfig) {
+      const validResources = Object.keys(this.ALLOWED_RESOURCES).join(", ");
+      throw new Error(`Unsupported report resource '${params.resource}'. Supported resources: ${validResources}`);
+    }
+
+    // Validate Dimensions
+    const requestedDims = (params.dimensions && params.dimensions.length > 0)
+      ? params.dimensions
+      : resourceConfig.defaultDimensions;
+
+    for (const d of requestedDims) {
+      if (!resourceConfig.allowedDimensions[d]) {
+        throw new Error(
+          `Invalid dimension '${d}' for resource '${resourceKey}'. Allowed: ${Object.keys(resourceConfig.allowedDimensions).join(", ")}`
+        );
+      }
+    }
+
+    // Validate Metrics
+    const requestedMetrics = (params.metrics && params.metrics.length > 0)
+      ? params.metrics
+      : resourceConfig.defaultMetrics;
+
+    for (const m of requestedMetrics) {
+      if (!resourceConfig.allowedMetrics[m]) {
+        throw new Error(
+          `Invalid metric '${m}' for resource '${resourceKey}'. Allowed: ${Object.keys(resourceConfig.allowedMetrics).join(", ")}`
+        );
+      }
+    }
+
+    // Select Fields
+    const selectFields: string[] = [];
+    const columns: Array<{ key: string; label: string; type: "dimension" | "metric"; format?: string }> = [];
+
+    // Add Dimensions
+    for (const d of requestedDims) {
+      const dim = resourceConfig.allowedDimensions[d];
+      if (!selectFields.includes(dim.gaqlField)) {
+        selectFields.push(dim.gaqlField);
+      }
+      columns.push({
+        key: d,
+        label: dim.label,
+        type: "dimension"
+      });
+    }
+
+    // Add Metrics
+    for (const m of requestedMetrics) {
+      const met = resourceConfig.allowedMetrics[m];
+      if (!selectFields.includes(met.gaqlField)) {
+        selectFields.push(met.gaqlField);
+      }
+      columns.push({
+        key: m,
+        label: met.label,
+        type: "metric",
+        format: met.type
+      });
+    }
+
+    // Build Date Clause
+    let dateClause = "segments.date DURING LAST_30_DAYS";
+    if (params.startDate && params.endDate) {
+      dateClause = `segments.date BETWEEN '${params.startDate}' AND '${params.endDate}'`;
+    } else if (params.dateRange) {
+      dateClause = `segments.date DURING ${params.dateRange}`;
+    }
+
+    // Build Where Clause
+    const whereParts: string[] = [dateClause];
+
+    if (params.campaignId && resourceConfig.supportsCampaignFilter) {
+      const cleanCampId = params.campaignId.replace(/[^0-9]/g, "");
+      if (cleanCampId) {
+        whereParts.push(`${resourceConfig.campaignFilterField} = ${cleanCampId}`);
+      }
+    }
+
+    // For campaign & ad_group, filter out REMOVED to keep reports actionable
+    if (resourceKey === "campaign") {
+      whereParts.push("campaign.status != 'REMOVED'");
+    } else if (resourceKey === "ad_group") {
+      whereParts.push("ad_group.status != 'REMOVED'");
+    }
+
+    const whereClause = `WHERE ${whereParts.join(" AND ")}`;
+    const limit = params.limit ? Math.min(params.limit, 500) : 100;
+
+    // Order by primary metric if requested, default to clicks/impressions
+    let orderClause = "";
+    if (requestedMetrics.includes("clicks")) {
+      orderClause = "ORDER BY metrics.clicks DESC";
+    } else if (requestedMetrics.includes("impressions")) {
+      orderClause = "ORDER BY metrics.impressions DESC";
+    }
+
+    const gaql = `
+      SELECT
+        ${selectFields.join(",\n        ")}
+      FROM ${resourceConfig.gaqlFrom}
+      ${whereClause}
+      ${orderClause}
+      LIMIT ${limit}
+    `;
+
+    const { headers } = await this.getAdsHeaders(organizationId, cid);
+
+    // Resolve Customer Currency dynamically
+    let currencyCode = "INR";
+    try {
+      const custRes = await axios.post(
+        `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
+        { query: "SELECT customer.currency_code FROM customer LIMIT 1" },
+        { headers }
+      );
+      currencyCode = custRes.data?.results?.[0]?.customer?.currencyCode || "INR";
+    } catch {
+      // Fallback
+    }
+
+    try {
+      const res = await axios.post(
+        `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
+        { query: gaql },
+        { headers }
+      );
+
+      const rawRows = res.data?.results || [];
+
+      // Map rows to dynamic columns
+      let rows: Array<Record<string, any>> = rawRows.map((r: any) => {
+        const rowData: Record<string, any> = {};
+
+        for (const d of requestedDims) {
+          const dim = resourceConfig.allowedDimensions[d];
+          const val = this.extractPath(r, dim.jsonPath);
+          rowData[d] = val !== undefined && val !== null ? String(val) : "—";
+        }
+
+        for (const m of requestedMetrics) {
+          const met = resourceConfig.allowedMetrics[m];
+          const rawVal = this.extractPath(r, met.jsonPath);
+          const num = Number(rawVal || 0);
+
+          if (met.type === "micros") {
+            rowData[m] = (num / 1_000_000).toFixed(2);
+          } else if (met.type === "percent") {
+            rowData[m] = `${(num * 100).toFixed(2)}%`;
+          } else if (met.type === "currency") {
+            rowData[m] = num.toFixed(2);
+          } else {
+            rowData[m] = num;
+          }
+        }
+
+        return rowData;
+      });
+
+      // Client search query filter
+      if (params.searchQuery && params.searchQuery.trim()) {
+        const q = params.searchQuery.toLowerCase().trim();
+        rows = rows.filter(row =>
+          requestedDims.some(d => String(row[d] || "").toLowerCase().includes(q))
+        );
+      }
+
+      return {
+        success: true,
+        resource: resourceKey,
+        resourceLabel: resourceConfig.label,
+        currencyCode,
+        columns,
+        rows,
+        total: rows.length,
+        appliedFilters: {
+          resource: resourceKey,
+          dimensions: requestedDims,
+          metrics: requestedMetrics,
+          campaignId: params.campaignId || null,
+          dateRange: params.dateRange || (params.startDate && params.endDate ? "CUSTOM" : "LAST_30_DAYS"),
+          startDate: params.startDate || null,
+          endDate: params.endDate || null,
+          limit
+        }
+      };
+    } catch (err: any) {
+      console.error("[GoogleAdsReportingService.generateCustomReport] error:", err?.response?.data || err.message);
+      const msg = err?.response?.data?.error?.message || err.message;
+      throw new Error(`Google Ads Custom Report error: ${msg}`);
     }
   }
 }

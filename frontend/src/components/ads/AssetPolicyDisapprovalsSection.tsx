@@ -109,21 +109,35 @@ export function AssetPolicyDisapprovalsSection({
     setLoading(true);
     setError(null);
     try {
-      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
       const cleanCid = customerId.replace(/-/g, "").trim();
+      const activeOrgId = orgId || (typeof window !== "undefined" ? localStorage.getItem("organization_id") || "demo-org-123" : "demo-org-123");
 
       const params = new URLSearchParams();
       params.append("customerId", cleanCid);
+      params.append("orgId", activeOrgId);
       if (statusFilter !== "ALL") params.append("policyStatus", statusFilter);
       if (assetTypeFilter !== "ALL") params.append("assetType", assetTypeFilter);
       if (campaignFilter !== "ALL") params.append("campaignId", campaignFilter);
       params.append("limit", "150");
 
-      const res = await fetch(`${BACKEND}/api/ads/asset-policy?${params.toString()}`, {
-        headers: {
-          "x-organization-id": orgId || "demo-org-123"
-        }
-      });
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const requestHeaders = {
+        "x-organization-id": activeOrgId,
+        "Accept": "application/json"
+      };
+
+      let res: Response;
+      try {
+        // First try relative path leveraging Next.js rewrites to prevent cross-origin issues
+        res = await fetch(`/api/ads/asset-policy?${params.toString()}`, {
+          headers: requestHeaders
+        });
+      } catch {
+        // Fallback to absolute backend URL
+        res = await fetch(`${BACKEND}/api/ads/asset-policy?${params.toString()}`, {
+          headers: requestHeaders
+        });
+      }
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -133,8 +147,8 @@ export function AssetPolicyDisapprovalsSection({
       const json: ListAssetPolicyResponse = await res.json();
       setData(json);
     } catch (err: any) {
-      console.error("[AssetPolicyDisapprovalsSection] Error loading policy data:", err);
-      setError(err.message || "Failed to load Google Ads asset policy data");
+      console.warn("[AssetPolicyDisapprovalsSection] Policy data fetch warning:", err?.message || err);
+      setError(err?.message || "Failed to load Google Ads asset policy data");
     } finally {
       setLoading(false);
     }

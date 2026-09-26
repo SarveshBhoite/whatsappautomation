@@ -1,4 +1,5 @@
 import axios from "axios";
+import prisma from "../../utils/prisma";
 import { GoogleAdsBaseService } from "./shared/GoogleAdsBaseService";
 
 export type KeywordMatchType = "EXACT" | "PHRASE" | "BROAD";
@@ -64,9 +65,36 @@ export class GoogleAdsKeywordTargetingService extends GoogleAdsBaseService {
     const cid = customerId.replace(/-/g, "").trim();
     const { headers } = await this.getAdsHeaders(organizationId, cid);
 
-    const cleanCampaignId = campaignIdOrResource.includes("/")
+    let cleanCampaignId = campaignIdOrResource.includes("/")
       ? campaignIdOrResource.split("/").pop()!
       : campaignIdOrResource;
+
+    // If cleanCampaignId is a local DB UUID (e.g. contains hyphens or letters), look up googleAdsCampaignId in DB
+    if (!/^\d+$/.test(cleanCampaignId)) {
+      const dbCamp = await prisma.googleAdCampaign.findFirst({
+        where: {
+          organizationId,
+          OR: [{ id: cleanCampaignId }, { googleAdsCampaignId: cleanCampaignId }]
+        }
+      });
+      if (dbCamp?.googleAdsCampaignId) {
+        cleanCampaignId = dbCamp.googleAdsCampaignId;
+      }
+    }
+
+    // If still not a valid numeric Google Ads campaign ID, return empty/safe fallback
+    if (!/^\d+$/.test(cleanCampaignId)) {
+      return {
+        campaignId: cleanCampaignId,
+        campaignName: `Campaign ${cleanCampaignId}`,
+        campaignType: "UNKNOWN",
+        isPMax: false,
+        supportsKeywords: false,
+        limitationMessage: "Campaign is not yet synced to Google Ads or invalid campaign ID.",
+        adGroups: [],
+        keywords: []
+      };
+    }
 
     // 1. Fetch Campaign Metadata
     const campQuery = `
@@ -80,15 +108,39 @@ export class GoogleAdsKeywordTargetingService extends GoogleAdsBaseService {
       LIMIT 1
     `;
 
-    const campRes = await axios.post(
-      `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
-      { query: campQuery },
-      { headers }
-    );
+    let campRow: any = null;
+    try {
+      const campRes = await axios.post(
+        `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
+        { query: campQuery },
+        { headers }
+      );
+      campRow = campRes.data?.results?.[0]?.campaign;
+    } catch (campErr: any) {
+      console.warn(`[GoogleAdsKeywordTargetingService] Campaign ${cleanCampaignId} query warning:`, campErr?.response?.data || campErr.message);
+      return {
+        campaignId: cleanCampaignId,
+        campaignName: `Campaign ${cleanCampaignId}`,
+        campaignType: "UNKNOWN",
+        isPMax: false,
+        supportsKeywords: false,
+        limitationMessage: "Unable to retrieve campaign metadata from Google Ads.",
+        adGroups: [],
+        keywords: []
+      };
+    }
 
-    const campRow = campRes.data?.results?.[0]?.campaign;
     if (!campRow) {
-      throw new Error(`Campaign '${campaignIdOrResource}' not found in Google Ads account ${cid}.`);
+      return {
+        campaignId: cleanCampaignId,
+        campaignName: `Campaign #${cleanCampaignId}`,
+        campaignType: "UNKNOWN",
+        isPMax: false,
+        supportsKeywords: false,
+        limitationMessage: `Campaign '${cleanCampaignId}' not found in Google Ads account ${cid}.`,
+        adGroups: [],
+        keywords: []
+      };
     }
 
     const campaignId = String(campRow.id);

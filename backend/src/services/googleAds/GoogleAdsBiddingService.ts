@@ -1,4 +1,5 @@
 import axios from "axios";
+import prisma from "../../utils/prisma";
 import { GoogleAdsBaseService } from "./shared/GoogleAdsBaseService";
 
 export interface CreatePortfolioStrategyInput {
@@ -145,7 +146,6 @@ export class GoogleAdsBiddingService extends GoogleAdsBaseService {
         campaign.bidding_strategy_type
       FROM campaign
       WHERE campaign.status != 'REMOVED'
-        AND campaign.bidding_strategy != ''
       LIMIT 200
     `;
 
@@ -168,7 +168,7 @@ export class GoogleAdsBiddingService extends GoogleAdsBaseService {
         campMap.set(stratRef, list);
       }
     } catch (e: any) {
-      console.warn("[GoogleAdsBiddingService] Could not fetch campaign links for strategies:", e?.message);
+      console.warn("[GoogleAdsBiddingService] Could not fetch campaign links for strategies:", e?.response?.data || e?.message);
     }
 
     return stratRows.map((r: any) => {
@@ -648,10 +648,49 @@ export class GoogleAdsBiddingService extends GoogleAdsBaseService {
     campaignIdOrResource: string
   ): Promise<CampaignBidAdjustmentsResponse> {
     const cid = customerId.replace(/-/g, "").trim();
-    const { headers } = await this.getAdsHeaders(organizationId, cid);
 
-    const isResource = campaignIdOrResource.startsWith("customers/");
-    const cleanCampId = campaignIdOrResource.replace(/\D/g, "");
+    let cleanCampId = campaignIdOrResource.includes("/")
+      ? campaignIdOrResource.split("/").pop()!
+      : campaignIdOrResource;
+
+    // If cleanCampId is a local DB UUID (e.g. contains hyphens or letters), look up googleAdsCampaignId in DB
+    if (!/^\d+$/.test(cleanCampId)) {
+      const dbCamp = await prisma.googleAdCampaign.findFirst({
+        where: {
+          organizationId,
+          OR: [{ id: cleanCampId }, { googleAdsCampaignId: cleanCampId }]
+        }
+      });
+      if (dbCamp?.googleAdsCampaignId) {
+        cleanCampId = dbCamp.googleAdsCampaignId;
+      }
+    }
+
+    // If still not a valid numeric Google Ads campaign ID, return safe fallback
+    if (!/^\d+$/.test(cleanCampId)) {
+      return {
+        campaignId: cleanCampId,
+        campaignName: `Campaign ${cleanCampId}`,
+        campaignType: "UNKNOWN",
+        biddingStrategyType: "UNKNOWN",
+        isPMax: false,
+        isSmartBidding: false,
+        supportNotes: {
+          deviceSupported: false,
+          locationSupported: false,
+          scheduleSupported: false,
+          audienceSupported: false,
+          limitationMessage: "Campaign is not yet synced to Google Ads or invalid campaign ID."
+        },
+        devices: [],
+        locations: [],
+        schedules: [],
+        audiences: [],
+        total: 0
+      };
+    }
+
+    const { headers } = await this.getAdsHeaders(organizationId, cid);
 
     // 1. Fetch campaign metadata & bidding type
     const campQuery = `
@@ -662,19 +701,63 @@ export class GoogleAdsBiddingService extends GoogleAdsBaseService {
         campaign.bidding_strategy_type,
         campaign.status
       FROM campaign
-      WHERE ${isResource ? `campaign.resource_name = '${campaignIdOrResource}'` : `campaign.id = ${cleanCampId}`}
+      WHERE campaign.id = ${cleanCampId}
       LIMIT 1
     `;
 
-    const campRes = await axios.post(
-      `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
-      { query: campQuery },
-      { headers }
-    );
+    let campRow: any = null;
+    try {
+      const campRes = await axios.post(
+        `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
+        { query: campQuery },
+        { headers }
+      );
+      campRow = campRes.data?.results?.[0]?.campaign;
+    } catch (campErr: any) {
+      console.warn(`[GoogleAdsBiddingService] Campaign ${cleanCampId} query notice:`, campErr?.response?.data || campErr.message);
+      return {
+        campaignId: cleanCampId,
+        campaignName: `Campaign ${cleanCampId}`,
+        campaignType: "UNKNOWN",
+        biddingStrategyType: "UNKNOWN",
+        isPMax: false,
+        isSmartBidding: false,
+        supportNotes: {
+          deviceSupported: false,
+          locationSupported: false,
+          scheduleSupported: false,
+          audienceSupported: false,
+          limitationMessage: "Unable to retrieve campaign metadata from Google Ads."
+        },
+        devices: [],
+        locations: [],
+        schedules: [],
+        audiences: [],
+        total: 0
+      };
+    }
 
-    const campRow = campRes.data?.results?.[0]?.campaign;
     if (!campRow) {
-      throw new Error(`Campaign '${campaignIdOrResource}' not found in Google Ads account ${cid}.`);
+      return {
+        campaignId: cleanCampId,
+        campaignName: `Campaign #${cleanCampId}`,
+        campaignType: "UNKNOWN",
+        biddingStrategyType: "UNKNOWN",
+        isPMax: false,
+        isSmartBidding: false,
+        supportNotes: {
+          deviceSupported: false,
+          locationSupported: false,
+          scheduleSupported: false,
+          audienceSupported: false,
+          limitationMessage: `Campaign with ID ${cleanCampId} not found in Google Ads account ${cid}.`
+        },
+        devices: [],
+        locations: [],
+        schedules: [],
+        audiences: [],
+        total: 0
+      };
     }
 
     const campaignId = String(campRow.id);
@@ -734,13 +817,17 @@ export class GoogleAdsBiddingService extends GoogleAdsBaseService {
       LIMIT 150
     `;
 
-    const critRes = await axios.post(
-      `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
-      { query: critQuery },
-      { headers }
-    );
-
-    const rawRows = critRes.data?.results || [];
+    let rawRows: any[] = [];
+    try {
+      const critRes = await axios.post(
+        `${this.ADS_BASE}/customers/${cid}/googleAds:search`,
+        { query: critQuery },
+        { headers }
+      );
+      rawRows = critRes.data?.results || [];
+    } catch (critErr: any) {
+      console.warn(`[GoogleAdsBiddingService] Criteria query notice:`, critErr?.response?.data || critErr.message);
+    }
 
     const devices: BidAdjustmentItem[] = [];
     const locations: BidAdjustmentItem[] = [];
