@@ -3,6 +3,8 @@ import { GoogleAdsAiAssistantService, CampaignState } from "../../services/googl
 import { GoogleAdsImageGenService } from "../../services/googleAds/GoogleAdsImageGenService";
 import { GoogleAdsCampaignValidator } from "../../services/googleAds/shared/GoogleAdsCampaignValidator";
 import { GoogleAdsBaseService } from "../../services/googleAds/shared/GoogleAdsBaseService";
+import { CampaignPlan, CampaignPlanMapper } from "../../services/googleAds/shared/CampaignPlan";
+import { CampaignPlanValidator } from "../../services/googleAds/shared/CampaignPlanValidator";
 import { analyzeWebsiteUrl } from "../../services/googleAds/shared/websiteAnalyzer";
 import { CustomerBusinessProfileService } from "../../services/googleAds/CustomerBusinessProfileService";
 import { SalesSearchService } from "../../services/googleAds/sales/SalesSearchService";
@@ -36,6 +38,13 @@ import { StoreVisitsPerformanceMaxService } from "../../services/googleAds/store
 import { AppPromotionAppService } from "../../services/googleAds/appPromotion/AppPromotionAppService";
 import axios from "axios";
 import { IndianHolidayService } from "../../services/googleAds/shared/IndianHolidayService";
+import { GoogleAdsKeywordIntelligenceService } from "../../services/googleAds/shared/GoogleAdsKeywordIntelligenceService";
+import { GoogleAdsAudienceIntelligenceService } from "../../services/googleAds/shared/GoogleAdsAudienceIntelligenceService";
+import { GoogleAdsSharedSetService } from "../../services/googleAds/GoogleAdsSharedSetService";
+import { GoogleAdsPerformancePlannerService } from "../../services/googleAds/GoogleAdsPerformancePlannerService";
+import { GoogleAdsService } from "../../services/googleAdsService";
+import { GoogleAdsAssetTypesService } from "../../services/googleAds/GoogleAdsAssetTypesService";
+import { GoogleAdsAssetGroupService } from "../../services/googleAds/GoogleAdsAssetGroupService";
 
 import prisma from "../../utils/prisma";
 
@@ -1041,6 +1050,735 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
+// POST /api/ads/ai-guided/preflight — Preflight validation for CampaignPlan before user confirmation
+router.post("/preflight", async (req, res) => {
+  try {
+    const { customerId, campaignState } = req.body;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+
+    if (!customerId) {
+      return res.status(400).json({
+        error: "Google Ads Customer ID is required.",
+        code: "MISSING_CUSTOMER_ID"
+      });
+    }
+
+    if (!orgId) {
+      return res.status(400).json({
+        error: "Organization ID is required.",
+        code: "MISSING_ORG_ID"
+      });
+    }
+
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. Customer ID does not belong to this organization.",
+        code: "CUSTOMER_ACCESS_DENIED"
+      });
+    }
+
+    const plan: CampaignPlan = CampaignPlanMapper.fromState(orgId, cleanCid, campaignState || {});
+    const preflight = await CampaignPlanValidator.validate(orgId, cleanCid, plan);
+    plan.preflightChecks = preflight;
+
+    return res.status(200).json({
+      success: preflight.passed,
+      preflight,
+      plan
+    });
+  } catch (error: any) {
+    console.error("[AI Guided Preflight Error]:", error?.message || error);
+    return res.status(500).json({
+      error: "Failed to perform campaign preflight validation.",
+      details: error.message
+    });
+  }
+});
+
+// Cache for keyword intelligence (TTL: 10 minutes)
+const keywordIntelligenceCache = new Map<string, { data: any; timestamp: number }>();
+
+// POST /api/ads/ai-guided/keyword-intelligence — Grounded Google Ads keyword intelligence
+router.post("/keyword-intelligence", async (req, res) => {
+  try {
+    const {
+      customerId,
+      campaignType = "SEARCH",
+      queryKeywords = [],
+      url,
+      businessName,
+      productsServices = [],
+      locations = [],
+      language
+    } = req.body;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        error: "Organization ID is required (x-organization-id header or orgId parameter)."
+      });
+    }
+
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        error: "Google Ads Customer ID is required."
+      });
+    }
+
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Customer ID does not belong to this organization."
+      });
+    }
+
+    // Check cache: orgId + customerId + campaignType + seed queries
+    const cacheKey = `${orgId}:${cleanCid}:${campaignType}:${(queryKeywords || []).sort().join(",")}:${url || ""}`;
+    const cached = keywordIntelligenceCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 10 * 60 * 1000)) {
+      return res.status(200).json({
+        success: true,
+        ...cached.data,
+        isCached: true
+      });
+    }
+
+    const result = await GoogleAdsKeywordIntelligenceService.gatherIntelligence(
+      orgId,
+      cleanCid,
+      campaignType,
+      {
+        queryKeywords,
+        url,
+        businessName,
+        productsServices,
+        locations,
+        language
+      }
+    );
+
+    keywordIntelligenceCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (error: any) {
+    console.error("[AI Guided Keyword Intelligence Error]:", error?.message || error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Failed to retrieve Google Ads keyword intelligence."
+    });
+  }
+});
+
+// Cache for audience intelligence (TTL: 10 minutes)
+const audienceIntelligenceCache = new Map<string, { data: any; timestamp: number }>();
+
+// POST /api/ads/ai-guided/audience-intelligence — Grounded Google Ads audience signals
+router.post("/audience-intelligence", async (req, res) => {
+  try {
+    const { customerId, campaignType = "PERFORMANCE_MAX" } = req.body;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        error: "Organization ID is required (x-organization-id header or orgId parameter)."
+      });
+    }
+
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        error: "Google Ads Customer ID is required."
+      });
+    }
+
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Customer ID does not belong to this organization."
+      });
+    }
+
+    const cacheKey = `${orgId}:${cleanCid}:${campaignType}`;
+    const cached = audienceIntelligenceCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 10 * 60 * 1000)) {
+      return res.status(200).json({
+        success: true,
+        ...cached.data,
+        isCached: true
+      });
+    }
+
+    const result = await GoogleAdsAudienceIntelligenceService.gatherIntelligence(
+      orgId,
+      cleanCid,
+      campaignType
+    );
+
+    audienceIntelligenceCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (error: any) {
+    console.error("[AI Guided Audience Intelligence Error]:", error?.message || error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Failed to retrieve Google Ads audience intelligence."
+    });
+  }
+});
+
+// Cache for performance planner forecasts (TTL: 10 minutes)
+const performanceForecastCache = new Map<string, { data: any; timestamp: number }>();
+
+// POST /api/ads/ai-guided/performance-forecast — Grounded Google Ads Performance Planner forecast
+router.post("/performance-forecast", async (req, res) => {
+  try {
+    const {
+      customerId,
+      campaignType = "SEARCH",
+      dailyBudget,
+      startDate,
+      endDate,
+      biddingStrategy = "MAXIMIZE_CONVERSIONS",
+      targetCpa,
+      targetRoas,
+      locations = ["India"],
+      languages = ["English"],
+      keywords = []
+    } = req.body;
+
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        error: "Organization ID is required (x-organization-id header or orgId parameter)."
+      });
+    }
+
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        error: "Google Ads Customer ID is required."
+      });
+    }
+
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Customer ID does not belong to this organization."
+      });
+    }
+
+    // Campaign Type Guardrail: only Search is supported for keyword forecasting
+    if (campaignType && campaignType.toUpperCase() !== "SEARCH") {
+      return res.status(200).json({
+        success: true,
+        status: "UNSUPPORTED",
+        dailyBudget: Number(dailyBudget) || 0,
+        warnings: [
+          `Google Ads Performance Planner keyword forecasting is only supported for Search campaigns. "${campaignType}" campaigns allocate budget across dynamic multi-channel placements.`
+        ],
+        notice: `Performance Planner forecast is not available for ${campaignType}. You can proceed with your desired budget.`
+      });
+    }
+
+    // Budget guardrail
+    const budgetNum = Number(dailyBudget);
+    if (isNaN(budgetNum) || budgetNum <= 0) {
+      return res.status(200).json({
+        success: true,
+        status: "INVALID_CONFIGURATION",
+        warnings: ["A positive daily budget is required to generate a forecast."],
+        notice: "Please specify a positive daily budget to calculate forecast."
+      });
+    }
+
+    // Approved keywords guardrail
+    const approvedKeywords = (Array.isArray(keywords) ? keywords : [])
+      .map(k => (typeof k === "string" ? k.trim() : ""))
+      .filter(k => k.length > 0);
+
+    if (approvedKeywords.length === 0) {
+      return res.status(200).json({
+        success: true,
+        status: "INVALID_CONFIGURATION",
+        dailyBudget: budgetNum,
+        warnings: ["At least one approved Search keyword is required to generate a forecast."],
+        notice: "Select or approve Search keywords to calculate estimated traffic and cost."
+      });
+    }
+
+    // Cache key scoped to org + customer + budget + dates + sorted keywords
+    const keywordsKey = [...approvedKeywords].sort().join("|");
+    const cacheKey = `${orgId}:${cleanCid}:${budgetNum}:${startDate || "def"}:${endDate || "def"}:${biddingStrategy}:${keywordsKey}`;
+    const cached = performanceForecastCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 10 * 60 * 1000)) {
+      return res.status(200).json({
+        success: true,
+        ...cached.data,
+        isCached: true
+      });
+    }
+
+    const forecastResult = await GoogleAdsPerformancePlannerService.generateForecastForPlan(
+      orgId,
+      cleanCid,
+      {
+        campaignType,
+        dailyBudget: budgetNum,
+        startDate,
+        endDate,
+        biddingStrategy,
+        targetCpa: targetCpa ? Number(targetCpa) : undefined,
+        targetRoas: targetRoas ? Number(targetRoas) : undefined,
+        locations: Array.isArray(locations) ? locations : [locations],
+        languages: Array.isArray(languages) ? languages : [languages],
+        keywords: approvedKeywords
+      }
+    );
+
+    performanceForecastCache.set(cacheKey, {
+      data: forecastResult,
+      timestamp: Date.now()
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...forecastResult
+    });
+  } catch (error: any) {
+    console.error("[AI Guided Performance Forecast Error]:", error?.message || error);
+    return res.status(200).json({
+      success: true,
+      status: "UNAVAILABLE",
+      warnings: [error.message || "Failed to retrieve Google Ads performance forecast."],
+      notice: "Google Ads forecast is currently unavailable. You can continue with the selected budget."
+    });
+  }
+// Cache for recommendations insights (TTL: 10 minutes)
+const recommendationsInsightsCache = new Map<string, { data: any; timestamp: number }>();
+
+// Helper to format clean human-readable title and description from recommendation type
+function formatRecommendationMeta(recType: string, recDetails: any) {
+  switch (recType) {
+    case "CAMPAIGN_BUDGET":
+      return {
+        title: "Adjust Campaign Budget",
+        description: "Google Ads recommends optimizing daily budget based on auction demand to avoid losing impressions during peak hours."
+      };
+    case "KEYWORD":
+      return {
+        title: "Add High-Relevance Search Keywords",
+        description: "Google Ads identified high-performing keywords searched by prospective customers that match your offerings."
+      };
+    case "RESPONSIVE_SEARCH_AD":
+    case "TEXT_AD":
+      return {
+        title: "Improve Ad Copy Strength",
+        description: "Add diverse headlines and compelling descriptions to enable Google machine learning to deliver top-performing combinations."
+      };
+    case "TARGET_CPA_OPT_IN":
+      return {
+        title: "Opt into Target CPA Bidding",
+        description: "Set a target cost-per-acquisition to get more conversions within your target budget efficiency."
+      };
+    case "MAXIMIZE_CONVERSIONS_OPT_IN":
+      return {
+        title: "Adopt Maximize Conversions Bidding",
+        description: "Allow smart bidding to automatically adjust real-time bids for every search auction to drive the highest conversion volume."
+      };
+    case "MAXIMIZE_CLICKS_OPT_IN":
+      return {
+        title: "Adopt Maximize Clicks Bidding",
+        description: "Optimize bidding to attract the highest volume of qualified traffic within your daily budget."
+      };
+    case "USE_BROAD_MATCH_KEYWORD":
+      return {
+        title: "Upgrade to Smart Bidding with Broad Match",
+        description: "Use broad match keywords alongside automated smart bidding to capture high-intent related customer searches."
+      };
+    case "SITELINK_ASSET":
+      return {
+        title: "Add Sitelink Extensions",
+        description: "Include prominent deep-links to popular pages on your site to enhance ad click-through rate and prominence."
+      };
+    case "CALLOUT_ASSET":
+      return {
+        title: "Add Callout Highlights",
+        description: "Highlight special offers, free delivery, 24/7 support, or core value propositions directly in search results."
+      };
+    case "CALL_ASSET":
+      return {
+        title: "Add Phone Call Asset",
+        description: "Allow prospective customers to tap-to-call your business directly from mobile search ads."
+      };
+    case "SEARCH_PARTNERS_OPT_IN":
+      return {
+        title: "Expand to Google Search Partners",
+        description: "Extend reach by showing ads on hundreds of non-Google search websites and YouTube search."
+      };
+    case "DISPLAY_EXPANSION_OPT_IN":
+      return {
+        title: "Enable Display Network Expansion",
+        description: "Use remaining Search campaign budget to capture extra conversions across relevant Display network websites."
+      };
+    case "OPTIMIZE_AD_ROTATION":
+      return {
+        title: "Optimize Ad Rotation",
+        description: "Display your highest performing ads more frequently in auctions to maximize overall conversions."
+      };
+    default:
+      return {
+        title: recType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
+        description: "Google Ads recommended optimization to improve campaign delivery and efficiency."
+      };
+  }
+}
+
+// POST /api/ads/ai-guided/recommendations — Grounded Google Ads Recommendations & Insights
+router.post("/recommendations", async (req, res) => {
+  try {
+    const { customerId, campaignType = "SEARCH", campaignId } = req.body;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        error: "Organization ID is required (x-organization-id header or orgId parameter)."
+      });
+    }
+
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        error: "Google Ads Customer ID is required."
+      });
+    }
+
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Customer ID does not belong to this organization."
+      });
+    }
+
+    const cacheKey = `${orgId}:${cleanCid}:${campaignType || "ALL"}:${campaignId || "ALL"}`;
+    const cached = recommendationsInsightsCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 10 * 60 * 1000)) {
+      return res.status(200).json({
+        success: true,
+        ...cached.data,
+        isCached: true
+      });
+    }
+
+    // Call EXISTING GoogleAdsService.listRecommendations() directly (no internal HTTP calls)
+    const rawRecommendations = await GoogleAdsService.listRecommendations(orgId, cleanCid);
+
+    // Convert raw Google Ads recommendation rows into compact, advisory RecommendationInsight objects
+    const compactRecommendations = (Array.isArray(rawRecommendations) ? rawRecommendations : [])
+      .filter((r: any) => {
+        if (!r) return false;
+        // If specific campaign requested, filter to it; otherwise include all account recommendations
+        if (campaignId && r.campaignId && String(r.campaignId) !== String(campaignId)) {
+          return false;
+        }
+        return true;
+      })
+      .slice(0, 15) // Limit top 15 recommendations to keep response concise
+      .map((r: any) => {
+        const meta = formatRecommendationMeta(r.type, r.details);
+        return {
+          id: String(r.id || `rec-${Math.random().toString(36).substring(7)}`),
+          type: String(r.type || "UNKNOWN"),
+          title: meta.title,
+          description: meta.description,
+          impact: r.impact ? {
+            hasImpact: Boolean(r.impact.hasImpact),
+            deltaClicks: r.impact.deltaClicks !== undefined ? Math.round(r.impact.deltaClicks) : undefined,
+            deltaCost: r.impact.deltaCost !== undefined ? Number(Number(r.impact.deltaCost).toFixed(2)) : undefined,
+            deltaConversions: r.impact.deltaConversions !== undefined ? Number(Number(r.impact.deltaConversions).toFixed(1)) : undefined
+          } : undefined,
+          campaignId: r.campaignId ? String(r.campaignId) : undefined,
+          campaignName: r.campaignName ? String(r.campaignName) : undefined,
+          resourceName: r.resourceName ? String(r.resourceName) : undefined,
+          recommendationType: String(r.type || "UNKNOWN"),
+          recommended: true,
+          approved: false // Never automatically approved; user must explicitly select
+        };
+      });
+
+    const responsePayload = {
+      status: compactRecommendations.length > 0 ? "SUCCESS" : "NO_RECOMMENDATIONS",
+      recommendationsCount: compactRecommendations.length,
+      recommendations: compactRecommendations,
+      notice: compactRecommendations.length > 0
+        ? "Official Google Ads Recommendations are advisory. Review recommendations before applying them to your CampaignPlan."
+        : "No active Google Ads recommendations found for this account. You can proceed with campaign creation."
+    };
+
+    recommendationsInsightsCache.set(cacheKey, {
+      data: responsePayload,
+      timestamp: Date.now()
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...responsePayload
+    });
+  } catch (error: any) {
+    console.warn("[AI Guided Recommendations Error]:", error?.message || error);
+    return res.status(200).json({
+      success: true,
+      status: "UNAVAILABLE",
+      recommendationsCount: 0,
+      recommendations: [],
+      warnings: [error.message || "Failed to retrieve Google Ads recommendations."],
+      notice: "Google Ads recommendations are currently unavailable. You can continue with campaign creation."
+    });
+  }
+// Cache for extensions & assets insights (TTL: 10 minutes)
+const extensionsAssetsCache = new Map<string, { data: any; timestamp: number }>();
+
+// POST /api/ads/ai-guided/extensions-assets — Grounded Google Ads Extensions & Assets
+router.post("/extensions-assets", async (req, res) => {
+  try {
+    const { customerId, campaignType = "SEARCH", campaignId } = req.body;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        error: "Organization ID is required (x-organization-id header or orgId parameter)."
+      });
+    }
+
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        error: "Google Ads Customer ID is required."
+      });
+    }
+
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Customer ID does not belong to this organization."
+      });
+    }
+
+    const cacheKey = `${orgId}:${cleanCid}:${campaignType || "ALL"}:${campaignId || "ALL"}`;
+    const cached = extensionsAssetsCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 10 * 60 * 1000)) {
+      return res.status(200).json({
+        success: true,
+        ...cached.data,
+        isCached: true
+      });
+    }
+
+    const cType = (campaignType || "SEARCH").toUpperCase();
+    const items: Array<{
+      id: string;
+      type: string;
+      name: string;
+      description: string;
+      source: "GOOGLE_ADS";
+      campaignId?: string;
+      campaignName?: string;
+      resourceName?: string;
+      status?: string;
+      recommended: boolean;
+      approved: boolean;
+    }> = [];
+
+    // 1. For SEARCH and compatible types: fetch Sitelinks, Callouts, Call Assets, Structured Snippets, Promotions, Lead Forms
+    if (cType === "SEARCH" || cType === "LEADS" || cType === "WEBSITE_TRAFFIC" || cType === "SALES") {
+      // Sitelinks, Callouts, Call Assets via existing GoogleAdsService.listExtensions
+      try {
+        const rawExtensions = await GoogleAdsService.listExtensions(orgId, cleanCid);
+        for (const ext of rawExtensions || []) {
+          const typeStr = ext.fieldType || ext.assetType || "EXTENSION";
+          let name = ext.assetName || "Account Extension";
+          let desc = "Existing account extension in Google Ads.";
+
+          if (ext.sitelink) {
+            name = ext.sitelink.linkText ? `Sitelink: "${ext.sitelink.linkText}"` : name;
+            desc = ext.sitelink.description1 ? `${ext.sitelink.description1}` : "Deep-link to relevant page on your website.";
+          } else if (ext.callout) {
+            name = `Callout: "${ext.callout}"`;
+            desc = "Special offer or key business highlight shown in search ads.";
+          } else if (ext.call) {
+            name = `Call Asset: ${ext.call.phoneNumber}`;
+            desc = "Click-to-call phone number for direct customer calls.";
+          }
+
+          items.push({
+            id: String(ext.assetId || ext.assetResourceName || `ext-${items.length}`),
+            type: ext.sitelink ? "SITELINK" : (ext.callout ? "CALLOUT" : (ext.call ? "CALL_ASSET" : typeStr)),
+            name,
+            description: desc,
+            source: "GOOGLE_ADS",
+            campaignId: ext.campaignResourceName ? ext.campaignResourceName.split("/").pop() : undefined,
+            resourceName: ext.assetResourceName,
+            status: ext.status || "ENABLED",
+            recommended: true,
+            approved: false
+          });
+        }
+      } catch (extErr: any) {
+        console.warn("[aiGuidedRoutes.extensions-assets] listExtensions notice:", extErr.message);
+      }
+
+      // Structured Snippets via existing GoogleAdsAssetTypesService.listStructuredSnippets
+      try {
+        const snippets = await GoogleAdsAssetTypesService.listStructuredSnippets(orgId, cleanCid);
+        for (const snip of snippets || []) {
+          items.push({
+            id: String(snip.id || snip.resourceName),
+            type: "STRUCTURED_SNIPPET",
+            name: `Snippet: ${snip.header}`,
+            description: `Values: ${(snip.values || []).join(", ")}`,
+            source: "GOOGLE_ADS",
+            campaignId: snip.campaigns?.[0]?.campaignId,
+            campaignName: snip.campaigns?.[0]?.campaignName,
+            resourceName: snip.resourceName,
+            status: snip.policyApprovalStatus || "ENABLED",
+            recommended: true,
+            approved: false
+          });
+        }
+      } catch (snipErr: any) {
+        console.warn("[aiGuidedRoutes.extensions-assets] listStructuredSnippets notice:", snipErr.message);
+      }
+
+      // Promotions via existing GoogleAdsAssetTypesService.listPromotions
+      try {
+        const promos = await GoogleAdsAssetTypesService.listPromotions(orgId, cleanCid);
+        for (const p of promos || []) {
+          items.push({
+            id: String(p.id || p.resourceName),
+            type: "PROMOTION",
+            name: `Promotion: ${p.promotionTarget || p.name}`,
+            description: p.discountText ? `Discount: ${p.discountText}` : "Promotional offer active on account.",
+            source: "GOOGLE_ADS",
+            campaignId: p.campaigns?.[0]?.campaignId,
+            campaignName: p.campaigns?.[0]?.campaignName,
+            resourceName: p.resourceName,
+            status: p.policyApprovalStatus || "ENABLED",
+            recommended: true,
+            approved: false
+          });
+        }
+      } catch (promoErr: any) {
+        console.warn("[aiGuidedRoutes.extensions-assets] listPromotions notice:", promoErr.message);
+      }
+
+      // Lead Forms via existing GoogleAdsAssetTypesService.listLeadForms
+      try {
+        const leadForms = await GoogleAdsAssetTypesService.listLeadForms(orgId, cleanCid);
+        for (const lf of leadForms || []) {
+          items.push({
+            id: String(lf.id || lf.resourceName),
+            type: "LEAD_FORM",
+            name: `Lead Form: ${lf.headline || lf.businessName}`,
+            description: lf.description || "In-ad lead capture form for inquiries and quotes.",
+            source: "GOOGLE_ADS",
+            resourceName: lf.resourceName,
+            status: "ENABLED",
+            recommended: true,
+            approved: false
+          });
+        }
+      } catch (lfErr: any) {
+        console.warn("[aiGuidedRoutes.extensions-assets] listLeadForms notice:", lfErr.message);
+      }
+    }
+
+    // 2. For PERFORMANCE_MAX: fetch Asset Groups via existing GoogleAdsAssetGroupService.listAssetGroups
+    if (cType === "PERFORMANCE_MAX") {
+      try {
+        const agRes = await GoogleAdsAssetGroupService.listAssetGroups(orgId, cleanCid, campaignId);
+        for (const ag of agRes.assetGroups || []) {
+          items.push({
+            id: String(ag.id || ag.resourceName),
+            type: "ASSET_GROUP",
+            name: `Asset Group: ${ag.name}`,
+            description: `Configured PMax creative package with ${ag.finalUrls?.[0] || "custom destination"}.`,
+            source: "GOOGLE_ADS",
+            campaignId: ag.campaignId,
+            campaignName: ag.campaignName,
+            resourceName: ag.resourceName,
+            status: ag.status || "ENABLED",
+            recommended: true,
+            approved: false
+          });
+        }
+      } catch (agErr: any) {
+        console.warn("[aiGuidedRoutes.extensions-assets] listAssetGroups notice:", agErr.message);
+      }
+    }
+
+    // Limit to top 20 items to keep payload compact
+    const compactItems = items.slice(0, 20);
+
+    const status = compactItems.length > 0 ? "SUCCESS" : "NO_ASSETS";
+    const responsePayload = {
+      success: true,
+      status,
+      itemsCount: compactItems.length,
+      items: compactItems,
+      notice: compactItems.length > 0
+        ? "Existing account assets and extensions retrieved. Review and select items to include in your CampaignPlan."
+        : "No existing reusable extensions or assets found for this campaign type. AI Guided will create new assets based on your inputs."
+    };
+
+    extensionsAssetsCache.set(cacheKey, {
+      data: responsePayload,
+      timestamp: Date.now()
+    });
+
+    return res.status(200).json(responsePayload);
+  } catch (error: any) {
+    console.warn("[AI Guided Extensions & Assets Error]:", error?.message || error);
+    return res.status(200).json({
+      success: true,
+      status: "UNAVAILABLE",
+      itemsCount: 0,
+      items: [],
+      warnings: [error.message || "Failed to retrieve Google Ads assets and extensions."],
+      notice: "Google Ads extensions and assets are currently unavailable. You can continue with campaign creation."
+    });
+  }
+});
+
 // POST /api/ads/ai-guided/create-campaign
 router.post("/create-campaign", async (req, res) => {
   // Set socket timeout to 10 minutes for Google Ads campaign mutation pipeline
@@ -1090,8 +1828,10 @@ router.post("/create-campaign", async (req, res) => {
       return res.status(400).json({ error: "Missing campaignState or campaignType" });
     }
 
+    const cleanCid = customerId.replace(/-/g, "").trim();
+
     // Customer ownership validation before mutation
-    const isOwned = await validateCustomerOwnership(orgId, String(customerId));
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
     if (!isOwned) {
       if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
       return res.status(403).json({
@@ -1099,7 +1839,67 @@ router.post("/create-campaign", async (req, res) => {
       });
     }
 
+    // ── Build Deterministic CampaignPlan ─────────────────────────────────────
+    const plan: CampaignPlan = CampaignPlanMapper.fromState(orgId, cleanCid, campaignState);
+
+    // ── Run Strict Preflight Validation ──────────────────────────────────────
+    const preflight = await CampaignPlanValidator.validate(orgId, cleanCid, plan);
+    plan.preflightChecks = preflight;
+
+    if (!preflight.passed) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
+      return res.status(400).json({
+        error: "Campaign preflight validation failed. Missing required assets or account readiness requirements.",
+        validationErrors: preflight.issues.map(i => ({ field: i.field || "general", message: i.message, type: "FIELD" })),
+        missingFields: preflight.issues.map(i => i.message),
+        preflight
+      });
+    }
+
     const state: CampaignState = campaignState;
+
+    // Process approved extensions and assets from CampaignPlan
+    const approvedExtensions = plan.extensionsAndAssets || [];
+    const extensionNotices: string[] = [];
+
+    if (approvedExtensions.length > 0) {
+      // Revalidate ownership for approved items associated with campaign/customer
+      for (const item of approvedExtensions) {
+        if (item.type === "SITELINK") {
+          // If sitelink text/url is provided, ensure it is added to state.sitelinks if not already present
+          if (!Array.isArray(state.sitelinks)) state.sitelinks = [];
+          const exists = state.sitelinks.some((s: any) => (s.text || s.sitelinkText) === item.name);
+          if (!exists) {
+            state.sitelinks.push({
+              text: item.name,
+              url: item.description?.startsWith("http") ? item.description : (state.website || state.finalUrl || "")
+            });
+          }
+        } else if (item.type === "CALLOUT") {
+          if (!Array.isArray(state.callouts)) state.callouts = [];
+          if (!state.callouts.includes(item.name)) {
+            state.callouts.push(item.name);
+          }
+        } else if (item.type === "CALL_ASSET") {
+          if (!state.callPhoneNumber && item.name) {
+            state.callPhoneNumber = item.name;
+          }
+        } else if (item.type === "STRUCTURED_SNIPPET") {
+          if (!Array.isArray(state.structuredSnippets)) state.structuredSnippets = [];
+          const exists = state.structuredSnippets.some((sn: any) => sn.header === item.name);
+          if (!exists && item.description) {
+            const values = item.description.split(",").map((v: string) => v.trim()).filter(Boolean);
+            state.structuredSnippets.push({
+              header: item.name,
+              values: values.length > 0 ? values : [item.name]
+            });
+          }
+        } else {
+          // Advisory item (e.g. ASSET_GROUP, PROMOTION, LEAD_FORM) retained in plan as advisory
+          extensionNotices.push(`Extension/Asset "${item.name}" (${item.type}) remains linked as advisory context.`);
+        }
+      }
+    }
     if (!state.locations || !Array.isArray(state.locations) || state.locations.filter((l: any) => l && String(l).trim()).length === 0) {
       state.locations = ["India"];
     }
@@ -1166,6 +1966,7 @@ router.post("/create-campaign", async (req, res) => {
 
     const valResult = GoogleAdsCampaignValidator.validate(state);
     if (!valResult.isValid) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
       return res.status(400).json({
         error: "Campaign validation failed. Missing required assets or configuration.",
         validationErrors: valResult.errors,
@@ -1345,7 +2146,11 @@ router.post("/create-campaign", async (req, res) => {
           displayPath2: state.displayPath2,
           mobileFinalUrl: state.mobileFinalUrl,
           searchThemes: anyState.searchThemes || [],
-          audienceSignals: anyState.audienceSignals || anyState.audiences || [],
+          audienceSignals: plan?.targeting?.audienceSignalIds?.length
+            ? plan.targeting.audienceSignalIds
+            : (state?.audienceSignalIds?.length
+                ? state.audienceSignalIds
+                : (anyState.audienceSignals || anyState.audiences || [])),
           sitelinks: anyState.sitelinks || [],
           callouts: anyState.callouts || [],
           promotions: anyState.promotions || [],
@@ -1823,6 +2628,29 @@ router.post("/create-campaign", async (req, res) => {
     console.log(`-----------------------------------------------------------------`);
     console.log(`📦 Full Google Ads Result Object:`);
     console.log(JSON.stringify(result, (key, value) => typeof value === "bigint" ? value.toString() : value, 2));
+
+    // Attach selected shared negative lists if present in campaign plan / state
+    const createdCampaignId = result?.campaign?.googleAdsCampaignId || result?.campaignId || result?.campaign?.id;
+    const sharedSetIdsToAttach = Array.isArray(plan?.keywordsConfig?.linkedSharedNegativeSetIds)
+      ? plan.keywordsConfig.linkedSharedNegativeSetIds
+      : (Array.isArray(state?.linkedSharedNegativeSetIds) ? state.linkedSharedNegativeSetIds : []);
+
+    if (createdCampaignId && sharedSetIdsToAttach.length > 0) {
+      console.log(`🔗 Attaching ${sharedSetIdsToAttach.length} user-approved shared negative lists to campaign ${createdCampaignId}...`);
+      for (const setId of sharedSetIdsToAttach) {
+        try {
+          await GoogleAdsSharedSetService.attachListToCampaign(
+            orgId,
+            cleanCid,
+            String(setId),
+            String(createdCampaignId)
+          );
+          console.log(`   ✅ Attached shared set ${setId} to campaign ${createdCampaignId}`);
+        } catch (setAttachErr: any) {
+          console.warn(`   ⚠️ Warning attaching shared set ${setId} to campaign ${createdCampaignId}:`, setAttachErr.message);
+        }
+      }
+    }
     console.log(`=================================================================\n`);
 
     if (idempotencyKey && typeof idempotencyKey === "string" && idempotencyKey.trim()) {
@@ -1837,7 +2665,8 @@ router.post("/create-campaign", async (req, res) => {
     return res.status(200).json({
       success: true,
       message: `Campaign "${campaignName}" created successfully!`,
-      result
+      result,
+      notices: extensionNotices.length > 0 ? extensionNotices : undefined
     });
   } catch (error: any) {
     if (idempotencyKey && typeof idempotencyKey === "string" && idempotencyKey.trim()) {

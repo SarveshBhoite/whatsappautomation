@@ -106,11 +106,8 @@ export class GoogleAdsService {
   public static async listAccessibleCustomers(organizationId: string) {
     const { headers } = await this.getManagerHeaders(organizationId);
     const url = `${ADS_BASE}/customers:listAccessibleCustomers`;
-    console.log(`[GoogleAds] GET ${url}`);
-    console.log(`[GoogleAds] Headers:`, JSON.stringify({ ...headers, Authorization: "Bearer <redacted>" }));
     try {
       const res = await axios.get(url, { headers });
-      console.log(`[GoogleAds] listAccessibleCustomers OK — found ${(res.data.resourceNames || []).length} accounts`);
       return res.data.resourceNames || [];
     } catch (err: any) {
       const status = err?.response?.status;
@@ -3709,14 +3706,6 @@ export class GoogleAdsService {
       SELECT
         recommendation.resource_name,
         recommendation.type,
-        recommendation.impact.base_metrics.impressions,
-        recommendation.impact.base_metrics.clicks,
-        recommendation.impact.base_metrics.cost_micros,
-        recommendation.impact.base_metrics.conversions,
-        recommendation.impact.potential_metrics.impressions,
-        recommendation.impact.potential_metrics.clicks,
-        recommendation.impact.potential_metrics.cost_micros,
-        recommendation.impact.potential_metrics.conversions,
         recommendation.campaign,
         recommendation.dismissed
       FROM recommendation

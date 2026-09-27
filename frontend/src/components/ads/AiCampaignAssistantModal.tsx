@@ -30,7 +30,11 @@ import {
   Calendar,
   Layers,
   Image as ImageIcon,
-  Check
+  Check,
+  Users,
+  TrendingUp,
+  BarChart3,
+  Lightbulb
 } from "lucide-react";
 
 export interface BusinessContext {
@@ -63,6 +67,12 @@ export interface CampaignState {
   targetCpa?: number | null;
   targetRoas?: number | null;
   keywords?: string[];
+  campaignNegativeKeywords?: string[];
+  linkedSharedNegativeSetIds?: string[];
+  keywordIntelligence?: KeywordIntelligenceItem[];
+  availableSharedNegativeLists?: SharedNegativeSetSummary[];
+  audienceSignalIds?: string[];
+  audienceIntelligence?: AudienceIntelligenceItem[];
   headlines?: string[];
   descriptions?: string[];
   longHeadlines?: string[];
@@ -75,6 +85,113 @@ export interface CampaignState {
   readyForReview?: boolean;
   readyForPublish?: boolean;
   stage?: string;
+  forecastSummary?: PerformanceForecastSummary | null;
+  recommendationInsights?: RecommendationInsight[];
+  extensionsAndAssets?: CampaignExtensionInsight[];
+}
+
+export interface AudienceIntelligenceItem {
+  id: string;
+  name: string;
+  source: "CRM_PROFILE" | "CUSTOMER_MATCH" | "CUSTOM_AUDIENCE" | "USER_LIST" | "AI";
+  type: string;
+  status: string;
+  memberCount?: number;
+  relevanceReason: string;
+  recommended: boolean;
+  approved: boolean;
+  resourceName?: string;
+}
+
+export interface KeywordIntelligenceItem {
+  keyword: string;
+  matchType?: "EXACT" | "PHRASE" | "BROAD";
+  source: "USER" | "AI" | "KEYWORD_PLANNER" | "EXISTING_ACCOUNT" | "SEARCH_TERM";
+  searchVolume?: number;
+  competition?: string;
+  competitionIndex?: number;
+  lowTopOfPageBid?: number;
+  highTopOfPageBid?: number;
+  existingCampaignName?: string;
+  existingStatus?: string;
+  isNegative?: boolean;
+  approved?: boolean;
+}
+
+export interface SharedNegativeSetSummary {
+  id: string;
+  name: string;
+  memberCount: number;
+  referenceCount?: number;
+  resourceName?: string;
+  isAttachedToCampaign?: boolean;
+}
+
+export interface PerformanceForecastSummary {
+  status: "SUCCESS" | "UNAVAILABLE" | "UNSUPPORTED" | "INVALID_CONFIGURATION";
+  currencyCode?: string;
+  forecastPeriod?: {
+    startDate: string;
+    endDate: string;
+  };
+  dailyBudget?: number;
+  metrics?: {
+    clicks?: number;
+    cost?: number;
+    averageCpc?: number;
+    conversions?: number;
+    averageCpa?: number;
+  };
+  assumptions?: string[];
+  warnings?: string[];
+  notice?: string;
+  isCached?: boolean;
+}
+
+export interface RecommendationInsight {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  impact?: {
+    hasImpact?: boolean;
+    deltaClicks?: number;
+    deltaCost?: number;
+    deltaConversions?: number;
+  };
+  campaignId?: string;
+  campaignName?: string;
+  resourceName?: string;
+  recommendationType?: string;
+  recommended: boolean;
+  approved: boolean;
+}
+
+export interface CampaignExtensionInsight {
+  id: string;
+  type: string;
+  name: string;
+  description: string;
+  source: "GOOGLE_ADS" | "AI" | "USER";
+  campaignId?: string;
+  campaignName?: string;
+  resourceName?: string;
+  status?: string;
+  recommended: boolean;
+  approved: boolean;
+}
+
+export interface PreflightCheckResult {
+  passed: boolean;
+  conversionTrackingActive: boolean;
+  billingActive: boolean;
+  merchantCenterLinked: boolean;
+  issues: Array<{
+    field?: string;
+    level: "ERROR" | "WARNING";
+    message: string;
+    code?: string;
+  }>;
 }
 
 interface Message {
@@ -113,6 +230,24 @@ export function AiCampaignAssistantModal({
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
+  const [preflightData, setPreflightData] = useState<PreflightCheckResult | null>(null);
+  const [isValidatingPreflight, setIsValidatingPreflight] = useState<boolean>(false);
+  const [forecastResult, setForecastResult] = useState<PerformanceForecastSummary | null>(null);
+  const [isLoadingForecast, setIsLoadingForecast] = useState<boolean>(false);
+  const [recommendationsResult, setRecommendationsResult] = useState<{
+    status: string;
+    recommendationsCount: number;
+    recommendations: RecommendationInsight[];
+    notice?: string;
+  } | null>(null);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState<boolean>(false);
+  const [extensionsAssetsResult, setExtensionsAssetsResult] = useState<{
+    status: string;
+    itemsCount: number;
+    items: CampaignExtensionInsight[];
+    notice?: string;
+  } | null>(null);
+  const [isLoadingExtensionsAssets, setIsLoadingExtensionsAssets] = useState<boolean>(false);
 
   const [campaignState, setCampaignState] = useState<CampaignState>({
     business: {},
@@ -441,6 +576,356 @@ export function AiCampaignAssistantModal({
       setIsLoading(false);
     }
   };
+
+  const runPreflightCheck = async (stateToCheck: CampaignState) => {
+    if (!stateToCheck.campaignType || !customerId) return;
+    setIsValidatingPreflight(true);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/preflight`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({
+          customerId,
+          campaignState: stateToCheck
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.preflight) {
+        setPreflightData(data.preflight);
+        if (data.preflight.passed !== undefined) {
+          setCampaignState(prev => ({
+            ...prev,
+            readyForPublish: Boolean(data.preflight.passed)
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn("[Preflight Validation Warning]:", err);
+    } finally {
+      setIsValidatingPreflight(false);
+    }
+  };
+
+  const [isLoadingKeywordIntel, setIsLoadingKeywordIntel] = useState<boolean>(false);
+  const [keywordIntelResult, setKeywordIntelResult] = useState<any>(null);
+
+  const runKeywordIntelligence = async (seedKeywords?: string[]) => {
+    if (!customerId) return;
+    if (campaignState.campaignType && campaignState.campaignType !== "SEARCH") return;
+
+    setIsLoadingKeywordIntel(true);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/keyword-intelligence`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({
+          customerId,
+          campaignType: campaignState.campaignType || "SEARCH",
+          queryKeywords: seedKeywords || campaignState.keywords || [],
+          url: campaignState.website,
+          businessName: campaignState.businessName,
+          locations: campaignState.locations || ["India"],
+          language: campaignState.language || "English"
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setKeywordIntelResult(data);
+        if (Array.isArray(data.availableSharedNegativeLists)) {
+          setCampaignState(prev => ({
+            ...prev,
+            availableSharedNegativeLists: data.availableSharedNegativeLists
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn("[Keyword Intelligence Error]:", err);
+    } finally {
+      setIsLoadingKeywordIntel(false);
+    }
+  };
+
+  // When customerId changes, clear previous keyword intelligence, audience intelligence, forecast, recommendations & extensions
+  useEffect(() => {
+    setKeywordIntelResult(null);
+    setAudienceIntelResult(null);
+    setForecastResult(null);
+    setRecommendationsResult(null);
+    setExtensionsAssetsResult(null);
+    if (customerId) {
+      if (campaignState.campaignType === "SEARCH") {
+        runKeywordIntelligence();
+      } else {
+        runAudienceIntelligence();
+      }
+      runRecommendations();
+      runExtensionsAssets();
+    }
+  }, [customerId]);
+
+  const runExtensionsAssets = async () => {
+    if (!customerId) return;
+    setIsLoadingExtensionsAssets(true);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/extensions-assets`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({
+          customerId,
+          campaignType: campaignState.campaignType || "SEARCH"
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data) {
+        setExtensionsAssetsResult(data);
+      }
+    } catch (err) {
+      console.warn("[Extensions & Assets Error]:", err);
+      setExtensionsAssetsResult({
+        status: "UNAVAILABLE",
+        itemsCount: 0,
+        items: [],
+        notice: "Google Ads extensions and assets are currently unavailable. You can continue with campaign creation."
+      });
+    } finally {
+      setIsLoadingExtensionsAssets(false);
+    }
+  };
+
+  const runRecommendations = async () => {
+    if (!customerId) return;
+    setIsLoadingRecommendations(true);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/recommendations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({
+          customerId,
+          campaignType: campaignState.campaignType || "SEARCH"
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data) {
+        setRecommendationsResult(data);
+      }
+    } catch (err) {
+      console.warn("[Recommendations Error]:", err);
+      setRecommendationsResult({
+        status: "UNAVAILABLE",
+        recommendationsCount: 0,
+        recommendations: [],
+        notice: "Google Ads recommendations are currently unavailable. You can continue with campaign creation."
+      });
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  };
+
+  const runPerformanceForecast = async (budgetOverride?: number) => {
+    if (!customerId) return;
+    const effectiveBudget = budgetOverride !== undefined ? budgetOverride : Number(campaignState.dailyBudget || 0);
+
+    if (campaignState.campaignType && campaignState.campaignType !== "SEARCH") {
+      setForecastResult({
+        status: "UNSUPPORTED",
+        warnings: [
+          `Google Ads Performance Planner keyword forecasting is only supported for Search campaigns. "${campaignState.campaignType}" campaigns allocate budget across dynamic multi-channel placements.`
+        ],
+        notice: `Performance Planner forecast is not available for ${campaignState.campaignType}. You can proceed with your desired budget.`
+      });
+      return;
+    }
+
+    if (!effectiveBudget || effectiveBudget <= 0) {
+      setForecastResult({
+        status: "INVALID_CONFIGURATION",
+        warnings: ["A positive daily budget is required to calculate a forecast."],
+        notice: "Please set a daily budget (e.g. ₹500, ₹1,000, ₹2,000) to view Google Ads forecast."
+      });
+      return;
+    }
+
+    const approvedKeywords = (campaignState.keywords || [])
+      .map(k => (typeof k === "string" ? k.trim() : ""))
+      .filter(k => k.length > 0);
+
+    if (approvedKeywords.length === 0) {
+      setForecastResult({
+        status: "INVALID_CONFIGURATION",
+        warnings: ["At least one approved Search keyword is required to generate a forecast."],
+        notice: "Add or approve Search keywords above to calculate estimated traffic and cost."
+      });
+      return;
+    }
+
+    setIsLoadingForecast(true);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/performance-forecast`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({
+          customerId,
+          campaignType: campaignState.campaignType || "SEARCH",
+          dailyBudget: effectiveBudget,
+          startDate: campaignState.startDate,
+          endDate: campaignState.endDate,
+          biddingStrategy: campaignState.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+          targetCpa: campaignState.targetCpa ? Number(campaignState.targetCpa) : undefined,
+          targetRoas: campaignState.targetRoas ? Number(campaignState.targetRoas) : undefined,
+          locations: campaignState.locations || ["India"],
+          languages: campaignState.language ? [campaignState.language] : ["English"],
+          keywords: approvedKeywords
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data) {
+        setForecastResult(data);
+        setCampaignState(prev => ({
+          ...prev,
+          forecastSummary: data
+        }));
+      }
+    } catch (err) {
+      console.warn("[Performance Forecast Error]:", err);
+      setForecastResult({
+        status: "UNAVAILABLE",
+        notice: "Google Ads forecast is currently unavailable. You can continue with the selected budget."
+      });
+    } finally {
+      setIsLoadingForecast(false);
+    }
+  };
+
+  const [isLoadingAudienceIntel, setIsLoadingAudienceIntel] = useState<boolean>(false);
+  const [audienceIntelResult, setAudienceIntelResult] = useState<any>(null);
+
+  const runAudienceIntelligence = async () => {
+    if (!customerId) return;
+    setIsLoadingAudienceIntel(true);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/audience-intelligence`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({
+          customerId,
+          campaignType: campaignState.campaignType || "PERFORMANCE_MAX"
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAudienceIntelResult(data);
+      }
+    } catch (err) {
+      console.warn("[Audience Intelligence Error]:", err);
+    } finally {
+      setIsLoadingAudienceIntel(false);
+    }
+  };
+
+  // Auto-fetch audience intelligence when campaign type changes
+  useEffect(() => {
+    if (customerId && campaignState.campaignType && campaignState.campaignType !== "SEARCH") {
+      const timer = setTimeout(() => {
+        runAudienceIntelligence();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [campaignState.campaignType, customerId]);
+
+  // When entering SEARCH campaign with a website or seed keyword, auto-fetch intelligence
+  useEffect(() => {
+    if (campaignState.campaignType === "SEARCH" && customerId && (campaignState.website || (campaignState.keywords && campaignState.keywords.length > 0))) {
+      const timer = setTimeout(() => {
+        runKeywordIntelligence();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [campaignState.campaignType, campaignState.website]);
+
+  // Recalculate Performance Planner forecast when daily budget, campaign type, keywords, or dates change
+  useEffect(() => {
+    if (
+      customerId &&
+      campaignState.campaignType === "SEARCH" &&
+      campaignState.dailyBudget &&
+      campaignState.dailyBudget > 0 &&
+      campaignState.keywords &&
+      campaignState.keywords.length > 0
+    ) {
+      const timer = setTimeout(() => {
+        runPerformanceForecast();
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    campaignState.campaignType,
+    campaignState.dailyBudget,
+    campaignState.keywords?.length,
+    campaignState.startDate,
+    campaignState.endDate,
+    customerId
+  ]);
+
+  useEffect(() => {
+    if (campaignState.campaignType && customerId) {
+      const timeout = setTimeout(() => {
+        runPreflightCheck(campaignState);
+      }, 400);
+      return () => clearTimeout(timeout);
+    }
+  }, [
+    campaignState.campaignType,
+    campaignState.objective,
+    campaignState.dailyBudget,
+    campaignState.headlines?.length,
+    campaignState.descriptions?.length,
+    campaignState.images?.length,
+    campaignState.logos?.length,
+    campaignState.keywords?.length,
+    customerId
+  ]);
 
   const handleCreateCampaign = async () => {
     setIsPublishing(true);
@@ -1080,15 +1565,894 @@ export function AiCampaignAssistantModal({
                 </div>
 
                 <div className="flex justify-between items-center py-1 border-b border-slate-200">
+                  <span className="text-slate-500">Bidding Strategy:</span>
+                  <span className="font-semibold text-slate-800 text-[11px]">
+                    {campaignState.biddingStrategy || "MAXIMIZE_CONVERSIONS"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center py-1 border-b border-slate-200">
+                  <span className="text-slate-500">Keywords:</span>
+                  <span className="font-mono text-slate-800">
+                    {campaignState.keywords && campaignState.keywords.length > 0
+                      ? `${campaignState.keywords.length} configured`
+                      : "None"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center py-1 border-b border-slate-200">
+                  <span className="text-slate-500">Ad Copy Assets:</span>
+                  <span className="font-mono text-slate-800">
+                    {campaignState.headlines?.length || 0} headlines, {campaignState.descriptions?.length || 0} descriptions
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center py-1 border-b border-slate-200">
                   <span className="text-slate-500">Start Date:</span>
                   <span className="text-slate-800 font-medium font-mono">{campaignState.startDate || todayIso}</span>
                 </div>
 
                 <div className="flex justify-between items-center py-1">
                   <span className="text-slate-500">End Date:</span>
-                  <span className="text-slate-800 font-medium font-mono">{campaignState.endDate || "Not set"}</span>
+                  <span className="text-slate-800 font-medium font-mono">{campaignState.endDate || "Ongoing"}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Structured CampaignPlan Preflight & Readiness Diagnostics Card */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <CheckSquare className="h-4 w-4 text-blue-600" />
+                  <span className="font-bold text-xs text-slate-900">Preflight & Readiness</span>
+                </div>
+                {isValidatingPreflight ? (
+                  <span className="flex items-center gap-1 text-[10px] text-blue-600 font-mono">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Checking...
+                  </span>
+                ) : preflightData ? (
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                    preflightData.passed
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                      : "bg-rose-50 text-rose-700 border-rose-300"
+                  }`}>
+                    {preflightData.passed ? "PREFLIGHT PASSED" : "ACTION REQUIRED"}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400 font-mono">Pending Plan</span>
+                )}
+              </div>
+
+              {/* Account Readiness Status Grid */}
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="bg-white p-2 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <span className="text-slate-600">Billing Active:</span>
+                  <span className={`font-bold ${preflightData?.billingActive ? "text-emerald-600" : "text-amber-600"}`}>
+                    {preflightData?.billingActive ? "Active ✓" : "Verifying"}
+                  </span>
+                </div>
+                <div className="bg-white p-2 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <span className="text-slate-600">Conversion Setup:</span>
+                  <span className={`font-bold ${preflightData?.conversionTrackingActive ? "text-emerald-600" : "text-amber-600"}`}>
+                    {preflightData?.conversionTrackingActive ? "Active ✓" : "Review Recommended"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Preflight Missing Requirements / Exact Diagnostics */}
+              {preflightData && preflightData.issues && preflightData.issues.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                    Preflight Diagnostics ({preflightData.issues.length})
+                  </span>
+                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                    {preflightData.issues.map((iss, i) => (
+                      <div
+                        key={i}
+                        className={`text-[11px] p-2 rounded-xl border flex items-start gap-1.5 ${
+                          iss.level === "ERROR"
+                            ? "bg-rose-50 border-rose-200 text-rose-900"
+                            : "bg-amber-50 border-amber-200 text-amber-900"
+                        }`}
+                      >
+                        <AlertCircle className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${
+                          iss.level === "ERROR" ? "text-rose-600" : "text-amber-600"
+                        }`} />
+                        <span className="leading-snug">
+                          {iss.message}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Performance Forecast Card (Advisory Google Ads Performance Planner Integration) */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                  <span className="font-bold text-xs text-slate-900">Performance Forecast</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Google Ads Forecast
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {isLoadingForecast ? (
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-mono">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Forecasting...
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => runPerformanceForecast()}
+                      className="text-[10px] text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Recalculate
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Campaign Type Guardrail Check */}
+              {campaignState.campaignType && campaignState.campaignType !== "SEARCH" ? (
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                  <p className="font-medium text-slate-700">Performance Planner forecast is available for Search campaigns.</p>
+                  <p className="text-[10px] text-slate-400">
+                    "{campaignState.campaignType}" allocates budget and targeting dynamically across multi-channel inventories. You can proceed with your chosen budget.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Budget Quick Adjustment Buttons (Triggers real recalculation) */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-600 font-medium">Daily Budget:</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {campaignState.dailyBudget && campaignState.dailyBudget > 0
+                          ? `₹${Number(campaignState.dailyBudget).toLocaleString()}/day`
+                          : "Not set"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {[500, 1000, 2000, 5000].map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => {
+                            setCampaignState(prev => ({ ...prev, dailyBudget: amt }));
+                            runPerformanceForecast(amt);
+                          }}
+                          className={`flex-1 py-1 px-1.5 rounded-lg text-[10px] font-semibold transition-all border cursor-pointer ${
+                            campaignState.dailyBudget === amt
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                          }`}
+                        >
+                          ₹{amt.toLocaleString()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Forecast Results Grid or Status Notices */}
+                  {forecastResult?.status === "SUCCESS" && forecastResult.metrics ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 pb-1 border-b border-slate-200">
+                        <span>Forecast Period:</span>
+                        <span className="font-mono font-medium text-slate-800">
+                          {forecastResult.forecastPeriod?.startDate} – {forecastResult.forecastPeriod?.endDate}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-0.5">
+                          <span className="text-[10px] text-slate-500 block">Estimated Clicks</span>
+                          <span className="font-bold text-sm text-slate-900 font-mono">
+                            {forecastResult.metrics.clicks !== undefined
+                              ? forecastResult.metrics.clicks.toLocaleString()
+                              : "—"}
+                          </span>
+                          <span className="text-[9px] text-slate-400 block">Google Ads Forecast</span>
+                        </div>
+
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-0.5">
+                          <span className="text-[10px] text-slate-500 block">Estimated Cost</span>
+                          <span className="font-bold text-sm text-emerald-700 font-mono">
+                            {forecastResult.metrics.cost !== undefined
+                              ? `${forecastResult.currencyCode || "INR"} ${forecastResult.metrics.cost.toLocaleString()}`
+                              : "—"}
+                          </span>
+                          <span className="text-[9px] text-slate-400 block">For forecast period</span>
+                        </div>
+
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-0.5">
+                          <span className="text-[10px] text-slate-500 block">Average CPC</span>
+                          <span className="font-bold text-xs text-slate-800 font-mono">
+                            {forecastResult.metrics.averageCpc !== undefined
+                              ? `${forecastResult.currencyCode || "INR"} ${forecastResult.metrics.averageCpc.toFixed(2)}`
+                              : "—"}
+                          </span>
+                          <span className="text-[9px] text-slate-400 block">Estimated avg cost</span>
+                        </div>
+
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-0.5">
+                          <span className="text-[10px] text-slate-500 block">Conversions</span>
+                          <span className="font-bold text-xs text-slate-800 font-mono">
+                            {forecastResult.metrics.conversions !== undefined
+                              ? forecastResult.metrics.conversions
+                              : "Not projected"}
+                          </span>
+                          <span className="text-[9px] text-slate-400 block">
+                            {forecastResult.metrics.averageCpa !== undefined
+                              ? `Avg CPA: ${forecastResult.currencyCode || "INR"} ${forecastResult.metrics.averageCpa.toFixed(2)}`
+                              : "Historical model"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Advisory Notice */}
+                      <p className="text-[9px] text-slate-400 italic text-center pt-0.5">
+                        * Google Ads Forecast is an estimate based on auction history and keywords. Not a guarantee.
+                      </p>
+                    </div>
+                  ) : forecastResult?.status === "UNAVAILABLE" ? (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800 space-y-1">
+                      <p className="font-medium">Google Ads forecast is currently unavailable.</p>
+                      <p className="text-[10px] text-amber-700">You can continue with your selected budget.</p>
+                    </div>
+                  ) : forecastResult?.status === "INVALID_CONFIGURATION" ? (
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 text-center text-[11px] text-slate-500 space-y-1">
+                      <p className="font-medium text-slate-700">Forecast requires budget & approved keywords.</p>
+                      <p className="text-[10px] text-slate-400">
+                        {forecastResult.warnings?.[0] || "Select positive daily budget and at least 1 Search keyword."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 text-center text-[11px] text-slate-500 space-y-1">
+                      <p className="font-medium text-slate-700">Performance Planner Forecast</p>
+                      <p className="text-[10px] text-slate-400">
+                        Click "Recalculate" or select a budget above to generate estimated clicks & CPC.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Google Ads Recommendations & Insights Card (Advisory Integration) */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Lightbulb className="h-4 w-4 text-amber-500" />
+                  <span className="font-bold text-xs text-slate-900">Google Ads Recommendations</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                    Advisory
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {isLoadingRecommendations ? (
+                    <span className="flex items-center gap-1 text-[10px] text-amber-600 font-mono">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Fetching...
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => runRecommendations()}
+                      className="text-[10px] text-amber-700 hover:text-amber-800 font-bold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Refresh
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Status or Recommendation Items */}
+              {isLoadingRecommendations ? (
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-center text-[11px] text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1 text-amber-500" />
+                  <span>Checking Google Ads recommendations for this account...</span>
+                </div>
+              ) : recommendationsResult?.recommendations && recommendationsResult.recommendations.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600">Available Optimizations:</span>
+                    <span className="font-bold text-slate-900 font-mono">
+                      {recommendationsResult.recommendations.length} recommendations
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {recommendationsResult.recommendations.map((rec) => {
+                      const isApproved = (campaignState.recommendationInsights || []).some(
+                        r => r.id === rec.id && r.approved
+                      );
+
+                      return (
+                        <div
+                          key={rec.id}
+                          className={`p-2.5 rounded-xl border text-[11px] space-y-1.5 transition-all ${
+                            isApproved
+                              ? "bg-amber-50/70 border-amber-300 ring-1 ring-amber-400/40"
+                              : "bg-white border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div>
+                              <span className="font-bold text-slate-900 text-xs block leading-tight">
+                                {rec.title}
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-mono border border-slate-200">
+                                  {rec.type.replace(/_/g, " ")}
+                                </span>
+                                {rec.campaignName && (
+                                  <span className="text-[9px] text-slate-500 truncate max-w-[130px]">
+                                    {rec.campaignName}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-semibold text-slate-400 shrink-0">
+                              Google Ads
+                            </span>
+                          </div>
+
+                          <p className="text-[10px] text-slate-600 leading-snug">
+                            {rec.description}
+                          </p>
+
+                          {/* Impact Metrics (if actually returned by Google Ads) */}
+                          {rec.impact?.hasImpact && (
+                            <div className="flex flex-wrap gap-2 text-[9px] pt-1 border-t border-slate-100 font-mono text-slate-700">
+                              {rec.impact.deltaClicks !== undefined && rec.impact.deltaClicks !== 0 && (
+                                <span className="text-emerald-700 font-semibold">
+                                  +{rec.impact.deltaClicks.toLocaleString()} est. clicks
+                                </span>
+                              )}
+                              {rec.impact.deltaCost !== undefined && rec.impact.deltaCost !== 0 && (
+                                <span className="text-slate-600">
+                                  +{rec.impact.deltaCost.toLocaleString()} est. cost
+                                </span>
+                              )}
+                              {rec.impact.deltaConversions !== undefined && rec.impact.deltaConversions !== 0 && (
+                                <span className="text-purple-700 font-semibold">
+                                  +{rec.impact.deltaConversions} est. conversions
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* User review selection actions (Advisory only — no automatic apply/dismiss mutations) */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
+                            <span className="text-slate-400 text-[9px] italic">Advisory — review before applying</span>
+                            {isApproved ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    recommendationInsights: (prev.recommendationInsights || []).filter(r => r.id !== rec.id)
+                                  }));
+                                }}
+                                className="text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                              >
+                                ✕ Remove
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const approvedItem: RecommendationInsight = {
+                                    ...rec,
+                                    approved: true
+                                  };
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    recommendationInsights: [
+                                      ...(prev.recommendationInsights || []).filter(r => r.id !== rec.id),
+                                      approvedItem
+                                    ]
+                                  }));
+                                }}
+                                className="text-amber-700 hover:text-amber-800 font-bold cursor-pointer"
+                              >
+                                ✓ Include in Plan
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : recommendationsResult?.status === "UNAVAILABLE" ? (
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800 space-y-1">
+                  <p className="font-medium">Google Ads recommendations are currently unavailable.</p>
+                  <p className="text-[10px] text-amber-700">You can proceed with your campaign without recommendations.</p>
+                </div>
+              ) : (
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-center text-[11px] text-slate-500 space-y-1">
+                  <p className="font-medium text-slate-700">No active Google Ads recommendations</p>
+                  <p className="text-[10px] text-slate-400">
+                    Click "Refresh" to inspect live optimization opportunities for this account.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Google Ads Extensions & Assets Card (Advisory Integration) */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-indigo-600" />
+                  <span className="font-bold text-xs text-slate-900">Extensions & Assets</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                    Existing Assets
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {isLoadingExtensionsAssets ? (
+                    <span className="flex items-center gap-1 text-[10px] text-indigo-600 font-mono">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Fetching...
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => runExtensionsAssets()}
+                      className="text-[10px] text-indigo-700 hover:text-indigo-800 font-bold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Refresh
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Status or Asset Items */}
+              {isLoadingExtensionsAssets ? (
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-center text-[11px] text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1 text-indigo-500" />
+                  <span>Checking existing Google Ads extensions & assets...</span>
+                </div>
+              ) : extensionsAssetsResult?.items && extensionsAssetsResult.items.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600">Available Account Assets:</span>
+                    <span className="font-bold text-slate-900 font-mono">
+                      {extensionsAssetsResult.items.length} items
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {extensionsAssetsResult.items.map((item) => {
+                      const isApproved = (campaignState.extensionsAndAssets || []).some(
+                        ea => ea.id === item.id && ea.approved
+                      );
+
+                      return (
+                        <div
+                          key={item.id}
+                          className={`p-2.5 rounded-xl border text-[11px] space-y-1.5 transition-all ${
+                            isApproved
+                              ? "bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-400/40"
+                              : "bg-white border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div>
+                              <span className="font-bold text-slate-900 text-xs block leading-tight">
+                                {item.name}
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-mono border border-slate-200">
+                                  {item.type.replace(/_/g, " ")}
+                                </span>
+                                {item.campaignName && (
+                                  <span className="text-[9px] text-slate-500 truncate max-w-[130px]">
+                                    {item.campaignName}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-semibold text-slate-400 shrink-0">
+                              Google Ads
+                            </span>
+                          </div>
+
+                          <p className="text-[10px] text-slate-600 leading-snug">
+                            {item.description}
+                          </p>
+
+                          {/* Advisory selection controls */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
+                            <span className="text-slate-400 text-[9px] italic">Advisory — review before using</span>
+                            {isApproved ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    extensionsAndAssets: (prev.extensionsAndAssets || []).filter(ea => ea.id !== item.id)
+                                  }));
+                                }}
+                                className="text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                              >
+                                ✕ Remove
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const approvedItem: CampaignExtensionInsight = {
+                                    ...item,
+                                    approved: true
+                                  };
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    extensionsAndAssets: [
+                                      ...(prev.extensionsAndAssets || []).filter(ea => ea.id !== item.id),
+                                      approvedItem
+                                    ]
+                                  }));
+                                }}
+                                className="text-indigo-700 hover:text-indigo-800 font-bold cursor-pointer"
+                              >
+                                ✓ Include in Plan
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : extensionsAssetsResult?.status === "UNAVAILABLE" ? (
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800 space-y-1">
+                  <p className="font-medium">Google Ads extensions and assets are currently unavailable.</p>
+                  <p className="text-[10px] text-amber-700">You can proceed with your campaign creation.</p>
+                </div>
+              ) : (
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-center text-[11px] text-slate-500 space-y-1">
+                  <p className="font-medium text-slate-700">No existing reusable assets found</p>
+                  <p className="text-[10px] text-slate-400">
+                    Click "Refresh" to inspect existing sitelinks, callouts, and asset groups for this account.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Keyword Intelligence & Negative Keyword Grounding Card */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Tag className="h-4 w-4 text-blue-600" />
+                  <span className="font-bold text-xs text-slate-900">Keyword Intelligence</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {isLoadingKeywordIntel ? (
+                    <span className="flex items-center gap-1 text-[10px] text-blue-600 font-mono">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Fetching...
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => runKeywordIntelligence()}
+                      className="text-[10px] text-blue-600 hover:text-blue-700 font-bold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Refresh
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Campaign Type Guardrail Notice */}
+              {campaignState.campaignType && campaignState.campaignType !== "SEARCH" ? (
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                  <p className="font-medium text-slate-700">Search keyword targeting is not used for this campaign type.</p>
+                  <p className="text-[10px] text-slate-400">
+                    {campaignState.campaignType === "PERFORMANCE_MAX" ? "Performance Max uses Search Themes and Audience Signals." :
+                     campaignState.campaignType === "DEMAND_GEN" ? "Demand Gen relies on Audiences and Channel signals." :
+                     "This campaign format targets audiences and placements automatically."}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Current Active Keywords Count & Search Planner Status */}
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600">Active Search Keywords:</span>
+                    <span className="font-bold text-slate-900">
+                      {campaignState.keywords?.length || 0} approved
+                    </span>
+                  </div>
+
+                  {/* Keyword Planner Recommendations */}
+                  {keywordIntelResult?.keywordIntelligence && keywordIntelResult.keywordIntelligence.length > 0 ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Grounded Keywords ({keywordIntelResult.keywordIntelligence.length})
+                        </span>
+                        <span className="text-[9px] font-mono text-slate-400">
+                          {keywordIntelResult.plannerStatus === "SUCCESS" ? "Google Ads Planner Active" : "Account Grounded"}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {keywordIntelResult.keywordIntelligence.slice(0, 15).map((item: any, idx: number) => {
+                          const isAlreadyInPlan = (campaignState.keywords || []).includes(item.keyword);
+                          const isSourcePlanner = item.source === "KEYWORD_PLANNER";
+                          const isSourceExisting = item.source === "EXISTING_ACCOUNT";
+                          const isSourceSearchTerm = item.source === "SEARCH_TERM";
+
+                          return (
+                            <div
+                              key={idx}
+                              className={`p-2 rounded-xl border text-[11px] space-y-1 ${
+                                isAlreadyInPlan
+                                  ? "bg-blue-50/70 border-blue-200 text-blue-900"
+                                  : "bg-white border-slate-200 text-slate-800"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-semibold truncate max-w-[200px]">
+                                  {item.keyword}
+                                </span>
+                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                                  isSourcePlanner ? "bg-purple-50 text-purple-700 border-purple-200" :
+                                  isSourceExisting ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                  isSourceSearchTerm ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                  "bg-slate-100 text-slate-600 border-slate-200"
+                                }`}>
+                                  {isSourcePlanner ? "Google Ads Planner" :
+                                   isSourceExisting ? "Existing Account" :
+                                   isSourceSearchTerm ? "Search Term" : "AI"}
+                                </span>
+                              </div>
+
+                              {/* Real Google Ads Metrics */}
+                              <div className="flex items-center gap-2 text-[9px] text-slate-500">
+                                {item.searchVolume !== undefined && item.searchVolume > 0 && (
+                                  <span>{item.searchVolume.toLocaleString()} searches/mo</span>
+                                )}
+                                {item.competition && (
+                                  <span className="capitalize">• {item.competition.toLowerCase()} comp</span>
+                                )}
+                                {item.lowTopOfPageBid !== undefined && (
+                                  <span>• Bid: ₹{item.lowTopOfPageBid.toFixed(2)}</span>
+                                )}
+                                {item.existingCampaignName && (
+                                  <span className="truncate max-w-[130px]">• In {item.existingCampaignName}</span>
+                                )}
+                              </div>
+
+                              {/* Keyword Action Buttons */}
+                              <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-100">
+                                {isAlreadyInPlan ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        keywords: (prev.keywords || []).filter(k => k !== item.keyword)
+                                      }));
+                                    }}
+                                    className="text-[10px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                                  >
+                                    ✕ Remove
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        keywords: Array.from(new Set([...(prev.keywords || []), item.keyword]))
+                                      }));
+                                    }}
+                                    className="text-[10px] text-blue-600 hover:text-blue-700 font-bold cursor-pointer"
+                                  >
+                                    ✓ Accept
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : keywordIntelResult?.plannerStatus === "UNAVAILABLE" ? (
+                    <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800">
+                      Google Ads Keyword Planner data is currently unavailable. You can continue with user-provided or AI-suggested keywords.
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 text-center text-[11px] text-slate-500">
+                      <p>Click &quot;Refresh&quot; to fetch real Google Ads Keyword Planner metrics &amp; existing search terms.</p>
+                    </div>
+                  )}
+
+                  {/* Shared Negative Keyword Lists Section */}
+                  <div className="pt-2 border-t border-slate-200 space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                      Shared Negative Lists
+                    </span>
+                    {keywordIntelResult?.availableSharedNegativeLists && keywordIntelResult.availableSharedNegativeLists.length > 0 ? (
+                      <div className="space-y-1">
+                        {keywordIntelResult.availableSharedNegativeLists.map((list: any) => {
+                          const isLinked = (campaignState.linkedSharedNegativeSetIds || []).includes(list.id);
+                          return (
+                            <label
+                              key={list.id}
+                              className={`flex items-center justify-between p-2 rounded-xl border text-[11px] cursor-pointer transition-colors ${
+                                isLinked
+                                  ? "bg-blue-50/70 border-blue-300 text-blue-900"
+                                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isLinked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        linkedSharedNegativeSetIds: Array.from(new Set([...(prev.linkedSharedNegativeSetIds || []), list.id]))
+                                      }));
+                                    } else {
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        linkedSharedNegativeSetIds: (prev.linkedSharedNegativeSetIds || []).filter(id => id !== list.id)
+                                      }));
+                                    }
+                                  }}
+                                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="font-semibold">{list.name}</span>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {list.memberCount} negatives
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 italic">No shared negative keyword lists are currently available.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Audience Intelligence & Signals Card */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Users className="h-4 w-4 text-purple-600" />
+                  <span className="font-bold text-xs text-slate-900">Audience Intelligence</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {isLoadingAudienceIntel ? (
+                    <span className="flex items-center gap-1 text-[10px] text-purple-600 font-mono">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Fetching...
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => runAudienceIntelligence()}
+                      className="text-[10px] text-purple-600 hover:text-purple-700 font-bold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Refresh
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Audience Signals Status */}
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-600">Selected Audience Signals:</span>
+                <span className="font-bold text-slate-900">
+                  {campaignState.audienceSignalIds?.length || 0} active
+                </span>
+              </div>
+
+              {audienceIntelResult?.audienceIntelligence && audienceIntelResult.audienceIntelligence.length > 0 ? (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                    Recommended Signals ({audienceIntelResult.audienceIntelligence.length})
+                  </span>
+
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {audienceIntelResult.audienceIntelligence.map((aud: any, idx: number) => {
+                      const identifier = aud.resourceName || aud.id || aud.name;
+                      const isSelected = (campaignState.audienceSignalIds || []).includes(identifier);
+                      const isCustomerMatch = aud.source === "CUSTOMER_MATCH";
+                      const isCustom = aud.source === "CUSTOM_AUDIENCE";
+                      const isProfile = aud.source === "CRM_PROFILE";
+
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-2.5 rounded-xl border text-[11px] space-y-1.5 ${
+                            isSelected
+                              ? "bg-purple-50/70 border-purple-300 text-purple-950"
+                              : "bg-white border-slate-200 text-slate-800"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-slate-900 truncate max-w-[200px]">
+                              {aud.name}
+                            </span>
+                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                              isCustomerMatch ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                              isCustom ? "bg-blue-50 text-blue-700 border-blue-200" :
+                              isProfile ? "bg-amber-50 text-amber-700 border-amber-200" :
+                              "bg-purple-50 text-purple-700 border-purple-200"
+                            }`}>
+                              {isCustomerMatch ? "Customer Match" :
+                               isCustom ? "Custom Segment" :
+                               isProfile ? "CRM Persona" : "Audience"}
+                            </span>
+                          </div>
+
+                          {/* Relevance Explanation */}
+                          <p className="text-[10px] text-slate-600 leading-tight">
+                            {aud.relevanceReason}
+                          </p>
+
+                          {/* Metadata row */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[9px] text-slate-400">
+                            <span>
+                              {aud.memberCount ? `${Number(aud.memberCount).toLocaleString()} users` : `Status: ${aud.status}`}
+                            </span>
+                            {isSelected ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    audienceSignalIds: (prev.audienceSignalIds || []).filter(id => id !== identifier)
+                                  }));
+                                }}
+                                className="text-[10px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                              >
+                                ✕ Remove
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    audienceSignalIds: Array.from(new Set([...(prev.audienceSignalIds || []), identifier]))
+                                  }));
+                                }}
+                                className="text-[10px] text-purple-600 hover:text-purple-700 font-bold cursor-pointer"
+                              >
+                                ✓ Select Signal
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : audienceIntelResult?.audienceStatus === "UNAVAILABLE" ? (
+                <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800">
+                  Google Ads Audience data is currently unavailable. You can continue without an audience signal.
+                </div>
+              ) : (
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-center text-[11px] text-slate-500">
+                  <p>Click &quot;Refresh&quot; to inspect Customer Match and Custom Segments for audience signals.</p>
+                </div>
+              )}
             </div>
 
             {/* Creatives Card (Only shown when Objective & Campaign Type are set and type uses media) */}
@@ -1165,12 +2529,26 @@ export function AiCampaignAssistantModal({
               </div>
             )}
 
-            {/* Launch Action Footer */}
+            {/* Launch Action Footer with Explicit User Confirmation */}
             <div className="mt-auto pt-3 border-t border-slate-200 space-y-2">
+              {publishError && (
+                <div className="text-[11px] p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-1.5 animate-in fade-in">
+                  <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0 mt-0.5" />
+                  <span>{publishError}</span>
+                </div>
+              )}
+
+              {publishSuccess && (
+                <div className="text-[11px] p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-start gap-1.5 animate-in fade-in">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>{publishSuccess}</span>
+                </div>
+              )}
+
               <div className="flex items-center justify-between text-[11px] text-slate-500">
-                <span>Direct Action:</span>
-                <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-medium"}>
-                  {campaignState.readyForPublish ? "Ready to deploy" : "Gathering required info"}
+                <span>Confirmation Gate:</span>
+                <span className={campaignState.readyForPublish && preflightData?.passed ? "text-emerald-600 font-bold" : "text-amber-600 font-medium"}>
+                  {campaignState.readyForPublish && preflightData?.passed ? "Preflight Passed (User Confirmation Required)" : "Preflight Incomplete"}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1185,15 +2563,15 @@ export function AiCampaignAssistantModal({
                 <button
                   type="button"
                   onClick={handleCreateCampaign}
-                  disabled={!campaignState.readyForPublish || isPublishing}
+                  disabled={!campaignState.readyForPublish || (preflightData ? !preflightData.passed : false) || isPublishing}
                   className={`px-3 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    campaignState.readyForPublish
+                    campaignState.readyForPublish && (preflightData?.passed ?? true)
                       ? "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20"
                       : "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200"
                   }`}
                 >
                   {isPublishing ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <Target className="h-3.5 w-3.5"/>}
-                  Launch Campaign
+                  Publish Campaign to Google Ads
                 </button>
               </div>
             </div>

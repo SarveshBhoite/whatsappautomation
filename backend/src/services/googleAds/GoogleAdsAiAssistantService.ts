@@ -54,6 +54,11 @@ export interface CampaignState {
   impressionShareLocation?: string;
   conversionGoal?: string;
   keywords?: string[];
+  campaignNegativeKeywords?: string[];
+  negativeKeywords?: string[];
+  linkedSharedNegativeSetIds?: string[];
+  keywordIntelligence?: any[];
+  availableSharedNegativeLists?: any[];
   headlines?: string[];
   descriptions?: string[];
   longHeadlines?: string[];
@@ -105,6 +110,8 @@ export interface CampaignState {
   mobileFinalUrl?: string;
   searchThemes?: string[];
   audienceSignals?: Array<{ resourceName: string; name?: string; type?: string }>;
+  audienceSignalIds?: string[];
+  audienceIntelligence?: any[];
   sitelinks?: Array<{ text: string; url: string; desc1?: string; desc2?: string }>;
   callouts?: string[];
   callPhoneNumber?: string;
