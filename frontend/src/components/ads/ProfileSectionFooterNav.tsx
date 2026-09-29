@@ -79,13 +79,13 @@ export function ProfileSectionFooterNav({
         </div>
 
         {/* Right: Actions (Save Draft + Save & Next) */}
-        <div className="w-full sm:w-auto flex items-center justify-end gap-2.5 flex-wrap sm:flex-nowrap">
+        <div className="w-full sm:w-auto flex items-stretch sm:items-center justify-end gap-2 sm:gap-2.5 flex-col xs:flex-row">
           {/* Save Draft Button */}
           <button
             type="button"
             onClick={onSaveDraft}
             disabled={isSaving}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer disabled:opacity-50 active:scale-98"
           >
             {isSaving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
@@ -101,7 +101,7 @@ export function ProfileSectionFooterNav({
               type="button"
               onClick={onApproveAndSave || onSaveDraft}
               disabled={isSaving}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/35 cursor-pointer disabled:opacity-50"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/35 cursor-pointer disabled:opacity-50 active:scale-98"
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -115,15 +115,15 @@ export function ProfileSectionFooterNav({
               type="button"
               onClick={onSaveAndNext}
               disabled={isSaving}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35 cursor-pointer group disabled:opacity-50"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35 cursor-pointer group disabled:opacity-50 active:scale-98"
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Save className="w-3.5 h-3.5" />
               )}
-              <span>Save &amp; Next{nextSectionName ? `: ${nextSectionName}` : ""}</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              <span className="truncate">Save &amp; Next{nextSectionName ? `: ${nextSectionName}` : ""}</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform shrink-0" />
             </button>
           )}
         </div>

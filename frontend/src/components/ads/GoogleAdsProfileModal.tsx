@@ -9844,34 +9844,23 @@ export function GoogleAdsProfileModal({
                     )}
 
                     {hasMerchantAccount ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-emerald-200/60 animate-fadeIn">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                            <span>Merchant Center Account ID</span>
-                            <span className="text-[11px] font-normal text-slate-400 font-mono">Numeric ID</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={merchantCenterId}
-                            onChange={(e) => setMerchantCenterId(e.target.value)}
-                            placeholder="e.g. 123456789"
-                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-mono focus:border-emerald-500 focus:outline-none"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                            <span>Primary Feed / Store Name</span>
-                            <span className="text-[11px] font-normal text-slate-400">Store / Product Catalog</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={merchantStoreName}
-                            onChange={(e) => setMerchantStoreName(e.target.value)}
-                            placeholder="e.g. Main Online Store Feed"
-                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:border-emerald-500 focus:outline-none"
-                          />
-                        </div>
+                      <div className="pt-3 border-t border-emerald-200/60 animate-fadeIn space-y-3">
+                        {merchantCenterId ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="p-3 rounded-xl bg-white border border-emerald-200 shadow-2xs">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Merchant Center Account ID</span>
+                              <span className="text-xs font-mono font-bold text-emerald-950 mt-0.5 block">{merchantCenterId}</span>
+                            </div>
+                            <div className="p-3 rounded-xl bg-white border border-emerald-200 shadow-2xs">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Primary Store / Feed Name</span>
+                              <span className="text-xs font-semibold text-slate-900 mt-0.5 block">{merchantStoreName || "Default Product Feed"}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 italic p-3 rounded-xl bg-white border border-slate-200">
+                            No Merchant Center account detected yet. Click &quot;Live Sync&quot; above to auto-detect and sync your Google Merchant Center account.
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <p className="text-[11px] text-slate-400 italic pt-2 border-t border-slate-100">
@@ -10030,7 +10019,7 @@ export function GoogleAdsProfileModal({
 
                           {appDetails.length === 0 ? (
                             <p className="text-xs text-slate-400 italic p-3 rounded-xl bg-white border border-slate-200">
-                              No apps added yet. Add your Android or iOS app below.
+                              No connected mobile apps detected yet. Click &quot;Live Sync Apps&quot; above to auto-discover mobile apps linked to your Google Ads account.
                             </p>
                           ) : (
                             appDetails.map((app, aIdx) => (
@@ -10082,63 +10071,6 @@ export function GoogleAdsProfileModal({
                               </div>
                             ))
                           )}
-                        </div>
-
-                        {/* Add Mobile App Sub-form */}
-                        <div className="p-3.5 rounded-2xl bg-white border border-blue-200 space-y-3">
-                          <span className="text-xs font-bold text-slate-800 block">Add New Application</span>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-semibold text-slate-600">Platform</label>
-                              <select
-                                value={newAppPlatform}
-                                onChange={(e) => setNewAppPlatform(e.target.value as "ANDROID" | "IOS")}
-                                className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50"
-                              >
-                                <option value="ANDROID">Google Play (Android)</option>
-                                <option value="IOS">Apple App Store (iOS)</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-semibold text-slate-600">App ID / Package</label>
-                              <input
-                                type="text"
-                                value={newAppId}
-                                onChange={(e) => setNewAppId(e.target.value)}
-                                placeholder={newAppPlatform === "ANDROID" ? "com.example.app" : "123456789"}
-                                className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 font-mono"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-semibold text-slate-600">App Display Name</label>
-                              <input
-                                type="text"
-                                value={newAppName}
-                                onChange={(e) => setNewAppName(e.target.value)}
-                                placeholder="e.g. MyBrand Pro"
-                                className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-1">
-                            <input
-                              type="url"
-                              value={newAppUrl}
-                              onChange={(e) => setNewAppUrl(e.target.value)}
-                              placeholder="Direct store link (optional)..."
-                              className="flex-1 mr-3 px-3 py-1.5 text-xs rounded-xl border border-slate-200 text-slate-700"
-                            />
-                            <button
-                              type="button"
-                              onClick={handleAddApp}
-                              className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5" /> Add App
-                            </button>
-                          </div>
                         </div>
                       </div>
                     )}

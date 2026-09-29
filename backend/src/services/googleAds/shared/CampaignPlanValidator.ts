@@ -309,7 +309,7 @@ export class CampaignPlanValidator {
               severity: "CRITICAL",
               field: "youtubeConnection",
               code: "YOUTUBE_NOT_AUTHENTICATED",
-              message: "YouTube account is not authenticated for this organization. Please connect YouTube before launching a Video campaign."
+              message: "YouTube connection is required for Video campaigns. Connect your YouTube channel to continue."
             });
           }
         } catch (ytErr: any) {
@@ -317,7 +317,7 @@ export class CampaignPlanValidator {
             severity: "CRITICAL",
             field: "youtubeConnection",
             code: "YOUTUBE_STATUS_CHECK_FAILED",
-            message: "YouTube account is not authenticated for this organization. Please connect YouTube before launching a Video campaign."
+            message: "YouTube connection is required for Video campaigns. Connect your YouTube channel to continue."
           });
         }
       }
@@ -330,6 +330,42 @@ export class CampaignPlanValidator {
           code: "MISSING_YOUTUBE_VIDEO",
           message: "At least 1 YouTube video URL/asset is required for Video ads."
         });
+      }
+    }
+
+    if (type === "DEMAND_GEN") {
+      const isVideoFormat = (plan.coreConfig.adFormat || "").toUpperCase() === "VIDEO";
+      if (isVideoFormat) {
+        if (orgId) {
+          try {
+            const ytStatus = await YouTubeService.getOrganizationConnectionStatus(orgId);
+            if (!ytStatus.isConnected) {
+              issues.push({
+                severity: "CRITICAL",
+                field: "youtubeConnection",
+                code: "YOUTUBE_NOT_AUTHENTICATED",
+                message: "YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue."
+              });
+            }
+          } catch (ytErr: any) {
+            issues.push({
+              severity: "CRITICAL",
+              field: "youtubeConnection",
+              code: "YOUTUBE_STATUS_CHECK_FAILED",
+              message: "YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue."
+            });
+          }
+        }
+
+        const videos = plan.assets.youtubeVideos || [];
+        if (videos.length < 1) {
+          issues.push({
+            severity: "CRITICAL",
+            field: "youtubeVideos",
+            code: "MISSING_DEMAND_GEN_VIDEO",
+            message: "At least 1 YouTube video URL/asset is required for Demand Gen Video ads."
+          });
+        }
       }
     }
 

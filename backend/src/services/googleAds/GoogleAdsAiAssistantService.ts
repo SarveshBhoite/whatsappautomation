@@ -217,48 +217,55 @@ export const MANUAL_GOALS_BY_OBJECTIVE: Record<string, Array<{ id: string; name:
 
 export function getAvailableCampaignTypesBackend(
   objective?: string,
-  conversionGoals?: string[]
+  conversionGoals?: string[],
+  isYouTubeConnected?: boolean
 ): string[] {
   const obj = objective || "";
   const rawGoal = (conversionGoals && conversionGoals.length > 0) ? conversionGoals.join(",") : "";
   const hasContacts = rawGoal.includes("contacts");
   const hasDirections = rawGoal.includes("get_directions");
 
+  let types: string[] = [];
+
   if (obj === "APP_PROMOTION") {
-    return ["APP"];
-  }
-
-  if (obj === "LOCAL") {
-    return ["PERFORMANCE_MAX"];
-  }
-
-  if (obj === "AWARENESS") {
+    types = ["APP"];
+  } else if (obj === "LOCAL") {
+    types = ["PERFORMANCE_MAX"];
+  } else if (obj === "AWARENESS") {
     const videoGoal = conversionGoals?.[0] || "views";
-    if (videoGoal === "views") return ["VIDEO"];
-    if (videoGoal === "reach") return ["VIDEO", "DISPLAY"];
-    if (videoGoal === "subscriptions") return ["DEMAND_GEN"];
-    return ["VIDEO"];
+    if (videoGoal === "views") types = ["VIDEO"];
+    else if (videoGoal === "reach") types = ["VIDEO", "DISPLAY"];
+    else if (videoGoal === "subscriptions") types = ["DEMAND_GEN"];
+    else types = ["VIDEO"];
+  } else if (obj === "NO_GUIDANCE") {
+    types = ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN", "SHOPPING"];
+  } else if (obj === "WEBSITE_TRAFFIC") {
+    types = ["SEARCH", "PERFORMANCE_MAX", "DEMAND_GEN", "DISPLAY", "SHOPPING", "VIDEO"];
+  } else {
+    // SALES or LEADS
+    const baseTypes = ["PERFORMANCE_MAX", "SEARCH", "DEMAND_GEN", "VIDEO", "DISPLAY", "SHOPPING"];
+    if (hasContacts) {
+      types = ["PERFORMANCE_MAX"];
+    } else if (hasDirections && !hasContacts) {
+      types = ["PERFORMANCE_MAX", "SEARCH", "SHOPPING"];
+    } else {
+      types = baseTypes;
+    }
   }
 
-  if (obj === "NO_GUIDANCE") {
-    return ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN", "SHOPPING"];
+  // Filter out VIDEO if YouTube is not connected
+  if (isYouTubeConnected === false) {
+    types = types.filter(t => t !== "VIDEO");
+    // If Awareness had only VIDEO and it's disconnected, allow DISPLAY as alternative
+    if (types.length === 0 && obj === "AWARENESS") {
+      types = ["DISPLAY"];
+    }
   }
 
-  if (obj === "WEBSITE_TRAFFIC") {
-    return ["SEARCH", "PERFORMANCE_MAX", "DEMAND_GEN", "DISPLAY", "SHOPPING", "VIDEO"];
-  }
-
-  // SALES or LEADS
-  const baseTypes = ["PERFORMANCE_MAX", "SEARCH", "DEMAND_GEN", "VIDEO", "DISPLAY", "SHOPPING"];
-  if (hasContacts) {
-    return ["PERFORMANCE_MAX"];
-  } else if (hasDirections && !hasContacts) {
-    return ["PERFORMANCE_MAX", "SEARCH", "SHOPPING"];
-  }
-  return baseTypes;
+  return types;
 }
 
-export function reconcileCampaignStateBackend(state: CampaignState): CampaignState {
+export function reconcileCampaignStateBackend(state: CampaignState, isYouTubeConnected?: boolean): CampaignState {
   const updated = { ...state };
   const obj = updated.objective || "";
 
@@ -271,7 +278,7 @@ export function reconcileCampaignStateBackend(state: CampaignState): CampaignSta
     const resolvedGoal = isValid ? rawGoal : "phone_leads";
     updated.conversionGoals = resolvedGoal.split(",");
 
-    const availableTypes = getAvailableCampaignTypesBackend(obj, updated.conversionGoals);
+    const availableTypes = getAvailableCampaignTypesBackend(obj, updated.conversionGoals, isYouTubeConnected);
     if (!updated.campaignType || !availableTypes.includes(updated.campaignType)) {
       updated.campaignType = (availableTypes[0] || "PERFORMANCE_MAX") as any;
     }
@@ -287,9 +294,9 @@ export function reconcileCampaignStateBackend(state: CampaignState): CampaignSta
     const isValid = allowed.some(s => s.id === rawSubtype);
     const resolvedSubtype = isValid ? rawSubtype : "views";
     updated.conversionGoals = [resolvedSubtype];
-    const availableTypes = getAvailableCampaignTypesBackend(obj, updated.conversionGoals);
+    const availableTypes = getAvailableCampaignTypesBackend(obj, updated.conversionGoals, isYouTubeConnected);
     if (!updated.campaignType || !availableTypes.includes(updated.campaignType)) {
-      updated.campaignType = (availableTypes[0] || "VIDEO") as any;
+      updated.campaignType = (availableTypes[0] || (isYouTubeConnected === false ? "DISPLAY" : "VIDEO")) as any;
     }
   } else if (obj === "LOCAL") {
     updated.conversionGoals = [];
@@ -644,12 +651,10 @@ export class GoogleAdsAiAssistantService {
       const candidateModels = preferredModels || (isXaiGrok
         ? ["grok-2-latest", "grok-beta", "grok-vision-beta"]
         : [
-            "llama-3.3-70b-versatile",
+            "openai/gpt-oss-120b",
             "openai/gpt-oss-20b",
             "qwen/qwen3.8-27b",
-            "openai/gpt-oss-120b",
-            "groq/compound",
-            "groq/compound-mini"
+            "llama-3.3-70b-versatile"
           ]);
 
       for (const model of candidateModels) {
@@ -913,12 +918,10 @@ export class GoogleAdsAiAssistantService {
       ];
 
       const candidateModels = [
-        "llama-3.3-70b-versatile",
+        "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
         "qwen/qwen3.8-27b",
-        "openai/gpt-oss-120b",
-        "groq/compound",
-        "groq/compound-mini"
+        "llama-3.3-70b-versatile"
       ];
 
       // Safe development-only token diagnostics
@@ -1422,7 +1425,8 @@ export class GoogleAdsAiAssistantService {
       };
 
       // ── ENFORCE 100% COMPATIBILITY WITH MANUAL CREATION (SOURCE OF TRUTH) ──
-      const reconciledMergedState = reconcileCampaignStateBackend(mergedState);
+      const isYtConnected = Boolean(resolvedCustomerProfile?.youtubeConnection?.isConnected);
+      const reconciledMergedState = reconcileCampaignStateBackend(mergedState, isYtConnected);
 
       // ── DYNAMIC STAGE DETERMINATION ──
       const hasBusiness = !!(reconciledMergedState.business?.name || reconciledMergedState.business?.type || reconciledMergedState.businessName);

@@ -3205,73 +3205,95 @@ function ProfilePageContent() {
       className="flex-1 h-full min-h-0 overflow-y-auto bg-slate-50/60 pb-24 custom-vertical-scrollbar"
     >
       {/* Top Header Bar */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xs border-b border-slate-200 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push(returnToAdsUrl)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
-            title="Return to Ads Dashboard"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Return to Ads</span>
-          </button>
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3.5 sm:px-6 lg:px-8 py-3 transition-all">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-7xl mx-auto">
+          {/* Left Title and Back Button */}
+          <div className="flex items-center justify-between sm:justify-start gap-2.5 min-w-0">
+            <button
+              onClick={() => router.push(returnToAdsUrl)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0 active:scale-95"
+              title="Return to Ads Dashboard"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden xs:inline">Return to Ads</span>
+            </button>
 
-          <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
 
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-xs">
-              <Building2 className="w-4 h-4" />
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-xs">
+                <Building2 className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">
+                  Business &amp; Marketing Profile
+                </h1>
+                <span className="text-[10px] sm:text-[11px] font-mono text-slate-500 block truncate">
+                  CID: {profile?.formattedCustomerId || customerId}
+                </span>
+              </div>
             </div>
-            <div>
-              <h1 className="text-sm font-bold text-slate-900 leading-tight">
-                Business &amp; Marketing Profile
-              </h1>
-              <span className="text-[11px] font-mono text-slate-500">
-                Customer ID: {profile?.formattedCustomerId || customerId}
-              </span>
+
+            {/* Mobile Status Pill (visible on xs only) */}
+            <div className="sm:hidden shrink-0">
+              {isApproved ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Approved</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                  Draft
+                </span>
+              )}
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {isApproved ? (
-            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Approved &amp; Synced
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
-              Draft / In Review
-            </span>
-          )}
+          {/* Right Action Bar */}
+          <div className="flex items-center justify-end gap-2 shrink-0">
+            {/* Desktop Status Pill */}
+            <div className="hidden sm:block">
+              {isApproved ? (
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Approved &amp; Synced
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                  Draft / In Review
+                </span>
+              )}
+            </div>
 
-          <button
-            type="button"
-            onClick={() => handleSaveProfile(false)}
-            disabled={isSaving}
-            className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs inline-flex items-center gap-1.5"
-          >
-            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            <span>Save Draft</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleSaveProfile(false)}
+              disabled={isSaving}
+              className="flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 sm:py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs inline-flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              <span>Save Draft</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => handleSaveProfile(true)}
-            disabled={isSaving}
-            className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all cursor-pointer shadow-sm shadow-blue-500/20 inline-flex items-center gap-1.5"
-          >
-            {isSaving ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <CheckCircle2 className="w-3.5 h-3.5" />
-            )}
-            <span>Approve &amp; Save Profile</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleSaveProfile(true)}
+              disabled={isSaving}
+              className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition-all cursor-pointer shadow-sm shadow-blue-500/20 inline-flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+            >
+              {isSaving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              )}
+              <span className="hidden xs:inline">Approve &amp; Save</span>
+              <span className="xs:hidden">Approve</span>
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
         {/* Notifications */}
         {saveSuccessMsg && (
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 font-semibold animate-fadeIn">
@@ -3301,22 +3323,19 @@ function ProfilePageContent() {
           <>
             {/* ── Completed Profile Celebration Banner & Animations ── */}
             {(isProfileFullyCompleted || isApproved) && (
-              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border-2 border-emerald-400/60 p-5 sm:p-6 shadow-lg shadow-emerald-500/10 animate-in fade-in zoom-in-95 duration-500">
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border-2 border-emerald-400/60 p-4 sm:p-6 shadow-lg shadow-emerald-500/10 animate-in fade-in zoom-in-95 duration-500">
                 {/* Decorative floating celebration particle icons */}
                 <div className="absolute top-3 right-6 text-emerald-500/50 animate-bounce duration-1000 pointer-events-none">
-                  <Sparkles className="w-6 h-6" />
+                  <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div className="absolute bottom-3 right-20 text-teal-500/40 animate-pulse pointer-events-none">
-                  <PartyPopper className="w-6 h-6" />
-                </div>
-                <div className="absolute top-4 left-1/3 text-blue-500/30 animate-spin duration-3000 pointer-events-none">
-                  <Sparkles className="w-5 h-5" />
+                <div className="absolute bottom-3 right-16 text-teal-500/40 animate-pulse pointer-events-none">
+                  <PartyPopper className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
 
-                <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start sm:items-center gap-4 min-w-0">
-                    <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/30">
-                      <Trophy className="w-6 h-6 animate-pulse" />
+                <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4">
+                  <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/30">
+                      <Trophy className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
                       <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white"></span>
@@ -3324,27 +3343,26 @@ function ProfilePageContent() {
                     </div>
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
-                          Business &amp; Marketing Profile Completed!
+                        <h2 className="text-sm sm:text-lg font-extrabold text-slate-900 tracking-tight">
+                          Profile Completed!
                         </h2>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs inline-flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          <span>100% Ready for AI Campaigns</span>
+                        <span className="px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs inline-flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span>100% Ready</span>
                         </span>
                       </div>
-                      <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+                      <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed max-w-2xl">
                         All 14 core marketing intelligence pillars are fully configured and verified for Customer ID{" "}
                         <strong className="font-mono text-slate-800">{profile?.formattedCustomerId || customerId}</strong>.
-                        Google Ads AI Guided campaigns will now automatically leverage your catalog, personas, locations, and brand assets.
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
                     <button
                       type="button"
                       onClick={() => router.push(`/ads/campaigns/create/ai-guided?customerId=${customerId}`)}
-                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/25 cursor-pointer flex items-center gap-1.5"
+                      className="w-full sm:w-auto px-4 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/25 cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
                     >
                       <Sparkles className="w-4 h-4" />
                       <span>Launch AI Campaign</span>
@@ -3355,27 +3373,27 @@ function ProfilePageContent() {
             )}
 
             {/* ── TOP-SIDE PRIMARY WEBSITE & GROK AI AUTOFILL HERO CARD ── */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-blue-50/40 to-indigo-50/50 border-2 border-blue-200/90 shadow-sm p-5 sm:p-6 space-y-4">
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-blue-50/40 to-indigo-50/50 border-2 border-blue-200/90 shadow-sm p-4 sm:p-6 space-y-3.5 sm:space-y-4">
               {/* Glowing decorative background aura */}
               <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 rounded-full bg-blue-400/10 blur-2xl pointer-events-none" />
               <div className="absolute bottom-0 left-1/3 -mb-10 w-40 h-40 rounded-full bg-purple-400/10 blur-2xl pointer-events-none" />
 
-              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
                 <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                      <Globe className="w-4 h-4" />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
-                    <h2 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
-                      Primary Website &amp; Grok AI Intelligence Autofill
+                    <h2 className="text-xs sm:text-base font-extrabold text-slate-900 tracking-tight">
+                      Primary Website &amp; Grok AI Autofill
                     </h2>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs inline-flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-purple-600" />
-                      <span>Grok AI Engine Active</span>
+                    <span className="px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs inline-flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-purple-600 shrink-0" />
+                      <span>Grok AI Engine</span>
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed max-w-3xl">
-                    Enter your primary business website. Grok AI will analyze your live website, discover sub-pages, and <strong>automatically autofill all 14 profile parameters</strong> (business details, products, services, target audience personas, locations, brand voice, competitors, and SEO keywords).
+                  <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed max-w-3xl">
+                    Enter your primary business website. Grok AI will analyze your live website, discover sub-pages, and <strong>automatically autofill all 14 profile parameters</strong>.
                   </p>
                 </div>
 
@@ -3399,7 +3417,7 @@ function ProfilePageContent() {
               </div>
 
               {/* URL Input Bar & Action Button */}
-              <div className="relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
                 <div className="relative flex-1">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                     <Globe className="w-4 h-4" />
@@ -3420,8 +3438,8 @@ function ProfilePageContent() {
                         handleAnalyzeAndAutofill(primaryWebsite);
                       }
                     }}
-                    placeholder="Enter primary website: e.g. https://yourcompany.com"
-                    className="w-full pl-10 pr-9 py-2.5 text-xs rounded-2xl border border-slate-300 bg-white font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 shadow-2xs transition-all"
+                    placeholder="Enter website: https://yourcompany.com"
+                    className="w-full pl-10 pr-9 py-2 sm:py-2.5 text-xs rounded-2xl border border-slate-300 bg-white font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 shadow-2xs transition-all"
                   />
                   {primaryWebsite && (
                     <button
@@ -3442,10 +3460,10 @@ function ProfilePageContent() {
                   type="button"
                   onClick={() => handleAnalyzeAndAutofill(primaryWebsite)}
                   disabled={!primaryWebsite.trim() || analyzingUrl === primaryWebsite}
-                  className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 shrink-0 ${
+                  className={`w-full sm:w-auto px-4 sm:px-5 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 shrink-0 active:scale-95 ${
                     !primaryWebsite.trim() || analyzingUrl === primaryWebsite
                       ? "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/60"
-                      : "bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-blue-500/25 active:scale-98"
+                      : "bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-blue-500/25"
                   }`}
                 >
                   {analyzingUrl === primaryWebsite ? (
@@ -3456,7 +3474,7 @@ function ProfilePageContent() {
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 text-purple-200" />
-                      <span>✨ Analyze &amp; Autofill Profile with Grok AI</span>
+                      <span>Analyze &amp; Autofill Profile with Grok AI</span>
                     </>
                   )}
                 </button>
@@ -3499,8 +3517,8 @@ function ProfilePageContent() {
             {/* ── Split Layout: Left Sidebar + Right Tab Content ── */}
             <div className="flex flex-col lg:flex-row items-start gap-6">
 
-              {/* ── LEFT SIDEBAR: All Profile Options & Completion Status ── */}
-              <aside className="w-full lg:w-72 shrink-0 space-y-4 lg:sticky lg:top-20 z-20">
+              {/* ── LEFT SIDEBAR: All Profile Options & Completion Status (Desktop only, mobile has horizontal quick options + completion badge) ── */}
+              <aside className="hidden lg:block w-72 shrink-0 space-y-4 lg:sticky lg:top-20 z-20">
                 {/* Profile Completion Progress Widget */}
                 <div className="p-4 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-3">
                   <div className="flex items-center justify-between">
@@ -3649,22 +3667,101 @@ function ProfilePageContent() {
               </aside>
 
               {/* ── RIGHT CONTENT AREA ── */}
-              <div className="flex-1 min-w-0 space-y-6">
+              <div className="flex-1 min-w-0 space-y-4 sm:space-y-6">
+                {/* Mobile Completion Banner & Active Tab Indicator (< lg only) */}
+                <div className="lg:hidden p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Award className={`w-4 h-4 shrink-0 ${completionPercentage === 100 ? "text-emerald-600" : "text-blue-600"}`} />
+                      <span className="text-xs font-bold text-slate-800 truncate">Profile Readiness</span>
+                    </div>
+                    <span
+                      className={`text-[11px] font-extrabold font-mono px-2 py-0.5 rounded-full shrink-0 ${
+                        completionPercentage === 100
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          : "bg-blue-50 text-blue-700 border border-blue-200"
+                      }`}
+                    >
+                      {completionPercentage}% ({completedCount}/{totalSections})
+                    </span>
+                  </div>
+
+                  {/* Animated Progress Bar */}
+                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ease-out ${
+                        completionPercentage === 100
+                          ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 shadow-xs"
+                          : "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700"
+                      }`}
+                      style={{ width: `${completionPercentage}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Mobile Quick Options Bar (Sticky, touch-friendly horizontal scroll < lg) */}
+                <div className="lg:hidden sticky top-[57px] z-30 flex items-center gap-1.5 border border-slate-200/90 bg-white/95 backdrop-blur-md rounded-2xl p-1.5 shadow-sm overflow-x-auto scrollbar-none transition-all -mx-1 px-2">
+                  {PROFILE_TABS_SEQUENCE.map((tabItem) => {
+                    const isActive = activeTab === tabItem.key;
+                    const isCompleted = isSectionCompleted(tabItem.key);
+                    const IconComponent =
+                      tabItem.key === "business" ? Building2 :
+                      tabItem.key === "products_services" ? Package :
+                      tabItem.key === "target_audience" ? Users :
+                      tabItem.key === "locations" ? MapPin :
+                      tabItem.key === "conversion_goals" ? Target :
+                      tabItem.key === "brand_profile" ? Palette :
+                      tabItem.key === "competitors" ? Swords :
+                      tabItem.key === "seo_keywords" ? Search :
+                      tabItem.key === "faqs" ? HelpCircle :
+                      tabItem.key === "ai_suggestions" ? Sparkles :
+                      tabItem.key === "websites" ? Globe :
+                      tabItem.key === "youtube_channel" ? YoutubeIcon :
+                      tabItem.key === "merchant_apps" ? ShoppingBag :
+                      tabItem.key === "media_assets" ? ImageIcon :
+                      ShieldCheck;
+
+                    return (
+                      <button
+                        key={tabItem.key}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(tabItem.key);
+                          scrollToTop();
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-95 ${
+                          isActive
+                            ? tabItem.key === "ai_suggestions"
+                              ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs"
+                              : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs"
+                            : "text-slate-600 hover:text-slate-900 bg-slate-50/80 hover:bg-slate-100 border border-slate-200/60"
+                        }`}
+                      >
+                        <IconComponent className="w-3.5 h-3.5 shrink-0" />
+                        <span>{tabItem.shortLabel}</span>
+                        {isCompleted && (
+                          <CheckCircle2 className={`w-3 h-3 shrink-0 ${isActive ? "text-emerald-300" : "text-emerald-600"}`} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {/* Account Overview Header Card */}
                 {profile && (
-                  <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className="text-lg font-bold text-slate-900">
+                  <div className="p-4 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1.5 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-base sm:text-lg font-bold text-slate-900 truncate max-w-full">
                           {businessName || profile.businessName || profile.accountName}
                         </span>
                         {profile.isManager && (
-                          <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
                             Manager (MCC)
                           </span>
                         )}
                         <span
-                          className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full ${
+                          className={`px-2 py-0.5 text-[10px] font-bold rounded-full shrink-0 ${
                             profile.status === "ENABLED"
                               ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                               : "bg-slate-200 text-slate-700 border border-slate-300"
@@ -3685,65 +3782,24 @@ function ProfilePageContent() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="px-4 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-right">
-                        <span className="block text-[10px] font-bold uppercase text-slate-400">Currency</span>
+                    <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 sm:gap-3 shrink-0">
+                      <div className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-2xl bg-slate-50 border border-slate-200 text-left sm:text-right">
+                        <span className="block text-[9.5px] sm:text-[10px] font-bold uppercase text-slate-400">Currency</span>
                         <span className="text-xs font-bold text-slate-800">{profile.currencyCode}</span>
                       </div>
-                      <div className="px-4 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-right">
-                        <span className="block text-[10px] font-bold uppercase text-slate-400">Timezone</span>
-                        <span className="text-xs font-bold text-slate-800">{profile.timeZone}</span>
+                      <div className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-2xl bg-slate-50 border border-slate-200 text-left sm:text-right">
+                        <span className="block text-[9.5px] sm:text-[10px] font-bold uppercase text-slate-400">Timezone</span>
+                        <span className="text-xs font-bold text-slate-800 truncate block max-w-[120px]">{profile.timeZone}</span>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Mobile Quick Options Bar (Only on small screens < lg) */}
-                <div className="lg:hidden flex items-center gap-1.5 border border-slate-200/80 bg-white/95 backdrop-blur-md rounded-2xl p-1.5 shadow-xs overflow-x-auto scrollbar-none transition-all">
-                  {PROFILE_TABS_SEQUENCE.map((tabItem) => {
-                    const isActive = activeTab === tabItem.key;
-                    const IconComponent =
-                      tabItem.key === "business" ? Building2 :
-                      tabItem.key === "products_services" ? Package :
-                      tabItem.key === "target_audience" ? Users :
-                      tabItem.key === "locations" ? MapPin :
-                      tabItem.key === "conversion_goals" ? Target :
-                      tabItem.key === "brand_profile" ? Palette :
-                      tabItem.key === "competitors" ? Swords :
-                      tabItem.key === "seo_keywords" ? Search :
-                      tabItem.key === "faqs" ? HelpCircle :
-                      tabItem.key === "ai_suggestions" ? Sparkles :
-                      tabItem.key === "websites" ? Globe :
-                      tabItem.key === "merchant_apps" ? ShoppingBag :
-                      tabItem.key === "media_assets" ? ImageIcon :
-                      ShieldCheck;
-
-                    return (
-                      <button
-                        key={tabItem.key}
-                        type="button"
-                        onClick={() => {
-                          setActiveTab(tabItem.key);
-                          scrollToTop();
-                        }}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                          isActive
-                            ? "bg-blue-600 text-white shadow-xs"
-                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                        }`}
-                      >
-                        <IconComponent className="w-3.5 h-3.5 shrink-0" />
-                        <span>{tabItem.shortLabel}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
                 {/* TAB CONTENT: BUSINESS INFORMATION & MARKETING INTELLIGENCE */}
                 {activeTab === "business" && (
               <div className="animate-fadeIn space-y-6 transition-all duration-300">
                 {/* 1. Business Information Card */}
-                <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+                <div className="p-4 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-5 sm:space-y-6">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <div>
                       <div className="flex items-center gap-2">
@@ -3756,7 +3812,7 @@ function ProfilePageContent() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-700">Business Name</label>
                       <input
@@ -10325,34 +10381,23 @@ function ProfilePageContent() {
                   )}
 
                   {hasMerchantAccount ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-emerald-100 animate-fadeIn">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                          <span>Merchant Center Account ID</span>
-                          <span className="text-[11px] font-normal text-slate-400 font-mono">Numeric ID</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={merchantCenterId}
-                          onChange={(e) => setMerchantCenterId(e.target.value)}
-                          placeholder="e.g. 123456789"
-                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 bg-white font-mono focus:border-emerald-500 focus:outline-none transition-colors"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                          <span>Primary Feed / Store Name</span>
-                          <span className="text-[11px] font-normal text-slate-400">Store / Product Catalog</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={merchantStoreName}
-                          onChange={(e) => setMerchantStoreName(e.target.value)}
-                          placeholder="e.g. Global Product Feed"
-                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 bg-white focus:border-emerald-500 focus:outline-none transition-colors"
-                        />
-                      </div>
+                    <div className="pt-4 border-t border-emerald-100 animate-fadeIn space-y-3">
+                      {merchantCenterId ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="p-3.5 rounded-2xl bg-white border border-emerald-200/80 shadow-2xs">
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Merchant Center Account ID</span>
+                            <span className="text-sm font-mono font-bold text-emerald-950 mt-1 block">{merchantCenterId}</span>
+                          </div>
+                          <div className="p-3.5 rounded-2xl bg-white border border-emerald-200/80 shadow-2xs">
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Primary Store / Feed Name</span>
+                            <span className="text-sm font-semibold text-slate-900 mt-1 block">{merchantStoreName || "Default Product Feed"}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic p-4 rounded-xl bg-slate-50 border border-slate-200">
+                          No Merchant Center account detected yet. Click &quot;Live Sync&quot; above to auto-detect and sync your Google Merchant Center account.
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs text-slate-500">
@@ -10516,7 +10561,7 @@ function ProfilePageContent() {
 
                       {appDetails.length === 0 ? (
                         <p className="text-xs text-slate-400 italic p-4 rounded-xl bg-slate-50 border border-slate-200">
-                          No mobile apps added yet. Register your Google Play or App Store package below.
+                          No connected mobile apps detected yet. Click &quot;Live Sync Apps&quot; above to auto-discover mobile apps linked to your Google Ads account.
                         </p>
                       ) : (
                         appDetails.map((app, aIdx) => (
@@ -10568,63 +10613,6 @@ function ProfilePageContent() {
                           </div>
                         ))
                       )}
-
-                      {/* Add Mobile App Sub-form */}
-                      <div className="p-4 rounded-2xl bg-white border border-blue-200 space-y-3">
-                        <span className="text-xs font-bold text-slate-800 block">Link New Mobile App</span>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-semibold text-slate-600">Platform</label>
-                            <select
-                              value={newAppPlatform}
-                              onChange={(e) => setNewAppPlatform(e.target.value as "ANDROID" | "IOS")}
-                              className="w-full px-2.5 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 font-semibold"
-                            >
-                              <option value="ANDROID">Google Play (Android)</option>
-                              <option value="IOS">Apple App Store (iOS)</option>
-                            </select>
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-semibold text-slate-600">Package / App ID</label>
-                            <input
-                              type="text"
-                              value={newAppId}
-                              onChange={(e) => setNewAppId(e.target.value)}
-                              placeholder={newAppPlatform === "ANDROID" ? "com.mycompany.app" : "123456789"}
-                              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 font-mono"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-semibold text-slate-600">App Name</label>
-                            <input
-                              type="text"
-                              value={newAppName}
-                              onChange={(e) => setNewAppName(e.target.value)}
-                              placeholder="e.g. Brand Mobile App"
-                              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1">
-                          <input
-                            type="url"
-                            value={newAppUrl}
-                            onChange={(e) => setNewAppUrl(e.target.value)}
-                            placeholder="Direct Play Store / App Store link (optional)..."
-                            className="flex-1 mr-3 px-3.5 py-2 text-xs rounded-xl border border-slate-200 text-slate-700"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleAddApp}
-                            className="px-4 py-2 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" /> Add App
-                          </button>
-                        </div>
-                      </div>
                     </div>
                   )}
                 </div>

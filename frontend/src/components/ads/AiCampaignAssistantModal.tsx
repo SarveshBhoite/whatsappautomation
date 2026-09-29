@@ -665,8 +665,9 @@ export function AiCampaignAssistantModal({
     }
   };
 
-  const runPreflightCheck = async (stateToCheck: CampaignState) => {
-    if (!stateToCheck.campaignType || !customerId) return;
+  const runPreflightCheck = async (stateToCheck?: CampaignState) => {
+    const targetState = stateToCheck || campaignState;
+    if (!targetState.campaignType || !customerId) return;
     setIsValidatingPreflight(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -680,7 +681,7 @@ export function AiCampaignAssistantModal({
         },
         body: JSON.stringify({
           customerId,
-          campaignState: stateToCheck
+          campaignState: targetState
         })
       });
 
@@ -1681,6 +1682,18 @@ export function AiCampaignAssistantModal({
   const handleCreateCampaign = async () => {
     if (!userConfirmed) {
       setPublishError("Please confirm that you have reviewed the campaign configuration before creating.");
+      return;
+    }
+
+    // Rule: AI Guided must use youtubeConnection.isConnected as the ONLY YouTube authentication truth.
+    const isYtConnected = Boolean(customerProfileData?.youtubeConnection?.isConnected);
+    if (campaignState.campaignType === "VIDEO" && !isYtConnected) {
+      setPublishError("YouTube connection is required for Video campaigns. Connect your YouTube channel to continue.");
+      return;
+    }
+    const dgFormat = ((campaignState as any).adFormat || "").toUpperCase();
+    if (campaignState.campaignType === "DEMAND_GEN" && dgFormat === "VIDEO" && !isYtConnected) {
+      setPublishError("YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue.");
       return;
     }
 

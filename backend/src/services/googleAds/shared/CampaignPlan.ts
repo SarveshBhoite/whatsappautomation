@@ -33,6 +33,7 @@ export interface CampaignPlanCoreConfig {
   startDate: string; // YYYY-MM-DD
   endDate?: string;
   euPolitical?: "YES" | "NO";
+  adFormat?: string;
 }
 
 export interface CampaignPlanBudgetConfig {
@@ -372,7 +373,8 @@ export class CampaignPlanMapper {
         status: state.status === "ENABLED" ? "ENABLED" : "PAUSED",
         startDate: (state.startDate && state.startDate >= todayStr) ? state.startDate : todayStr,
         endDate: state.endDate || undefined,
-        euPolitical: state.euPolitical || "NO"
+        euPolitical: state.euPolitical || "NO",
+        adFormat: (state.adFormat || (state.videos && state.videos.length > 0 ? "VIDEO" : undefined))
       },
       budgetConfig: {
         budgetType,

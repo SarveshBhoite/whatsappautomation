@@ -375,6 +375,8 @@ router.get("/customer-profile", async (req, res) => {
     const currencyCode = liveInfo?.currencyCode || currentAccount?.currencyCode || "INR";
     const timeZone = liveInfo?.timeZone || currentAccount?.timeZone || "Asia/Kolkata";
     const status = liveInfo?.status || (currentAccount?.isActive ? "ENABLED" : "PAUSED");
+    const isManager = Boolean(liveInfo?.isManager || currentAccount?.isManager || false);
+    const optimizationScore = liveInfo?.optimizationScore ?? null;
     // 6. Query authenticated YouTube module connection status (Scoped strictly to authenticated orgId)
     let youtubeConnection = { isConnected: false } as {
       isConnected: boolean;

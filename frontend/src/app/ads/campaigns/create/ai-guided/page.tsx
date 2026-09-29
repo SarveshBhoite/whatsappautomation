@@ -422,6 +422,15 @@ export const isAppVerified = (prof: any): boolean => {
 };
 
 /**
+ * Checks if YouTube is connected using customerProfile.youtubeConnection.isConnected
+ * Single Source of Truth for YouTube authentication.
+ */
+export const isYouTubeVerified = (prof: any): boolean => {
+  if (!prof) return false;
+  return Boolean(prof.youtubeConnection?.isConnected);
+};
+
+/**
  * Authoritative Campaign Type Resolver matching exact CRM flow rules
  */
 export const getAvailableCampaignTypes = (
@@ -436,6 +445,7 @@ export const getAvailableCampaignTypes = (
 
   const merchantValid = isMerchantVerified(customerProfileSource);
   const appValid = isAppVerified(customerProfileSource);
+  const ytValid = isYouTubeVerified(customerProfileSource);
 
   if (obj === "APP_PROMOTION") {
     return [
@@ -459,17 +469,17 @@ export const getAvailableCampaignTypes = (
 
   if (obj === "AWARENESS") {
     const videoGoal = conversionGoals?.[0] || "views";
+    let awarenessTypes: CampaignTypeDefinition[];
     if (videoGoal === "views") {
-      return [
+      awarenessTypes = [
         {
           id: "VIDEO",
           title: "Video",
           desc: "Reach viewers on YouTube and get conversions"
         }
       ];
-    }
-    if (videoGoal === "reach") {
-      return [
+    } else if (videoGoal === "reach") {
+      awarenessTypes = [
         {
           id: "VIDEO",
           title: "Video",
@@ -481,23 +491,38 @@ export const getAvailableCampaignTypes = (
           desc: "Reach potential customers across 3 million sites and apps with your creative"
         }
       ];
-    }
-    if (videoGoal === "subscriptions") {
-      return [
+    } else if (videoGoal === "subscriptions") {
+      awarenessTypes = [
         {
           id: "DEMAND_GEN",
           title: "Demand Gen",
           desc: "Drive demand and conversions on YouTube, Google Display Network, and more with image and video ads"
         }
       ];
+    } else {
+      awarenessTypes = [
+        {
+          id: "VIDEO",
+          title: "Video",
+          desc: "Reach viewers on YouTube and get conversions"
+        }
+      ];
     }
-    return [
-      {
-        id: "VIDEO",
-        title: "Video",
-        desc: "Reach viewers on YouTube and get conversions"
+
+    if (!ytValid) {
+      awarenessTypes = awarenessTypes.filter(ct => ct.id !== "VIDEO");
+      // If no awareness types remain (e.g. "views" only had VIDEO), fallback to DISPLAY
+      if (awarenessTypes.length === 0) {
+        awarenessTypes = [
+          {
+            id: "DISPLAY",
+            title: "Display",
+            desc: "Reach potential customers across 3 million sites and apps with your creative"
+          }
+        ];
       }
-    ];
+    }
+    return awarenessTypes;
   }
 
   if (obj === "NO_GUIDANCE") {
@@ -535,7 +560,7 @@ export const getAvailableCampaignTypes = (
       } as any
     ];
 
-    return types;
+    return ytValid ? types : types.filter(ct => ct.id !== "VIDEO");
   }
 
   if (obj === "WEBSITE_TRAFFIC") {
@@ -573,7 +598,7 @@ export const getAvailableCampaignTypes = (
       }
     ];
 
-    return types;
+    return ytValid ? types : types.filter(ct => ct.id !== "VIDEO");
   }
 
   // SALES or LEADS (Default base list)
@@ -616,17 +641,27 @@ export const getAvailableCampaignTypes = (
     needsMerchant: !merchantValid
   } as any);
 
+  let resolvedTypes: CampaignTypeDefinition[];
+
   // Manual Flow Goal Dependencies for SALES / LEADS:
   if (hasContacts) {
     // If Contacts goal is present: ONLY Performance Max
-    return allSalesOrLeadsTypes.filter(ct => ct.id === "PERFORMANCE_MAX");
+    resolvedTypes = allSalesOrLeadsTypes.filter(ct => ct.id === "PERFORMANCE_MAX");
   } else if (hasDirections && !hasContacts) {
     // If Get directions is present (without Contacts): Performance Max, Search, Shopping (if merchant verified)
-    return allSalesOrLeadsTypes.filter(ct => ["PERFORMANCE_MAX", "SEARCH", "SHOPPING"].includes(ct.id));
+    resolvedTypes = allSalesOrLeadsTypes.filter(ct => ["PERFORMANCE_MAX", "SEARCH", "SHOPPING"].includes(ct.id));
   } else {
     // Default / Phone call leads: All available campaign types
-    return allSalesOrLeadsTypes;
+    resolvedTypes = allSalesOrLeadsTypes;
   }
+
+  // Rule: AI Guided must use youtubeConnection.isConnected as the ONLY YouTube authentication truth.
+  // When YouTube is disconnected, VIDEO campaigns must NOT be recommended as available.
+  if (!ytValid) {
+    resolvedTypes = resolvedTypes.filter(ct => ct.id !== "VIDEO");
+  }
+
+  return resolvedTypes;
 };
 
 /**
@@ -671,7 +706,7 @@ export const reconcileCampaignStateWithManualFlow = (
     const availableTypes = getAvailableCampaignTypes(obj, updated.conversionGoals, profSource);
     const isTypeValid = availableTypes.some(t => t.id === updated.campaignType);
     if (!isTypeValid) {
-      updated.campaignType = (availableTypes[0]?.id || "VIDEO") as any;
+      updated.campaignType = (availableTypes[0]?.id || "DISPLAY") as any;
     }
   } else if (obj === "LOCAL") {
     updated.conversionGoals = [];
@@ -680,8 +715,10 @@ export const reconcileCampaignStateWithManualFlow = (
       updated.locations = ["India"];
     }
   } else if (obj === "NO_GUIDANCE") {
-    // Always allow SHOPPING & VIDEO — the UI card shows merchant warning if not connected
-    const availableTypes = ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN", "VIDEO", "SHOPPING"];
+    const ytValid = isYouTubeVerified(profSource);
+    const availableTypes = ytValid
+      ? ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN", "VIDEO", "SHOPPING"]
+      : ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN", "SHOPPING"];
     if (!updated.campaignType || !availableTypes.includes(updated.campaignType)) {
       updated.campaignType = "PERFORMANCE_MAX";
     }
@@ -1414,7 +1451,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         });
 
         if (prof) {
+          if (profileData.youtubeConnection && !prof.youtubeConnection) {
+            prof.youtubeConnection = profileData.youtubeConnection;
+          }
           setCustomerProfile(prof);
+        } else if (profileData.youtubeConnection) {
+          setCustomerProfile({ youtubeConnection: profileData.youtubeConnection });
         }
 
         setLoadingProfileStep("Loading business keywords & locations...");
@@ -2767,7 +2809,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     }
 
     if (cType === "DEMAND_GEN" || cType === "VIDEO") {
+      const isYtConn = isYouTubeVerified(customerProfile || state.customerProfile);
+      if (cType === "VIDEO" && !isYtConn) {
+        return false;
+      }
       if (dgFormat === "VIDEO") {
+        if (!isYtConn) return false;
         return hasVideos && hasLogos && validHeadlines.length >= 1 && validLongHeadlines.length >= 1 && validDescriptions.length >= 1;
       } else if (dgFormat === "CAROUSEL") {
         const cards = state.carouselCards || [];
@@ -2803,6 +2850,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const computeMissingRequirementsCockpit = (state: CampaignState): Array<{ label: string; field: string; fixAction: () => void }> => {
     const missing: Array<{ label: string; field: string; fixAction: () => void }> = [];
     const cType = state.campaignType;
+    const profSource = customerProfile || state.customerProfile;
 
     if (!state.businessName && !state.business?.name) {
       missing.push({
@@ -3079,6 +3127,26 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           fixAction: () => startFieldEdit("appId")
         });
       }
+    } else if (cType === "VIDEO") {
+      const isYtConn = isYouTubeVerified(profSource);
+      if (!isYtConn) {
+        missing.push({
+          label: "YouTube connection is required for Video campaigns. Connect your YouTube channel to continue.",
+          field: "youtubeConnection",
+          fixAction: () => startFieldEdit("campaignType")
+        });
+      }
+    }
+
+    if (cType === "DEMAND_GEN" && (state.adFormat || "").toUpperCase() === "VIDEO") {
+      const isYtConn = isYouTubeVerified(profSource);
+      if (!isYtConn) {
+        missing.push({
+          label: "YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue.",
+          field: "youtubeConnection",
+          fixAction: () => startFieldEdit("adFormat")
+        });
+      }
     }
 
     return missing;
@@ -3093,7 +3161,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     const rawGoal = (campaignState.conversionGoals && campaignState.conversionGoals.length > 0)
       ? campaignState.conversionGoals.join(",")
       : (activeObj === "APP_PROMOTION" ? "installs" : activeObj === "AWARENESS" ? "views" : "phone_leads");
-    const availableTypes = getAvailableCampaignTypes(activeObj, campaignState.conversionGoals);
+    const effectiveProfile = customerProfile || campaignState.customerProfile;
+    const availableTypes = getAvailableCampaignTypes(activeObj, campaignState.conversionGoals, effectiveProfile);
 
     // Initialize locations mode and custom locations list
     const currentLocs = campaignState.locations && campaignState.locations.length > 0 ? campaignState.locations : ["India"];
@@ -3221,6 +3290,22 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       const err = validateEndDate(tempEditValues.endDate, effectiveStart);
       if (err) {
         setFieldError(err);
+        return;
+      }
+    } else if (editingField === "campaignType") {
+      const selectedType = tempEditValues.campaignType;
+      const prof = customerProfile || campaignState.customerProfile;
+      const isYtConnected = Boolean(prof?.youtubeConnection?.isConnected);
+      if (selectedType === "VIDEO" && !isYtConnected) {
+        setFieldError("YouTube connection is required for Video campaigns. Connect your YouTube channel to continue.");
+        return;
+      }
+    } else if (editingField === "adFormat") {
+      const selectedFormat = (tempEditValues.adFormat || "").toUpperCase();
+      const prof = customerProfile || campaignState.customerProfile;
+      const isYtConnected = Boolean(prof?.youtubeConnection?.isConnected);
+      if (selectedFormat === "VIDEO" && campaignState.campaignType === "DEMAND_GEN" && !isYtConnected) {
+        setFieldError("YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue.");
         return;
       }
     } else if (editingField === "locations") {
@@ -3418,14 +3503,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       }
 
       // Reconcile state against manual flow compatibility rules
+      const profSource = customerProfile || prev.customerProfile;
       if (editingField === "objective") {
-        updated = reconcileCampaignStateWithManualFlow(updated, "objective");
+        updated = reconcileCampaignStateWithManualFlow(updated, "objective", profSource);
         newCampaignType = updated.campaignType;
       } else if (editingField === "conversionGoal") {
-        updated = reconcileCampaignStateWithManualFlow(updated, "conversionGoal");
+        updated = reconcileCampaignStateWithManualFlow(updated, "conversionGoal", profSource);
         newCampaignType = updated.campaignType;
       } else if (editingField === "campaignType") {
-        updated = reconcileCampaignStateWithManualFlow(updated, "campaignType");
+        updated = reconcileCampaignStateWithManualFlow(updated, "campaignType", profSource);
         newCampaignType = updated.campaignType;
       }
 
@@ -5619,6 +5705,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             setCampaignState(p => ({ ...p, images: autoImages }));
           }
         } else if (dgFormat === "VIDEO") {
+          const isYtConnected = isYouTubeVerified(customerProfile || campaignState.customerProfile);
+          if (!isYtConnected) {
+            startFieldEdit("adFormat");
+            throw new Error("YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue.");
+          }
           const dgVideos = (effectiveState.videos || []).filter((v: any) => v && (typeof v === "string" ? v.trim() : v.asset || v.videoId || v.url));
           if (dgVideos.length < 1) {
             throw new Error("Demand Gen Video format requires at least 1 YouTube video URL or asset.");
@@ -5632,6 +5723,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           if (validCards.length < 2) {
             throw new Error(`Demand Gen Carousel format requires at least 2 cards with image and headline (${validCards.length}/2 added).`);
           }
+        }
+      } else if (cType === "VIDEO") {
+        const isYtConnected = isYouTubeVerified(customerProfile || campaignState.customerProfile);
+        if (!isYtConnected) {
+          startFieldEdit("campaignType");
+          throw new Error("YouTube connection is required for Video campaigns. Connect your YouTube channel to continue.");
         }
       } else if (cType === "APP") {
         if (!effectiveState.appId || !effectiveState.appId.trim()) {
@@ -13655,6 +13752,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         {campaignState.readyForPublish ? "Complete ✓" : "Required items missing"}
                       </span>
                     </div>
+                    {/* YouTube Authentication Status */}
+                    <div className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 border border-slate-200 text-[10px]">
+                      <span className="font-semibold text-slate-700">YouTube Channel Connection:</span>
+                      <span className={isYouTubeVerified(customerProfile || campaignState.customerProfile) ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                        {isYouTubeVerified(customerProfile || campaignState.customerProfile) ? "✓ Connected" : "Not Connected (Required)"}
+                      </span>
+                    </div>
+                    {!isYouTubeVerified(customerProfile || campaignState.customerProfile) && (
+                      <p className="text-[9.5px] text-rose-600 font-medium">
+                        YouTube connection is required for Video campaigns. Connect your YouTube channel to continue.
+                      </p>
+                    )}
                     <div className="grid grid-cols-2 gap-1 text-slate-600">
                       {(campaignState.adFormat || "SINGLE_IMAGE") === "SINGLE_IMAGE" && (
                         <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
@@ -13739,12 +13848,25 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </div>
                       )}
                       {(campaignState.adFormat || "SINGLE_IMAGE") === "VIDEO" && (
-                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                          <span>YouTube Video:</span>
-                          <span className={(campaignState.videos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {(campaignState.videos?.length || 0) > 0 ? "✓ Uploaded" : "Missing"}
-                          </span>
-                        </div>
+                        <>
+                          <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                            <span>YouTube Channel Connection:</span>
+                            <span className={isYouTubeVerified(customerProfile || campaignState.customerProfile) ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                              {isYouTubeVerified(customerProfile || campaignState.customerProfile) ? "✓ Connected" : "Not Connected (Required)"}
+                            </span>
+                          </div>
+                          {!isYouTubeVerified(customerProfile || campaignState.customerProfile) && (
+                            <p className="text-[9.5px] text-rose-600 font-medium col-span-2">
+                              YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue.
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                            <span>YouTube Video:</span>
+                            <span className={(campaignState.videos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                              {(campaignState.videos?.length || 0) > 0 ? "✓ Uploaded" : "Missing"}
+                            </span>
+                          </div>
+                        </>
                       )}
                       {(campaignState.adFormat || "SINGLE_IMAGE") === "CAROUSEL" && (
                         <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">

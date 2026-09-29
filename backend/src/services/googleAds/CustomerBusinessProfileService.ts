@@ -503,6 +503,42 @@ export interface BusinessProfilePayload {
   metadata?: Record<string, any>;
 }
 
+const PROFILE_DB_SELECT = {
+  id: true,
+  organizationId: true,
+  customerId: true,
+  businessName: true,
+  legalBusinessName: true,
+  industry: true,
+  businessCategory: true,
+  businessDescription: true,
+  targetAudience: true,
+  customerType: true,
+  businessModel: true,
+  businessEmail: true,
+  businessPhone: true,
+  whatsappNumber: true,
+  businessAddress: true,
+  serviceAreas: true,
+  languagesServed: true,
+  primaryWebsite: true,
+  additionalWebsites: true,
+  products: true,
+  services: true,
+  keyOfferings: true,
+  locations: true,
+  hasMerchantAccount: true,
+  merchantCenterId: true,
+  merchantDetails: true,
+  hasAppAccount: true,
+  appDetails: true,
+  isApproved: true,
+  approvedAt: true,
+  metadata: true,
+  createdAt: true,
+  updatedAt: true
+};
+
 export class CustomerBusinessProfileService {
   /**
    * Fetches the saved business profile for a specific organizationId and customerId.
@@ -518,7 +554,8 @@ export class CustomerBusinessProfileService {
             organizationId: orgId,
             customerId: cleanCid
           }
-        }
+        },
+        select: PROFILE_DB_SELECT
       });
       if (profile) {
         const info = profile.metadata?.businessInfo || {};
@@ -536,7 +573,8 @@ export class CustomerBusinessProfileService {
         profile.languagesServed = (profile.languagesServed && Array.isArray(profile.languagesServed) && profile.languagesServed.length > 0)
           ? profile.languagesServed
           : (info.languagesServed || []);
-
+        profile.billingStatus = profile.billingStatus || profile.metadata?.billingStatus || "ACTIVE";
+        profile.googleTagId = profile.googleTagId || profile.metadata?.googleTagId || null;
         // Normalize products if strings exist
         if (Array.isArray(profile.products)) {
           profile.products = profile.products.map((p: any, idx: number): ProductItem =>
@@ -1273,12 +1311,12 @@ export class CustomerBusinessProfileService {
       merchantDetails: data.merchantDetails || null,
       hasAppAccount: Boolean(data.hasAppAccount),
       appDetails: data.hasAppAccount ? appDetails : [],
-      billingStatus: data.billingStatus || undefined,
-      googleTagId: data.googleTagId || undefined,
       isApproved: Boolean(isApproved),
       ...(approvedAt ? { approvedAt } : {}),
       metadata: {
         ...(data.metadata || {}),
+        billingStatus: data.billingStatus || "ACTIVE",
+        googleTagId: data.googleTagId || null,
         businessInfo: businessInfoPayload,
         targetAudiences,
         customerPersonas,
@@ -1295,21 +1333,62 @@ export class CustomerBusinessProfileService {
       }
     };
 
-    const profile = await (prisma as any).googleAdsCustomerProfile.upsert({
+    const existingRecord = await (prisma as any).googleAdsCustomerProfile.findFirst({
       where: {
-        organizationId_customerId: {
-          organizationId: orgId,
-          customerId: cleanCid
-        }
-      },
-      update: upsertData,
-      create: {
         organizationId: orgId,
-        customerId: cleanCid,
-        ...upsertData
-      }
+        customerId: cleanCid
+      },
+      select: { id: true }
     });
 
+    let profile: any;
+    if (existingRecord) {
+      profile = await (prisma as any).googleAdsCustomerProfile.update({
+        where: { id: existingRecord.id },
+        data: upsertData,
+        select: PROFILE_DB_SELECT
+      });
+    } else {
+      const generatedId = (data as any).id || `prof-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO "GoogleAdsCustomerProfile" (
+          "id", "organizationId", "customerId", "businessName", "legalBusinessName",
+          "industry", "businessCategory", "businessDescription", "targetAudience",
+          "customerType", "businessModel", "businessEmail", "businessPhone",
+          "whatsappNumber", "businessAddress", "serviceAreas", "languagesServed",
+          "primaryWebsite", "additionalWebsites", "products", "services",
+          "keyOfferings", "locations", "hasMerchantAccount", "merchantCenterId",
+          "merchantDetails", "hasAppAccount", "appDetails", "isApproved",
+          "approvedAt", "metadata", "createdAt", "updatedAt"
+        ) VALUES (
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9,
+          $10, $11, $12, $13,
+          $14, $15, $16::jsonb, $17::jsonb,
+          $18, $19::jsonb, $20::jsonb, $21::jsonb,
+          $22::jsonb, $23::jsonb, $24, $25,
+          $26::jsonb, $27, $28::jsonb, $29,
+          $30, $31::jsonb, NOW(), NOW()
+        );
+      `,
+        generatedId, orgId, cleanCid, upsertData.businessName, upsertData.legalBusinessName,
+        upsertData.industry, upsertData.businessCategory, upsertData.businessDescription, upsertData.targetAudience,
+        upsertData.customerType, upsertData.businessModel, upsertData.businessEmail, upsertData.businessPhone,
+        upsertData.whatsappNumber, upsertData.businessAddress, JSON.stringify(upsertData.serviceAreas || []), JSON.stringify(upsertData.languagesServed || []),
+        upsertData.primaryWebsite, JSON.stringify(upsertData.additionalWebsites || []), JSON.stringify(upsertData.products || []), JSON.stringify(upsertData.services || []),
+        JSON.stringify(upsertData.keyOfferings || []), JSON.stringify(upsertData.locations || []), upsertData.hasMerchantAccount, upsertData.merchantCenterId,
+        upsertData.merchantDetails ? JSON.stringify(upsertData.merchantDetails) : null, upsertData.hasAppAccount, JSON.stringify(upsertData.appDetails || []), upsertData.isApproved,
+        (upsertData as any).approvedAt || null, JSON.stringify(upsertData.metadata || {})
+      );
+
+      profile = await (prisma as any).googleAdsCustomerProfile.findUnique({
+        where: { id: generatedId },
+        select: PROFILE_DB_SELECT
+      });
+    }
+
+    profile.billingStatus = (data.billingStatus || profile.metadata?.billingStatus || "ACTIVE");
+    profile.googleTagId = (data.googleTagId || profile.metadata?.googleTagId || null);
     profile.targetAudiences = targetAudiences;
     profile.customerPersonas = customerPersonas;
     profile.locationRecords = locationRecords;
