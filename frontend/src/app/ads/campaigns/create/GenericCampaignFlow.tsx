@@ -68,9 +68,16 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
             <X className="h-4 w-4" />
           </button>
           <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-bold">
+            <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 shadow-xs flex items-center justify-center p-0.5 shrink-0">
+              <img src="/jdsai.png" alt="JDS AI" className="w-full h-full object-contain rounded-md" />
+            </div>
             <span className="text-slate-500">{formattedObjective}</span>
             <span className="text-slate-700">/</span>
             <span className="text-blue-700">{formattedType} Setup</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 hidden sm:inline-flex items-center gap-1">
+              <Sparkles className="h-3 w-3 text-blue-600" />
+              <span>JDS AI Powered</span>
+            </span>
           </div>
         </div>
 

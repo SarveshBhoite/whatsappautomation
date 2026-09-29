@@ -275,9 +275,6 @@ export function GoogleAdsDemographicsSection({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-slate-900">Demographic Targeting</h2>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono">
-                Google Ads v24
-              </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Target or exclude specific Age Ranges, Genders, and Household Income tiers at the campaign level.
@@ -374,7 +371,7 @@ export function GoogleAdsDemographicsSection({
               )}
               <div className="space-y-0.5">
                 <span className="font-bold">
-                  {data.isPMax ? "Performance Max Demographic Limitation" : "Google Ads API v24 Campaign Rules"}
+                  {data.isPMax ? "Performance Max Demographic Limitation" : "Google Ads Campaign Rules"}
                 </span>
                 <p className="text-[11px] leading-relaxed opacity-90">{data.supportNotes.limitationMessage}</p>
               </div>
@@ -601,7 +598,7 @@ export function GoogleAdsDemographicsSection({
               </div>
 
               <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-[11px] text-purple-900 space-y-1">
-                <span className="font-bold">Google Ads API v24 Mutation:</span>
+                <span className="font-bold">Google Ads API Mutation:</span>
                 <p className="font-mono text-[10px] text-purple-800">
                   campaignCriteria:mutate &#123; create: &#123; campaign, negative: true, {modalDimension.toLowerCase()}: &#123; type: &#34;{modalTypeValue}&#34; &#125; &#125; &#125;
                 </p>

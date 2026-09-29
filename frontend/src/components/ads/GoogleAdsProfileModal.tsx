@@ -357,6 +357,12 @@ export interface CustomerProfileData {
   primaryWebsite?: string | null;
   additionalWebsites?: WebsiteEntry[];
   youtubeLinks?: string[];
+  youtubeConnection?: {
+    isConnected: boolean;
+    channelId?: string;
+    channelTitle?: string;
+    thumbnail?: string;
+  };
   businessDescription?: string | null;
   industry?: string | null;
   products?: (ProductItem | string)[];
@@ -663,6 +669,12 @@ export function GoogleAdsProfileModal({
   const [additionalWebsites, setAdditionalWebsites] = useState<WebsiteEntry[]>([]);
   const [newWebsiteInput, setNewWebsiteInput] = useState("");
   const [youtubeLinks, setYoutubeLinks] = useState<string[]>([]);
+  const [youtubeConnection, setYoutubeConnection] = useState<{
+    isConnected: boolean;
+    channelId?: string;
+    channelTitle?: string;
+    thumbnail?: string;
+  } | null>(null);
   const [newYoutubeInput, setNewYoutubeInput] = useState("");
   const [youtubeInputError, setYoutubeInputError] = useState<string | null>(null);
   const [analyzingUrl, setAnalyzingUrl] = useState<string | null>(null);
@@ -990,6 +1002,12 @@ export function GoogleAdsProfileModal({
           setPrimaryWebsite(data.primaryWebsite || "");
           setAdditionalWebsites(Array.isArray(data.additionalWebsites) ? data.additionalWebsites : []);
           setYoutubeLinks(Array.isArray(data.youtubeLinks) ? data.youtubeLinks : []);
+          setYoutubeConnection(data.youtubeConnection ? {
+            isConnected: Boolean(data.youtubeConnection.isConnected),
+            channelId: data.youtubeConnection.channelId || undefined,
+            channelTitle: data.youtubeConnection.channelTitle || undefined,
+            thumbnail: data.youtubeConnection.thumbnail || undefined
+          } : { isConnected: false });
 
           setHasMerchantAccount(Boolean(data.hasMerchantAccount));
           setMerchantCenterId(data.merchantCenterId || "");
@@ -3704,11 +3722,15 @@ export function GoogleAdsProfileModal({
                             (Channels, Videos, or Shorts for video ads &amp; reach)
                           </span>
                         </label>
-                        {youtubeLinks.length > 0 && (
-                          <span className="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
-                            {youtubeLinks.length} {youtubeLinks.length === 1 ? "Link" : "Links"} connected
-                          </span>
-                        )}
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
+                          youtubeConnection?.isConnected
+                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                            : "text-slate-500 bg-slate-50 border-slate-200"
+                        }`}>
+                          {youtubeConnection?.isConnected
+                            ? "Connected (OAuth)"
+                            : (youtubeLinks.length > 0 ? `${youtubeLinks.length} URLs (Not Connected)` : "Not Connected")}
+                        </span>
                       </div>
 
                       {youtubeLinks.length > 0 ? (
@@ -9535,19 +9557,72 @@ export function GoogleAdsProfileModal({
                   </div>
 
                   {/* YouTube Channel & Video Links Card */}
-                  <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-4 shadow-2xs">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <Youtube className="w-4 h-4 text-red-600" />
                         <span className="text-xs font-bold text-slate-900">YouTube Channel &amp; Video Links</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
-                          {youtubeLinks.length} {youtubeLinks.length === 1 ? "Link" : "Links"}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          loading
+                            ? "bg-slate-100 text-slate-500 border-slate-200"
+                            : youtubeConnection?.isConnected
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            : "bg-slate-100 text-slate-500 border-slate-200"
+                        }`}>
+                          {loading
+                            ? "Checking..."
+                            : youtubeConnection?.isConnected
+                            ? "Connected (OAuth)"
+                            : "Not Connected"}
                         </span>
                       </div>
-                      <span className="text-[11px] text-slate-500">
-                        Essential for Google Video Campaigns &amp; Demand Gen ads
-                      </span>
+                      
+                      {/* Canonical YouTube OAuth Connect Button */}
+                      <a
+                        href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/youtube/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=youtube_channel`)}`}
+                        className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                        title="Connect YouTube account with official Google OAuth to enable Video & Demand Gen campaigns"
+                      >
+                        <Youtube className="w-3.5 h-3.5 text-red-500" />
+                        <span>
+                          {loading
+                            ? "Checking..."
+                            : youtubeConnection?.isConnected
+                            ? "Re-connect YouTube"
+                            : "Connect YouTube"}
+                        </span>
+                      </a>
                     </div>
+
+                    {/* Authenticated YouTube Channel Card */}
+                    {youtubeConnection?.isConnected && (
+                      <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {youtubeConnection.thumbnail ? (
+                            <img
+                              src={youtubeConnection.thumbnail}
+                              alt="Channel"
+                              className="w-8 h-8 rounded-lg object-cover border border-emerald-300 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center shrink-0">
+                              <Youtube className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 truncate">
+                              {youtubeConnection.channelTitle || "Authenticated Channel"}
+                            </p>
+                            <p className="text-[10px] font-mono text-slate-500 truncate">
+                              Channel ID: {youtubeConnection.channelId || "Connected"}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-semibold text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
+                          Verified for Video Ads
+                        </span>
+                      </div>
+                    )}
 
                     {youtubeLinks.length === 0 ? (
                       <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">

@@ -12,7 +12,7 @@ export class GoogleAdsBaseService {
 
   private static headersCache: Map<string, { data: any, expiresAt: number }> = new Map();
 
-  protected static async getAdsHeaders(organizationId: string, customerId?: string) {
+  public static async getAdsHeaders(organizationId: string, customerId?: string) {
     const cacheKey = `${organizationId}_${customerId || 'default'}`;
     const cached = this.headersCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {

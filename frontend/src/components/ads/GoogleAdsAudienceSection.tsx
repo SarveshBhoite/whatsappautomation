@@ -393,9 +393,6 @@ export function GoogleAdsAudienceSection({ customerId, orgId, legacyAudiences = 
                 <Users className="w-5 h-5" />
               </span>
               <h3 className="text-base font-bold text-slate-900">Google Ads Audiences &amp; Segments</h3>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
-                v24 Official
-              </span>
             </div>
             <p className="text-xs text-slate-500 mt-1 max-w-2xl">
               Manage first-party <strong>Customer Match</strong> data with automated in-memory SHA-256 hashing and create <strong>Custom Audiences</strong> using search intent and URL interest signals.
@@ -729,7 +726,7 @@ export function GoogleAdsAudienceSection({ customerId, orgId, legacyAudiences = 
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-bold text-slate-900">Create Customer Match List</h4>
-                <p className="text-xs text-slate-500 mt-0.5">Google Ads API v24 (CRM_BASED)</p>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads (CRM Based)</p>
               </div>
               <button
                 onClick={() => setIsCreateListModalOpen(false)}
@@ -922,7 +919,7 @@ export function GoogleAdsAudienceSection({ customerId, orgId, legacyAudiences = 
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
               <div>
                 <h4 className="text-sm font-bold text-slate-900">Create Custom Audience</h4>
-                <p className="text-xs text-slate-500 mt-0.5">Google Ads API v24 (custom_audience)</p>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads (Custom Audience)</p>
               </div>
               <button
                 onClick={() => setIsCreateCustomModalOpen(false)}

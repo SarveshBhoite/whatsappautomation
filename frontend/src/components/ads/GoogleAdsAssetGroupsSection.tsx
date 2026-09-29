@@ -425,11 +425,8 @@ export function GoogleAdsAssetGroupsSection({
                 <Layers className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900">
                   Performance Max Asset Groups
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                    Google Ads API v24
-                  </span>
                 </h2>
                 <p className="text-xs text-slate-500">
                   Manage creative asset groups, headlines, descriptions, images, logos, and association requirements for Performance Max campaigns.

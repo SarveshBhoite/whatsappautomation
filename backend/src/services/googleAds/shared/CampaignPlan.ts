@@ -88,7 +88,8 @@ export type KeywordIntelligenceSource =
   | "AI"
   | "KEYWORD_PLANNER"
   | "EXISTING_ACCOUNT"
-  | "SEARCH_TERM";
+  | "SEARCH_TERM"
+  | "DISPLAY_CONTEXTUAL";
 
 export interface KeywordIntelligenceItem {
   keyword: string;
@@ -246,6 +247,39 @@ export interface CampaignExtensionInsight {
   approved: boolean;
 }
 
+export interface CampaignReviewSummary {
+  customerId: string;
+  businessName: string;
+  objective: string;
+  campaignType: string;
+  campaignName: string;
+  dailyBudget: number;
+  biddingStrategy: string;
+  targetCpa?: number;
+  targetRoas?: number;
+  locations: string[];
+  languages: string[];
+  retailConfig?: CampaignPlanRetailConfig;
+  appConfig?: CampaignPlanAppConfig;
+  youtubeVideosCount?: number;
+  marketingImagesCount?: number;
+  approvedKeywordsCount: number;
+  approvedNegativeKeywordsCount: number;
+  approvedAudienceCount: number;
+  approvedRecommendationsCount: number;
+  approvedExtensionsAssetsCount: number;
+  approvedKeywords: string[];
+  approvedNegativeKeywords: string[];
+  approvedAudienceSignals: string[];
+  approvedRecommendations: Array<{ id: string; type: string; title: string; description: string }>;
+  approvedExtensionsAssets: Array<{ id: string; type: string; name: string; description: string }>;
+  performanceForecast?: PerformanceForecastSummary;
+  preflightStatus: "PASSED" | "BLOCKED";
+  warnings: string[];
+  blockingIssues: string[];
+  readyForPublish: boolean;
+}
+
 export interface CampaignPlan {
   metadata: CampaignPlanMetadata;
   businessContext: CampaignPlanBusinessContext;
@@ -261,6 +295,7 @@ export interface CampaignPlan {
   forecastSummary?: PerformanceForecastSummary;
   recommendationInsights?: RecommendationInsight[];
   extensionsAndAssets?: CampaignExtensionInsight[];
+  reviewSummary?: CampaignReviewSummary;
 }
 
 export class CampaignPlanMapper {
@@ -546,4 +581,78 @@ export class CampaignPlanMapper {
       appStore: plan.appConfig?.appStore
     };
   }
+
+  /**
+   * Produces a clean, consolidated, compact CampaignReviewSummary from a CampaignPlan and Preflight result.
+   */
+  public static buildReviewSummary(
+    plan: CampaignPlan,
+    preflight: CampaignPlanPreflightChecks
+  ): CampaignReviewSummary {
+    const criticalIssues = (preflight.issues || [])
+      .filter(i => i.severity === "CRITICAL")
+      .map(i => i.message);
+
+    const warningIssues = (preflight.issues || [])
+      .filter(i => i.severity === "WARNING")
+      .map(i => i.message);
+
+    const approvedKeywords = plan.keywordsConfig.positiveKeywords || [];
+    const approvedNegativeKeywords = plan.keywordsConfig.campaignNegativeKeywords || [];
+    const approvedAudienceSignals = plan.targeting.audienceSignalIds || [];
+
+    const approvedRecommendations = (plan.recommendationInsights || [])
+      .filter(r => r.approved === true)
+      .map(r => ({
+        id: r.id,
+        type: r.type,
+        title: r.title,
+        description: r.description
+      }));
+
+    const approvedExtensionsAssets = (plan.extensionsAndAssets || [])
+      .filter(ext => ext.approved === true)
+      .map(ext => ({
+        id: ext.id,
+        type: ext.type,
+        name: ext.name,
+        description: ext.description
+      }));
+
+    const isReady = Boolean(preflight.passed && criticalIssues.length === 0);
+
+    return {
+      customerId: plan.metadata.customerId,
+      businessName: plan.businessContext.businessName,
+      objective: plan.coreConfig.objective,
+      campaignType: plan.coreConfig.campaignType,
+      campaignName: plan.coreConfig.campaignName,
+      dailyBudget: plan.budgetConfig.effectiveDailyAmount,
+      biddingStrategy: plan.budgetConfig.biddingStrategy,
+      targetCpa: plan.budgetConfig.targetCpa,
+      targetRoas: plan.budgetConfig.targetRoas,
+      locations: plan.targeting.locations,
+      languages: plan.targeting.languages,
+      retailConfig: plan.retailConfig,
+      appConfig: plan.appConfig,
+      youtubeVideosCount: (plan.assets.youtubeVideos || []).length,
+      marketingImagesCount: (plan.assets.marketingImages || []).length,
+      approvedKeywordsCount: approvedKeywords.length,
+      approvedNegativeKeywordsCount: approvedNegativeKeywords.length,
+      approvedAudienceCount: approvedAudienceSignals.length,
+      approvedRecommendationsCount: approvedRecommendations.length,
+      approvedExtensionsAssetsCount: approvedExtensionsAssets.length,
+      approvedKeywords,
+      approvedNegativeKeywords,
+      approvedAudienceSignals,
+      approvedRecommendations,
+      approvedExtensionsAssets,
+      performanceForecast: plan.forecastSummary,
+      preflightStatus: isReady ? "PASSED" : "BLOCKED",
+      warnings: warningIssues,
+      blockingIssues: criticalIssues,
+      readyForPublish: isReady
+    };
+  }
 }
+

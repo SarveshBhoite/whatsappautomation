@@ -1,8 +1,16 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { YouTubeService } from "../../youtubeService";
 import axios from "axios";
 
 export class SalesVideoService extends GoogleAdsBaseService {
   public static async createCampaign(organizationId: string, customerId: string, payload: any) {
+    if (organizationId) {
+      const ytStatus = await YouTubeService.getOrganizationConnectionStatus(organizationId);
+      if (!ytStatus.isConnected) {
+        throw new Error("YouTube account is not authenticated for this organization. Please connect YouTube before launching a Video campaign.");
+      }
+    }
+
     const {
       campaignName = "Sales Video",
       finalUrl = "https://www.example.com",

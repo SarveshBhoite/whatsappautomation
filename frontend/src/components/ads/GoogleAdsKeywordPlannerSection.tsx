@@ -247,7 +247,7 @@ export function GoogleAdsKeywordPlannerSection({
                   Google Ads Keyword Planner
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  Generate high-intent keyword ideas, monthly search volumes, and bid ranges directly from Google Ads API v24.
+                  Generate high-intent keyword ideas, monthly search volumes, and bid ranges directly from Google Ads.
                 </p>
               </div>
             </div>

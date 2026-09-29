@@ -23,25 +23,31 @@ export class GoogleAdsAudienceIntelligenceService {
     audienceType: string,
     businessContext: {
       businessName?: string;
+      customerType?: string;
+      businessModel?: string;
       products?: string[];
+      services?: string[];
       personas?: string[];
       targetAudiences?: string[];
+      locations?: string[];
+      languages?: string[];
     }
   ): { relevanceReason: string; recommended: boolean } {
     const lowerName = (audienceName || "").toLowerCase();
     const allContextTerms = [
       ...(businessContext.products || []),
+      ...(businessContext.services || []),
       ...(businessContext.personas || []),
       ...(businessContext.targetAudiences || [])
     ]
       .map(t => (typeof t === "string" ? t.toLowerCase().trim() : ""))
       .filter(t => t.length > 2);
 
-    // 1. Direct persona / keyword match
+    // 1. Direct persona / keyword / product match
     for (const term of allContextTerms) {
       if (lowerName.includes(term) || term.includes(lowerName)) {
         return {
-          relevanceReason: `Matches the "${term}" audience defined in your business profile.`,
+          relevanceReason: `Matches the "${term}" profile context defined in your business profile.`,
           recommended: true
         };
       }
@@ -49,8 +55,9 @@ export class GoogleAdsAudienceIntelligenceService {
 
     // 2. Customer match conversion intent
     if (audienceType === "CRM_BASED" || lowerName.includes("purchas") || lowerName.includes("customer") || lowerName.includes("client") || lowerName.includes("buyer")) {
+      const typeDesc = businessContext.customerType ? ` (${businessContext.customerType})` : "";
       return {
-        relevanceReason: "Useful for reaching existing customers with relevant offers and cross-sell signals.",
+        relevanceReason: `High-value CRM audience signal to reach verified customers${typeDesc} and improve conversion rates.`,
         recommended: true
       };
     }
@@ -65,8 +72,9 @@ export class GoogleAdsAudienceIntelligenceService {
 
     // 4. Custom Audience keyword/interest signal
     if (audienceType === "SEARCH" || audienceType === "INTEREST" || audienceType === "AUTO") {
+      const modelDesc = businessContext.businessModel ? ` aligned with your ${businessContext.businessModel} model` : "";
       return {
-        relevanceReason: "Targets users showing active search interest related to your industry.",
+        relevanceReason: `Targets users showing active search interest${modelDesc}.`,
         recommended: false
       };
     }
@@ -117,36 +125,74 @@ export class GoogleAdsAudienceIntelligenceService {
       };
     }
 
-    // 3. Read Business Profile for personas and target context
+    // 3. Read Business Profile for personas, audiences, products, services, locations, languages (Zero raw PII)
     let profileBusinessName = "";
+    let customerType = "";
+    let businessModel = "";
     const profileProducts: string[] = [];
+    const profileServices: string[] = [];
     const profilePersonas: string[] = [];
     const profileTargetAudiences: string[] = [];
+    const profileLocations: string[] = [];
+    const profileLanguages: string[] = [];
 
     try {
       const profile = await CustomerBusinessProfileService.getProfile(organizationId, cleanCid);
       if (profile) {
         profileBusinessName = profile.businessName || "";
+        customerType = profile.customerType || "";
+        businessModel = profile.businessModel || "";
+
         if (Array.isArray(profile.products)) {
           for (const p of profile.products) {
-            if (p?.name && typeof p.name === "string") profileProducts.push(p.name);
+            if (p?.name && typeof p.name === "string" && p?.isActive !== false) {
+              profileProducts.push(p.name);
+            }
           }
         }
         if (Array.isArray(profile.services)) {
           for (const s of profile.services) {
-            if (s?.name && typeof s.name === "string") profileProducts.push(s.name);
+            if (s?.name && typeof s.name === "string" && s?.isActive !== false) {
+              profileServices.push(s.name);
+            }
           }
         }
         if (Array.isArray(profile.customerPersonas)) {
           for (const cp of profile.customerPersonas) {
-            if (cp?.name && typeof cp.name === "string") profilePersonas.push(cp.name);
-            if (Array.isArray(cp?.interests)) profilePersonas.push(...cp.interests);
+            if (cp?.name && typeof cp.name === "string" && cp?.isActive !== false) {
+              profilePersonas.push(cp.name);
+            }
+            if (Array.isArray(cp?.interests)) {
+              for (const interest of cp.interests) {
+                if (typeof interest === "string" && interest.trim().length > 1) {
+                  profilePersonas.push(interest.trim());
+                }
+              }
+            }
           }
         }
         if (Array.isArray(profile.targetAudiences)) {
           for (const ta of profile.targetAudiences) {
-            if (ta?.name && typeof ta.name === "string") profileTargetAudiences.push(ta.name);
-            if (Array.isArray(ta?.interests)) profileTargetAudiences.push(...ta.interests);
+            if (ta?.name && typeof ta.name === "string" && ta?.isActive !== false) {
+              profileTargetAudiences.push(ta.name);
+            }
+            if (Array.isArray(ta?.interests)) {
+              for (const interest of ta.interests) {
+                if (typeof interest === "string" && interest.trim().length > 1) {
+                  profileTargetAudiences.push(interest.trim());
+                }
+              }
+            }
+          }
+        }
+        if (Array.isArray(profile.locations)) {
+          for (const loc of profile.locations) {
+            if (typeof loc === "string" && loc.trim()) profileLocations.push(loc.trim());
+          }
+        }
+        if (Array.isArray(profile.languagesServed)) {
+          for (const lang of profile.languagesServed) {
+            if (typeof lang === "string" && lang.trim()) profileLanguages.push(lang.trim());
           }
         }
       }
@@ -156,9 +202,14 @@ export class GoogleAdsAudienceIntelligenceService {
 
     const businessContext = {
       businessName: profileBusinessName,
+      customerType,
+      businessModel,
       products: profileProducts,
+      services: profileServices,
       personas: profilePersonas,
-      targetAudiences: profileTargetAudiences
+      targetAudiences: profileTargetAudiences,
+      locations: profileLocations,
+      languages: profileLanguages
     };
 
     const items: AudienceIntelligenceItem[] = [];

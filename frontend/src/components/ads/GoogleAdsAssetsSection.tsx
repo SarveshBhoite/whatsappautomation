@@ -534,9 +534,6 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
                 <Layers className="w-5 h-5" />
               </span>
               <h3 className="text-base font-bold text-slate-900">Google Ads Extension Assets</h3>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
-                v24 Official
-              </span>
             </div>
             <p className="text-xs text-slate-500 mt-1 max-w-2xl">
               Create, edit, associate, and manage customer-level Structured Snippets, Promotions, and Lead Form assets connected directly to Google Ads.
@@ -967,7 +964,7 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
                 <h4 className="text-sm font-bold text-slate-900">
                   {editingItem ? "Edit Structured Snippet" : "Create Structured Snippet"}
                 </h4>
-                <p className="text-xs text-slate-500 mt-0.5">Google Ads v24 Asset</p>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads Asset</p>
               </div>
               <button
                 onClick={() => setIsSnippetModalOpen(false)}
@@ -1082,7 +1079,7 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
                 <h4 className="text-sm font-bold text-slate-900">
                   {editingItem ? "Edit Promotion" : "Create Promotion"}
                 </h4>
-                <p className="text-xs text-slate-500 mt-0.5">Google Ads v24 Asset</p>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads Asset</p>
               </div>
               <button
                 onClick={() => setIsPromoModalOpen(false)}
@@ -1282,7 +1279,7 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
               <div>
                 <h4 className="text-sm font-bold text-slate-900">Create Lead Form Asset</h4>
-                <p className="text-xs text-slate-500 mt-0.5">Google Ads API v24 (Native)</p>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads (Native)</p>
               </div>
               <button
                 onClick={() => setIsLeadFormModalOpen(false)}

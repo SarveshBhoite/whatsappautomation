@@ -29,6 +29,7 @@ import { GoogleAdsPerformancePlannerService } from "../services/googleAds/Google
 import { GoogleAdsEnhancedConversionsService } from "../services/googleAds/GoogleAdsEnhancedConversionsService";
 import { GoogleAdsAttributionService } from "../services/googleAds/GoogleAdsAttributionService";
 import { GoogleAdsSharedSetService, KeywordMatchType } from "../services/googleAds/GoogleAdsSharedSetService";
+import { YouTubeService } from "../services/youtubeService";
 
 const router = Router();
 const DEFAULT_ORG_ID = "";
@@ -374,8 +375,18 @@ router.get("/customer-profile", async (req, res) => {
     const currencyCode = liveInfo?.currencyCode || currentAccount?.currencyCode || "INR";
     const timeZone = liveInfo?.timeZone || currentAccount?.timeZone || "Asia/Kolkata";
     const status = liveInfo?.status || (currentAccount?.isActive ? "ENABLED" : "PAUSED");
-    const isManager = liveInfo?.manager !== undefined ? Boolean(liveInfo.manager) : Boolean(currentAccount?.isManager);
-    const optimizationScore = liveInfo?.optimizationScore ? Number(liveInfo.optimizationScore) : null;
+    // 6. Query authenticated YouTube module connection status (Scoped strictly to authenticated orgId)
+    let youtubeConnection = { isConnected: false } as {
+      isConnected: boolean;
+      channelId?: string;
+      channelTitle?: string;
+      thumbnail?: string;
+    };
+    try {
+      youtubeConnection = await YouTubeService.getOrganizationConnectionStatus(orgId);
+    } catch (ytStatusErr: any) {
+      console.warn("[customer-profile] YouTube connection status check warning:", ytStatusErr?.message || ytStatusErr);
+    }
 
     res.status(200).json({
       success: true,
@@ -415,6 +426,7 @@ router.get("/customer-profile", async (req, res) => {
       additionalWebsites: savedProfile?.additionalWebsites || [],
       youtubeLinks: savedProfile?.youtubeLinks || savedProfile?.metadata?.youtubeLinks || [],
       youtubeChannels: savedProfile?.metadata?.youtubeChannels || [],
+      youtubeConnection,
       businessDescription: savedProfile?.businessDescription || null,
       industry: savedProfile?.industry || null,
       products: savedProfile?.products || [],
@@ -438,9 +450,9 @@ router.get("/customer-profile", async (req, res) => {
         : (gmbLocation ? [gmbLocation] : ["India"]),
       isApproved: Boolean(savedProfile?.isApproved),
       approvedAt: savedProfile?.approvedAt || null,
-      billingStatus: savedProfile?.billingStatus || currentAccount?.billingStatus || "ACTIVE",
-      googleTagId: savedProfile?.googleTagId || currentAccount?.googleTagId || null,
-      lastHealthCheck: currentAccount?.lastHealthCheck || null
+      billingStatus: savedProfile?.billingStatus || (currentAccount as any)?.billingStatus || "ACTIVE",
+      googleTagId: savedProfile?.googleTagId || (currentAccount as any)?.googleTagId || null,
+      lastHealthCheck: (currentAccount as any)?.lastHealthCheck || null
     });
   } catch (error: any) {
     console.error("[customer-profile] error:", error);
@@ -2420,7 +2432,7 @@ router.post("/search-terms/add-keyword", async (req, res) => {
       cpcBid: cpcBid ? Number(cpcBid) : undefined
     });
 
-    res.status(200).json({ success: true, ...result });
+    res.status(200).json({ ...result });
   } catch (error: any) {
     console.error("[POST /search-terms/add-keyword] error:", error.response?.data || error.message);
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
@@ -3596,7 +3608,7 @@ router.post("/verify-website-tag", async (req, res) => {
       const acc = await prisma.googleAdAccount.findFirst({
         where: { organizationId: orgId, customerId }
       });
-      googleTagId = acc?.googleTagId || null;
+      googleTagId = (acc as any)?.googleTagId || null;
       accountTagConfigured = !!googleTagId;
     }
 

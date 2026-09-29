@@ -327,9 +327,6 @@ export function GoogleAdsCustomReportsSection({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-slate-900">Custom Report Editor</h2>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  Google Ads API v24
-                </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 Build bespoke reports across campaigns, ad groups, keywords, search terms, and landing pages with custom metrics.

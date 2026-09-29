@@ -748,7 +748,7 @@ export function GoogleAdsKeywordTargetingSection({
 
               {/* API Preview */}
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 space-y-1">
-                <span className="font-bold">Google Ads API v24 Mutation:</span>
+                <span className="font-bold">Google Ads API Mutation:</span>
                 <p className="font-mono text-[10px] text-blue-800 break-all">
                   {modalScope === "CAMPAIGN"
                     ? `campaignCriteria:mutate { create: { negative: true, keyword: { text: "${modalKeywordText || "keyword"}", matchType: "${modalMatchType}" } } }`

@@ -724,7 +724,7 @@ export function GoogleAdsBiddingSection({ customerId, orgId, campaigns = [] }: G
                 <h4 className="text-sm font-bold text-slate-900">
                   {editingStrategy ? "Edit Portfolio Strategy" : "Create Portfolio Strategy"}
                 </h4>
-                <p className="text-xs text-slate-500 mt-0.5">Google Ads API v24 (bidding_strategy)</p>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads Portfolio Strategy</p>
               </div>
               <button
                 onClick={() => setIsStrategyModalOpen(false)}

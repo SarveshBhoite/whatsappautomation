@@ -384,9 +384,6 @@ export function GoogleAdsShoppingSection({ customerId, orgId }: GoogleAdsShoppin
           <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
             Account: {customerId || "None"}
           </span>
-          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-            Google Ads API v24 + MC Content API
-          </span>
         </div>
       </div>
 

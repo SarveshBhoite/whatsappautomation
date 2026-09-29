@@ -682,11 +682,12 @@ export class GoogleAdsBiddingService extends GoogleAdsBaseService {
           audienceSupported: false,
           limitationMessage: "Campaign is not yet synced to Google Ads or invalid campaign ID."
         },
-        devices: [],
-        locations: [],
-        schedules: [],
-        audiences: [],
-        total: 0
+        adjustments: {
+          devices: [],
+          locations: [],
+          schedules: [],
+          audiences: []
+        }
       };
     }
 
@@ -729,11 +730,12 @@ export class GoogleAdsBiddingService extends GoogleAdsBaseService {
           audienceSupported: false,
           limitationMessage: "Unable to retrieve campaign metadata from Google Ads."
         },
-        devices: [],
-        locations: [],
-        schedules: [],
-        audiences: [],
-        total: 0
+        adjustments: {
+          devices: [],
+          locations: [],
+          schedules: [],
+          audiences: []
+        }
       };
     }
 
@@ -752,11 +754,12 @@ export class GoogleAdsBiddingService extends GoogleAdsBaseService {
           audienceSupported: false,
           limitationMessage: `Campaign with ID ${cleanCampId} not found in Google Ads account ${cid}.`
         },
-        devices: [],
-        locations: [],
-        schedules: [],
-        audiences: [],
-        total: 0
+        adjustments: {
+          devices: [],
+          locations: [],
+          schedules: [],
+          audiences: []
+        }
       };
     }
 

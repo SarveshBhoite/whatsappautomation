@@ -74,7 +74,7 @@ export function GoogleAdsEnhancedConversionsSection({
       <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-xs flex flex-col items-center justify-center min-h-[300px]">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-3" />
         <p className="text-slate-700 font-bold text-sm">Loading Measurement &amp; Google Tag Settings...</p>
-        <p className="text-slate-400 text-xs mt-1">Retrieving official configuration from Google Ads API v24</p>
+        <p className="text-slate-400 text-xs mt-1">Retrieving official configuration from Google Ads</p>
       </div>
     );
   }
@@ -114,11 +114,8 @@ export function GoogleAdsEnhancedConversionsSection({
               <Tag className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-900">
                 Measurement &amp; Tag Integration
-                <span className="text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  Google Ads API v24
-                </span>
               </h2>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 Google Tag (gtag.js), Enhanced Conversions first-party data framework, and GTM container integration
@@ -365,7 +362,7 @@ export function GoogleAdsEnhancedConversionsSection({
             <div className="flex items-start gap-2.5">
               <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <div className="text-xs text-amber-900 space-y-1">
-                <p className="font-bold">Google Ads API v24 Configuration Notice</p>
+                <p className="font-bold">Google Ads Configuration Notice</p>
                 <p className="text-amber-800 leading-relaxed">
                   Enabling Enhanced Conversions at the account level requires accepting Google&apos;s Customer Data Terms
                   in Google Ads under <em>Tools &amp; Settings &gt; Measurement &gt; Conversions &gt; Settings</em>.
@@ -389,7 +386,7 @@ export function GoogleAdsEnhancedConversionsSection({
                 </h3>
                 <p className="text-xs text-purple-800 mt-1 leading-relaxed">
                   {gtm.gtmContainerIntegration?.explanation ||
-                    "Google Ads API v24 provides conversion tracking configurations, while GTM container triggers, tags, and variables are managed directly in Google Tag Manager Console."}
+                    "Google Ads API provides conversion tracking configurations, while GTM container triggers, tags, and variables are managed directly in Google Tag Manager Console."}
                 </p>
               </div>
             </div>

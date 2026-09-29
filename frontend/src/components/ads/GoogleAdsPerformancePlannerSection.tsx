@@ -210,7 +210,7 @@ export function GoogleAdsPerformancePlannerSection({
                 Google Ads Performance Planner
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                Forecast upcoming campaign clicks, spend, and average CPC based on Google Ads API v24 bidding models.
+                Forecast upcoming campaign clicks, spend, and average CPC based on Google Ads bidding models.
               </p>
             </div>
           </div>
@@ -218,9 +218,6 @@ export function GoogleAdsPerformancePlannerSection({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
               Account: {customerId || "None"}
-            </span>
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-              Official v24 Forecast Engine
             </span>
           </div>
         </div>
@@ -444,7 +441,7 @@ export function GoogleAdsPerformancePlannerSection({
                 </h3>
               </div>
               <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
-                Google Ads API v24 Model
+                Google Ads Forecast Model
               </span>
             </div>
 
@@ -513,7 +510,7 @@ export function GoogleAdsPerformancePlannerSection({
                     <td className="p-3.5 text-slate-600">
                       {forecastData.targetingUsed.languages.join(", ")}
                     </td>
-                    <td className="p-3.5 text-slate-500">Direct v24 Parameter</td>
+                    <td className="p-3.5 text-slate-500">Live Parameter</td>
                   </tr>
                 </tbody>
               </table>
@@ -530,7 +527,7 @@ export function GoogleAdsPerformancePlannerSection({
           </div>
           <h3 className="text-sm font-bold text-slate-900">Plan and Forecast Campaign Performance</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Select a campaign and a future date range above, then click <strong>&quot;Generate Forecast&quot;</strong> to model projected clicks, total spend, and average CPC directly using Google Ads API v24.
+            Select a campaign and a future date range above, then click <strong>&quot;Generate Forecast&quot;</strong> to model projected clicks, total spend, and average CPC directly using Google Ads.
           </p>
         </div>
       )}

@@ -7,6 +7,13 @@ import { KeywordIntelligenceItem, SharedNegativeSetSummary } from "../shared/Cam
 import axios from "axios";
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
 
+export interface ProfileNegativeKeywordItem {
+  id: string;
+  keyword: string;
+  matchType: string;
+  reason?: string;
+}
+
 export interface KeywordIntelligenceResult {
   campaignType: string;
   supportsKeywords: boolean;
@@ -14,6 +21,7 @@ export interface KeywordIntelligenceResult {
   currencyCode: string;
   keywordIntelligence: KeywordIntelligenceItem[];
   availableSharedNegativeLists: SharedNegativeSetSummary[];
+  profileNegativeKeywords?: ProfileNegativeKeywordItem[];
   existingAccountKeywordsSummary: {
     totalActiveKeywords: number;
     duplicateKeywordsFound: number;
@@ -115,16 +123,16 @@ export class GoogleAdsKeywordIntelligenceService {
       });
 
       const items: KeywordIntelligenceItem[] = [];
-      const rows = searchTermsResult.searchTerms || [];
+      const rows = (searchTermsResult as any).items || (searchTermsResult as any).searchTerms || [];
 
       for (const row of rows) {
         if (!row.searchTerm || row.searchTerm.length < 2) continue;
         items.push({
           keyword: row.searchTerm,
-          matchType: (row.matchType as any) || "BROAD",
+          matchType: (row.searchTermMatchType as any) || (row.matchType as any) || "BROAD",
           source: "SEARCH_TERM",
-          searchVolume: row.metrics?.impressions ? Number(row.metrics.impressions) : undefined,
-          lowTopOfPageBid: row.metrics?.avgCpc ? Number(row.metrics.avgCpc) : undefined,
+          searchVolume: row.impressions ? Number(row.impressions) : undefined,
+          lowTopOfPageBid: row.avgCpc ? Number(row.avgCpc) : undefined,
           existingCampaignName: row.campaignName || undefined,
           isNegative: row.status === "EXCLUDED",
           approved: false
@@ -188,8 +196,127 @@ export class GoogleAdsKeywordIntelligenceService {
       }
     }
 
+    // ── Fetch Profile Keywords & Negatives from CustomerBusinessProfile ──────
+    let profileKeywords: string[] = [];
+    let profileNegativeKeywords: ProfileNegativeKeywordItem[] = [];
+    try {
+      const { CustomerBusinessProfileService } = await import("../CustomerBusinessProfileService");
+      const profile = await CustomerBusinessProfileService.getProfile(organizationId, cleanCid);
+      if (profile) {
+        if (Array.isArray(profile.seoKeywords)) {
+          for (const k of profile.seoKeywords) {
+            const text = typeof k === "string" ? k : (k?.isActive !== false ? k?.keyword : null);
+            if (typeof text === "string" && text.trim().length > 1) {
+              profileKeywords.push(text.trim());
+            }
+          }
+        }
+        if (Array.isArray(profile.products)) {
+          for (const p of profile.products) {
+            const text = typeof p === "string" ? p : (p?.isActive !== false ? p?.name : null);
+            if (typeof text === "string" && text.trim().length > 1) {
+              profileKeywords.push(text.trim());
+            }
+          }
+        }
+        if (Array.isArray(profile.services)) {
+          for (const s of profile.services) {
+            const text = typeof s === "string" ? s : (s?.isActive !== false ? s?.name : null);
+            if (typeof text === "string" && text.trim().length > 1) {
+              profileKeywords.push(text.trim());
+            }
+          }
+        }
+        if (Array.isArray(profile.negativeKeywords)) {
+          for (const nk of profile.negativeKeywords) {
+            if (nk && nk.isActive !== false && nk.keyword) {
+              profileNegativeKeywords.push({
+                id: nk.id || `profile-neg-${profileNegativeKeywords.length + 1}`,
+                keyword: nk.keyword.trim(),
+                matchType: (nk.matchType || "Broad").toUpperCase(),
+                reason: nk.reason || "Defined in business profile negative keyword list"
+              });
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn("[GoogleAdsKeywordIntelligenceService] Warning loading profile context:", err.message);
+    }
+
+    // ── DISPLAY Contextual Keyword Intelligence ────────────────────────────
+    if (cleanType === "DISPLAY") {
+      let sharedLists: SharedNegativeSetSummary[] = [];
+      if (organizationId && cleanCid) {
+        sharedLists = await this.getSharedNegativeLists(organizationId, cleanCid);
+      }
+
+      // Gather existing account contextual keywords (if present)
+      let existingAccountKeywords: KeywordIntelligenceItem[] = [];
+      if (organizationId && cleanCid) {
+        existingAccountKeywords = await this.getCustomerAccountKeywords(organizationId, cleanCid);
+      }
+
+      // Pool contextual candidates without Search auction metrics
+      const displayItems: KeywordIntelligenceItem[] = [];
+      const seenDisplayTexts = new Set<string>();
+
+      // A. Profile and seed suggestions
+      const rawCandidates = [
+        ...(options.queryKeywords || []),
+        ...(options.productsServices || []),
+        ...profileKeywords
+      ];
+
+      for (const raw of rawCandidates) {
+        const trimmed = (raw || "").trim();
+        const lower = trimmed.toLowerCase();
+        if (trimmed.length > 1 && !seenDisplayTexts.has(lower)) {
+          seenDisplayTexts.add(lower);
+          displayItems.push({
+            keyword: trimmed,
+            matchType: "BROAD",
+            source: "DISPLAY_CONTEXTUAL",
+            approved: false
+          });
+        }
+      }
+
+      // B. Existing account keywords as contextual options
+      for (const ek of existingAccountKeywords) {
+        const lower = ek.keyword.toLowerCase().trim();
+        if (!seenDisplayTexts.has(lower)) {
+          seenDisplayTexts.add(lower);
+          displayItems.push({
+            keyword: ek.keyword,
+            matchType: "BROAD",
+            source: "EXISTING_ACCOUNT",
+            existingCampaignName: ek.existingCampaignName,
+            existingStatus: ek.existingStatus,
+            approved: false
+          });
+        }
+      }
+
+      return {
+        campaignType: "DISPLAY",
+        supportsKeywords: true,
+        message: "Contextual keywords match your Display ads to relevant websites and content across the Google Display Network.",
+        currencyCode: "INR",
+        keywordIntelligence: displayItems.slice(0, 30),
+        availableSharedNegativeLists: sharedLists,
+        profileNegativeKeywords,
+        existingAccountKeywordsSummary: {
+          totalActiveKeywords: existingAccountKeywords.length,
+          duplicateKeywordsFound: 0
+        },
+        searchTermsAnalyzed: 0,
+        plannerStatus: "SKIPPED"
+      };
+    }
+
     // Guardrail: Non-search campaign types do NOT use traditional search keyword targeting
-    const nonSearchTypes = ["PERFORMANCE_MAX", "VIDEO", "DISPLAY", "DEMAND_GEN", "APP", "SHOPPING"];
+    const nonSearchTypes = ["PERFORMANCE_MAX", "VIDEO", "DEMAND_GEN", "APP", "SHOPPING"];
     if (nonSearchTypes.includes(cleanType)) {
       // Shared negative lists may still be inspected
       let sharedLists: SharedNegativeSetSummary[] = [];
@@ -204,6 +331,7 @@ export class GoogleAdsKeywordIntelligenceService {
         currencyCode: "INR",
         keywordIntelligence: [],
         availableSharedNegativeLists: sharedLists,
+        profileNegativeKeywords,
         existingAccountKeywordsSummary: {
           totalActiveKeywords: 0,
           duplicateKeywordsFound: 0
@@ -243,17 +371,18 @@ export class GoogleAdsKeywordIntelligenceService {
     const keywordItems: KeywordIntelligenceItem[] = [];
     let plannerStatus: "SUCCESS" | "UNAVAILABLE" | "SKIPPED" = "SKIPPED";
 
-    // Extract seed keywords from query keywords or products/services
+    // Extract seed keywords: combine query keywords, products/services, and profile SEO keywords / offerings
     const seedKeywords = Array.from(
       new Set(
         [
           ...(options.queryKeywords || []),
-          ...(options.productsServices || [])
+          ...(options.productsServices || []),
+          ...profileKeywords
         ]
           .map(k => (typeof k === "string" ? k.trim() : ""))
           .filter(k => k.length > 1)
       )
-    ).slice(0, 10);
+    ).slice(0, 15);
 
     const targetUrl = options.url && options.url.startsWith("http") ? options.url : undefined;
 
@@ -301,14 +430,30 @@ export class GoogleAdsKeywordIntelligenceService {
       }
     }
 
-    // Merge Existing Keywords into intelligence if not already represented
+    // 5. Surface Profile SEO Keywords directly if not already returned by Planner
+    for (const pk of profileKeywords.slice(0, 10)) {
+      const cleanPk = pk.trim();
+      const lowerPk = cleanPk.toLowerCase();
+      if (!keywordItems.some(ki => ki.keyword.toLowerCase() === lowerPk)) {
+        const isDuplicate = existingTexts.has(lowerPk);
+        keywordItems.push({
+          keyword: cleanPk,
+          matchType: "BROAD",
+          source: "USER", // Customer-provided profile context
+          existingStatus: isDuplicate ? "ALREADY_IN_ACCOUNT" : undefined,
+          approved: false
+        });
+      }
+    }
+
+    // 6. Merge Existing Keywords into intelligence if not already represented
     for (const ek of existingAccountKeywords.slice(0, 10)) {
       if (!keywordItems.some(ki => ki.keyword.toLowerCase() === ek.keyword.toLowerCase())) {
         keywordItems.push(ek);
       }
     }
 
-    // Merge top Search Terms into intelligence
+    // 7. Merge top Search Terms into intelligence
     for (const st of searchTermCandidates.slice(0, 5)) {
       if (!keywordItems.some(ki => ki.keyword.toLowerCase() === st.keyword.toLowerCase())) {
         keywordItems.push(st);
@@ -323,6 +468,7 @@ export class GoogleAdsKeywordIntelligenceService {
       currencyCode,
       keywordIntelligence: keywordItems,
       availableSharedNegativeLists: sharedNegativeLists,
+      profileNegativeKeywords,
       existingAccountKeywordsSummary: {
         totalActiveKeywords: existingAccountKeywords.length,
         duplicateKeywordsFound: duplicatesFound

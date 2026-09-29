@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "./GoogleAdsBaseService";
+import { YouTubeService } from "../../youtubeService";
 
 export interface ValidationError {
   field: string;
@@ -447,6 +448,9 @@ export class GoogleAdsCampaignValidator {
             addError("images", "At least 1 marketing image is required for Single Image Demand Gen ads.", "ASSET");
           }
         } else if (format === "VIDEO") {
+          if (state.isYouTubeConnected === false) {
+            addError("videos", "YouTube account is not authenticated for this organization. Video Demand Gen ads require an authenticated YouTube channel.", "ASSET");
+          }
           const allVideos = [
             ...(Array.isArray(state.videos) ? state.videos : []),
             ...(Array.isArray(state.youtubeVideos) ? state.youtubeVideos : [])
@@ -481,6 +485,10 @@ export class GoogleAdsCampaignValidator {
       }
 
       case "VIDEO": {
+        if (state.isYouTubeConnected === false) {
+          addError("campaignType", "YouTube account is not authenticated for this organization. Please connect YouTube before launching a Video campaign.", "FIELD");
+        }
+
         if (!state.businessName?.trim()) {
           addError("businessName", "Business name is required for Video campaigns.", "FIELD");
         } else if (state.businessName.trim().length > 25) {
@@ -703,5 +711,23 @@ export class GoogleAdsCampaignValidator {
       errors,
       missingSummary
     };
+  }
+
+  /**
+   * Deterministically validates campaign state asynchronously, querying live YouTube authentication
+   * status via YouTubeService.getOrganizationConnectionStatus(organizationId) when organizationId is provided.
+   */
+  public static async validateAsync(state: any, organizationId?: string): Promise<ValidationResult> {
+    const clone = { ...state };
+    if (organizationId && (clone.isYouTubeConnected === undefined || clone.isYouTubeConnected === null)) {
+      try {
+        const ytStatus = await YouTubeService.getOrganizationConnectionStatus(organizationId);
+        clone.isYouTubeConnected = Boolean(ytStatus.isConnected);
+      } catch (err: any) {
+        console.warn("[GoogleAdsCampaignValidator] Could not check YouTube connection status:", err?.message);
+        clone.isYouTubeConnected = false;
+      }
+    }
+    return this.validate(clone);
   }
 }

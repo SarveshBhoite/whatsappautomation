@@ -286,7 +286,7 @@ export function GoogleAdsDataManagerSection({ customerId, orgId }: GoogleAdsData
               <span className="text-slate-500 font-normal">First-Party & Offline Integrations</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Connect first-party customer touchpoints, sync CRM events, and import offline conversions into Google Ads API v24.
+              Connect first-party customer touchpoints, sync CRM events, and import offline conversions into Google Ads.
             </p>
           </div>
         </div>
@@ -294,9 +294,6 @@ export function GoogleAdsDataManagerSection({ customerId, orgId }: GoogleAdsData
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
             Customer: {customerId || "None"}
-          </span>
-          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-            Google Ads API v24 Verified
           </span>
         </div>
       </div>

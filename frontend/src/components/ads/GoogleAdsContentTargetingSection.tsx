@@ -397,7 +397,7 @@ export function GoogleAdsContentTargetingSection({
               )}
               <div className="space-y-0.5">
                 <span className="font-bold">
-                  {data.isPMax ? "Performance Max Placement Policy" : "Google Ads API v24 Campaign Rules"}
+                  {data.isPMax ? "Performance Max Placement Policy" : "Google Ads Campaign Rules"}
                 </span>
                 <p className="text-[11px] leading-relaxed opacity-90">{data.supportNotes.limitationMessage}</p>
               </div>
@@ -720,7 +720,7 @@ export function GoogleAdsContentTargetingSection({
               </div>
 
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 space-y-1">
-                <span className="font-bold">Google Ads API v24 Mutation:</span>
+                <span className="font-bold">Google Ads API Mutation:</span>
                 <p className="font-mono text-[10px] text-blue-800 break-all">
                   campaignCriteria:mutate &#123; create: &#123; campaign, negative: true, placement: &#123; url: &#34;{placementUrlInput || "domain.com"}&#34; &#125; &#125; &#125;
                 </p>
@@ -791,7 +791,7 @@ export function GoogleAdsContentTargetingSection({
               </div>
 
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 space-y-1">
-                <span className="font-bold">Google Ads API v24 Mutation:</span>
+                <span className="font-bold">Google Ads API Mutation:</span>
                 <p className="font-mono text-[10px] text-blue-800 break-all">
                   campaignCriteria:mutate &#123; create: &#123; campaign, negative: true, topic: &#123; topicConstant: &#34;{selectedTopicConstant}&#34; &#125; &#125; &#125;
                 </p>

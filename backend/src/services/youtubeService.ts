@@ -269,4 +269,84 @@ export class YouTubeService {
       console.error(`Error in YouTube sync Comments for org ${organizationId}:`, err.message);
     }
   }
+
+  /**
+   * Helper to evaluate whether a YouTubeConfig record meets valid authentication criteria.
+   * Defined centrally to ensure authentication conditions are never duplicated inconsistently.
+   *
+   * Criteria:
+   * 1. Config exists and isActive === true
+   * 2. channelId is non-empty
+   * 3. An active token exists (either refreshToken or accessToken is present)
+   */
+  public static isConfigConnected(config: any): boolean {
+    if (!config || !config.isActive) return false;
+    const hasChannel = typeof config.channelId === "string" && config.channelId.trim().length > 0;
+    const hasToken = Boolean(
+      (typeof config.refreshToken === "string" && config.refreshToken.trim().length > 0) ||
+      (typeof config.accessToken === "string" && config.accessToken.trim().length > 0)
+    );
+    return hasChannel && hasToken;
+  }
+
+  /**
+   * Single Source of Truth for YouTube Connection Status for an Organization.
+   *
+   * Rules:
+   * - Scoped strictly by organizationId (never unscoped).
+   * - Prefers default active config, falling back to most recently updated active config.
+   * - Strictly sanitizes output: NEVER returns accessToken or refreshToken.
+   */
+  public static async getOrganizationConnectionStatus(organizationId: string): Promise<{
+    isConnected: boolean;
+    channelId?: string;
+    channelTitle?: string;
+    thumbnail?: string;
+  }> {
+    if (!organizationId || typeof organizationId !== "string" || !organizationId.trim()) {
+      return { isConnected: false };
+    }
+
+    try {
+      // 1. First attempt to find the designated default active config for this org
+      let config = await (prisma as any).youTubeConfig.findFirst({
+        where: {
+          organizationId: organizationId.trim(),
+          isActive: true,
+          isDefault: true
+        }
+      });
+
+      // 2. Fall back to any active config for this org (ordered by most recently updated)
+      if (!config || !this.isConfigConnected(config)) {
+        const fallbackConfig = await (prisma as any).youTubeConfig.findFirst({
+          where: {
+            organizationId: organizationId.trim(),
+            isActive: true
+          },
+          orderBy: { updatedAt: "desc" }
+        });
+
+        if (this.isConfigConnected(fallbackConfig)) {
+          config = fallbackConfig;
+        }
+      }
+
+      if (!this.isConfigConnected(config)) {
+        return { isConnected: false };
+      }
+
+      // 3. Return sanitized public metadata only — strictly omitting tokens
+      return {
+        isConnected: true,
+        channelId: config.channelId,
+        channelTitle: config.channelTitle || undefined,
+        thumbnail: config.thumbnail || undefined
+      };
+    } catch (error: any) {
+      console.error(`[YouTubeService] Error checking connection status for org ${organizationId}:`, error?.message || error);
+      return { isConnected: false };
+    }
+  }
 }
+

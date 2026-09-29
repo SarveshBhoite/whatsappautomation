@@ -549,7 +549,7 @@ export function GoogleAdsReportingSection({ customerId, orgId }: GoogleAdsReport
 
               <div className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Auction Metrics (Google Ads API v24)
+                  Auction Metrics
                 </h4>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">

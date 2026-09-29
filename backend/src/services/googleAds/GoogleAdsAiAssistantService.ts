@@ -644,11 +644,12 @@ export class GoogleAdsAiAssistantService {
       const candidateModels = preferredModels || (isXaiGrok
         ? ["grok-2-latest", "grok-beta", "grok-vision-beta"]
         : [
-            "groq/compound",
-            "groq/compound-mini",
             "llama-3.3-70b-versatile",
             "openai/gpt-oss-20b",
-            "qwen/qwen3.8-27b"
+            "qwen/qwen3.8-27b",
+            "openai/gpt-oss-120b",
+            "groq/compound",
+            "groq/compound-mini"
           ]);
 
       for (const model of candidateModels) {
@@ -912,11 +913,12 @@ export class GoogleAdsAiAssistantService {
       ];
 
       const candidateModels = [
-        "groq/compound",
-        "groq/compound-mini",
+        "llama-3.3-70b-versatile",
         "openai/gpt-oss-20b",
         "qwen/qwen3.8-27b",
-        "openai/gpt-oss-120b"
+        "openai/gpt-oss-120b",
+        "groq/compound",
+        "groq/compound-mini"
       ];
 
       // Safe development-only token diagnostics

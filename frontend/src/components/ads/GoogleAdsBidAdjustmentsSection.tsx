@@ -330,11 +330,8 @@ export function GoogleAdsBidAdjustmentsSection({
                 <Sliders className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900">
                   Campaign Bid Adjustments
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Google Ads API v24
-                  </span>
                 </h2>
                 <p className="text-xs text-slate-500">
                   Control how bids scale up or down across devices, geographic locations, ad schedules, and audiences.

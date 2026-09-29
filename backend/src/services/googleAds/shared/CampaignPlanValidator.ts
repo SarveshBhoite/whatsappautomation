@@ -3,6 +3,7 @@ import { GoogleAdsCampaignValidator } from "./GoogleAdsCampaignValidator";
 import { validateCustomerOwnership } from "../../../utils/customerOwnership";
 import { GoogleAdsBillingService } from "../GoogleAdsBillingService";
 import { GoogleAdsService } from "../../googleAdsService";
+import { YouTubeService } from "../../youtubeService";
 import prisma from "../../../utils/prisma";
 
 export class CampaignPlanValidator {
@@ -300,6 +301,27 @@ export class CampaignPlanValidator {
     }
 
     if (type === "VIDEO") {
+      if (orgId) {
+        try {
+          const ytStatus = await YouTubeService.getOrganizationConnectionStatus(orgId);
+          if (!ytStatus.isConnected) {
+            issues.push({
+              severity: "CRITICAL",
+              field: "youtubeConnection",
+              code: "YOUTUBE_NOT_AUTHENTICATED",
+              message: "YouTube account is not authenticated for this organization. Please connect YouTube before launching a Video campaign."
+            });
+          }
+        } catch (ytErr: any) {
+          issues.push({
+            severity: "CRITICAL",
+            field: "youtubeConnection",
+            code: "YOUTUBE_STATUS_CHECK_FAILED",
+            message: "YouTube account is not authenticated for this organization. Please connect YouTube before launching a Video campaign."
+          });
+        }
+      }
+
       const videos = plan.assets.youtubeVideos || [];
       if (videos.length < 1) {
         issues.push({

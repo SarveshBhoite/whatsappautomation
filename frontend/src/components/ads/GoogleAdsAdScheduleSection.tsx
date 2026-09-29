@@ -419,7 +419,7 @@ export function GoogleAdsAdScheduleSection({
           <div>
             <h4 className="text-xs font-bold text-amber-900">Campaign Ad Schedule Restricted</h4>
             <p className="text-xs text-amber-700 mt-0.5">
-              {data.limitationMessage || "This campaign type does not support manual ad schedules in Google Ads API v24."}
+              {data.limitationMessage || "This campaign type does not support manual ad schedules in Google Ads."}
             </p>
           </div>
         </div>

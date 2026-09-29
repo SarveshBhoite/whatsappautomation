@@ -403,9 +403,6 @@ export function GoogleAdsSharedNegativeListsSection({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-amber-950">Shared Negative Keyword Lists</h3>
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/60 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300/40">
-                Official Google Ads v24
-              </span>
             </div>
             <p className="text-xs text-amber-800/90 mt-1 max-w-2xl leading-relaxed">
               Create reusable negative keyword libraries (<code className="font-mono font-semibold">shared_set</code>) and link them across multiple campaigns simultaneously (<code className="font-mono font-semibold">campaign_shared_set</code>). Distinct from individual campaign-level negative keywords.

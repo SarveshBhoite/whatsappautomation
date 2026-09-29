@@ -71,7 +71,7 @@ export function GoogleAdsAttributionSection({
       <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-xs flex flex-col items-center justify-center min-h-[260px]">
         <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mb-3" />
         <p className="text-slate-700 font-bold text-sm">Loading Conversion Attribution Settings &amp; Reporting...</p>
-        <p className="text-slate-400 text-xs mt-1">Inspecting Google Ads API v24 attribution models</p>
+        <p className="text-slate-400 text-xs mt-1">Inspecting Google Ads attribution models</p>
       </div>
     );
   }
@@ -125,11 +125,8 @@ export function GoogleAdsAttributionSection({
               <GitMerge className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-900">
                 Conversion Attribution Reporting
-                <span className="text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  Google Ads API v24
-                </span>
               </h2>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 Official Google Ads attribution models, lookback windows, and data-driven status
@@ -233,7 +230,7 @@ export function GoogleAdsAttributionSection({
               <p className="font-bold text-slate-900">Official Google Ads Attribution Rule</p>
               <p className="text-slate-600 leading-relaxed">
                 Rules-based attribution models (First Click, Linear, Time Decay, and Position-Based) have been retired
-                across Google Ads. Google Ads API v24 officially supports <strong>Data-Driven Attribution</strong> (recommended
+                across Google Ads. Google Ads officially supports <strong>Data-Driven Attribution</strong> (recommended
                 multi-touch credit using machine learning) and <strong>Last Click</strong>. All values shown below are
                 reported directly from Google without fabrication.
               </p>

@@ -1922,9 +1922,6 @@ export default function GoogleAdsPage() {
                       </h3>
                       <p className="text-[11px] text-slate-500">Official recommendations retrieved directly from your Google Ads account via Google Ads API</p>
                     </div>
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                      Google Ads API v24
-                    </span>
                   </div>
 
                   {recsLoading ? (
@@ -2929,7 +2926,7 @@ export default function GoogleAdsPage() {
                 {detailLoadingLive && (
                   <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 font-medium">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span>Fetching live Google Ads API v24 campaign configuration...</span>
+                    <span>Fetching live Google Ads campaign configuration...</span>
                   </div>
                 )}
 

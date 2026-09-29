@@ -155,7 +155,7 @@ export function GoogleAdsBillingSection({ customerId, orgId }: GoogleAdsBillingS
               <span className="text-slate-500 font-normal">Customer Account Health</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Verified billing setup, linked Google Payments profile, and daily spend statement ledger via Google Ads API v24.
+              Verified billing setup, linked Google Payments profile, and daily spend statement ledger via Google Ads.
             </p>
           </div>
         </div>
@@ -347,7 +347,7 @@ export function GoogleAdsBillingSection({ customerId, orgId }: GoogleAdsBillingS
           <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
               <Lock className="h-4 w-4 text-slate-500" />
-              Google Ads API v24 Billing & PCI-DSS Compliance Architecture
+              Google Ads Billing & PCI-DSS Compliance Architecture
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-600">
               <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1">

@@ -77,6 +77,7 @@ import {
   PhoneCall
 } from "lucide-react";
 import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
+import { GoogleCampaignChannelIcons } from "@/components/ads/GoogleCampaignChannelIcons";
 
 export interface BusinessContext {
   name?: string;
@@ -898,6 +899,7 @@ export default function AiGuidedCampaignPage() {
   const [urlValidationError, setUrlValidationError] = useState<string | null>(null);
   const [showMissingParamsModal, setShowMissingParamsModal] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [userConfirmed, setUserConfirmed] = useState<boolean>(false);
 
   // Mobile View Tab Selection ('chat' | 'cockpit')
   const [mobileActiveTab, setMobileActiveTab] = useState<"chat" | "cockpit">("chat");
@@ -5234,7 +5236,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         }
 
         setAiNotificationBanner({
-          title: isGenerationRequest ? "Grok AI Generated Ad Creatives" : "Grok AI Strategy Recommendations",
+          title: isGenerationRequest ? "JDS AI Generated Ad Creatives" : "JDS AI Strategy Recommendations",
           summary: summaryText,
           suggestionsData: suggestionsPayload
         });
@@ -5255,6 +5257,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   };
 
   const handleCreateCampaign = async () => {
+    if (!userConfirmed) {
+      setPublishError("Campaign creation requires explicit user confirmation. Please review and check the confirmation box below before launching.");
+      return;
+    }
+
     if (isPublishing) return;
     setIsPublishing(true);
     setPublishError(null);
@@ -5647,6 +5654,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         body: JSON.stringify({
           customerId,
           campaignState: effectiveState,
+          userConfirmed: true,
           idempotencyKey
         })
       });
@@ -5716,25 +5724,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     router.push(`/ads/campaigns/create/manual?customerId=${cid}`);
   };
 
-  const getCampaignIcon = (type?: string) => {
-    switch (type) {
-      case "SEARCH":
-        return <Search className="h-4 w-4 text-blue-600" />;
-      case "PERFORMANCE_MAX":
-        return <Sparkles className="h-4 w-4 text-purple-600" />;
-      case "DISPLAY":
-        return <LayoutGrid className="h-4 w-4 text-amber-600" />;
-      case "VIDEO":
-        return <Video className="h-4 w-4 text-red-600" />;
-      case "DEMAND_GEN":
-        return <Zap className="h-4 w-4 text-orange-600" />;
-      case "SHOPPING":
-        return <ShoppingBag className="h-4 w-4 text-emerald-600" />;
-      case "APP":
-        return <Smartphone className="h-4 w-4 text-indigo-600" />;
-      default:
-        return <Globe className="h-4 w-4 text-slate-600" />;
+  const getCampaignIcon = (type?: string, singleIconOnly: boolean = false) => {
+    if (!type) {
+      return <Globe className="h-4 w-4 text-slate-600" />;
     }
+    return (
+      <GoogleCampaignChannelIcons
+        campaignType={type}
+        className="inline-flex items-center gap-1 shrink-0"
+        iconClassName="w-3.5 h-3.5 shrink-0"
+      />
+    );
   };
 
 
@@ -6672,8 +6672,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               {/* Center Logo Card with soft depth & subtle breathing scale */}
               <div className="relative w-20 h-20 rounded-2xl bg-white p-2 shadow-xl border border-slate-100 flex items-center justify-center overflow-hidden transition-transform transform hover:scale-105">
                 <img
-                  src="/icon.jpeg"
-                  alt="Jisnu Digital Logo"
+                  src="/jdsai.png"
+                  alt="JDS AI Logo"
                   className="w-full h-full object-contain rounded-xl drop-shadow-xs"
                 />
               </div>
@@ -6744,11 +6744,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             <span className="hidden sm:inline">Back</span>
           </button>
           <div className="flex items-center gap-2 border-l border-slate-200 pl-2 sm:pl-4">
-            <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 shadow-xs flex items-center justify-center p-0.5 shrink-0">
-              <img src="/icon.jpeg" alt="JDS" className="w-full h-full object-contain rounded-md" />
+            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 shadow-xs flex items-center justify-center p-0.5 shrink-0">
+              <img src="/jdsai.png" alt="JDS AI" className="w-full h-full object-contain rounded-md" />
             </div>
             <span className="text-xs sm:text-sm font-bold text-slate-900 truncate max-w-[140px] sm:max-w-none">
-              AI Campaign Studio
+              JDS AI Campaign Studio
             </span>
             <span className="hidden md:inline px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
               Live Copilot
@@ -6778,10 +6778,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             Manual Creation
           </button>
           <button
-            className="px-3 py-1 text-xs font-semibold rounded-lg bg-blue-600 text-white shadow-sm flex items-center gap-1 transition-all"
+            className="px-3 py-1 text-xs font-semibold rounded-lg bg-blue-600 text-white shadow-sm flex items-center gap-1.5 transition-all"
           >
-            <Sparkles className="h-3.5 w-3.5" />
-            AI Guided
+            <img src="/jdsai.png" alt="JDS AI" className="w-3.5 h-3.5 object-contain rounded-xs" />
+            <span>AI Guided (JDS AI)</span>
           </button>
         </div>
 
@@ -6881,9 +6881,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 ? "bg-blue-50 text-blue-600 border border-blue-200 shadow-xs"
                 : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
             }`}
-            title="AI Campaign Studio"
+            title="JDS AI Campaign Studio"
           >
-            <Sparkles className="h-4 w-4" />
+            <div className="w-4.5 h-4.5 flex items-center justify-center">
+              <img src="/jdsai.png" alt="JDS AI" className="w-full h-full object-contain" />
+            </div>
             <span className="text-[9px] font-bold mt-0.5 leading-none">Studio</span>
           </button>
 
@@ -6975,7 +6977,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       "You"
                     ) : (
                       <img
-                        src="/icon.jpeg"
+                        src="/jdsai.png"
                         alt="JDS AI Assistant"
                         className="w-full h-full object-contain rounded-lg"
                       />
@@ -7003,11 +7005,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <div className="mt-3 pt-3 border-t border-blue-100 rounded-xl bg-gradient-to-r from-blue-50/90 to-indigo-50/70 p-3 flex items-center justify-between gap-3 shadow-2xs">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-7 h-7 rounded-lg bg-white border border-blue-200 p-0.5 shadow-xs shrink-0 flex items-center justify-center">
-                            <img src="/icon.jpeg" alt="AI Suggestion" className="w-full h-full object-contain rounded-md" />
+                            <img src="/jdsai.png" alt="JDS AI Suggestion" className="w-full h-full object-contain rounded-md" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-[11px] font-bold text-slate-900 truncate">
-                              AI Suggestion Ready
+                            <p className="text-[11px] font-bold text-slate-900 truncate flex items-center gap-1.5">
+                              <span>AI Suggestion Ready</span>
+                              {pendingAiSuggestions.suggestedType && (
+                                <GoogleCampaignChannelIcons
+                                  campaignType={pendingAiSuggestions.suggestedType}
+                                  className="inline-flex items-center gap-1"
+                                  iconClassName="w-3 h-3 shrink-0"
+                                />
+                              )}
                             </p>
                             <p className="text-[10px] text-slate-600 truncate">
                               {pendingAiSuggestions.suggestedType ? `Recommended ${formatCampaignTypeDisplay(pendingAiSuggestions.suggestedType)} strategy` : "Click apply to update your cockpit"}
@@ -8511,8 +8520,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="relative w-9 h-9 rounded-xl bg-white border border-blue-200 shadow-md p-1 flex items-center justify-center shrink-0 ring-2 ring-blue-500/20">
                   <img
-                    src="/icon.jpeg"
-                    alt="JDS Copilot"
+                    src="/jdsai.png"
+                    alt="JDS AI Copilot"
                     className="w-full h-full object-contain rounded-lg animate-pulse"
                   />
                   {/* Glowing radiating ripple ring */}
@@ -9210,7 +9219,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {getCampaignIcon(campaignState.campaignType)}
+                  <GoogleCampaignChannelIcons
+                    campaignType={campaignState.campaignType}
+                    className="flex items-center gap-1 bg-white border border-slate-200 px-1.5 py-0.5 rounded-md shadow-2xs"
+                    iconClassName="w-3.5 h-3.5 shrink-0"
+                  />
                   <span className="font-bold text-xs text-slate-900">Campaign Strategy</span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -9572,16 +9585,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     </div>
                   ) : (
                     <div className="flex items-center gap-1.5 justify-end flex-wrap">
-                      <span className="font-semibold text-purple-700 flex items-center gap-1">
+                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2 py-1 rounded-lg shadow-2xs">
                         {campaignState.campaignType ? (
                           <>
-                            {getCampaignIcon(campaignState.campaignType)}
-                            {formatCampaignTypeDisplay(campaignState.campaignType)}
+                            <GoogleCampaignChannelIcons campaignType={campaignState.campaignType} iconClassName="w-3.5 h-3.5 shrink-0" />
+                            <span className="font-bold text-xs text-slate-800">
+                              {formatCampaignTypeDisplay(campaignState.campaignType)}
+                            </span>
                           </>
                         ) : (
                           <span className="text-slate-400 font-normal italic">Not set</span>
                         )}
-                      </span>
+                      </div>
                       {campaignState.campaignType === "SHOPPING" && !isMerchantVerified(customerProfile || campaignState.customerProfile) && (
                         <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                           Merchant Disconnected
@@ -13313,7 +13328,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
                     <div className="flex items-center gap-2.5 relative z-10">
                       <div className="w-8 h-8 rounded-xl bg-white border border-purple-200 shadow-sm p-0.5 flex items-center justify-center shrink-0 ring-2 ring-purple-500/20">
-                        <img src="/icon.jpeg" alt="JDS" className="w-full h-full object-contain rounded-lg animate-pulse" />
+                        <img src="/jdsai.png" alt="JDS AI" className="w-full h-full object-contain rounded-lg animate-pulse" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between">
@@ -13347,7 +13362,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 h-full rounded-full animate-[progress_1.2s_ease-in-out_infinite]" style={{ width: "80%" }} />
                       </div>
                       <div className="flex justify-between text-[9px] text-purple-700 font-mono">
-                        <span>Grok AI Engine active</span>
+                        <span>JDS AI Engine active</span>
                         <span className="animate-pulse">Populating Cockpit fields...</span>
                       </div>
                     </div>
@@ -14215,10 +14230,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       type="button"
                       onClick={() => handleCockpitDirectAiGeneration("KEYWORDS")}
                       className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-all shadow-2xs group"
-                      title="Generate high-intent search keywords using Grok AI"
+                      title="Generate high-intent search keywords using JDS AI"
                     >
                       <Sparkles className="h-3 w-3 text-purple-600 group-hover:rotate-12 transition-transform" />
-                      <span>✨ Generate with Grok AI</span>
+                      <span>✨ Generate with JDS AI</span>
                     </button>
                   </div>
                 </div>
@@ -14310,14 +14325,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     </div>
                   ) : (
                     <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center space-y-2">
-                      <p className="text-[11px] text-slate-500">No keywords configured yet. Enter a keyword above or use Grok AI to automatically generate a targeted keyword list.</p>
+                      <p className="text-[11px] text-slate-500">No keywords configured yet. Enter a keyword above or use JDS AI to automatically generate a targeted keyword list.</p>
                       <button
                         type="button"
                         onClick={() => handleCockpitDirectAiGeneration("KEYWORDS")}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-[11px] font-bold shadow-xs cursor-pointer transition-all"
                       >
                         <Sparkles className="h-3.5 w-3.5 text-white animate-pulse" />
-                        <span>✨ Generate Keywords with Grok AI</span>
+                        <span>✨ Generate Keywords with JDS AI</span>
                       </button>
                     </div>
                   )}
@@ -14508,7 +14523,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       type="button"
                       onClick={() => handleSendMessage("Suggest 8 high-converting search themes for my Performance Max campaign based on my target audience and products")}
                       className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-all shadow-2xs group"
-                      title="Generate high-intent search themes using Grok AI"
+                      title="Generate high-intent search themes using JDS AI"
                     >
                       <Sparkles className="h-3 w-3 text-purple-600 group-hover:rotate-12 transition-transform" />
                       <span>✨ Suggest Themes with AI</span>
@@ -14644,7 +14659,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       type="button"
                       onClick={() => handleSendMessage("Suggest 4 high-converting sitelinks for my campaign with titles, description lines 1 & 2, and relevant landing page URLs")}
                       className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-all shadow-2xs group"
-                      title="Generate sitelinks using Grok AI"
+                      title="Generate sitelinks using JDS AI"
                     >
                       <Sparkles className="h-3 w-3 text-purple-600 group-hover:rotate-12 transition-transform" />
                       <span>✨ Suggest with AI</span>
@@ -15299,7 +15314,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           handleCockpitDirectAiGeneration("HEADLINE_SINGLE", false, hint || undefined);
                         }}
                         className="px-2.5 py-1 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-bold text-xs rounded-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs hover:shadow-purple-400/50 group relative overflow-hidden"
-                        title="Auto-generate 1 headline with Grok AI"
+                        title="Auto-generate 1 headline with JDS AI"
                       >
                         <span className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
                         <BrainCircuit className="h-3.5 w-3.5 text-cyan-300 animate-pulse group-hover:rotate-180 transition-transform duration-500" />
@@ -15463,7 +15478,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           handleCockpitDirectAiGeneration("LONG_HEADLINE_SINGLE", false, hint || undefined);
                         }}
                         className="px-2.5 py-1 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-bold text-xs rounded-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs hover:shadow-purple-400/50 group relative overflow-hidden"
-                        title="Auto-generate 1 long headline with Grok AI"
+                        title="Auto-generate 1 long headline with JDS AI"
                       >
                         <span className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
                         <BrainCircuit className="h-3.5 w-3.5 text-cyan-300 animate-pulse group-hover:rotate-180 transition-transform duration-500" />
@@ -15627,7 +15642,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           handleCockpitDirectAiGeneration("DESCRIPTION_SINGLE", false, hint || undefined);
                         }}
                         className="px-2.5 py-1 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-bold text-xs rounded-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs hover:shadow-purple-400/50 group relative overflow-hidden"
-                        title="Auto-generate 1 description with Grok AI"
+                        title="Auto-generate 1 description with JDS AI"
                       >
                         <span className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
                         <BrainCircuit className="h-3.5 w-3.5 text-cyan-300 animate-pulse group-hover:rotate-180 transition-transform duration-500" />
@@ -15987,17 +16002,53 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   );
                 })()}
 
+                {/* Explicit User Confirmation Gate */}
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                  <label className="flex items-start gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={userConfirmed}
+                      onChange={(e) => {
+                        setUserConfirmed(e.target.checked);
+                        if (publishError) setPublishError(null);
+                      }}
+                      className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <div className="text-[10px] leading-tight">
+                      <span className="font-bold text-slate-800 block">
+                        I confirm review of this campaign configuration.
+                      </span>
+                      <span className="text-[9px] text-slate-500 block">
+                        Authoritative parameters are validated prior to creation.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                {publishError && (
+                  <div className="text-[10px] p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-1.5 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0 mt-0.5" />
+                    <span>{publishError}</span>
+                  </div>
+                )}
+
                 <div>
                   <button
                     type="button"
                     onClick={handleCreateCampaign}
-                    disabled={!isCurrentCampaignReady || isPublishing}
+                    disabled={!isCurrentCampaignReady || !userConfirmed || isPublishing}
                     className={`w-full px-3 py-2 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      isCurrentCampaignReady
+                      isCurrentCampaignReady && userConfirmed
                         ? "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20"
                         : "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200"
                     }`}
-                    title={isCurrentCampaignReady ? "Launch campaign to Google Ads" : "Complete required fields & assets to launch"}
+                    title={
+                      !isCurrentCampaignReady
+                        ? "Complete required fields & assets to launch"
+                        : !userConfirmed
+                        ? "Please review and check the confirmation box above"
+                        : "Launch campaign to Google Ads"
+                    }
                   >
                     {isPublishing ? <Loader2 className="h-3 w-3 animate-spin"/> : <Target className="h-3 w-3"/>}
                     <span className="truncate">Launch Campaign</span>
@@ -17288,8 +17339,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               <div className="flex items-center gap-3.5">
                 <div className="relative w-11 h-11 rounded-2xl bg-white p-1 flex items-center justify-center shadow-lg shrink-0 ring-2 ring-white/30 overflow-hidden">
                   <img
-                    src="/icon.jpeg"
-                    alt="JDS Copilot"
+                    src="/jdsai.png"
+                    alt="JDS AI Copilot"
                     className="w-full h-full object-contain rounded-xl animate-pulse"
                   />
                   <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white animate-ping" />
@@ -17297,13 +17348,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 </div>
                 <div>
                   <h3 className="font-bold text-base tracking-tight flex items-center gap-2">
-                    <span>Grok AI Generated Recommendations</span>
+                    <span>JDS AI Generated Recommendations</span>
                     <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
                       Review & Apply
                     </span>
                   </h3>
                   <p className="text-xs text-blue-100/90">
-                    Review Grok AI's suggested ad copy, keywords & configuration before updating your Live Cockpit.
+                    Review JDS AI's suggested ad copy, keywords & configuration before updating your Live Cockpit.
                   </p>
                 </div>
               </div>
@@ -17340,9 +17391,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 {(pendingAiSuggestions.suggestedType || pendingAiSuggestions.suggestedObjective) && (
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Strategy</span>
-                    <p className="text-xs font-bold text-slate-900">
-                      {[pendingAiSuggestions.suggestedObjective, pendingAiSuggestions.suggestedType].filter(Boolean).join(" • ")}
-                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {pendingAiSuggestions.suggestedType && (
+                        <GoogleCampaignChannelIcons
+                          campaignType={pendingAiSuggestions.suggestedType}
+                          className="flex items-center gap-1"
+                          iconClassName="w-3.5 h-3.5"
+                        />
+                      )}
+                      <p className="text-xs font-bold text-slate-900">
+                        {[pendingAiSuggestions.suggestedObjective, pendingAiSuggestions.suggestedType].filter(Boolean).join(" • ")}
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -17507,7 +17567,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             {/* Custom Logo / Icon Badge with Shimmer & Pulse Animation */}
             <div className="relative w-12 h-12 rounded-2xl bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-lg ring-2 ring-blue-500/30 overflow-hidden group">
               <img
-                src="/icon.jpeg"
+                src="/jdsai.png"
                 alt="JDS AI Copilot"
                 className="w-full h-full object-contain rounded-xl animate-pulse"
               />

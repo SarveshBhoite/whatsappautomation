@@ -353,6 +353,13 @@ export interface CustomerProfileData {
   primaryWebsite?: string | null;
   additionalWebsites?: WebsiteEntry[];
   youtubeLinks?: string[];
+  youtubeChannels?: { id: string; title: string; handle?: string; url: string }[];
+  youtubeConnection?: {
+    isConnected: boolean;
+    channelId?: string;
+    channelTitle?: string;
+    thumbnail?: string;
+  };
   businessDescription?: string | null;
   industry?: string | null;
   products?: (ProductItem | string)[];
@@ -676,6 +683,12 @@ function ProfilePageContent() {
   // YouTube Channel state
   const [youtubeLinks, setYoutubeLinks] = useState<string[]>([]);
   const [youtubeChannels, setYoutubeChannels] = useState<{ id: string; title: string; handle?: string; url: string }[]>([]);
+  const [youtubeConnection, setYoutubeConnection] = useState<{
+    isConnected: boolean;
+    channelId?: string;
+    channelTitle?: string;
+    thumbnail?: string;
+  } | null>(null);
   const [newYoutubeInput, setNewYoutubeInput] = useState("");
   const [youtubeInputError, setYoutubeInputError] = useState<string | null>(null);
   const [isYoutubeSyncing, setIsYoutubeSyncing] = useState(false);
@@ -736,7 +749,7 @@ function ProfilePageContent() {
       case "websites":
         return Boolean(primaryWebsite && primaryWebsite.trim()) || totalWebsitesCount > 0;
       case "youtube_channel":
-        return youtubeLinks.length > 0;
+        return Boolean(youtubeConnection?.isConnected);
       case "merchant_apps":
         return hasMerchantAccount || hasAppAccount || appDetails.length > 0 || Boolean(profile?.isApproved);
       case "media_assets":
@@ -1079,6 +1092,12 @@ function ProfilePageContent() {
           setAdditionalWebsites(Array.isArray(data.additionalWebsites) ? data.additionalWebsites : []);
           setYoutubeLinks(Array.isArray(data.youtubeLinks) ? data.youtubeLinks : []);
           setYoutubeChannels(Array.isArray(data.youtubeChannels) ? data.youtubeChannels : []);
+          setYoutubeConnection(data.youtubeConnection ? {
+            isConnected: Boolean(data.youtubeConnection.isConnected),
+            channelId: data.youtubeConnection.channelId || undefined,
+            channelTitle: data.youtubeConnection.channelTitle || undefined,
+            thumbnail: data.youtubeConnection.thumbnail || undefined
+          } : { isConnected: false });
 
           setHasMerchantAccount(Boolean(data.hasMerchantAccount));
           setMerchantCenterId(data.merchantCenterId || "");
@@ -3569,7 +3588,7 @@ function ProfilePageContent() {
                       else if (tabItem.key === "faqs") countBadge = faqs.length;
                       else if (tabItem.key === "ai_suggestions") countBadge = aiSuggestions.filter(s => !s.applied && !s.rejected).length;
                       else if (tabItem.key === "websites") countBadge = `${totalWebsitesCount}/15`;
-                      else if (tabItem.key === "youtube_channel") countBadge = youtubeLinks.length;
+                      else if (tabItem.key === "youtube_channel") countBadge = youtubeConnection?.isConnected ? "Connected" : (youtubeLinks.length > 0 ? `${youtubeLinks.length} URLs` : "Not Linked");
                       else if (tabItem.key === "media_assets") countBadge = mediaAssets.length;
 
                       return (
@@ -9882,7 +9901,7 @@ function ProfilePageContent() {
 
                     {/* Action Buttons — Connect or Sync */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      {/* Auto-Sync button (visible always; grayed if no Google account connected) */}
+                      {/* Auto-Sync button (visible always; grayed if syncing) */}
                       <button
                         id="youtube-sync-channels-btn"
                         type="button"
@@ -9899,12 +9918,12 @@ function ProfilePageContent() {
                         <span>{isYoutubeSyncing ? "Syncing..." : "Auto-Sync Channels"}</span>
                       </button>
 
-                      {/* Connect / Re-connect with Google OAuth */}
+                      {/* Connect / Re-connect with Canonical YouTube Module OAuth */}
                       <a
                         id="youtube-connect-google-btn"
-                        href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/gmb/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=youtube_channel`)}&source=google_ads`}
+                        href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/youtube/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=youtube_channel`)}`}
                         className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-semibold inline-flex items-center gap-2 transition-all shadow-sm cursor-pointer hover:shadow-md"
-                        title="Connect Google Account to auto-discover your YouTube channels"
+                        title="Connect YouTube account with official Google OAuth to enable Video & Demand Gen campaigns"
                       >
                         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
                           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -9912,16 +9931,37 @@ function ProfilePageContent() {
                           <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                           <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                         </svg>
-                        <span>{youtubeLinks.length > 0 ? "Re-connect Google" : "Connect Google"}</span>
+                        <span>
+                          {loading
+                            ? "Checking..."
+                            : youtubeConnection?.isConnected
+                            ? "Re-connect YouTube"
+                            : "Connect YouTube"}
+                        </span>
                       </a>
 
-                      {/* Badge */}
-                      <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
-                        youtubeLinks.length > 0
-                          ? "bg-red-50 text-red-700 border-red-200"
+                      {/* Authentication Status Badge */}
+                      <span className={`text-xs font-bold px-3 py-1.5 rounded-full border flex items-center gap-1.5 ${
+                        loading
+                          ? "bg-slate-100 text-slate-500 border-slate-200"
+                          : youtubeConnection?.isConnected
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                           : "bg-slate-100 text-slate-500 border-slate-200"
                       }`}>
-                        {youtubeLinks.length} {youtubeLinks.length === 1 ? "Channel" : "Channels"}
+                        <span className={`w-2 h-2 rounded-full ${
+                          loading
+                            ? "bg-slate-400"
+                            : youtubeConnection?.isConnected
+                            ? "bg-emerald-500 animate-pulse"
+                            : "bg-slate-400"
+                        }`} />
+                        <span>
+                          {loading
+                            ? "Checking Status..."
+                            : youtubeConnection?.isConnected
+                            ? "Connected (OAuth Active)"
+                            : "Not Connected"}
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -9959,18 +9999,55 @@ function ProfilePageContent() {
                     </p>
                   </div>
 
+                  {/* ── Authenticated YouTube Channel Card ── */}
+                  {youtubeConnection?.isConnected && (
+                    <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between gap-3 shadow-2xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {youtubeConnection.thumbnail ? (
+                          <img
+                            src={youtubeConnection.thumbnail}
+                            alt="Channel"
+                            className="w-10 h-10 rounded-xl object-cover border border-emerald-300 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shrink-0 shadow-xs">
+                            <YoutubeIcon className="w-5 h-5 text-white" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-900 truncate">
+                              {youtubeConnection.channelTitle || "Authenticated YouTube Channel"}
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              Active OAuth
+                            </span>
+                          </div>
+                          <p className="text-[11px] font-mono text-slate-500 mt-0.5 truncate">
+                            Channel ID: {youtubeConnection.channelId || "Connected"}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-white px-2.5 py-1 rounded-xl border border-emerald-200 shrink-0 shadow-2xs">
+                        Verified for Video &amp; Demand Gen
+                      </span>
+                    </div>
+                  )}
+
                   {/* ── Discovered Channels (Rich Cards) ── */}
                   {youtubeLinks.length === 0 ? (
-                    <div className="p-10 rounded-2xl border-2 border-dashed border-slate-200 text-center space-y-3">
-                      <YoutubeIcon className="w-12 h-12 text-slate-200 mx-auto" />
+                    <div className="p-8 rounded-2xl border-2 border-dashed border-slate-200 text-center space-y-2.5">
+                      <YoutubeIcon className="w-10 h-10 text-slate-300 mx-auto" />
                       <div>
-                        <p className="text-sm font-semibold text-slate-400">No YouTube channels connected yet</p>
-                        <p className="text-xs text-slate-400 mt-1">Click <strong>Connect Google</strong> to auto-discover your channels,<br />or add a link manually below.</p>
+                        <p className="text-xs font-semibold text-slate-500">No additional YouTube links or videos saved</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          You can add video URLs, Shorts, or channel links manually below to reference in your ad creatives.
+                        </p>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-2.5">
-                      <label className="text-xs font-bold text-slate-700 block">Connected Channels &amp; Links ({youtubeLinks.length})</label>
+                      <label className="text-xs font-bold text-slate-700 block">Saved Profile URLs &amp; Videos ({youtubeLinks.length})</label>
                       {youtubeLinks.map((yt, idx) => {
                         // Try to find a richer channel object for this URL
                         const ch = youtubeChannels.find((c) => c.url === yt || yt.includes(c.id));

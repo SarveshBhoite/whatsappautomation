@@ -327,9 +327,6 @@ export function GoogleAdsSearchTermsSection({
           <div className="flex items-center gap-2">
             <Search className="h-5 w-5 text-blue-600" />
             <h2 className="text-base font-bold text-slate-900">Search Terms Management</h2>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              API v24
-            </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
             Analyze authentic user queries triggering your Search ads. Promote high-intent terms to Keywords or block irrelevant traffic with Negative Keywords.

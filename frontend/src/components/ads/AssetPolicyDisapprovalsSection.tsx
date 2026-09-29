@@ -257,9 +257,6 @@ export function AssetPolicyDisapprovalsSection({
                   <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
                     Read-Only
                   </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                    Google Ads API v24
-                  </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Official live policy compliance, disapproval reasons, and review statuses across images, logos, videos, and extension assets linked to customer ID:{" "}
