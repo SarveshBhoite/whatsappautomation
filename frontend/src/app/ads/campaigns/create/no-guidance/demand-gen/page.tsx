@@ -16,7 +16,19 @@ export default function NoGuidanceDemandGenPage() {
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [currencyCode, setCurrencyCode] = useState<string>("INR");
+  const [currencySymbol, setCurrencySymbol] = useState<string>("₹");
+  const [demandGenApiMinimum, setDemandGenApiMinimum] = useState<number | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+
+  const getCurrencySymbol = (curr: string) => {
+    const c = (curr || "INR").toUpperCase();
+    if (c === "USD") return "$";
+    if (c === "EUR") return "€";
+    if (c === "GBP") return "£";
+    if (c === "INR") return "₹";
+    return `${c} `;
+  };
 
   // Wizard Step State: "CAMPAIGN_SETTINGS" | "AD_GROUP" | "AD" | "REVIEW"
   const [demandGenStep, setDemandGenStep] = useState<"CAMPAIGN_SETTINGS" | "AD_GROUP" | "AD" | "REVIEW">("CAMPAIGN_SETTINGS");
@@ -66,6 +78,19 @@ export default function NoGuidanceDemandGenPage() {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
     const targetCid = customerId || "6587355041";
+
+    fetch(`${BACKEND}/api/ads/customer-profile?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(targetCid)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(prof => {
+        if (prof?.currencyCode) {
+          setCurrencyCode(prof.currencyCode);
+          setCurrencySymbol(getCurrencySymbol(prof.currencyCode));
+        }
+        if (prof?.demandGenMinimum?.minimumAmount) {
+          setDemandGenApiMinimum(prof.demandGenMinimum.minimumAmount);
+        }
+      })
+      .catch(() => {});
 
     fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(targetCid)}`)
       .then(r => r.ok ? r.json() : [])
@@ -383,12 +408,12 @@ export default function NoGuidanceDemandGenPage() {
 
     // 2. Daily Budget
     const numBudget = Number(demandGenBudgetAmount);
-    if (!demandGenBudgetAmount.trim() || isNaN(numBudget) || numBudget < 416) {
+    if (!demandGenBudgetAmount.trim() || isNaN(numBudget) || !isFinite(numBudget) || numBudget <= 0) {
       issues.push({
         id: "camp-budget",
         level: "Campaign",
         parameter: "Budget amount",
-        message: "Daily Budget must be at least ₹416/day (Google's minimum required budget for Demand Gen campaigns).",
+        message: `Daily Budget must be a positive number greater than ${currencySymbol}0.`,
         step: "CAMPAIGN_SETTINGS",
         settingKey: "budget"
       });
@@ -2418,17 +2443,18 @@ export default function NoGuidanceDemandGenPage() {
                         </select>
 
                         <div className="relative w-48">
-                          <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
+                          <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">{currencySymbol}</span>
                           <input
                             type="number"
-                            min="416"
+                            min="1"
                             step="any"
                             value={demandGenBudgetAmount}
                             onChange={(e) => {
                               const val = e.target.value;
                               setDemandGenBudgetAmount(val);
-                              if (!val.trim() || isNaN(Number(val)) || Number(val) < 416) {
-                                setFieldErrors(prev => ({ ...prev, demandGenBudgetAmount: "Daily Budget must be at least ₹416/day for Demand Gen." }));
+                              const numVal = Number(val);
+                              if (!val.trim() || isNaN(numVal) || !isFinite(numVal) || numVal <= 0) {
+                                setFieldErrors(prev => ({ ...prev, demandGenBudgetAmount: `Daily Budget must be a positive number greater than ${currencySymbol}0.` }));
                               } else {
                                 setFieldErrors(prev => {
                                   const updated = { ...prev };
@@ -2437,9 +2463,9 @@ export default function NoGuidanceDemandGenPage() {
                                 });
                               }
                             }}
-                            placeholder="min ₹416/day"
+                            placeholder="e.g. 500"
                             className={`w-full border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-medium focus:outline-none ${
-                              !demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) < 416 || fieldErrors.demandGenBudgetAmount
+                              !demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || !isFinite(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) <= 0 || fieldErrors.demandGenBudgetAmount
                                 ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
                                 : "bg-slate-50 border-slate-200 focus:border-primary"
                             }`}
@@ -2447,11 +2473,19 @@ export default function NoGuidanceDemandGenPage() {
                         </div>
                       </div>
 
-                      {(!demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) < 416 || fieldErrors.demandGenBudgetAmount) && (
+                      {(!demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || !isFinite(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) <= 0 || fieldErrors.demandGenBudgetAmount) ? (
                         <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
-                          <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.demandGenBudgetAmount || "Demand Gen campaigns require a minimum daily budget of ₹416/day."}
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.demandGenBudgetAmount || `Daily Budget must be greater than ${currencySymbol}0.`}
                         </span>
-                      )}
+                      ) : demandGenApiMinimum && Number(demandGenBudgetAmount) < demandGenApiMinimum ? (
+                        <span className="text-[11px] text-amber-600 font-medium flex items-center gap-1">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Google Ads minimum daily budget for Demand Gen in {currencyCode}: {currencySymbol}{demandGenApiMinimum}/day
+                        </span>
+                      ) : demandGenApiMinimum ? (
+                        <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                          Minimum daily budget: {currencySymbol}{demandGenApiMinimum}/day ({currencyCode})
+                        </span>
+                      ) : null}
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50">
                         <div className="space-y-1.5">
@@ -6232,7 +6266,22 @@ export default function NoGuidanceDemandGenPage() {
                     router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
                   } else {
                     const errData = await res.json().catch(() => ({}));
-                    setSubmitError(errData.message || errData.error || "Failed to publish Demand Gen campaign.");
+                    if (errData.errorCode === "DEMAND_GEN_BUDGET_BELOW_MINIMUM" || errData.minimumBudgetUnits) {
+                      if (errData.minimumBudgetUnits) {
+                        setDemandGenApiMinimum(errData.minimumBudgetUnits);
+                      }
+                      const minText = errData.minimumBudgetUnits 
+                        ? `${currencySymbol}${errData.minimumBudgetUnits}/day` 
+                        : "the required minimum";
+                      setSubmitError(`Your daily budget is below Google's current minimum. Minimum required: ${minText}. Please increase your budget and retry.`);
+                      setFieldErrors(prev => ({
+                        ...prev,
+                        demandGenBudgetAmount: `Daily Budget must be at least ${minText} for Demand Gen.`
+                      }));
+                      setCurrentStep("CAMPAIGN_SETTINGS");
+                    } else {
+                      setSubmitError(errData.message || errData.error || "Failed to publish Demand Gen campaign.");
+                    }
                   }
                 } catch (err: any) {
                   setSubmitError(err?.message || "Backend server unavailable.");

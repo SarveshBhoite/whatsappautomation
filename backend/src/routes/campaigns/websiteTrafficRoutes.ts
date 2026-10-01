@@ -5,6 +5,7 @@ import { WebsiteTrafficDemandGenService } from "../../services/googleAds/website
 import { WebsiteTrafficVideoService } from "../../services/googleAds/websiteTraffic/WebsiteTrafficVideoService";
 import { WebsiteTrafficDisplayService } from "../../services/googleAds/websiteTraffic/WebsiteTrafficDisplayService";
 import { WebsiteTrafficShoppingService } from "../../services/googleAds/websiteTraffic/WebsiteTrafficShoppingService";
+import { GoogleAdsBaseService } from "../../services/googleAds/shared/GoogleAdsBaseService";
 
 const router = Router();
 
@@ -53,6 +54,24 @@ router.post("/demand-gen", validatePayload, async (req, res) => {
     const result = await WebsiteTrafficDemandGenService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
+    const { customerId, ...payload } = req.body;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const budgetErr = GoogleAdsBaseService.parseGoogleAdsBudgetError(error, {
+      organizationId: orgId,
+      customerId: (customerId || "").replace(/-/g, "").trim(),
+      currencyCode: payload.currencyCode || "INR"
+    });
+    if (budgetErr && budgetErr.isBudgetBelowMinimum) {
+      return res.status(422).json({
+        success: false,
+        errorCode: budgetErr.errorCode,
+        error: budgetErr.message,
+        message: budgetErr.message,
+        minimumBudgetAmountMicros: budgetErr.minimumBudgetAmountMicros,
+        minimumBudgetUnits: budgetErr.minimumBudgetUnits,
+        currencyCode: budgetErr.currencyCode
+      });
+    }
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
   }
 });

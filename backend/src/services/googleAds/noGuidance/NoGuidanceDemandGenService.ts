@@ -1376,7 +1376,8 @@ export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
 
     } catch (apiErr: any) {
       // ── 11. ATOMIC ROLLBACK ON ERROR ──
-      console.error("[Google Ads API Error for No Guidance Demand Gen]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr));
+      const errContext = { organizationId, customerId: cid, currencyCode: (payload as any)?.currencyCode || "INR" };
+      console.error("[Google Ads API Error for No Guidance Demand Gen]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr, errContext));
       if (createdCampaignResource) {
         try {
           console.warn(`[Rollback] Removing created campaign ${createdCampaignResource}...`);
@@ -1387,7 +1388,7 @@ export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
           console.error(`[Rollback Failed for Campaign]:`, rollbackErr?.message);
         }
       }
-      const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
+      const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr, errContext);
       throw new Error(formatted);
     }
 

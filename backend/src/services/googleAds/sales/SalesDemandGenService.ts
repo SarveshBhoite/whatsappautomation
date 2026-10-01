@@ -359,7 +359,8 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
       apiResult.adGroupAdResourceName = adGroupAdRes.data.results?.[0]?.resourceName;
 
     } catch (apiErr: any) {
-      const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
+      const errContext = { organizationId, customerId: cid, currencyCode: (payload as any)?.currencyCode || "INR" };
+      const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr, errContext);
       console.error("[Google Ads API Error for Sales Demand Gen]:", formatted);
       throw new Error(formatted);
     }

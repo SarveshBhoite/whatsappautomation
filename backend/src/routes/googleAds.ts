@@ -454,7 +454,15 @@ router.get("/customer-profile", async (req, res) => {
       approvedAt: savedProfile?.approvedAt || null,
       billingStatus: savedProfile?.billingStatus || (currentAccount as any)?.billingStatus || "ACTIVE",
       googleTagId: savedProfile?.googleTagId || (currentAccount as any)?.googleTagId || null,
-      lastHealthCheck: (currentAccount as any)?.lastHealthCheck || null
+      lastHealthCheck: (currentAccount as any)?.lastHealthCheck || null,
+      demandGenMinimum: await (async () => {
+        try {
+          const { DemandGenMinimumService } = require("../services/googleAds/shared/DemandGenMinimumService");
+          return await DemandGenMinimumService.getMinimumForCustomer(orgId, cleanCid, currencyCode);
+        } catch {
+          return null;
+        }
+      })()
     });
   } catch (error: any) {
     console.error("[customer-profile] error:", error);

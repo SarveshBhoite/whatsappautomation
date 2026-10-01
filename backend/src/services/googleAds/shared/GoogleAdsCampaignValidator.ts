@@ -85,15 +85,17 @@ export class GoogleAdsCampaignValidator {
       ? state.dailyBudget 
       : (state.totalBudget !== undefined && state.totalBudget !== null && state.totalBudget !== "" ? state.totalBudget : state.budget);
     const parsedBudgetNum = Number(rawBudgetInput);
+    const currency = (state.currencyCode || state.currency || "INR").toUpperCase();
+    const currencySymbol = currency === "USD" ? "$" : (currency === "EUR" ? "€" : (currency === "GBP" ? "£" : (currency === "INR" ? "₹" : `${currency} `)));
 
     if (rawBudgetInput === undefined || rawBudgetInput === null || String(rawBudgetInput).trim() === "") {
       addError("dailyBudget", `${budgetType === "TOTAL" ? "Campaign Total Budget" : "Daily budget"} is required.`, "BUDGET");
     } else if (isNaN(parsedBudgetNum) || !isFinite(parsedBudgetNum)) {
       addError("dailyBudget", "Budget must be a finite numeric value (rejecting NaN and Infinity).", "BUDGET");
     } else if (parsedBudgetNum <= 0) {
-      addError("dailyBudget", `${budgetType === "TOTAL" ? "Campaign Total Budget" : "Daily budget"} must be greater than ₹0.`, "BUDGET");
+      addError("dailyBudget", `${budgetType === "TOTAL" ? "Campaign Total Budget" : "Daily budget"} must be greater than ${currencySymbol}0.`, "BUDGET");
     } else if (parsedBudgetNum > 10_000_000) {
-      addError("dailyBudget", `Budget value (₹${parsedBudgetNum}) exceeds the maximum allowed limit of ₹10,000,000.`, "BUDGET");
+      addError("dailyBudget", `Budget value (${currencySymbol}${parsedBudgetNum}) exceeds the maximum allowed limit of ${currencySymbol}10,000,000.`, "BUDGET");
     }
 
     // Calculate duration and daily equivalent for TOTAL budget
@@ -120,12 +122,12 @@ export class GoogleAdsCampaignValidator {
 
     console.log(`\n==================== 💰 [AI GUIDED BUDGET VALIDATION] ====================`);
     console.log(`Budget Type:                     ${budgetType === "TOTAL" ? "CAMPAIGN_TOTAL_BUDGET" : "DAILY_BUDGET"}`);
-    console.log(`Input Budget:                    ₹${rawBudgetInput}`);
+    console.log(`Input Budget:                    ${currencySymbol}${rawBudgetInput} (${currency})`);
     console.log(`Start Date:                      ${state.startDate || "N/A (defaults to today)"}`);
     console.log(`End Date:                        ${state.endDate || "None (Continuous)"}`);
     console.log(`Duration Days:                   ${durationDays !== null ? `${durationDays} days` : "N/A"}`);
-    console.log(`Calculated Daily Equivalent:     ${calculatedDailyEquivalent !== null ? `₹${calculatedDailyEquivalent}/day` : "N/A"}`);
-    console.log(`Google Ads Budget Representation:${budgetType === "TOTAL" ? (type === "VIDEO" ? "CAMPAIGN_TOTAL_BUDGET" : `DAILY_BUDGET (derived ₹${calculatedDailyEquivalent}/day)`) : `DAILY_BUDGET (₹${parsedBudgetNum}/day)`}`);
+    console.log(`Calculated Daily Equivalent:     ${calculatedDailyEquivalent !== null ? `${currencySymbol}${calculatedDailyEquivalent}/day` : "N/A"}`);
+    console.log(`Google Ads Budget Representation:${budgetType === "TOTAL" ? (type === "VIDEO" ? "CAMPAIGN_TOTAL_BUDGET" : `DAILY_BUDGET (derived ${currencySymbol}${calculatedDailyEquivalent}/day)`) : `DAILY_BUDGET (${currencySymbol}${parsedBudgetNum}/day)`}`);
     console.log(`=========================================================================\n`);
 
     // Common Locations & Proximity Validation
@@ -616,10 +618,12 @@ export class GoogleAdsCampaignValidator {
           addError("biddingStrategy", "YouTube engagements bidding is not supported for Demand Gen Website Traffic or Lead campaigns.", "FIELD");
         }
 
-        // Minimum Budget validation for Demand Gen (Google Ads minimum is ₹416/day)
+        // Demand Gen requires a valid positive daily budget (> 0).
+        // Authoritative currency-specific per-day minimum is enforced directly by Google Ads API
+        // and surfaced accurately via BUDGET_BELOW_PER_DAY_MINIMUM (BudgetPerDayMinimumErrorDetails).
         const effectiveDailyEquivalent = calculatedDailyEquivalent !== null ? calculatedDailyEquivalent : parsedBudgetNum;
-        if (!isNaN(effectiveDailyEquivalent) && effectiveDailyEquivalent < 416) {
-          addError("dailyBudget", `Demand Gen budget must be at least ₹416/day (Google Ads API minimum requirement). Currently ₹${effectiveDailyEquivalent}/day.`, "BUDGET");
+        if (isNaN(effectiveDailyEquivalent) || !isFinite(effectiveDailyEquivalent) || effectiveDailyEquivalent <= 0) {
+          addError("dailyBudget", `Demand Gen budget must be greater than ${currencySymbol}0.`, "BUDGET");
         }
 
         break;

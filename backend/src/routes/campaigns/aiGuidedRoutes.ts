@@ -42,6 +42,7 @@ import { GoogleAdsKeywordIntelligenceService } from "../../services/googleAds/sh
 import { GoogleAdsAudienceIntelligenceService } from "../../services/googleAds/shared/GoogleAdsAudienceIntelligenceService";
 import { GoogleAdsSharedSetService } from "../../services/googleAds/GoogleAdsSharedSetService";
 import { GoogleAdsPerformancePlannerService } from "../../services/googleAds/GoogleAdsPerformancePlannerService";
+import { GoogleAdsKeywordPlannerService } from "../../services/googleAds/GoogleAdsKeywordPlannerService";
 import { GoogleAdsService } from "../../services/googleAdsService";
 import { GoogleAdsAssetTypesService } from "../../services/googleAds/GoogleAdsAssetTypesService";
 import { GoogleAdsAssetGroupService } from "../../services/googleAds/GoogleAdsAssetGroupService";
@@ -3184,9 +3185,12 @@ router.post("/create-campaign", async (req, res) => {
     req.socket.setTimeout(10 * 60 * 1000);
   }
   const idempotencyKey = (req.body?.idempotencyKey || req.headers["x-idempotency-key"] || "") as string;
+  let orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body?.orgId || "") as string;
+  let cleanCid = ((req.body?.customerId || "") as string).replace(/-/g, "").trim();
+  let customerCurrency = ((req.body?.campaignState?.currencyCode || req.body?.campaignState?.currency || "INR") as string).toUpperCase();
   try {
     const { customerId, campaignState, userConfirmed } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
+    orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
 
     if (idempotencyKey && typeof idempotencyKey === "string" && idempotencyKey.trim()) {
       const existing = idempotencyCache.get(idempotencyKey.trim());
@@ -3235,7 +3239,7 @@ router.post("/create-campaign", async (req, res) => {
       });
     }
 
-    const cleanCid = customerId.replace(/-/g, "").trim();
+    cleanCid = customerId.replace(/-/g, "").trim();
 
     // Customer ownership validation before mutation
     const isOwned = await validateCustomerOwnership(orgId, cleanCid);
@@ -3245,6 +3249,18 @@ router.post("/create-campaign", async (req, res) => {
         error: "Access denied. The specified Google Ads account is not associated with this organization."
       });
     }
+
+    // Resolve customer currency dynamically if not present on state
+    customerCurrency = campaignState.currencyCode || campaignState.currency;
+    if (!customerCurrency) {
+      try {
+        customerCurrency = await GoogleAdsKeywordPlannerService.getCustomerCurrency(orgId, cleanCid);
+      } catch {
+        customerCurrency = "INR";
+      }
+    }
+    campaignState.currencyCode = customerCurrency;
+    campaignState.currency = customerCurrency;
 
     // ── Build Deterministic CampaignPlan ─────────────────────────────────────
     const plan: CampaignPlan = CampaignPlanMapper.fromState(orgId, cleanCid, campaignState);
@@ -3862,6 +3878,10 @@ router.post("/create-campaign", async (req, res) => {
           callouts: anyState.callouts || [],
           structuredSnippets: anyState.structuredSnippets || [],
           promotions: anyState.promotions || [],
+          keywords: validKeywords.length > 0 ? validKeywords : (anyState.keywords || []),
+          searchThemes: anyState.searchThemes || state.searchThemes || [],
+          audienceSignal: anyState.audienceSignal || (anyState.audienceSignals?.[0] ? anyState.audienceSignals[0] : (state.audienceSignals?.[0] || undefined)),
+          audienceSignals: anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || [])),
           audience: anyState.audience || undefined,
           customerAcquisitionMode: anyState.customerAcquisitionMode || (state.onlyBidNewCustomers ? "ONLY_NEW" : "EQUAL"),
           optimizedTargeting: anyState.optimizedTargeting !== undefined ? Boolean(anyState.optimizedTargeting) : true,
@@ -3991,16 +4011,68 @@ router.post("/create-campaign", async (req, res) => {
     if (anyState?.startDate) console.log(`📌 Start Date:           ${anyState?.startDate}`);
     if (anyState?.endDate) console.log(`📌 End Date:             ${anyState?.endDate}`);
 
-    const isSearchCampaign = state.campaignType === "SEARCH";
-    const isPmaxCampaign = state.campaignType === "PERFORMANCE_MAX";
-    const isDemandGenCampaign = state.campaignType === "DEMAND_GEN";
+    // Shopping Campaign Specific Settings (Merchant Center, Feed Label, Priority, Inventory)
+    if (state.campaignType === "SHOPPING" || anyState?.merchantCenterId || anyState?.merchantId) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`🛍️ Google Shopping & Merchant Center:`);
+      console.log(`   • Merchant Center ID:     ${anyState?.merchantCenterId || anyState?.merchantId || anyState?.shoppingSetting?.merchantId || "N/A"}`);
+      console.log(`   • Sales / Feed Country:   ${anyState?.salesCountry || anyState?.shoppingSetting?.salesCountry || "IN"}`);
+      console.log(`   • Feed Label:             ${anyState?.feedLabel || anyState?.shoppingSetting?.feedLabel || anyState?.salesCountry || "IN"}`);
+      console.log(`   • Campaign Priority:      ${anyState?.campaignPriority || anyState?.shoppingSetting?.campaignPriority || "LOW"}`);
+      console.log(`   • Customer Acquisition:   ${anyState?.customerAcquisitionMode || "ALL_CUSTOMERS"}`);
+      console.log(`   • Local Products Enabled: ${Boolean(anyState?.localProducts || anyState?.enableLocalProducts)}`);
+      console.log(`   • Product Group Filter:   ${anyState?.productGroupFilter || "Use all products"}`);
+      if (anyState?.productGroupSelectBy) console.log(`   • Selected Product By:    ${anyState?.productGroupSelectBy}`);
+      if (anyState?.adGroupName) console.log(`   • Ad Group Name:          ${anyState?.adGroupName} (Bid: ${anyState?.adGroupBid ? `₹${anyState?.adGroupBid}` : "Auto/Strategy"})`);
+    }
 
-    // Target Keywords (Supported and logged strictly for SEARCH, or DISPLAY contextual targeting)
-    const kws = isDemandGenCampaign ? [] : (anyState?.keywords || validKeywords || []);
-    if (kws.length > 0 && (isSearchCampaign || state.campaignType === "DISPLAY")) {
+    // Target Keywords (Supported and logged for SEARCH, DISPLAY, VIDEO, or custom targeting)
+    const kws = state.campaignType === "DEMAND_GEN" ? [] : (anyState?.keywords || validKeywords || []);
+    if (kws.length > 0) {
       console.log(`-----------------------------------------------------------------`);
       console.log(`🔑 Target Keywords (${kws.length}):`);
       kws.forEach((kw: string, i: number) => console.log(`   [${i + 1}] ${kw}`));
+    }
+
+    // YouTube Video Links (Specifically logged for VIDEO and YOUTUBE campaigns)
+    const vids = anyState?.videos || anyState?.youtubeVideos || [];
+    if (Array.isArray(vids) && vids.length > 0) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`🎬 YouTube Videos (${vids.length}):`);
+      vids.forEach((v: any, i: number) => {
+        const vUrl = typeof v === "string" ? v : v?.url || v?.videoId || v?.asset || "N/A";
+        console.log(`   [${i + 1}] ${vUrl}`);
+      });
+    }
+
+    // Brand Guidelines (Brand Font, Main Color, Accent Color)
+    if (anyState?.mainBrandColor || anyState?.accentBrandColor || anyState?.brandFont) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`🎨 Brand Guidelines:`);
+      if (anyState.mainBrandColor) console.log(`   • Main Brand Color:   ${anyState.mainBrandColor}`);
+      if (anyState.accentBrandColor) console.log(`   • Accent Brand Color: ${anyState.accentBrandColor}`);
+      if (anyState.brandFont) console.log(`   • Brand Font:         ${anyState.brandFont}`);
+    }
+
+    // Channels Targeting
+    const channelsList = anyState?.channels || [];
+    if (Array.isArray(channelsList) && channelsList.length > 0) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`📺 Channels Targeting (${channelsList.length}): ${channelsList.join(", ")}`);
+    }
+
+    // Device Targeting
+    if (anyState?.deviceTargeting || anyState?.devices) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`📱 Device Targeting: ${anyState.deviceTargeting || "ALL"}`);
+      if (anyState.devices) console.log(`   Devices: ${JSON.stringify(anyState.devices)}`);
+    }
+
+    // Audience Signal / Targeting
+    const audSignal = anyState?.audienceSignal || anyState?.audienceSignals || anyState?.audience;
+    if (audSignal) {
+      console.log(`-----------------------------------------------------------------`);
+      console.log(`👥 Audience Signal / Targeting:`, typeof audSignal === "object" ? JSON.stringify(audSignal) : audSignal);
     }
 
     // Headlines
@@ -4059,8 +4131,8 @@ router.post("/create-campaign", async (req, res) => {
       snipsList.forEach((sn: any, i: number) => console.log(`   [${i + 1}] ${sn.header}: ${(sn.values || []).join(", ")}`));
     }
 
-    // Search Themes (Supported and logged strictly for PERFORMANCE_MAX and AI SEARCH)
-    const sthemesList = (isPmaxCampaign || isSearchCampaign) ? (anyState?.searchThemes || []) : [];
+    // Search Themes (Supported and logged for PMAX, SEARCH, VIDEO, DEMAND_GEN)
+    const sthemesList = anyState?.searchThemes || [];
     if (sthemesList.length > 0) {
       console.log(`-----------------------------------------------------------------`);
       console.log(`🎯 Search Themes / Signals (${sthemesList.length}):`);
@@ -4146,7 +4218,20 @@ router.post("/create-campaign", async (req, res) => {
       });
     }
     console.error("[AI Guided Campaign Creation Error]:", error?.response?.data || error.message);
-    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
+    const errContext = { organizationId: orgId, customerId: cleanCid, currencyCode: customerCurrency || "INR" };
+    const budgetErr = GoogleAdsBaseService.parseGoogleAdsBudgetError(error, errContext);
+    if (budgetErr && budgetErr.isBudgetBelowMinimum) {
+      return res.status(422).json({
+        success: false,
+        errorCode: budgetErr.errorCode,
+        error: budgetErr.message,
+        message: budgetErr.message,
+        minimumBudgetAmountMicros: budgetErr.minimumBudgetAmountMicros,
+        minimumBudgetUnits: budgetErr.minimumBudgetUnits,
+        currencyCode: budgetErr.currencyCode
+      });
+    }
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error, errContext);
     const errorDetails = error?.response?.data || error.message;
     return res.status(500).json({
       error: formattedError || error?.response?.data?.error?.message || error.message || "Failed to create campaign via AI Guided flow.",

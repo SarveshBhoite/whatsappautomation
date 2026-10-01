@@ -252,6 +252,15 @@ export interface CampaignState {
     operation?: "MULTIPLY" | "ADD";
     value?: number;
   };
+  deviceTargeting?: "ALL" | "SPECIFIC" | string;
+  audienceSignal?: any;
+  geoTargets?: {
+    locations?: any[];
+    languages?: any[];
+    channels?: string[];
+    audience?: any;
+    [key: string]: any;
+  };
   thirdPartyMeasurement?: {
     vendor?: string;
     accountId?: string;
@@ -1452,6 +1461,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     accountName?: string;
     customerId?: string;
     currencyCode?: string;
+    demandGenMinimum?: {
+      minimumAmount: number;
+      currencyCode: string;
+      isAuthoritative?: boolean;
+    } | null;
   } | null>(null);
 
   // Approved Business & Marketing Profile Context (GoogleAdsCustomerProfile)
@@ -1493,16 +1507,23 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           locationName: resolvedLocation,
           accountName: profileData.accountName || "",
           customerId: profileData.customerId || cid,
-          currencyCode: profileData.currencyCode || "INR"
+          currencyCode: profileData.currencyCode || "INR",
+          demandGenMinimum: profileData.demandGenMinimum || null
         });
 
         if (prof) {
           if (profileData.youtubeConnection && !prof.youtubeConnection) {
             prof.youtubeConnection = profileData.youtubeConnection;
           }
+          if (profileData.demandGenMinimum && !prof.demandGenMinimum) {
+            prof.demandGenMinimum = profileData.demandGenMinimum;
+          }
           setCustomerProfile(prof);
-        } else if (profileData.youtubeConnection) {
-          setCustomerProfile({ youtubeConnection: profileData.youtubeConnection });
+        } else {
+          setCustomerProfile({
+            youtubeConnection: profileData.youtubeConnection || null,
+            demandGenMinimum: profileData.demandGenMinimum || null
+          });
         }
 
         setLoadingProfileStep("Loading business keywords & locations...");
@@ -1830,7 +1851,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
   // Unsaved Changes & Exit Dialog State
   const [isExitPromptOpen, setIsExitPromptOpen] = useState<boolean>(false);
-  const [pendingExitAction, setPendingExitAction] = useState<"back" | "new_session" | null>(null);
+  const [pendingExitAction, setPendingExitAction] = useState<"back" | "new_session" | "profile" | null>(null);
+  const [pendingProfileUrl, setPendingProfileUrl] = useState<string | null>(null);
   const [isSaveDraftConfirmOpen, setIsSaveDraftConfirmOpen] = useState<boolean>(false);
   const [saveDraftMode, setSaveDraftMode] = useState<"create" | "update_existing" | "save_as_new">("create");
   // Loaded Draft Context (when user opens a draft from "Edit from Old Draft")
@@ -1873,6 +1895,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     const hasAssets = (campaignState.images?.length || 0) > 0 || (campaignState.logos?.length || 0) > 0;
     const hasChatMessages = messages.length > 1; // More than just initial greeting
     return hasBiz || hasBudget || hasCopy || hasAssets || hasChatMessages;
+  };
+
+  // Helper to safely navigate to profile, checking if unsaved changes exist
+  const handlePromptProfileNavigation = (targetUrl: string) => {
+    if (hasUnsavedProgress() && hasLoadedDraftChanges()) {
+      setPendingExitAction("profile");
+      setPendingProfileUrl(targetUrl);
+      setIsExitPromptOpen(true);
+    } else {
+      router.push(targetUrl);
+    }
   };
 
   // Helper to execute fresh session reset
@@ -2668,31 +2701,22 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     if (num === 0) {
       return `${label} must be greater than 0.`;
     }
+    const accountCurrency = userProfile?.currencyCode || customerProfile?.currencyCode || "INR";
+    const curSymbol = (() => {
+      const c = accountCurrency.toUpperCase();
+      if (c === "USD") return "$";
+      if (c === "EUR") return "€";
+      if (c === "GBP") return "£";
+      if (c === "INR") return "₹";
+      return `${c} `;
+    })();
     if (num > 10_000_000) {
-      return `${label} cannot exceed the maximum allowed limit of ₹10,000,000.`;
+      return `${label} cannot exceed the maximum allowed limit of ${curSymbol}10,000,000.`;
     }
     const effectiveType = targetCampaignType || campaignState.campaignType;
     if (effectiveType === "DEMAND_GEN") {
-      if (!isTotal && num < 416) {
-        return "Demand Gen daily budget must be at least ₹416/day (Google Ads minimum).";
-      }
-      if (isTotal) {
-        const sDate = tempEditValues.startDate || campaignState.startDate || todayIso;
-        const eDate = tempEditValues.endDate || campaignState.endDate;
-        if (sDate && eDate) {
-          const sTime = new Date(sDate).getTime();
-          const eTime = new Date(eDate).getTime();
-          if (!isNaN(sTime) && !isNaN(eTime) && eTime > sTime) {
-            const days = Math.max(1, Math.ceil((eTime - sTime) / (1000 * 60 * 60 * 24)));
-            const perDay = Math.round(num / days);
-            if (perDay < 416) {
-              const minTotal = Math.ceil(416 * days);
-              return `Demand Gen budget equates to ₹${perDay}/day across ${days} days, which is below Google Ads' minimum requirement (min ₹416/day). Please set a total budget of at least ₹${minTotal.toLocaleString("en-IN")}.`;
-            }
-          }
-        } else if (num < 416) {
-          return "Demand Gen campaign total budget must be at least ₹416/day (Google Ads minimum).";
-        }
+      if (num <= 0) {
+        return `Demand Gen budget must be greater than ${curSymbol}0.`;
       }
     }
     return null;
@@ -2816,22 +2840,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const checkIsCampaignReady = (state: CampaignState): boolean => {
     const cType = state.campaignType;
     const isBudgetValid = (() => {
-      if (!state.dailyBudget || state.dailyBudget <= 0) return false;
-      if (cType === "DEMAND_GEN") {
-        if (state.budgetType === "TOTAL") {
-          if (state.startDate && state.endDate) {
-            const s = new Date(state.startDate).getTime();
-            const e = new Date(state.endDate).getTime();
-            if (!isNaN(s) && !isNaN(e) && e > s) {
-              const days = Math.max(1, Math.ceil((e - s) / (1000 * 60 * 60 * 24)));
-              return (Number(state.dailyBudget) / days) >= 416;
-            }
-          }
-          return state.dailyBudget >= 416;
-        }
-        return state.dailyBudget >= 416;
-      }
-      return state.dailyBudget > 0;
+      if (!state.dailyBudget || Number(state.dailyBudget) <= 0 || !isFinite(Number(state.dailyBudget))) return false;
+      return true;
     })();
     const hasBudget = Boolean(isBudgetValid);
     const hasBizName = !!(state.businessName?.trim() || state.business?.name?.trim());
@@ -5527,35 +5537,24 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       // 2. Budget Validation (Daily Budget vs Campaign Total Budget)
       const budgetNum = Number(effectiveState.dailyBudget);
       const isTotalBudget = effectiveState.budgetType === "TOTAL";
-      if (!effectiveState.dailyBudget || isNaN(budgetNum) || budgetNum <= 0) {
+      const accountCurrency = userProfile?.currencyCode || customerProfile?.currencyCode || "INR";
+      const curSymbol = (() => {
+        const c = accountCurrency.toUpperCase();
+        if (c === "USD") return "$";
+        if (c === "EUR") return "€";
+        if (c === "GBP") return "£";
+        if (c === "INR") return "₹";
+        return `${c} `;
+      })();
+      if (!effectiveState.dailyBudget || isNaN(budgetNum) || !isFinite(budgetNum) || budgetNum <= 0) {
         startFieldEdit("dailyBudget");
-        throw new Error(`${isTotalBudget ? "Campaign Total Budget" : "Daily Budget"} is required and must be greater than ₹0. Please set a budget in chat or the Live Cockpit.`);
+        throw new Error(`${isTotalBudget ? "Campaign Total Budget" : "Daily Budget"} is required and must be greater than ${curSymbol}0. Please set a budget in chat or the Live Cockpit.`);
       }
 
       if (effectiveState.campaignType === "DEMAND_GEN") {
-        if (!isTotalBudget && budgetNum < 416) {
+        if (budgetNum <= 0) {
           startFieldEdit("dailyBudget");
-          throw new Error("Demand Gen daily budget must be at least ₹416/day (Google Ads minimum).");
-        }
-        if (isTotalBudget) {
-          const sDate = effectiveState.startDate || todayIso;
-          const eDate = effectiveState.endDate;
-          if (sDate && eDate) {
-            const s = new Date(sDate).getTime();
-            const e = new Date(eDate).getTime();
-            if (!isNaN(s) && !isNaN(e) && e > s) {
-              const days = Math.max(1, Math.ceil((e - s) / (1000 * 60 * 60 * 24)));
-              const perDay = Math.round(budgetNum / days);
-              if (perDay < 416) {
-                startFieldEdit("dailyBudget");
-                const minTotal = Math.ceil(416 * days);
-                throw new Error(`Demand Gen budget equates to ₹${perDay}/day across ${days} days, which is below Google Ads' minimum requirement (min ₹416/day). Please set a total budget of at least ₹${minTotal.toLocaleString("en-IN")}.`);
-              }
-            }
-          } else if (budgetNum < 416) {
-            startFieldEdit("dailyBudget");
-            throw new Error("Demand Gen campaign total budget must be at least ₹416/day (Google Ads minimum).");
-          }
+          throw new Error(`Demand Gen daily budget must be greater than ${curSymbol}0.`);
         }
       }
 
@@ -5947,16 +5946,61 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           setYoutubeVideoUrlError("At least 1 YouTube video URL/asset is required for Video campaigns.");
           throw new Error("At least 1 YouTube video URL/asset is required for Video campaigns. Please enter a YouTube video URL or switch to Image format.");
         }
+
+        // Map and ensure all parameters requested by user are explicitly bundled for backend
+        effectiveState.keywords = effectiveState.keywords || campaignState.keywords || [];
+        effectiveState.searchThemes = effectiveState.searchThemes || campaignState.searchThemes || [];
+        effectiveState.audienceSignal = effectiveState.audienceSignal || campaignState.audienceSignal || (campaignState.audienceSignals?.[0] ?? null);
+        effectiveState.audienceSignals = effectiveState.audienceSignals || campaignState.audienceSignals || [];
+        effectiveState.mainBrandColor = effectiveState.mainBrandColor || campaignState.mainBrandColor || "#3b82f6";
+        effectiveState.accentBrandColor = effectiveState.accentBrandColor || campaignState.accentBrandColor || "#10b981";
+        effectiveState.brandFont = effectiveState.brandFont || campaignState.brandFont || "Any font";
+        effectiveState.deviceTargeting = effectiveState.deviceTargeting || campaignState.deviceTargeting || "ALL";
+        effectiveState.devices = effectiveState.devices || campaignState.devices || { computers: true, mobile: true, tablets: true, tv: true };
+        effectiveState.channels = effectiveState.channels || campaignState.channels || ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"];
+        effectiveState.adSchedule = effectiveState.adSchedule || campaignState.adSchedule || [];
+        
+        // Structured geoTargets packaging containing locations, languages, channels, and audience
+        const resolvedLocs = effectiveState.locations || campaignState.locations || ["India"];
+        const resolvedLangs = effectiveState.language ? [effectiveState.language] : (campaignState.language ? [campaignState.language] : ["English"]);
+        effectiveState.geoTargets = {
+          locations: resolvedLocs,
+          languages: resolvedLangs,
+          channels: effectiveState.channels,
+          audience: effectiveState.audienceSignal || null,
+          deviceTargeting: effectiveState.deviceTargeting,
+          mainBrandColor: effectiveState.mainBrandColor,
+          accentBrandColor: effectiveState.accentBrandColor,
+          brandFont: effectiveState.brandFont,
+          adSchedule: effectiveState.adSchedule
+        };
       } else if (cType === "APP") {
         if (!effectiveState.appId || !effectiveState.appId.trim()) {
           startFieldEdit("appId");
           throw new Error("App ID / Package Name is required for App campaigns.");
         }
       } else if (cType === "SHOPPING") {
-        if (!effectiveState.merchantCenterId || !/^\d+$/.test(effectiveState.merchantCenterId)) {
+        const mId = effectiveState.merchantCenterId || (campaignState as any).merchantCenterId || (campaignState as any).merchantId;
+        if (!mId || !/^\d+$/.test(String(mId).trim())) {
           startFieldEdit("merchantCenterId");
           throw new Error("Valid Google Merchant Center Account ID is required for Shopping campaigns.");
         }
+        effectiveState.merchantCenterId = String(mId).trim();
+        effectiveState.merchantId = String(mId).trim();
+        effectiveState.salesCountry = effectiveState.salesCountry || (campaignState as any).salesCountry || "IN";
+        effectiveState.feedLabel = effectiveState.feedLabel || (campaignState as any).feedLabel || effectiveState.salesCountry;
+        effectiveState.campaignPriority = effectiveState.campaignPriority || (campaignState as any).campaignPriority || "LOW";
+        effectiveState.productGroupFilter = effectiveState.productGroupFilter || (campaignState as any).productGroupFilter || "Use all products";
+        effectiveState.productGroupSelectBy = effectiveState.productGroupSelectBy || (campaignState as any).productGroupSelectBy || "Product type";
+        effectiveState.localProducts = Boolean(effectiveState.localProducts || (campaignState as any).localProducts);
+        effectiveState.adSchedule = effectiveState.adSchedule || campaignState.adSchedule || [];
+        effectiveState.geoTargets = {
+          locations: effectiveState.locations || campaignState.locations || ["India"],
+          languages: effectiveState.language ? [effectiveState.language] : ["English"],
+          salesCountry: effectiveState.salesCountry,
+          merchantCenterId: effectiveState.merchantCenterId,
+          adSchedule: effectiveState.adSchedule
+        };
       }
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/create-campaign`, {
@@ -5976,6 +6020,35 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       const data = await res.json();
 
       if (!res.ok || !data.success) {
+        if (data.errorCode === "DEMAND_GEN_BUDGET_BELOW_MINIMUM" || data.minimumBudgetUnits) {
+          const minUnits = data.minimumBudgetUnits;
+          const curr = data.currencyCode || userProfile?.currencyCode || customerProfile?.currencyCode || "INR";
+          const sym = curr.toUpperCase() === "USD" ? "$" : curr.toUpperCase() === "EUR" ? "€" : curr.toUpperCase() === "GBP" ? "£" : curr.toUpperCase() === "INR" ? "₹" : `${curr} `;
+          const minText = minUnits ? `${sym}${minUnits}/day` : "the required minimum";
+          
+          if (minUnits) {
+            setUserProfile((prev: any) => ({
+              ...prev,
+              demandGenMinimum: {
+                minimumAmount: minUnits,
+                currencyCode: curr,
+                isAuthoritative: true
+              }
+            }));
+            setCustomerProfile((prev: any) => ({
+              ...prev,
+              demandGenMinimum: {
+                minimumAmount: minUnits,
+                currencyCode: curr,
+                isAuthoritative: true
+              }
+            }));
+          }
+          
+          startFieldEdit("dailyBudget");
+          setPublishError(`Your daily budget is below Google's current minimum. Minimum required: ${minText} (${curr}). Please increase your budget in the Live Cockpit and retry.`);
+          return;
+        }
         if (data.missingFields && Array.isArray(data.missingFields) && data.missingFields.length > 0) {
           throw new Error(`Campaign validation failed:\n• ${data.missingFields.join("\n• ")}`);
         }
@@ -5992,7 +6065,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
       }, 2500);
     } catch (err: any) {
-      console.error("[Publish Error]:", err);
       const rawMsg = err.message || "Failed to publish campaign to Google Ads.";
       
       if (rawMsg.includes("operations.create.ad.responsive_display_ad.logo_images") || rawMsg.includes("logo_images") || (rawMsg.includes("dimensions of the image are not allowed") && rawMsg.includes("logo"))) {
@@ -7133,7 +7205,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           {customerId && (
             <button
               type="button"
-              onClick={() => router.push(`/ads/profile?customerId=${customerId}`)}
+              onClick={() => handlePromptProfileNavigation(`/ads/profile?customerId=${customerId}`)}
               className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
               title="View Google Ads Profile and Merchant/App Settings"
             >
@@ -10470,9 +10542,25 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 setLocationSearchQuery(e.target.value);
                                 setFieldError(null);
                               }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  const trimmed = locationSearchQuery.trim();
+                                  if (trimmed) {
+                                    const targetLabel = locationTab === "RADIUS"
+                                      ? (/^\d+(?:\.\d+)?\s*(?:km|mi)/i.test(trimmed) ? trimmed : `${radiusValue} ${radiusUnit} around ${trimmed}`)
+                                      : trimmed;
+                                    if (!selectedLocationsList.includes(targetLabel)) {
+                                      setSelectedLocationsList([...selectedLocationsList, targetLabel]);
+                                    }
+                                    setLocationSearchQuery("");
+                                    setFieldError(null);
+                                  }
+                                }
+                              }}
                               placeholder={
                                 locationTab === "RADIUS"
-                                  ? `Search city, town, address, landmark...`
+                                  ? `Search or type city/landmark & press Enter (e.g. Pune, Mumbai)...`
                                   : `Search country, state, city, PIN code...`
                               }
                               className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-900 focus:outline-none focus:bg-white focus:border-blue-500"
@@ -10520,8 +10608,33 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 );
                               })
                             ) : (
-                              <div className="p-2 text-center text-slate-400">
-                                {locationSearchQuery.trim().length >= 2 ? "No matching locations found" : "Type 2+ characters to search Google Places & Geo-Targets"}
+                              <div className="p-2 text-center text-slate-400 space-y-1">
+                                {locationSearchQuery.trim().length >= 1 ? (
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span className="text-[9.5px]">Add typed location:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const trimmed = locationSearchQuery.trim();
+                                        if (trimmed) {
+                                          const targetLabel = locationTab === "RADIUS"
+                                            ? (/^\d+(?:\.\d+)?\s*(?:km|mi)/i.test(trimmed) ? trimmed : `${radiusValue} ${radiusUnit} around ${trimmed}`)
+                                            : trimmed;
+                                          if (!selectedLocationsList.includes(targetLabel)) {
+                                            setSelectedLocationsList([...selectedLocationsList, targetLabel]);
+                                          }
+                                          setLocationSearchQuery("");
+                                          setFieldError(null);
+                                        }
+                                      }}
+                                      className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-[10px] border border-blue-200"
+                                    >
+                                      + Add &quot;{locationTab === "RADIUS" ? `${radiusValue} ${radiusUnit} around ${locationSearchQuery.trim()}` : locationSearchQuery.trim()}&quot;
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span>Type city, landmark, or PIN code to target</span>
+                                )}
                               </div>
                             )}
                           </div>
@@ -13349,10 +13462,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
             {/* 2c. DEDICATED SHOPPING SETTINGS & READINESS CARD (When CampaignType = SHOPPING) */}
             {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SHOPPING" && (() => {
-              const isMerchantConn = Boolean(isMerchantVerified(customerProfile || campaignState.customerProfile));
               const effectiveProf = customerProfile || campaignState.customerProfile;
-              const merchantId = effectiveProf?.merchantCenterId || campaignState.merchantCenterId || "";
+              const isMerchantConn = Boolean(isMerchantVerified(effectiveProf));
+              const profileMerchantId = effectiveProf?.merchantCenterId || "";
+              const activeMerchantId = (campaignState.merchantCenterId || profileMerchantId || "").trim();
               const merchantStoreName = effectiveProf?.merchantStoreName || effectiveProf?.businessName || "Connected Merchant Store";
+              const isMidNumeric = /^\d+$/.test(activeMerchantId);
+              const isBudgetOk = Boolean(campaignState.dailyBudget && campaignState.dailyBudget >= 100);
+              const isCountryOk = Boolean(campaignState.salesCountry || (campaignState as any).feedLabel);
+              const isShoppingReady = isMidNumeric && isBudgetOk && isCountryOk;
 
               return (
                 <div className="bg-slate-50 border border-amber-200 rounded-2xl p-4 space-y-3 shadow-xs">
@@ -13361,13 +13479,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <ShoppingBag className="h-4 w-4 text-amber-600" />
                       <span className="font-bold text-xs text-slate-900">Google Shopping Controls & Merchant Center</span>
                     </div>
-                    <span className={campaignState.readyForPublish && isMerchantConn ? "text-[10px] text-emerald-600 font-bold" : "text-[10px] text-amber-600 font-semibold"}>
-                      {isMerchantConn ? (campaignState.readyForPublish ? "Publish Ready ✓" : "Required items missing") : "Merchant Disconnected"}
+                    <span className={isShoppingReady ? "text-[10px] text-emerald-600 font-bold" : "text-[10px] text-amber-600 font-semibold"}>
+                      {isShoppingReady ? "Publish Ready ✓" : (isMerchantConn || isMidNumeric ? "Parameters Pending" : "Merchant Disconnected")}
                     </span>
                   </div>
 
                   {/* Merchant Connection Alert if not connected */}
-                  {!isMerchantConn ? (
+                  {!isMerchantConn && !isMidNumeric ? (
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2">
@@ -13381,7 +13499,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </div>
                         <button
                           type="button"
-                          onClick={() => router.push(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                          onClick={() => handlePromptProfileNavigation(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
                           className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-lg shadow-xs flex items-center gap-1 shrink-0 cursor-pointer"
                         >
                           <span>Connect Now</span>
@@ -13395,12 +13513,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                         <div>
                           <span className="font-bold text-emerald-900 block">{merchantStoreName}</span>
-                          <span className="text-[10px] font-mono text-emerald-700">Merchant Center ID: {merchantId}</span>
+                          <span className="text-[10px] font-mono text-emerald-700">Merchant Center ID: {activeMerchantId}</span>
                         </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => router.push(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                        onClick={() => handlePromptProfileNavigation(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
                         className="text-[10px] text-emerald-700 hover:underline flex items-center gap-0.5 cursor-pointer font-semibold"
                       >
                         <span>Profile</span>
@@ -13428,7 +13546,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <input
                           type="text"
                           value={tempEditValues.merchantCenterId || ""}
-                          onChange={(e) => setTempEditValues({ ...tempEditValues, merchantCenterId: e.target.value })}
+                          onChange={(e) => setTempEditValues({ ...tempEditValues, merchantCenterId: e.target.value.replace(/\D/g, "") })}
                           onKeyDown={handleKeyDownSave}
                           placeholder="e.g. 5840531233"
                           className="w-full bg-white border border-amber-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
@@ -13443,8 +13561,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </div>
                     ) : (
                       <span className="font-mono font-semibold text-slate-800">
-                        {campaignState.merchantCenterId ? (
-                          <span className="text-emerald-700 font-bold">✓ {campaignState.merchantCenterId}</span>
+                        {activeMerchantId ? (
+                          <span className="text-emerald-700 font-bold">✓ {activeMerchantId}</span>
                         ) : (
                           <span className="text-rose-500 font-semibold flex items-center gap-1">
                             <AlertCircle className="h-3 w-3" /> Numeric ID Required
@@ -13458,14 +13576,24 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   <div className="p-2.5 rounded-xl bg-white border border-slate-200 grid grid-cols-2 gap-2">
                     <div>
                       <span className="text-slate-400 block mb-0.5">Sales Country:</span>
-                      <input
-                        type="text"
+                      <select
                         value={campaignState.salesCountry || "IN"}
-                        onChange={(e) => setCampaignState(prev => ({ ...prev, salesCountry: e.target.value.toUpperCase() }))}
-                        placeholder="IN"
-                        maxLength={2}
+                        onChange={(e) => {
+                          const c = e.target.value;
+                          setCampaignState(prev => ({ ...prev, salesCountry: c, feedLabel: c }));
+                        }}
                         className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] font-mono font-bold text-slate-800"
-                      />
+                      >
+                        <option value="IN">India (IN)</option>
+                        <option value="US">United States (US)</option>
+                        <option value="GB">United Kingdom (GB)</option>
+                        <option value="CA">Canada (CA)</option>
+                        <option value="AU">Australia (AU)</option>
+                        <option value="DE">Germany (DE)</option>
+                        <option value="FR">France (FR)</option>
+                        <option value="AE">UAE (AE)</option>
+                        <option value="SG">Singapore (SG)</option>
+                      </select>
                     </div>
                     <div>
                       <span className="text-slate-400 block mb-0.5">Feed Label:</span>
@@ -13488,20 +13616,25 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </span>
                     </div>
                     <div className="grid grid-cols-3 gap-1">
-                      {(["LOW", "MEDIUM", "HIGH"] as const).map((prio) => {
+                      {[
+                        { prio: "LOW", label: "Low (Default)", desc: "Single campaign" },
+                        { prio: "MEDIUM", label: "Medium", desc: "Regional / Seasonal" },
+                        { prio: "HIGH", label: "High", desc: "Clearance / Promos" }
+                      ].map(({ prio, label, desc }) => {
                         const isSelected = (campaignState.campaignPriority || "LOW") === prio;
                         return (
                           <button
                             key={prio}
                             type="button"
-                            onClick={() => setCampaignState(prev => ({ ...prev, campaignPriority: prio }))}
-                            className={`py-1 px-1.5 rounded-lg border text-center font-semibold text-[10px] transition-all cursor-pointer ${
+                            onClick={() => setCampaignState(prev => ({ ...prev, campaignPriority: prio as any }))}
+                            className={`p-1.5 rounded-lg border text-center transition-all cursor-pointer ${
                               isSelected
                                 ? "bg-amber-600 text-white border-amber-600 shadow-xs"
                                 : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                             }`}
                           >
-                            {prio === "LOW" ? "Low (Default)" : prio === "MEDIUM" ? "Medium" : "High"}
+                            <div className="text-[10px] font-bold">{label}</div>
+                            <div className={`text-[8.5px] ${isSelected ? "text-amber-100" : "text-slate-400"}`}>{desc}</div>
                           </button>
                         );
                       })}
@@ -13533,12 +13666,224 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <option value="Use all products">All products (Default)</option>
                         <option value="Category">Filter by Category</option>
                         <option value="Brand">Filter by Brand</option>
+                        <option value="Item ID">Filter by Item ID</option>
+                        <option value="Condition">Filter by Condition</option>
+                        <option value="Product type">Filter by Product Type</option>
                         <option value="Custom Label">Filter by Custom Label</option>
                       </select>
                     </div>
+
+                    {campaignState.productGroupFilter && campaignState.productGroupFilter !== "Use all products" && (
+                      <div className="pt-1.5 flex items-center justify-between">
+                        <span className="text-slate-500 text-[10px]">Filter Dimension:</span>
+                        <input
+                          type="text"
+                          value={campaignState.productGroupSelectBy || ""}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, productGroupSelectBy: e.target.value }))}
+                          placeholder={`Enter ${campaignState.productGroupFilter} name`}
+                          className="w-40 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-medium"
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Ad Group CPC Bid (when Manual CPC is selected) */}
+                  {/* Multi-Row Ad Schedule with Unique Deduplication & Presets */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                        <Clock className="h-3.5 w-3.5 text-amber-600" />
+                        <span>Ad Schedule</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {(campaignState.adSchedule || []).length || 1} row(s) (Unique)
+                      </span>
+                    </div>
+
+                    {adScheduleError && (
+                      <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-1 text-[9.5px] text-rose-600 font-medium">
+                        <AlertCircle className="h-3 w-3 shrink-0" />
+                        <span>{adScheduleError}</span>
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      {(campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "23:45" }]).map((sched, idx) => {
+                        const isAllDay = (sched.start === "00:00" || sched.start === "0:00") && (sched.end === "00:00" || sched.end === "24:00" || sched.end === "23:45");
+                        const hasTimeError = !isAllDay && sched.start >= sched.end;
+                        const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "23:45" }];
+                        const isRowDuplicate = currentList.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === sched.end);
+                        const hasRowError = hasTimeError || isRowDuplicate;
+
+                        return (
+                          <div key={idx} className="space-y-0.5">
+                            <div className={`flex items-center gap-1 p-1 rounded-lg border transition-colors ${
+                              hasRowError ? "bg-rose-50/70 border-rose-300" : "bg-slate-50 border-slate-200"
+                            }`}>
+                              <select
+                                value={sched.day}
+                                onChange={(e) => {
+                                  const nextDay = e.target.value;
+                                  const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "23:45" }];
+                                  const isDup = list.some((s, i) => i !== idx && s.day === nextDay && s.start === sched.start && s.end === sched.end);
+                                  if (isDup) {
+                                    setAdScheduleError(`Duplicate schedule: "${nextDay}: ${sched.start} - ${sched.end}" already exists.`);
+                                    return;
+                                  }
+                                  list[idx] = { ...list[idx], day: nextDay };
+                                  setAdScheduleError(null);
+                                  setCampaignState(p => ({ ...p, adSchedule: list }));
+                                }}
+                                className="bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-800 font-medium text-[9.5px] focus:outline-none"
+                              >
+                                {pmaxDayOptions.map(d => (
+                                  <option key={d} value={d}>{d}</option>
+                                ))}
+                              </select>
+
+                              <select
+                                value={sched.start}
+                                onChange={(e) => {
+                                  const nextStart = e.target.value;
+                                  const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "23:45" }];
+                                  const isDup = list.some((s, i) => i !== idx && s.day === sched.day && s.start === nextStart && s.end === sched.end);
+                                  if (isDup) {
+                                    setAdScheduleError(`Duplicate schedule: "${sched.day}: ${nextStart} - ${sched.end}" already exists.`);
+                                    return;
+                                  }
+                                  const isFull = nextStart === "00:00" && (sched.end === "00:00" || sched.end === "24:00" || sched.end === "23:45");
+                                  if (!isFull && nextStart >= sched.end) {
+                                    setAdScheduleError(`Start time (${nextStart}) must be before end time (${sched.end}).`);
+                                    return;
+                                  }
+                                  list[idx] = { ...list[idx], start: nextStart };
+                                  setAdScheduleError(null);
+                                  setCampaignState(p => ({ ...p, adSchedule: list }));
+                                }}
+                                className="bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-800 font-mono text-[9.5px] focus:outline-none"
+                              >
+                                {pmaxTimeOptions.map(t => (
+                                  <option key={`start-${t}`} value={t}>{t}</option>
+                                ))}
+                              </select>
+
+                              <span className="text-slate-400 text-[9px]">to</span>
+
+                              <select
+                                value={sched.end}
+                                onChange={(e) => {
+                                  const nextEnd = e.target.value;
+                                  const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "23:45" }];
+                                  const isDup = list.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === nextEnd);
+                                  if (isDup) {
+                                    setAdScheduleError(`Duplicate schedule: "${sched.day}: ${sched.start} - ${nextEnd}" already exists.`);
+                                    return;
+                                  }
+                                  const isFull = sched.start === "00:00" && (nextEnd === "00:00" || nextEnd === "24:00" || nextEnd === "23:45");
+                                  if (!isFull && sched.start >= nextEnd) {
+                                    setAdScheduleError(`Start time (${sched.start}) must be before end time (${nextEnd}).`);
+                                    return;
+                                  }
+                                  list[idx] = { ...list[idx], end: nextEnd };
+                                  setAdScheduleError(null);
+                                  setCampaignState(p => ({ ...p, adSchedule: list }));
+                                }}
+                                className="bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-800 font-mono text-[9.5px] focus:outline-none"
+                              >
+                                {pmaxTimeOptions.map(t => (
+                                  <option key={`end-${t}`} value={t}>{t}</option>
+                                ))}
+                              </select>
+
+                              {(campaignState.adSchedule || []).length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const currentList = [...(campaignState.adSchedule || [])];
+                                    currentList.splice(idx, 1);
+                                    setAdScheduleError(null);
+                                    setCampaignState(p => ({ ...p, adSchedule: currentList }));
+                                  }}
+                                  className="p-0.5 text-slate-400 hover:text-rose-600 ml-auto cursor-pointer"
+                                  title="Delete schedule row"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              )}
+                            </div>
+
+                            {hasRowError && (
+                              <div className="text-[9px] text-rose-600 font-medium px-1 flex items-center gap-1">
+                                <AlertCircle className="h-2.5 w-2.5 shrink-0" />
+                                <span>
+                                  {isRowDuplicate
+                                    ? "Duplicate schedule for this day and time."
+                                    : `Start time (${sched.start}) must precede end time (${sched.end}).`}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "23:45" }];
+                            const availableDay = pmaxDayOptions.find(d => !currentList.some(s => s.day === d && s.start === "09:00" && s.end === "18:00")) ||
+                              pmaxDayOptions.find(d => !currentList.some(s => s.day === d)) || "Mondays - Fridays";
+                            const newRow = { day: availableDay, start: "09:00", end: "18:00" };
+                            const isDup = currentList.some(s => s.day === newRow.day && s.start === newRow.start && s.end === newRow.end);
+                            if (isDup) {
+                              setAdScheduleError(`Schedule for ${newRow.day} (09:00 - 18:00) already exists.`);
+                              return;
+                            }
+                            setAdScheduleError(null);
+                            setCampaignState(p => ({ ...p, adSchedule: [...currentList, newRow] }));
+                          }}
+                          className="inline-flex items-center gap-1 text-[10px] text-amber-700 hover:text-amber-900 font-bold cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3" /> Add Schedule Row
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdScheduleError(null);
+                              setCampaignState(p => ({
+                                ...p,
+                                adSchedule: [{ day: "Mondays - Fridays", start: "09:00", end: "21:00" }]
+                              }));
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-[9px] font-medium"
+                            title="Preset: Retail Shopping Hours"
+                          >
+                            Shopping Hours
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdScheduleError(null);
+                              setCampaignState(p => ({
+                                ...p,
+                                adSchedule: [
+                                  { day: "Saturdays - Sundays", start: "08:00", end: "23:00" },
+                                  { day: "Fridays", start: "17:00", end: "23:00" }
+                                ]
+                              }));
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-[9px] font-medium"
+                            title="Preset: Weekend Mega Sale Peak"
+                          >
+                            Weekend Sales
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ad Group CPC Bid */}
                   <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex justify-between items-center">
                     <span className="font-semibold text-slate-800">Default Ad Group Bid:</span>
                     <div className="flex items-center gap-1">
@@ -13600,7 +13945,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </div>
                         <button
                           type="button"
-                          onClick={() => router.push(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                          onClick={() => handlePromptProfileNavigation(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
                           className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-lg shadow-xs flex items-center gap-1 shrink-0 cursor-pointer"
                         >
                           <span>Connect Now</span>
@@ -13617,7 +13962,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </span>
                         <button
                           type="button"
-                          onClick={() => router.push(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                          onClick={() => handlePromptProfileNavigation(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
                           className="text-[10px] text-emerald-700 hover:underline flex items-center gap-0.5 cursor-pointer"
                         >
                           <span>Profile</span>
@@ -14334,9 +14679,39 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
-                        <span>{campaignState.budgetType === "TOTAL" ? "Budget (min ₹416/day):" : "Daily Budget (≥ ₹416):"}</span>
                         {(() => {
+                          const knownMin = (userProfile as any)?.demandGenMinimum?.minimumAmount || (customerProfile as any)?.demandGenMinimum?.minimumAmount;
+                          const accountCurrency = userProfile?.currencyCode || customerProfile?.currencyCode || "INR";
+                          const curSymbol = (() => {
+                            const c = accountCurrency.toUpperCase();
+                            if (c === "USD") return "$";
+                            if (c === "EUR") return "€";
+                            if (c === "GBP") return "£";
+                            if (c === "INR") return "₹";
+                            return `${c} `;
+                          })();
+
+                          return (
+                            <span>
+                              {campaignState.budgetType === "TOTAL" 
+                                ? `Budget${knownMin ? ` (min ${curSymbol}${knownMin}/day)` : ""}:` 
+                                : `Daily Budget${knownMin ? ` (min ${curSymbol}${knownMin})` : ""}:`}
+                            </span>
+                          );
+                        })()}
+                        {(() => {
+                          const accountCurrency = userProfile?.currencyCode || customerProfile?.currencyCode || "INR";
+                          const curSymbol = (() => {
+                            const c = accountCurrency.toUpperCase();
+                            if (c === "USD") return "$";
+                            if (c === "EUR") return "€";
+                            if (c === "GBP") return "£";
+                            if (c === "INR") return "₹";
+                            return `${c} `;
+                          })();
+
                           const num = Number(campaignState.dailyBudget);
+                          const knownMin = Number((userProfile as any)?.demandGenMinimum?.minimumAmount || (customerProfile as any)?.demandGenMinimum?.minimumAmount || 0);
                           const isTotal = campaignState.budgetType === "TOTAL";
                           let isValid = false;
                           let labelText = "";
@@ -14348,19 +14723,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 if (!isNaN(s) && !isNaN(e) && e > s) {
                                   const days = Math.max(1, Math.ceil((e - s) / (1000 * 60 * 60 * 24)));
                                   const perDay = Math.round(num / days);
-                                  isValid = perDay >= 416;
-                                  labelText = `₹${num.toLocaleString("en-IN")} total (≈ ₹${perDay.toLocaleString("en-IN")}/day, ${days}d)${isValid ? " ✓" : " (min ₹416/day)"}`;
+                                  isValid = knownMin > 0 ? perDay >= knownMin : perDay > 0;
+                                  labelText = `${curSymbol}${num.toLocaleString()} total (≈ ${curSymbol}${perDay.toLocaleString()}/day, ${days}d)${isValid ? " ✓" : ` (min ${curSymbol}${knownMin}/day)`}`;
                                 } else {
-                                  isValid = num >= 416;
-                                  labelText = `₹${num.toLocaleString("en-IN")} total${isValid ? " ✓" : " (min ₹416)"}`;
+                                  isValid = knownMin > 0 ? num >= knownMin : num > 0;
+                                  labelText = `${curSymbol}${num.toLocaleString()} total${isValid ? " ✓" : ` (min ${curSymbol}${knownMin})`}`;
                                 }
                               } else {
-                                isValid = num >= 416;
-                                labelText = `₹${num.toLocaleString("en-IN")} total${isValid ? " ✓" : " (min ₹416)"}`;
+                                isValid = knownMin > 0 ? num >= knownMin : num > 0;
+                                labelText = `${curSymbol}${num.toLocaleString()} total${isValid ? " ✓" : ` (min ${curSymbol}${knownMin})`}`;
                               }
                             } else {
-                              isValid = num >= 416;
-                              labelText = `₹${num.toLocaleString("en-IN")}/day${isValid ? " ✓" : " (min ₹416)"}`;
+                              isValid = knownMin > 0 ? num >= knownMin : num > 0;
+                              labelText = `${curSymbol}${num.toLocaleString()}/day${isValid ? " ✓" : ` (min ${curSymbol}${knownMin}/day)`}`;
                             }
                           } else {
                             labelText = "Not set";
@@ -14433,52 +14808,74 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     </div>
                   </div>
                 )}
-                {/* Live Standard Shopping Requirements Checklist when type is SHOPPING and Merchant is verified */}
-                {(campaignState.campaignType as string) === "SHOPPING" && Boolean(isMerchantVerified(customerProfile || campaignState.customerProfile)) && (
-                  <div className="p-2.5 rounded-xl bg-white border border-amber-200 shadow-2xs space-y-1.5 text-[10px]">
-                    <div className="flex items-center justify-between font-bold text-slate-800">
-                      <span className="flex items-center gap-1 text-amber-700">
-                        <ShoppingBag className="h-3 w-3 text-amber-600" />
-                        Standard Shopping Readiness
-                      </span>
-                      <span className={Boolean(
-                        (campaignState.merchantCenterId || (campaignState as any).merchantId) &&
-                        (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
-                      ) ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
-                        {Boolean(
-                          (campaignState.merchantCenterId || (campaignState as any).merchantId) &&
-                          (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
-                        ) ? "Ready ✓" : "Required items missing"}
-                      </span>
+                {/* Live Standard Shopping Requirements Checklist when type is SHOPPING */}
+                {(campaignState.campaignType as string) === "SHOPPING" && (() => {
+                  const effectiveProf = customerProfile || campaignState.customerProfile;
+                  const profileMid = effectiveProf?.merchantCenterId || "";
+                  const activeMid = (campaignState.merchantCenterId || (campaignState as any).merchantId || profileMid || "").trim();
+                  const isNumericMid = /^\d+$/.test(activeMid);
+                  const isBudgetValid = Boolean(campaignState.dailyBudget && campaignState.dailyBudget >= 100);
+                  const isShoppingChecklistReady = isNumericMid && isBudgetValid;
+
+                  return (
+                    <div className="p-2.5 rounded-xl bg-white border border-amber-200 shadow-2xs space-y-2 text-[10px]">
+                      <div className="flex items-center justify-between font-bold text-slate-800">
+                        <span className="flex items-center gap-1 text-amber-700">
+                          <ShoppingBag className="h-3 w-3 text-amber-600" />
+                          Standard Shopping Readiness
+                        </span>
+                        <span className={isShoppingChecklistReady ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
+                          {isShoppingChecklistReady ? "Ready ✓" : "Required items missing"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1 text-slate-600">
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                          <span>Merchant Center ID:</span>
+                          <span className={isNumericMid ? "text-emerald-600 font-bold font-mono" : "text-rose-500 font-medium"}>
+                            {isNumericMid ? `✓ ${activeMid}` : "Missing (Numeric ID required)"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Target Country:</span>
+                          <span className="text-slate-700 font-semibold">
+                            {(campaignState as any).salesCountry || "IN"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Priority Tier:</span>
+                          <span className="text-slate-700 font-semibold uppercase">
+                            {(campaignState as any).campaignPriority || "LOW"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                          <span>Daily Budget (≥ ₹100):</span>
+                          <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                            {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Ad Schedule:</span>
+                          <span className={(campaignState.adSchedule?.length) ? "text-emerald-600 font-bold" : "text-slate-500 font-medium"}>
+                            {(campaignState.adSchedule?.length) ? `${campaignState.adSchedule.length} row(s) ✓` : "All day"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Inventory:</span>
+                          <span className="text-slate-700 font-semibold">
+                            {Boolean((campaignState as any).localProducts) ? "Local + Online" : "Online Only"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                          <span>Product Partition:</span>
+                          <span className="text-slate-700 font-semibold truncate max-w-[150px]">
+                            {(campaignState as any).productGroupFilter || "All products"}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-1 text-slate-600">
-                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
-                        <span>Merchant Center ID:</span>
-                        <span className={(campaignState.merchantCenterId || (campaignState as any).merchantId) ? "text-emerald-600 font-bold font-mono" : "text-rose-500 font-medium"}>
-                          {(campaignState.merchantCenterId || (campaignState as any).merchantId) ? `✓ ${campaignState.merchantCenterId || (campaignState as any).merchantId}` : "Missing (Numeric ID required)"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                        <span>Target Country:</span>
-                        <span className="text-slate-700 font-semibold">
-                          {(campaignState as any).salesCountry || "IN (India)"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                        <span>Priority Tier:</span>
-                        <span className="text-slate-700 font-semibold uppercase">
-                          {(campaignState as any).campaignPriority || "LOW"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
-                        <span>Daily Budget (≥ ₹100):</span>
-                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                );
+              })()}
                 {/* Live Video Requirements Checklist when type is VIDEO */}
                 {(campaignState.campaignType as string) === "VIDEO" && (
                   <div className="p-2.5 rounded-xl bg-white border border-rose-200 shadow-2xs space-y-2 text-[10px]">
@@ -14540,6 +14937,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
                         </span>
                       </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Audience Signal:</span>
+                        <span className={(campaignState.audienceSignal || campaignState.audienceSignals?.length) ? "text-emerald-600 font-bold" : "text-slate-400 font-medium"}>
+                          {(campaignState.audienceSignal || campaignState.audienceSignals?.length) ? "Set ✓" : "Broad"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Ad Schedule:</span>
+                        <span className={(campaignState.adSchedule?.length) ? "text-emerald-600 font-bold" : "text-slate-500 font-medium"}>
+                          {(campaignState.adSchedule?.length) ? "Custom ✓" : "All day"}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Quick Inline Actions for Video Campaign */}
@@ -14572,6 +14981,569 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <ImageIcon className="h-3 w-3 text-slate-500" />
                         <span>Switch to Image Ad (Demand Gen)</span>
                       </button>
+                    </div>
+
+                    {/* Video Targeting Channels */}
+                    <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
+                        <span>Channels:</span>
+                        <span className="text-[9px] text-slate-400">Select where ads run</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 text-[9.5px]">
+                        {["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"].map(ch => {
+                          const currentChannels = campaignState.channels || ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"];
+                          const isSelected = currentChannels.includes(ch);
+                          return (
+                            <button
+                              key={ch}
+                              type="button"
+                              onClick={() => {
+                                const next = isSelected ? currentChannels.filter(c => c !== ch) : [...currentChannels, ch];
+                                setCampaignState(p => ({ ...p, channels: next }));
+                              }}
+                              className={`px-2 py-1 rounded-md border text-left font-medium transition-all ${
+                                isSelected ? "bg-rose-50 border-rose-200 text-rose-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"
+                              }`}
+                            >
+                              {isSelected ? "✓ " : "+ "}{ch}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Quick Channel Presets */}
+                      <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                        <span className="text-[8.5px] text-slate-400">Presets:</span>
+                        {[
+                          { label: "Shorts Only", list: ["YouTube Shorts"] },
+                          { label: "YouTube Only", list: ["YouTube Shorts", "YouTube In-feed"] },
+                          { label: "All Network", list: ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"] }
+                        ].map(combo => (
+                          <button
+                            key={combo.label}
+                            type="button"
+                            onClick={() => setCampaignState(p => ({ ...p, channels: combo.list }))}
+                            className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-[8.5px] font-medium"
+                          >
+                            {combo.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Brand Guidelines: Colors & Font */}
+                    <div className="pt-2 border-t border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
+                        <span>Brand Guidelines:</span>
+                        <span className="text-[9px] font-mono text-slate-400">Video Branding</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                        <div className="space-y-1">
+                          <label className="text-slate-500 font-medium">Main Color</label>
+                          <div className="flex items-center gap-1.5 p-1 rounded-lg border border-slate-200 bg-slate-50">
+                            <input
+                              type="color"
+                              value={campaignState.mainBrandColor || "#3b82f6"}
+                              onChange={e => setCampaignState(p => ({ ...p, mainBrandColor: e.target.value }))}
+                              className="h-5 w-6 bg-transparent border-0 cursor-pointer rounded"
+                            />
+                            <input
+                              type="text"
+                              value={campaignState.mainBrandColor || "#3b82f6"}
+                              onChange={e => setCampaignState(p => ({ ...p, mainBrandColor: e.target.value }))}
+                              className="w-full text-[9px] font-mono text-slate-700 uppercase bg-transparent outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-slate-500 font-medium">Accent Color</label>
+                          <div className="flex items-center gap-1.5 p-1 rounded-lg border border-slate-200 bg-slate-50">
+                            <input
+                              type="color"
+                              value={campaignState.accentBrandColor || "#10b981"}
+                              onChange={e => setCampaignState(p => ({ ...p, accentBrandColor: e.target.value }))}
+                              className="h-5 w-6 bg-transparent border-0 cursor-pointer rounded"
+                            />
+                            <input
+                              type="text"
+                              value={campaignState.accentBrandColor || "#10b981"}
+                              onChange={e => setCampaignState(p => ({ ...p, accentBrandColor: e.target.value }))}
+                              className="w-full text-[9px] font-mono text-slate-700 uppercase bg-transparent outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Brand Color Theme Variations */}
+                      <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                        <span className="text-[8.5px] text-slate-400">Palette Variations:</span>
+                        {[
+                          { name: "YouTube Red", main: "#ff0000", accent: "#282828" },
+                          { name: "Ocean Blue", main: "#2563eb", accent: "#06b6d4" },
+                          { name: "Emerald Pro", main: "#059669", accent: "#10b981" },
+                          { name: "Sunset Gold", main: "#ea580c", accent: "#f59e0b" },
+                          { name: "Cyber Violet", main: "#7c3aed", accent: "#ec4899" }
+                        ].map(pal => (
+                          <button
+                            key={pal.name}
+                            type="button"
+                            onClick={() => setCampaignState(p => ({ ...p, mainBrandColor: pal.main, accentBrandColor: pal.accent }))}
+                            className="px-1.5 py-0.5 rounded border border-slate-200 bg-white hover:bg-slate-50 text-[8px] font-medium flex items-center gap-1 text-slate-700 shadow-2xs"
+                          >
+                            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: pal.main }} />
+                            <span>{pal.name}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="space-y-1 text-[9.5px]">
+                        <label className="text-slate-500 font-medium">Brand Font</label>
+                        <select
+                          value={campaignState.brandFont || "Any font"}
+                          onChange={e => setCampaignState(p => ({ ...p, brandFont: e.target.value }))}
+                          className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 text-[10px] text-slate-700 outline-none"
+                        >
+                          <option value="Any font">Any font (Default)</option>
+                          <option value="Open Sans">Open Sans</option>
+                          <option value="Roboto">Roboto</option>
+                          <option value="Roboto Slab">Roboto Slab</option>
+                          <option value="Montserrat">Montserrat</option>
+                          <option value="Poppins">Poppins</option>
+                          <option value="Lato">Lato</option>
+                          <option value="Oswald">Oswald</option>
+                          <option value="Playfair Display">Playfair Display</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Device Targeting with Individual Device Variations */}
+                    <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[9.5px]">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
+                        <span>Device Targeting:</span>
+                        <span className="text-[9px] text-slate-400">{campaignState.deviceTargeting === "SPECIFIC" ? "Specific Devices" : "All Devices"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCampaignState(p => ({ ...p, deviceTargeting: "ALL" }))}
+                          className={`flex-1 py-1 px-2 rounded-md border text-center font-medium ${
+                            (campaignState.deviceTargeting || "ALL") === "ALL" ? "bg-rose-50 border-rose-300 text-rose-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-500"
+                          }`}
+                        >
+                          All Devices
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCampaignState(p => ({ ...p, deviceTargeting: "SPECIFIC" }))}
+                          className={`flex-1 py-1 px-2 rounded-md border text-center font-medium ${
+                            campaignState.deviceTargeting === "SPECIFIC" ? "bg-rose-50 border-rose-300 text-rose-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-500"
+                          }`}
+                        >
+                          Specific
+                        </button>
+                      </div>
+
+                      {campaignState.deviceTargeting === "SPECIFIC" && (
+                        <div className="grid grid-cols-2 gap-1 pt-1">
+                          {[
+                            { key: "mobile", label: "Mobile Phones" },
+                            { key: "computers", label: "Computers / Desktops" },
+                            { key: "tablets", label: "Tablets" },
+                            { key: "tv", label: "Connected TV Screens" }
+                          ].map(dev => {
+                            const currentDevices: any = campaignState.devices || { computers: true, mobile: true, tablets: true, tv: true };
+                            const isEnabled = currentDevices[dev.key] !== false;
+                            return (
+                              <button
+                                key={dev.key}
+                                type="button"
+                                onClick={() => {
+                                  setCampaignState(p => ({
+                                    ...p,
+                                    devices: {
+                                      ...(p.devices || { computers: true, mobile: true, tablets: true, tv: true }),
+                                      [dev.key]: !isEnabled
+                                    }
+                                  }));
+                                }}
+                                className={`px-2 py-1 rounded border text-[9px] text-left font-medium transition-all ${
+                                  isEnabled ? "bg-rose-50/80 border-rose-200 text-rose-800 font-bold" : "bg-slate-50 border-slate-200 text-slate-400"
+                                }`}
+                              >
+                                {isEnabled ? "✓ " : "✕ "}{dev.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Video Keywords & Search Themes */}
+                    <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[9.5px]">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
+                        <span>Keywords & Search Themes:</span>
+                        <span className="text-[9px] text-slate-400">
+                          {((campaignState.keywords?.length || 0) + (campaignState.searchThemes?.length || 0))} active
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            placeholder="Add target keyword or theme & press Enter..."
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                const val = (e.currentTarget.value || "").trim();
+                                if (val) {
+                                  const existing = campaignState.keywords || [];
+                                  if (!existing.includes(val)) {
+                                    setCampaignState(p => ({
+                                      ...p,
+                                      keywords: [...existing, val],
+                                      searchThemes: [...(p.searchThemes || []), val]
+                                    }));
+                                  }
+                                  e.currentTarget.value = "";
+                                }
+                              }
+                            }}
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[9.5px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-rose-400 font-medium"
+                          />
+                        </div>
+                        {((campaignState.keywords || []).length > 0 || (campaignState.searchThemes || []).length > 0) && (
+                          <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto pt-0.5">
+                            {Array.from(new Set([...(campaignState.keywords || []), ...(campaignState.searchThemes || [])])).map((kw) => (
+                              <span
+                                key={kw}
+                                className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[8.5px] font-medium flex items-center gap-1"
+                              >
+                                <span>{kw}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCampaignState(p => ({
+                                      ...p,
+                                      keywords: (p.keywords || []).filter(k => k !== kw),
+                                      searchThemes: (p.searchThemes || []).filter(t => t !== kw)
+                                    }));
+                                  }}
+                                  className="hover:text-rose-900"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {["Video Ads", "Best Deals", "Online Shopping", "Product Review", "Tutorial"].map(kwPreset => (
+                            <button
+                              key={kwPreset}
+                              type="button"
+                              onClick={() => {
+                                const existing = campaignState.keywords || [];
+                                if (!existing.includes(kwPreset)) {
+                                  setCampaignState(p => ({
+                                    ...p,
+                                    keywords: [...existing, kwPreset],
+                                    searchThemes: [...(p.searchThemes || []), kwPreset]
+                                  }));
+                                }
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 border border-slate-200 text-[8.5px] font-medium transition-colors"
+                            >
+                              + {kwPreset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Audience Signals with Variations */}
+                    <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[9.5px]">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
+                        <span>Audience Signals:</span>
+                        <span className="text-[9px] text-slate-400">
+                          {((campaignState.audienceSignals || []).length || (campaignState.audienceSignal ? 1 : 0))} configured
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            placeholder="Add custom audience segment & press Enter..."
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                const val = (e.currentTarget.value || "").trim();
+                                if (val) {
+                                  const existing = campaignState.audienceSignals || (campaignState.audienceSignal ? [typeof campaignState.audienceSignal === "string" ? campaignState.audienceSignal : campaignState.audienceSignal.name] : []);
+                                  if (!existing.includes(val)) {
+                                    const next = [...existing, val];
+                                    setCampaignState(p => ({
+                                      ...p,
+                                      audienceSignals: next,
+                                      audienceSignal: next[0]
+                                    }));
+                                  }
+                                  e.currentTarget.value = "";
+                                }
+                              }
+                            }}
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[9.5px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-rose-400 font-medium"
+                          />
+                        </div>
+                        {((campaignState.audienceSignals || []).length > 0 || campaignState.audienceSignal) && (
+                          <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto pt-0.5">
+                            {Array.from(new Set([
+                              ...(campaignState.audienceSignals || []),
+                              ...(campaignState.audienceSignal ? [typeof campaignState.audienceSignal === "string" ? campaignState.audienceSignal : campaignState.audienceSignal.name] : [])
+                            ])).map((sig) => (
+                              <span
+                                key={sig}
+                                className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[8.5px] font-medium flex items-center gap-1"
+                              >
+                                <span>{sig}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = (campaignState.audienceSignals || []).filter(s => s !== sig);
+                                    setCampaignState(p => ({
+                                      ...p,
+                                      audienceSignals: next,
+                                      audienceSignal: next[0] || null
+                                    }));
+                                  }}
+                                  className="hover:text-purple-900"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {["Video Viewers", "In-market Shoppers", "Website Visitors", "High Intent", "YouTube Subscribers"].map(preset => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => {
+                                const existing = campaignState.audienceSignals || (campaignState.audienceSignal ? [typeof campaignState.audienceSignal === "string" ? campaignState.audienceSignal : campaignState.audienceSignal.name] : []);
+                                if (!existing.includes(preset)) {
+                                  const next = [...existing, preset];
+                                  setCampaignState(p => ({
+                                    ...p,
+                                    audienceSignals: next,
+                                    audienceSignal: next[0]
+                                  }));
+                                }
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-600 border border-slate-200 text-[8.5px] font-medium transition-colors"
+                            >
+                              + {preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Multi Ad Schedule with Unique Deduplication */}
+                    <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[9.5px]">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-rose-500" />
+                          <span>Ad Schedule:</span>
+                        </div>
+                        <span className="text-[9px] text-slate-400">
+                          {(campaignState.adSchedule || []).length || 1} row(s) (Unique)
+                        </span>
+                      </div>
+
+                      {adScheduleError && (
+                        <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-1 text-[9px] text-rose-600 font-medium">
+                          <AlertCircle className="h-3 w-3 shrink-0" />
+                          <span>{adScheduleError}</span>
+                        </div>
+                      )}
+
+                      <div className="space-y-1">
+                        {(campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "23:45" }]).map((sched, idx) => {
+                          const isAllDay = (sched.start === "00:00" || sched.start === "0:00") && (sched.end === "00:00" || sched.end === "24:00" || sched.end === "23:45");
+                          const hasTimeError = !isAllDay && sched.start >= sched.end;
+                          const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "23:45" }];
+                          const isRowDuplicate = currentList.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === sched.end);
+                          const hasRowError = hasTimeError || isRowDuplicate;
+
+                          return (
+                            <div key={idx} className="space-y-0.5">
+                              <div className={`flex items-center gap-1 p-1 rounded-lg border transition-colors ${
+                                hasRowError ? "bg-rose-50/70 border-rose-300" : "bg-slate-50 border-slate-200"
+                              }`}>
+                                <select
+                                  value={sched.day}
+                                  onChange={(e) => {
+                                    const nextDay = e.target.value;
+                                    const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "23:45" }];
+                                    const isDup = list.some((s, i) => i !== idx && s.day === nextDay && s.start === sched.start && s.end === sched.end);
+                                    if (isDup) {
+                                      setAdScheduleError(`Duplicate schedule: "${nextDay}: ${sched.start} - ${sched.end}" already exists.`);
+                                      return;
+                                    }
+                                    list[idx] = { ...list[idx], day: nextDay };
+                                    setAdScheduleError(null);
+                                    setCampaignState(p => ({ ...p, adSchedule: list }));
+                                  }}
+                                  className="bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-800 font-medium text-[9px] focus:outline-none"
+                                >
+                                  {pmaxDayOptions.map(d => (
+                                    <option key={d} value={d}>{d}</option>
+                                  ))}
+                                </select>
+
+                                <select
+                                  value={sched.start}
+                                  onChange={(e) => {
+                                    const nextStart = e.target.value;
+                                    const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "23:45" }];
+                                    const isDup = list.some((s, i) => i !== idx && s.day === sched.day && s.start === nextStart && s.end === sched.end);
+                                    if (isDup) {
+                                      setAdScheduleError(`Duplicate schedule: "${sched.day}: ${nextStart} - ${sched.end}" already exists.`);
+                                      return;
+                                    }
+                                    const isFull = nextStart === "00:00" && (sched.end === "00:00" || sched.end === "24:00" || sched.end === "23:45");
+                                    if (!isFull && nextStart >= sched.end) {
+                                      setAdScheduleError(`Start time (${nextStart}) must be before end time (${sched.end}).`);
+                                      return;
+                                    }
+                                    list[idx] = { ...list[idx], start: nextStart };
+                                    setAdScheduleError(null);
+                                    setCampaignState(p => ({ ...p, adSchedule: list }));
+                                  }}
+                                  className="bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-800 font-mono text-[9px] focus:outline-none"
+                                >
+                                  {pmaxTimeOptions.map(t => (
+                                    <option key={`start-${t}`} value={t}>{t}</option>
+                                  ))}
+                                </select>
+
+                                <span className="text-slate-400 text-[8.5px]">to</span>
+
+                                <select
+                                  value={sched.end}
+                                  onChange={(e) => {
+                                    const nextEnd = e.target.value;
+                                    const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "23:45" }];
+                                    const isDup = list.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === nextEnd);
+                                    if (isDup) {
+                                      setAdScheduleError(`Duplicate schedule: "${sched.day}: ${sched.start} - ${nextEnd}" already exists.`);
+                                      return;
+                                    }
+                                    const isFull = sched.start === "00:00" && (nextEnd === "00:00" || nextEnd === "24:00" || nextEnd === "23:45");
+                                    if (!isFull && sched.start >= nextEnd) {
+                                      setAdScheduleError(`Start time (${sched.start}) must be before end time (${nextEnd}).`);
+                                      return;
+                                    }
+                                    list[idx] = { ...list[idx], end: nextEnd };
+                                    setAdScheduleError(null);
+                                    setCampaignState(p => ({ ...p, adSchedule: list }));
+                                  }}
+                                  className="bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-800 font-mono text-[9px] focus:outline-none"
+                                >
+                                  {pmaxTimeOptions.map(t => (
+                                    <option key={`end-${t}`} value={t}>{t}</option>
+                                  ))}
+                                </select>
+
+                                {(campaignState.adSchedule || []).length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const currentList = [...(campaignState.adSchedule || [])];
+                                      currentList.splice(idx, 1);
+                                      setAdScheduleError(null);
+                                      setCampaignState(p => ({ ...p, adSchedule: currentList }));
+                                    }}
+                                    className="p-0.5 text-slate-400 hover:text-rose-600 ml-auto cursor-pointer"
+                                    title="Delete schedule row"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </div>
+
+                              {hasRowError && (
+                                <div className="text-[8.5px] text-rose-600 font-medium px-1 flex items-center gap-1">
+                                  <AlertCircle className="h-2.5 w-2.5 shrink-0" />
+                                  <span>
+                                    {isRowDuplicate
+                                      ? "Duplicate schedule for this day and time."
+                                      : `Start time (${sched.start}) must precede end time (${sched.end}).`}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        <div className="flex items-center justify-between pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "23:45" }];
+                              const availableDay = pmaxDayOptions.find(d => !currentList.some(s => s.day === d && s.start === "09:00" && s.end === "18:00")) ||
+                                pmaxDayOptions.find(d => !currentList.some(s => s.day === d)) || "Mondays - Fridays";
+                              const newRow = { day: availableDay, start: "09:00", end: "18:00" };
+                              const isDup = currentList.some(s => s.day === newRow.day && s.start === newRow.start && s.end === newRow.end);
+                              if (isDup) {
+                                setAdScheduleError(`Schedule for ${newRow.day} (09:00 - 18:00) already exists.`);
+                                return;
+                              }
+                              setAdScheduleError(null);
+                              setCampaignState(p => ({ ...p, adSchedule: [...currentList, newRow] }));
+                            }}
+                            className="inline-flex items-center gap-1 text-[9.5px] text-rose-700 hover:text-rose-900 font-bold cursor-pointer"
+                          >
+                            <Plus className="h-3 w-3" /> Add Schedule Row
+                          </button>
+
+                          {/* Quick Multi-Schedule Variations Preset */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const businessHours = [
+                                  { day: "Mondays - Fridays", start: "09:00", end: "18:00" }
+                                ];
+                                setAdScheduleError(null);
+                                setCampaignState(p => ({ ...p, adSchedule: businessHours }));
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-[8.5px] font-medium"
+                              title="Preset: Mon-Fri 9 AM - 6 PM"
+                            >
+                              Business Hours
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const peakEvenings = [
+                                  { day: "Mondays - Fridays", start: "18:00", end: "23:00" },
+                                  { day: "Saturdays - Sundays", start: "10:00", end: "23:00" }
+                                ];
+                                setAdScheduleError(null);
+                                setCampaignState(p => ({ ...p, adSchedule: peakEvenings }));
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-[8.5px] font-medium"
+                              title="Preset: Evening & Weekend Peak Views"
+                            >
+                              Peak Viewers
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[8.5px] text-slate-400 italic">
+                        Account timezone (GMT+05:30 IST). Duplicate days & hours automatically prevented.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -15030,10 +16002,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 4a. MERCHANT CENTER & PRODUCT FEED CONDITIONAL SETUP (When Merchant Center verified in Profile) */}
+            {/* 4a. MERCHANT CENTER & PRODUCT FEED CONDITIONAL SETUP (When Merchant Center verified in Profile - Performance Max & Sales only, Shopping uses dedicated Card 2c) */}
             {Boolean(
+              campaignState.campaignType !== "SHOPPING" &&
               isMerchantVerified(customerProfile || campaignState.customerProfile) &&
-              (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.objective === "SALES" || campaignState.campaignType === "SHOPPING")
+              (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.objective === "SALES")
             ) && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
@@ -16724,6 +17697,38 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <span className="leading-tight flex-1">{publishError}</span>
                     </div>
 
+                    {/* Interactive resolution button for Demand Gen budget below minimum */}
+                    {publishError.includes("Daily budget is below Google's required per-day minimum") || publishError.includes("below Google's current minimum") ? (
+                      (() => {
+                        const knownMin = (userProfile as any)?.demandGenMinimum?.minimumAmount || (customerProfile as any)?.demandGenMinimum?.minimumAmount;
+                        const accountCurrency = userProfile?.currencyCode || customerProfile?.currencyCode || "INR";
+                        const curSymbol = accountCurrency.toUpperCase() === "USD" ? "$" : accountCurrency.toUpperCase() === "EUR" ? "€" : accountCurrency.toUpperCase() === "GBP" ? "£" : accountCurrency.toUpperCase() === "INR" ? "₹" : `${accountCurrency} `;
+                        return knownMin ? (
+                          <div className="flex items-center gap-1.5 pt-1 border-t border-rose-200/60 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCampaignState(prev => ({ ...prev, dailyBudget: Number(knownMin) }));
+                                setPublishError(null);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9.5px] cursor-pointer shadow-2xs flex items-center gap-1 transition-all"
+                            >
+                              <Check className="h-3 w-3" />
+                              <span>Set Budget to Required Minimum ({curSymbol}{knownMin}/day)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => startFieldEdit("dailyBudget")}
+                              className="px-2 py-1 rounded-lg bg-white hover:bg-rose-100 text-rose-800 border border-rose-300 font-semibold text-[9.5px] cursor-pointer flex items-center gap-1"
+                            >
+                              <Edit3 className="h-3 w-3 text-rose-600" />
+                              <span>Edit Daily Budget Inline</span>
+                            </button>
+                          </div>
+                        ) : null;
+                      })()
+                    ) : null}
+
                     {/* Interactive resolution buttons for Video Campaign missing video errors */}
                     {(publishError.includes("YouTube video URL") || publishError.includes("Video campaigns") || publishError.includes("Video ads")) && (
                       <div className="flex items-center gap-1.5 pt-1 border-t border-rose-200/60 flex-wrap">
@@ -18039,11 +19044,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 onClick={() => {
                   setIsExitPromptOpen(false);
                   const action = pendingExitAction;
+                  const profileUrl = pendingProfileUrl;
                   setPendingExitAction(null);
+                  setPendingProfileUrl(null);
                   if (action === "back") {
                     router.push(`/ads/campaigns/create/manual${customerId ? `?customerId=${customerId}` : ""}`);
                   } else if (action === "new_session") {
                     executeResetSession();
+                  } else if (action === "profile" && profileUrl) {
+                    router.push(profileUrl);
                   }
                 }}
                 className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-semibold text-xs cursor-pointer"
@@ -18055,15 +19064,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 type="button"
                 onClick={() => {
                   const action = pendingExitAction;
+                  const profileUrl = pendingProfileUrl;
                   handleSaveCampaignDraft({
                     asNewDraft: false,
                     onSuccess: () => {
                       setIsExitPromptOpen(false);
                       setPendingExitAction(null);
+                      setPendingProfileUrl(null);
                       if (action === "back") {
                         router.push(`/ads/campaigns/create/manual${customerId ? `?customerId=${customerId}` : ""}`);
                       } else if (action === "new_session") {
                         executeResetSession();
+                      } else if (action === "profile" && profileUrl) {
+                        router.push(profileUrl);
                       }
                     }
                   });

@@ -175,7 +175,10 @@ export class GoogleAdsBaseService {
       .filter((p): p is { key: string; value: string } => p !== null && p.key.length > 0);
   }
 
-  public static formatGoogleAdsError(error: any): string {
+  public static formatGoogleAdsError(
+    error: any,
+    context?: { organizationId?: string; customerId?: string; currencyCode?: string }
+  ): string {
     if (error?.response?.data) {
       const data = error.response.data;
       const details = data.details || data.error?.details || [];
@@ -196,7 +199,36 @@ export class GoogleAdsBaseService {
                 }
               }
             } else if (err.errorCode?.campaignBudgetError === "BUDGET_BELOW_PER_DAY_MINIMUM") {
-              extractedErrors.push(`Daily budget is below Google's minimum requirement (min ₹416/day).`);
+              const bDetails =
+                err.details?.budgetPerDayMinimumErrorDetails ||
+                err.details?.budget_per_day_minimum_error_details;
+              const minMicros =
+                bDetails?.minimumBudgetAmountMicros ||
+                bDetails?.minimum_budget_amount_micros ||
+                bDetails?.minimumBugdetAmountMicros ||
+                bDetails?.minimum_bugdet_amount_micros;
+              if (minMicros && !isNaN(Number(minMicros))) {
+                const minUnits = (Number(minMicros) / 1_000_000).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                });
+                try {
+                  const { DemandGenMinimumService } = require("./DemandGenMinimumService");
+                  DemandGenMinimumService.recordObservedMinimum(
+                    context?.organizationId || "",
+                    context?.customerId || "",
+                    context?.currencyCode || "INR",
+                    minMicros
+                  );
+                } catch {}
+                extractedErrors.push(
+                  `Daily budget is below Google Ads' required per-day minimum for this campaign type (minimum required: ${minUnits}/day in your account currency).`
+                );
+              } else {
+                extractedErrors.push(
+                  `Daily budget is below Google Ads' required per-day minimum for this campaign type. Please increase your daily budget.`
+                );
+              }
             } else if (err.message) {
               const fieldPath = err.location?.fieldPathElements?.map((f: any) => f.fieldName).join(".") || "";
               const trigger = err.trigger?.stringValue || "";
@@ -218,6 +250,78 @@ export class GoogleAdsBaseService {
     return error.message || "An unexpected Google Ads API error occurred.";
   }
 
+  /**
+   * Specifically inspects an error for BUDGET_BELOW_PER_DAY_MINIMUM and returns
+   * structured metadata including the exact minimum amount in micros, units, and currency code.
+   * Also asynchronously persists the observed minimum via DemandGenMinimumService.
+   */
+  public static parseGoogleAdsBudgetError(
+    error: any,
+    context?: { organizationId?: string; customerId?: string; currencyCode?: string }
+  ): {
+    isBudgetBelowMinimum: boolean;
+    errorCode?: string;
+    minimumBudgetAmountMicros?: string;
+    minimumBudgetUnits?: number;
+    currencyCode?: string;
+    message?: string;
+  } | null {
+    if (!error?.response?.data) return null;
+    const data = error.response.data;
+    const details = data.details || data.error?.details || [];
+
+    for (const detail of details) {
+      if (Array.isArray(detail.errors)) {
+        for (const err of detail.errors) {
+          if (err.errorCode?.campaignBudgetError === "BUDGET_BELOW_PER_DAY_MINIMUM") {
+            const bDetails =
+              err.details?.budgetPerDayMinimumErrorDetails ||
+              err.details?.budget_per_day_minimum_error_details;
+            const minMicros =
+              bDetails?.minimumBudgetAmountMicros ||
+              bDetails?.minimum_budget_amount_micros ||
+              bDetails?.minimumBugdetAmountMicros ||
+              bDetails?.minimum_bugdet_amount_micros;
+
+            const curr = (context?.currencyCode || "INR").toUpperCase();
+            let minUnits: number | undefined;
+
+            if (minMicros && !isNaN(Number(minMicros))) {
+              minUnits = Math.round((Number(minMicros) / 1_000_000) * 100) / 100;
+              try {
+                const { DemandGenMinimumService } = require("./DemandGenMinimumService");
+                DemandGenMinimumService.recordObservedMinimum(
+                  context?.organizationId || "",
+                  context?.customerId || "",
+                  curr,
+                  minMicros
+                );
+              } catch {}
+            }
+
+            const formattedUnits = minUnits
+              ? minUnits.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : "";
+
+            return {
+              isBudgetBelowMinimum: true,
+              errorCode: "DEMAND_GEN_BUDGET_BELOW_MINIMUM",
+              minimumBudgetAmountMicros: minMicros ? String(minMicros) : undefined,
+              minimumBudgetUnits: minUnits,
+              currencyCode: curr,
+              message: minUnits
+                ? `Your daily budget is below Google's current minimum. Minimum required: ${curr} ${formattedUnits}/day.`
+                : `Your daily budget is below Google Ads' required per-day minimum. Please increase your daily budget.`
+            };
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+
   protected static async createBudget(organizationId: string, customerId: string, params: {
     name: string; amountPerDay: number; deliveryMethod?: string; shared?: boolean;
   }) {
@@ -233,7 +337,7 @@ export class GoogleAdsBaseService {
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignBudgets:mutate`, {
       operations: [{
         create: {
-          name: params.name || `Budget ₹${safeAmountPerDay}/day (${Date.now()})`,
+          name: params.name || `Budget ${safeAmountPerDay}/day (${Date.now()})`,
           amountMicros,
           deliveryMethod: params.deliveryMethod || "STANDARD",
           explicitlyShared: params.shared || false
@@ -306,6 +410,46 @@ export class GoogleAdsBaseService {
       return res.data?.results?.[0]?.resourceName || null;
     } catch (err: any) {
       console.error(`[GoogleAdsBaseService] uploadImageAsset error for "${name}":`, JSON.stringify(err?.response?.data || err?.message, null, 2));
+      return null;
+    }
+  }
+
+  public static extractYouTubeVideoId(urlOrId: string): string | null {
+    if (!urlOrId || typeof urlOrId !== "string") return null;
+    const str = urlOrId.trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(str)) {
+      return str;
+    }
+    const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([a-zA-Z0-9_-]{11})/i);
+    return match ? match[1] : null;
+  }
+
+  public static async uploadYouTubeVideoAsset(
+    organizationId: string,
+    customerId: string,
+    videoUrlOrId: string
+  ): Promise<string | null> {
+    try {
+      const videoId = this.extractYouTubeVideoId(videoUrlOrId);
+      if (!videoId) return null;
+      const { headers } = await this.getAdsHeaders(organizationId, customerId);
+      const cid = (customerId || "").replace(/-/g, "").trim();
+
+      const res = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+        operations: [{
+          create: {
+            name: `YouTube Video: ${videoId}`,
+            type: "YOUTUBE_VIDEO",
+            youtubeVideoAsset: {
+              youtubeVideoId: videoId
+            }
+          }
+        }]
+      }, { headers });
+
+      return res.data?.results?.[0]?.resourceName || null;
+    } catch (err: any) {
+      console.error(`[GoogleAdsBaseService] uploadYouTubeVideoAsset notice for "${videoUrlOrId}":`, err?.response?.data || err?.message);
       return null;
     }
   }

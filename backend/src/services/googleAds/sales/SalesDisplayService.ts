@@ -38,7 +38,12 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       validDescriptions.push("Explore our top rated solutions with fast delivery and great support.");
     }
 
-    const effectiveBudget = Math.max(Number(dailyBudget || budget || 1000), 416);
+    const rawBudget = dailyBudget !== undefined && dailyBudget !== "" ? dailyBudget : budget;
+    const parsedBudget = Number(rawBudget);
+    if (rawBudget === undefined || rawBudget === null || isNaN(parsedBudget) || !isFinite(parsedBudget) || parsedBudget <= 0) {
+      throw new Error("A valid positive daily budget greater than 0 is required for Display campaigns.");
+    }
+    const effectiveBudget = parsedBudget;
     const amountMicros = Math.round(effectiveBudget * 1_000_000);
     const targetCpaMicros = targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
 

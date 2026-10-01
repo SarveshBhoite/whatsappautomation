@@ -158,9 +158,20 @@ export class SalesShoppingService extends GoogleAdsBaseService {
       finalUrl: payload.finalUrl || payload.website || null,
       headlines: Array.isArray(payload.headlines) ? payload.headlines : [],
       descriptions: Array.isArray(payload.descriptions) ? payload.descriptions : [],
+      startDate: payload.startDate ? new Date(payload.startDate) : undefined,
+      endDate: payload.endDate ? new Date(payload.endDate) : undefined,
+      adSchedule: Array.isArray(payload.adSchedule) ? payload.adSchedule : [],
       geoTargets: {
         locations,
-        objective: "Sales"
+        objective: "Sales",
+        merchantCenterId: String(mId),
+        salesCountry: country,
+        feedLabel: label,
+        campaignPriority: payload.campaignPriority || shoppingSetting?.campaignPriority || "LOW",
+        localProducts: Boolean(payload.localProducts || shoppingSetting?.enableLocalProducts),
+        productGroupFilter: payload.productGroupFilter || "Use all products",
+        productGroupSelectBy: payload.productGroupSelectBy,
+        adSchedule: Array.isArray(payload.adSchedule) ? payload.adSchedule : []
       },
       advertisingChannelType: "SHOPPING",
       amountMicros: BigInt(amountMicros),

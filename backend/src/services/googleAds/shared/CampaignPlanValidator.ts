@@ -86,7 +86,7 @@ export class CampaignPlanValidator {
         severity: "CRITICAL",
         field: "amount",
         code: "INVALID_BUDGET",
-        message: "A valid positive budget greater than ₹0 is required."
+        message: "A valid positive budget greater than 0 is required."
       });
     }
 

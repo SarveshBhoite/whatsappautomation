@@ -22,6 +22,7 @@ export class SalesVideoService extends GoogleAdsBaseService {
       locations = ["India"],
       languages = ["English"],
       youtubeVideos = [],
+      videos = [],
       headlines = [],
       longHeadlines = [],
       descriptions = [],
@@ -32,14 +33,57 @@ export class SalesVideoService extends GoogleAdsBaseService {
       budget,
       startDate,
       endDate,
-      euPolitical = "NO"
+      euPolitical = "NO",
+      keywords = [],
+      searchThemes = [],
+      audienceSignal,
+      audienceSignals = [],
+      adSchedule = [],
+      deviceTargeting = "ALL",
+      devices = [],
+      brandFont,
+      mainBrandColor,
+      accentBrandColor,
+      brandGuidelines,
+      channels = ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"]
     } = payload;
+
+    const allVideoList = [...(videos || []), ...(youtubeVideos || [])];
+    const resolvedVideoUrls: string[] = allVideoList.map((v: any) => {
+      if (typeof v === "string") return v.trim();
+      return v?.url || v?.videoId || v?.asset || "";
+    }).filter(Boolean);
+
+    console.log(`\n==================== 🎬 [SALES VIDEO CAMPAIGN LAUNCH] ====================`);
+    console.log(`Campaign Name:        ${campaignName}`);
+    console.log(`Customer ID:          ${customerId}`);
+    console.log(`Targeting Channels:   ${channels.join(", ")}`);
+    console.log(`🎬 YouTube Video Links (${resolvedVideoUrls.length}):`);
+    if (resolvedVideoUrls.length > 0) {
+      resolvedVideoUrls.forEach((url, i) => console.log(`   [${i + 1}] ${url}`));
+    } else {
+      console.log(`   ⚠️ No direct YouTube video links provided in payload.`);
+    }
+    console.log(`🎨 Brand Guidelines:`);
+    console.log(`   • Main Color:   ${mainBrandColor || brandGuidelines?.mainColor || "Default (#3b82f6)"}`);
+    console.log(`   • Accent Color: ${accentBrandColor || brandGuidelines?.accentColor || "Default (#10b981)"}`);
+    console.log(`   • Font:         ${brandFont || brandGuidelines?.font || "Any font"}`);
+    console.log(`📱 Device Targeting:   ${deviceTargeting}`);
+    console.log(`⏰ Ad Schedule:        ${Array.isArray(adSchedule) && adSchedule.length > 0 ? JSON.stringify(adSchedule) : "24/7 All days"}`);
+    console.log(`🔑 Keywords (${keywords.length}):     ${keywords.join(", ") || "None"}`);
+    console.log(`🎯 Search Themes (${searchThemes.length}): ${searchThemes.join(", ") || "None"}`);
+    console.log(`========================================================================\n`);
 
     if (!finalUrl) {
       throw new Error("Final URL is required.");
     }
 
-    const effectiveBudget = Math.max(Number(dailyBudget || budget || 1000), 416);
+    const rawBudget = dailyBudget !== undefined && dailyBudget !== "" ? dailyBudget : budget;
+    const parsedBudget = Number(rawBudget);
+    if (rawBudget === undefined || rawBudget === null || isNaN(parsedBudget) || !isFinite(parsedBudget) || parsedBudget <= 0) {
+      throw new Error("A valid positive daily budget greater than 0 is required for Video campaigns.");
+    }
+    const effectiveBudget = parsedBudget;
     const amountMicros = Math.round(effectiveBudget * 1_000_000);
     const targetCpaMicros = targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
 
@@ -315,21 +359,29 @@ export class SalesVideoService extends GoogleAdsBaseService {
       budget: Number(effectiveBudget),
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: startDate ? new Date(String(startDate).split("T")[0]) : null,
+      endDate: endDate ? new Date(String(endDate).split("T")[0]) : null,
       finalUrl,
       headlines,
       descriptions,
+      keywords,
+      searchThemes,
+      audienceSignal: audienceSignal ? (typeof audienceSignal === "object" ? JSON.stringify(audienceSignal) : String(audienceSignal)) : null,
+      adSchedule,
       geoTargets: {
         locations,
         languages,
-        channels: payload.channels || [],
-        audience: payload.audience || null,
+        channels: payload.channels || channels || [],
+        audience: payload.audience || audienceSignal || null,
         brandGuidelines: {
-          mainBrandColor: payload.brandGuidelines?.mainBrandColor || null,
-          accentBrandColor: payload.brandGuidelines?.accentBrandColor || null,
-          brandFont: payload.brandGuidelines?.brandFont || null
+          mainBrandColor: mainBrandColor || payload.brandGuidelines?.mainBrandColor || null,
+          accentBrandColor: accentBrandColor || payload.brandGuidelines?.accentBrandColor || null,
+          brandFont: brandFont || payload.brandGuidelines?.brandFont || null
         },
-        deviceTargeting: payload.deviceTargeting || "ALL",
-        adSchedule: payload.adSchedule || [],
+        deviceTargeting: payload.deviceTargeting || deviceTargeting || "ALL",
+        devices: payload.devices || devices || [],
+        adSchedule: payload.adSchedule || adSchedule || [],
+        videoUrls: resolvedVideoUrls,
         objective: "Sales"
       },
       advertisingChannelType: "VIDEO",
