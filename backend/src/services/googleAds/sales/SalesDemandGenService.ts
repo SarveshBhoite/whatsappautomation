@@ -83,6 +83,10 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
       const { headers } = await this.getAdsHeaders(organizationId, customerId);
       
       let effectiveCampaignName = campaignName;
+      const todayStr = new Date().toISOString().split("T")[0];
+      const startStr = startDate ? String(startDate).split("T")[0] : todayStr;
+      const endStr = endDate ? String(endDate).split("T")[0] : undefined;
+
       let res;
       try {
         const createCampObj: any = {
@@ -91,11 +95,16 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
           advertisingChannelType: "DEMAND_GEN",
           campaignBudget: budgetRef,
           containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+          startDateTime: `${startStr} 00:00:00`,
           demandGenCampaignSettings: {
              upgradedTargeting: Boolean(optimizedTargeting)
           },
           ...biddingConfig
         };
+
+        if (endStr) {
+          createCampObj.endDateTime = `${endStr} 23:59:59`;
+        }
 
         const campaignPayload = {
           operations: [
@@ -117,11 +126,16 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
             advertisingChannelType: "DEMAND_GEN",
             campaignBudget: budgetRef,
             containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            startDateTime: `${startStr} 00:00:00`,
             demandGenCampaignSettings: {
                upgradedTargeting: Boolean(optimizedTargeting)
             },
             ...biddingConfig
           };
+
+          if (endStr) {
+            retryCreateCampObj.endDateTime = `${endStr} 23:59:59`;
+          }
 
           const retryPayload = {
             operations: [
@@ -360,12 +374,15 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
       budget: Number(effectiveBudget),
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: startDate ? new Date(String(startDate).split("T")[0]) : null,
+      endDate: endDate ? new Date(String(endDate).split("T")[0]) : null,
       finalUrl,
       headlines,
       descriptions,
+      languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
       geoTargets: {
         locations,
-        languages,
+        languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
         channels,
         audience,
         brandGuidelines: {

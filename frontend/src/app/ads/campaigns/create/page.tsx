@@ -800,8 +800,14 @@ export default function CampaignCreatePage() {
   const [showAddGoalModal, setShowAddGoalModal] = useState(false);
   const [openGoalMenuId, setOpenGoalMenuId] = useState<string | null>(null);
 
+  const isYouTubeConnected = Boolean(customerProfile?.youtubeConnection?.isConnected);
+
   const ALL_CONVERSION_GOALS = [
     { id: "phone_leads", name: "Phone call leads (account default)", source: "Call from Ads", count: "1 action", icon: PhoneCall },
+    ...(isYouTubeConnected ? [
+      { id: "Engagements", name: "Engagements (account default)", source: "YouTube hosted", count: "1 action", icon: Video },
+      { id: "YouTube follow-on views", name: "YouTube follow-on views (account default)", source: "YouTube hosted", count: "1 action", icon: Video }
+    ] : []),
     { id: "contacts", name: "Contacts", source: "Website / Form", count: "1 action", icon: Users },
     { id: "get_directions", name: "Get directions", source: "Google Maps / Location", count: "1 action", icon: Target }
   ];
@@ -839,6 +845,26 @@ export default function CampaignCreatePage() {
               } else {
                 setAppPlatformState("ANDROID");
               }
+            }
+
+            // Auto-populate default YouTube conversion goals if YouTube channel is connected
+            if (prof.youtubeConnection?.isConnected) {
+              setConversionGoals(prev => {
+                const hasPhoneLeads = prev.some(g => g.id === "phone_leads");
+                const hasEngagements = prev.some(g => g.id === "Engagements");
+                const hasYtViews = prev.some(g => g.id === "YouTube follow-on views");
+                const updated = [...prev];
+                if (!hasPhoneLeads) {
+                  updated.unshift({ id: "phone_leads", name: "Phone call leads (account default)", source: "Call from Ads", count: "1 action", icon: PhoneCall });
+                }
+                if (!hasEngagements) {
+                  updated.push({ id: "Engagements", name: "Engagements (account default)", source: "YouTube hosted", count: "1 action", icon: Video });
+                }
+                if (!hasYtViews) {
+                  updated.push({ id: "YouTube follow-on views", name: "YouTube follow-on views (account default)", source: "YouTube hosted", count: "1 action", icon: Video });
+                }
+                return updated;
+              });
             }
           }
         })
@@ -6019,7 +6045,13 @@ export default function CampaignCreatePage() {
                 }
               }
 
-              const isOverride = (selectedObjective !== "APP_PROMOTION" && selectedObjective !== "AWARENESS" && selectedObjective !== "LOCAL" && selectedObjective !== "NO_GUIDANCE") && (conversionGoals.length > 1 || !conversionGoals.every(g => g.id === "phone_leads"));
+              const defaultGoalIds = isYouTubeConnected
+                ? ["phone_leads", "Engagements", "YouTube follow-on views"]
+                : ["phone_leads"];
+              const isGoalsMatchingDefault =
+                conversionGoals.length === defaultGoalIds.length &&
+                conversionGoals.every(g => defaultGoalIds.includes(g.id));
+              const isOverride = (selectedObjective !== "APP_PROMOTION" && selectedObjective !== "AWARENESS" && selectedObjective !== "LOCAL" && selectedObjective !== "NO_GUIDANCE") && !isGoalsMatchingDefault;
               const prefix = selectedObjective === "LEADS" ? "Leads" : selectedObjective === "WEBSITE_TRAFFIC" ? "Website traffic" : selectedObjective === "APP_PROMOTION" ? "App promotion" : selectedObjective === "AWARENESS" ? "YouTube reach" : selectedObjective === "LOCAL" ? "Local store" : selectedObjective === "NO_GUIDANCE" ? "Campaign" : "Sales";
 
               return (

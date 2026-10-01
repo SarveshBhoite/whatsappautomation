@@ -99,50 +99,100 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
       "sunday": ["SUNDAY"]
     };
 
-    const criteria: any[] = [];
+    // Group intervals per day of week as [startMinutes, endMinutes]
+    const dayIntervals: Record<string, Array<{ startM: number; endM: number }>> = {
+      MONDAY: [],
+      TUESDAY: [],
+      WEDNESDAY: [],
+      THURSDAY: [],
+      FRIDAY: [],
+      SATURDAY: [],
+      SUNDAY: []
+    };
 
     for (const sched of schedules) {
       if (!sched || typeof sched !== "object") continue;
       const rawDay = String(sched.day || sched.dayOfWeek || "All days").trim().toLowerCase();
       const targetDays = dayMap[rawDay] || [rawDay.toUpperCase()];
 
-      let sHour = 0;
-      let sMinStr = "ZERO";
-      let eHour = 24;
-      let eMinStr = "ZERO";
-
       const start = String(sched.start || "00:00").trim();
       const end = String(sched.end || "00:00").trim();
 
+      let startM = 0;
+      let endM = 1440; // 24 * 60
+
       if ((start === "00:00" || start === "0:00") && (end === "00:00" || end === "0:00" || end === "24:00" || end === "23:45")) {
-        sHour = 0;
-        sMinStr = "ZERO";
-        eHour = 24;
-        eMinStr = "ZERO";
+        startM = 0;
+        endM = 1440;
       } else {
         const [sh, sm] = start.split(":").map(v => parseInt(v, 10));
         const [eh, em] = end.split(":").map(v => parseInt(v, 10));
 
-        sHour = isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh));
-        sMinStr = this.mapMinuteToEnum(sm || 0);
+        const sHour = isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh));
+        const sMin = isNaN(sm) ? 0 : Math.max(0, Math.min(59, sm));
+        const eHour = isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh));
+        const eMin = isNaN(em) ? 0 : Math.max(0, Math.min(59, em));
 
-        eHour = isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh));
-        eMinStr = this.mapMinuteToEnum(em || 0);
+        startM = sHour * 60 + sMin;
+        endM = eHour * 60 + eMin;
 
-        const startTotalMinutes = sHour * 60 + (sm || 0);
-        const endTotalMinutes = eHour * 60 + (em || 0);
-        if (endTotalMinutes <= startTotalMinutes && eHour !== 24) {
+        if (endM <= startM && eHour !== 24) {
           throw new Error(`Invalid ad schedule: End time (${end}) must be after start time (${start}) for ${sched.day || "day"}.`);
         }
       }
 
       for (const d of targetDays) {
+        if (dayIntervals[d]) {
+          dayIntervals[d].push({ startM, endM });
+        }
+      }
+    }
+
+    // Check if every day is 0 to 1440 (all days 24/7). If so, Google Ads defaults to running all the time without criteria.
+    const allDaysFull = Object.keys(dayIntervals).every(d => {
+      const intervals = dayIntervals[d];
+      if (intervals.length === 0) return false;
+      return intervals.some(inv => inv.startM === 0 && inv.endM >= 1440);
+    });
+
+    if (allDaysFull && Object.values(dayIntervals).every(list => list.length <= 1)) {
+      return [];
+    }
+
+    const criteria: any[] = [];
+
+    // For each day, sort intervals and merge overlaps:
+    for (const [day, intervals] of Object.entries(dayIntervals)) {
+      if (intervals.length === 0) continue;
+
+      intervals.sort((a, b) => a.startM - b.startM);
+
+      const merged: Array<{ startM: number; endM: number }> = [];
+      let current = { ...intervals[0] };
+
+      for (let i = 1; i < intervals.length; i++) {
+        const next = intervals[i];
+        if (next.startM <= current.endM) {
+          current.endM = Math.max(current.endM, next.endM);
+        } else {
+          merged.push(current);
+          current = { ...next };
+        }
+      }
+      merged.push(current);
+
+      for (const m of merged) {
+        const sHour = Math.floor(m.startM / 60);
+        const sMin = m.startM % 60;
+        const eHour = Math.floor(m.endM / 60);
+        const eMin = m.endM % 60;
+
         criteria.push({
-          dayOfWeek: d,
+          dayOfWeek: day,
           startHour: sHour,
-          startMinute: sMinStr,
+          startMinute: WebsiteTrafficDemandGenService.mapMinuteToEnum(sMin),
           endHour: eHour,
-          endMinute: eMinStr
+          endMinute: WebsiteTrafficDemandGenService.mapMinuteToEnum(eMin)
         });
       }
     }
@@ -1361,13 +1411,16 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
       budget: Number(effectiveBudget),
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: startDate ? new Date(String(startDate).split("T")[0]) : null,
+      endDate: endDate ? new Date(String(endDate).split("T")[0]) : null,
       finalUrl,
       headlines,
       descriptions,
+      languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
       geoTargets: {
         mobileFinalUrl: resolvedMobileFinalUrl,
         locations,
-        languages,
+        languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
         channels,
         audience,
         brandGuidelines: {

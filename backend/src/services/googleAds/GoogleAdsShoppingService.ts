@@ -2,6 +2,7 @@ import axios from "axios";
 import prisma from "../../utils/prisma";
 import { getGoogleAccessToken } from "../gmbSyncService";
 import { GoogleAdsBaseService } from "./shared/GoogleAdsBaseService";
+import { CustomerBusinessProfileService } from "./CustomerBusinessProfileService";
 
 export interface ProductDiagnosticsFilters {
   status?: string;
@@ -61,14 +62,7 @@ export class GoogleAdsShoppingService extends GoogleAdsBaseService {
 
     // 1. Check CustomerBusinessProfile
     try {
-      const profile = await (prisma as any).googleAdsCustomerProfile.findUnique({
-        where: {
-          organizationId_customerId: {
-            organizationId,
-            customerId: cleanCid
-          }
-        }
-      });
+      const profile = await CustomerBusinessProfileService.getProfile(organizationId, cleanCid);
       if (profile?.merchantCenterId) {
         return {
           merchantId: String(profile.merchantCenterId),

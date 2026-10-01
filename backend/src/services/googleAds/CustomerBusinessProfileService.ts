@@ -503,7 +503,7 @@ export interface BusinessProfilePayload {
   metadata?: Record<string, any>;
 }
 
-const PROFILE_DB_SELECT = {
+export const PROFILE_DB_SELECT = {
   id: true,
   organizationId: true,
   customerId: true,

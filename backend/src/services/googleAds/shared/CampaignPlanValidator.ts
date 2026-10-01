@@ -4,6 +4,7 @@ import { validateCustomerOwnership } from "../../../utils/customerOwnership";
 import { GoogleAdsBillingService } from "../GoogleAdsBillingService";
 import { GoogleAdsService } from "../../googleAdsService";
 import { YouTubeService } from "../../youtubeService";
+import { CustomerBusinessProfileService } from "../CustomerBusinessProfileService";
 import prisma from "../../../utils/prisma";
 
 export class CampaignPlanValidator {
@@ -416,14 +417,7 @@ export class CampaignPlanValidator {
         }
 
         // C. Conversion Tracking Check from Customer Profile / Conversion Goals
-        const profile = await (prisma as any).googleAdsCustomerProfile.findUnique({
-          where: {
-            organizationId_customerId: {
-              organizationId: orgId,
-              customerId: cleanCid
-            }
-          }
-        });
+        const profile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
 
         const goals = Array.isArray(profile?.conversionGoals) ? profile.conversionGoals : [];
         if (goals.length > 0 || profile?.googleTagId) {

@@ -168,6 +168,22 @@ export interface AiChatResponse {
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+const YOUTUBE_BACKEND_GOALS = [
+  { id: "Engagements", name: "Engagements" },
+  { id: "YouTube follow-on views", name: "YouTube follow-on views" },
+  { id: "Engagements,YouTube follow-on views", name: "Engagements + YouTube follow-on views" },
+  { id: "phone_leads,Engagements,YouTube follow-on views", name: "Phone call leads + Engagements + YouTube follow-on views" },
+  { id: "phone_leads,Engagements", name: "Phone call leads + Engagements" },
+  { id: "phone_leads,YouTube follow-on views", name: "Phone call leads + YouTube follow-on views" },
+  { id: "contacts,Engagements", name: "Contacts + Engagements" },
+  { id: "contacts,YouTube follow-on views", name: "Contacts + YouTube follow-on views" },
+  { id: "get_directions,Engagements", name: "Get directions + Engagements" },
+  { id: "get_directions,YouTube follow-on views", name: "Get directions + YouTube follow-on views" },
+  { id: "phone_leads,contacts,Engagements,YouTube follow-on views", name: "Phone call leads + Contacts + Engagements + YouTube follow-on views" },
+  { id: "phone_leads,get_directions,Engagements,YouTube follow-on views", name: "Phone call leads + Get directions + Engagements + YouTube follow-on views" },
+  { id: "phone_leads,contacts,get_directions,Engagements,YouTube follow-on views", name: "Phone call leads + Contacts + Get directions + Engagements + YouTube follow-on views" }
+];
+
 // ── MANUAL CREATION COMPATIBILITY MATRICES (SOURCE OF TRUTH) ──
 export const MANUAL_GOALS_BY_OBJECTIVE: Record<string, Array<{ id: string; name: string }>> = {
   SALES: [
@@ -177,7 +193,8 @@ export const MANUAL_GOALS_BY_OBJECTIVE: Record<string, Array<{ id: string; name:
     { id: "phone_leads,contacts", name: "Phone call leads + Contacts" },
     { id: "contacts,get_directions", name: "Contacts + Get directions" },
     { id: "phone_leads,get_directions", name: "Phone call leads + Get directions" },
-    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" }
+    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" },
+    ...YOUTUBE_BACKEND_GOALS
   ],
   LEADS: [
     { id: "phone_leads", name: "Phone call leads" },
@@ -186,7 +203,8 @@ export const MANUAL_GOALS_BY_OBJECTIVE: Record<string, Array<{ id: string; name:
     { id: "phone_leads,contacts", name: "Phone call leads + Contacts" },
     { id: "contacts,get_directions", name: "Contacts + Get directions" },
     { id: "phone_leads,get_directions", name: "Phone call leads + Get directions" },
-    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" }
+    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" },
+    ...YOUTUBE_BACKEND_GOALS
   ],
   WEBSITE_TRAFFIC: [
     { id: "phone_leads", name: "Phone call leads" },
@@ -195,7 +213,8 @@ export const MANUAL_GOALS_BY_OBJECTIVE: Record<string, Array<{ id: string; name:
     { id: "phone_leads,contacts", name: "Phone call leads + Contacts" },
     { id: "contacts,get_directions", name: "Contacts + Get directions" },
     { id: "phone_leads,get_directions", name: "Phone call leads + Get directions" },
-    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" }
+    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" },
+    ...YOUTUBE_BACKEND_GOALS
   ],
   APP_PROMOTION: [
     { id: "installs", name: "App installs" },

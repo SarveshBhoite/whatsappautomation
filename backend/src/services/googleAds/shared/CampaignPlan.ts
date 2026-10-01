@@ -371,8 +371,8 @@ export class CampaignPlanMapper {
         objective: (state.objective || "LEADS").toUpperCase(),
         campaignType: (state.campaignType || "SEARCH").toUpperCase(),
         status: state.status === "ENABLED" ? "ENABLED" : "PAUSED",
-        startDate: (state.startDate && state.startDate >= todayStr) ? state.startDate : todayStr,
-        endDate: state.endDate || undefined,
+        startDate: state.startDate ? String(state.startDate).split("T")[0] : todayStr,
+        endDate: state.endDate ? String(state.endDate).split("T")[0] : undefined,
         euPolitical: state.euPolitical || "NO",
         adFormat: (state.adFormat || (state.videos && state.videos.length > 0 ? "VIDEO" : undefined))
       },

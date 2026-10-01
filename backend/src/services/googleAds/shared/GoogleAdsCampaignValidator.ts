@@ -42,54 +42,188 @@ export class GoogleAdsCampaignValidator {
       addError("campaignName", "Campaign name is required.", "FIELD");
     }
 
+    if (!state.objective?.trim()) {
+      addError("objective", "Campaign objective is required.", "FIELD");
+    }
+
+    // Common Final URL Validation (Applicable to all campaign types except APP)
+    if (type !== "APP") {
+      const candidateUrl = (state.website || state.finalUrl || state.websiteVisitsUrl || "").trim();
+      if (!candidateUrl) {
+        addError("website", "A landing page / website URL starting with http:// or https:// is required.", "FIELD");
+      } else if (!candidateUrl.startsWith("http://") && !candidateUrl.startsWith("https://")) {
+        addError("website", "Landing page URL must start with http:// or https://.", "FIELD");
+      } else {
+        try {
+          const parsed = new URL(candidateUrl);
+          const host = parsed.hostname.toLowerCase();
+          if (!host || !host.includes(".")) {
+            addError("website", "A valid domain name (e.g. yourbusiness.com) is required for the landing page URL.", "FIELD");
+          } else if (host === "example.com" || host.endsWith(".example.com") || host === "localhost" || host === "127.0.0.1" || host === "test.com") {
+            addError("website", `Landing page URL cannot use placeholder or local test domains (${host}).`, "FIELD");
+          }
+        } catch {
+          addError("website", "Invalid website landing page URL format.", "FIELD");
+        }
+      }
+    }
+
+    // Common Tracking Template Validation
+    if (state.trackingTemplate) {
+      const tt = String(state.trackingTemplate).trim();
+      if (tt.length > 0) {
+        const hasTag = /\{(lpurl|unescapedlpurl|escapedlpurl|lpurl\+\d+)\}/i.test(tt);
+        if (!hasTag) {
+          addError("trackingTemplate", "Tracking template must contain at least one landing page tag (e.g. {lpurl}?utm_source=google).", "FIELD");
+        }
+      }
+    }
+
     // Budget Validation (Daily Budget vs Campaign Total Budget)
-    const budgetType = (state.budgetType || "DAILY").toUpperCase();
-    const dailyBudgetNum = Number(state.dailyBudget);
-    const totalBudgetNum = Number(state.totalBudget || state.budget);
+    const budgetType = (state.budgetType || "DAILY").toUpperCase() as "DAILY" | "TOTAL";
+    const rawBudgetInput = state.dailyBudget !== undefined && state.dailyBudget !== null && state.dailyBudget !== "" 
+      ? state.dailyBudget 
+      : (state.totalBudget !== undefined && state.totalBudget !== null && state.totalBudget !== "" ? state.totalBudget : state.budget);
+    const parsedBudgetNum = Number(rawBudgetInput);
 
-    if (budgetType === "TOTAL") {
-      const effectiveTotal = !isNaN(totalBudgetNum) && totalBudgetNum > 0 ? totalBudgetNum : dailyBudgetNum;
-      if (isNaN(effectiveTotal) || effectiveTotal <= 0) {
-        addError("dailyBudget", "A valid positive Campaign Total Budget greater than ₹0 is required.", "BUDGET");
-      }
-    } else {
-      if (!state.dailyBudget || isNaN(dailyBudgetNum) || dailyBudgetNum <= 0) {
-        addError("dailyBudget", "A valid positive daily budget greater than ₹0 is required.", "BUDGET");
-      }
+    if (rawBudgetInput === undefined || rawBudgetInput === null || String(rawBudgetInput).trim() === "") {
+      addError("dailyBudget", `${budgetType === "TOTAL" ? "Campaign Total Budget" : "Daily budget"} is required.`, "BUDGET");
+    } else if (isNaN(parsedBudgetNum) || !isFinite(parsedBudgetNum)) {
+      addError("dailyBudget", "Budget must be a finite numeric value (rejecting NaN and Infinity).", "BUDGET");
+    } else if (parsedBudgetNum <= 0) {
+      addError("dailyBudget", `${budgetType === "TOTAL" ? "Campaign Total Budget" : "Daily budget"} must be greater than ₹0.`, "BUDGET");
+    } else if (parsedBudgetNum > 10_000_000) {
+      addError("dailyBudget", `Budget value (₹${parsedBudgetNum}) exceeds the maximum allowed limit of ₹10,000,000.`, "BUDGET");
     }
 
-    // Locations
-    if (!Array.isArray(state.locations) || state.locations.filter((l: any) => l && String(l).trim()).length === 0) {
-      addError("locations", "At least one targeted location (e.g. 'India' or 'Mumbai') is required.", "TARGETING");
-    }
-
-    // Languages
-    if (!state.language && (!Array.isArray(state.languages) || state.languages.length === 0)) {
-      addError("language", "Target language is required (e.g. 'English').", "TARGETING");
-    }
-
-    // Dates validation (Common)
-    const todayStr = new Date().toISOString().split("T")[0];
-    if (state.startDate) {
-      const startStr = String(state.startDate).split("T")[0];
-      if (startStr < todayStr) {
-        addError("startDate", `Start date cannot be in the past (${startStr}).`, "FIELD");
-      }
-    }
-
-    // End date is mandatory for Campaign Total Budget, and optional for Daily Budget
+    // Calculate duration and daily equivalent for TOTAL budget
+    let durationDays: number | null = null;
+    let calculatedDailyEquivalent: number | null = null;
     if (budgetType === "TOTAL") {
       if (!state.endDate || !String(state.endDate).trim()) {
         addError("endDate", "End date is required when using Campaign Total Budget.", "FIELD");
+      } else if (state.startDate) {
+        const sTime = new Date(String(state.startDate).trim().split("T")[0]).getTime();
+        const eTime = new Date(String(state.endDate).trim().split("T")[0]).getTime();
+        if (!isNaN(sTime) && !isNaN(eTime) && eTime > sTime) {
+          durationDays = Math.max(1, Math.ceil((eTime - sTime) / (1000 * 60 * 60 * 24)));
+          if (!isNaN(parsedBudgetNum) && parsedBudgetNum > 0) {
+            calculatedDailyEquivalent = Math.max(1, Math.round(parsedBudgetNum / durationDays));
+          }
+        }
+      }
+    } else {
+      if (!isNaN(parsedBudgetNum) && parsedBudgetNum > 0) {
+        calculatedDailyEquivalent = parsedBudgetNum;
+      }
+    }
+
+    console.log(`\n==================== 💰 [AI GUIDED BUDGET VALIDATION] ====================`);
+    console.log(`Budget Type:                     ${budgetType === "TOTAL" ? "CAMPAIGN_TOTAL_BUDGET" : "DAILY_BUDGET"}`);
+    console.log(`Input Budget:                    ₹${rawBudgetInput}`);
+    console.log(`Start Date:                      ${state.startDate || "N/A (defaults to today)"}`);
+    console.log(`End Date:                        ${state.endDate || "None (Continuous)"}`);
+    console.log(`Duration Days:                   ${durationDays !== null ? `${durationDays} days` : "N/A"}`);
+    console.log(`Calculated Daily Equivalent:     ${calculatedDailyEquivalent !== null ? `₹${calculatedDailyEquivalent}/day` : "N/A"}`);
+    console.log(`Google Ads Budget Representation:${budgetType === "TOTAL" ? (type === "VIDEO" ? "CAMPAIGN_TOTAL_BUDGET" : `DAILY_BUDGET (derived ₹${calculatedDailyEquivalent}/day)`) : `DAILY_BUDGET (₹${parsedBudgetNum}/day)`}`);
+    console.log(`=========================================================================\n`);
+
+    // Common Locations & Proximity Validation
+    if (!Array.isArray(state.locations) || state.locations.filter((l: any) => l && (typeof l === "string" ? l.trim() : (l.name || l.locationName))).length === 0) {
+      addError("locations", "At least one targeted location (e.g. 'India' or 'Mumbai') is required.", "TARGETING");
+    } else {
+      for (const loc of state.locations) {
+        if (!loc) continue;
+        if (typeof loc === "object") {
+          if (loc.type === "PROXIMITY" || loc.mode === "RADIUS" || loc.radius !== undefined) {
+            const rad = Number(loc.radius);
+            if (isNaN(rad) || !isFinite(rad) || rad <= 0 || rad > 500) {
+              addError("locations", "Proximity radius must be between 1 and the maximum supported radius (500 km / 300 mi).", "TARGETING");
+              break;
+            }
+          }
+        } else if (typeof loc === "string") {
+          const radiusMatch = loc.match(/^(\d+(?:\.\d+)?)\s*(km|mi|miles|kilometers)\s+(?:around|radius\s+of)\s+(.+)$/i);
+          if (radiusMatch) {
+            const rad = Number(radiusMatch[1]);
+            if (isNaN(rad) || !isFinite(rad) || rad <= 0 || rad > 500) {
+              addError("locations", "Proximity radius must be between 1 and the maximum supported radius (500 km / 300 mi).", "TARGETING");
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Common Languages Validation
+    if (!state.language && (!Array.isArray(state.languages) || state.languages.length === 0)) {
+      addError("language", "Target language is required (e.g. 'English' or 'All languages').", "TARGETING");
+    }
+
+    // Common Dates Validation
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (state.startDate) {
+      const startStr = String(state.startDate).trim().split("T")[0];
+      if (startStr < todayStr) {
+        addError("startDate", `Start date cannot be in the past (${startStr}). Please choose today (${todayStr}) or a future date.`, "FIELD");
       }
     }
 
     if (state.endDate && state.startDate) {
-      const startStr = String(state.startDate).split("T")[0];
-      const endStr = String(state.endDate).split("T")[0];
+      const startStr = String(state.startDate).trim().split("T")[0];
+      const endStr = String(state.endDate).trim().split("T")[0];
       if (endStr <= startStr) {
         addError("endDate", `End date (${endStr}) must be after start date (${startStr}).`, "FIELD");
       }
+    }
+
+    // Common Ad Schedule Validation
+    const rawSchedule = state.adSchedule || (state as any).adScheduleList;
+    if (rawSchedule && Array.isArray(rawSchedule) && rawSchedule.length > 0) {
+      const receivedRows = rawSchedule.length;
+      let validRows = 0;
+      let removedDuplicateRows = 0;
+      let invalidRows = 0;
+      const seen = new Set<string>();
+
+      for (const s of rawSchedule) {
+        if (!s || typeof s !== "object") {
+          invalidRows++;
+          continue;
+        }
+        const day = String(s.day || s.dayOfWeek || "").trim();
+        const start = String(s.start || "").trim();
+        const end = String(s.end || "").trim();
+
+        if (!day || !start || !end) {
+          invalidRows++;
+          addError("adSchedule", "Each schedule row must have a valid day, start time, and end time.", "TARGETING");
+          break;
+        }
+
+        const key = `${day.toLowerCase()}_${start}_${end}`;
+        if (seen.has(key)) {
+          removedDuplicateRows++;
+          continue;
+        }
+        seen.add(key);
+
+        const isFullDay = (start === "00:00" || start === "0:00") && (end === "00:00" || end === "0:00" || end === "24:00");
+        if (!isFullDay && start >= end) {
+          invalidRows++;
+          addError("adSchedule", `Schedule start time (${start}) must be strictly before end time (${end}) for ${day}.`, "TARGETING");
+          break;
+        }
+        validRows++;
+      }
+
+      console.log(`\n==================== ⏰ [AI GUIDED SCHEDULE VALIDATION] ====================`);
+      console.log(`Received Rows:                   ${receivedRows}`);
+      console.log(`Valid Rows:                      ${validRows}`);
+      console.log(`Removed Duplicate Rows:          ${removedDuplicateRows}`);
+      console.log(`Invalid Rows:                    ${invalidRows}`);
+      console.log(`Final Google Ads Schedule:       ${validRows} active interval(s)`);
+      console.log(`===========================================================================\n`);
     }
 
     // 2. Campaign Specific Validations
@@ -481,6 +615,13 @@ export class GoogleAdsCampaignValidator {
         } else if (bStrat === "youtube engagements" || bStrat === "youtube_engagements") {
           addError("biddingStrategy", "YouTube engagements bidding is not supported for Demand Gen Website Traffic or Lead campaigns.", "FIELD");
         }
+
+        // Minimum Budget validation for Demand Gen (Google Ads minimum is ₹416/day)
+        const effectiveDailyEquivalent = calculatedDailyEquivalent !== null ? calculatedDailyEquivalent : parsedBudgetNum;
+        if (!isNaN(effectiveDailyEquivalent) && effectiveDailyEquivalent < 416) {
+          addError("dailyBudget", `Demand Gen budget must be at least ₹416/day (Google Ads API minimum requirement). Currently ₹${effectiveDailyEquivalent}/day.`, "BUDGET");
+        }
+
         break;
       }
 

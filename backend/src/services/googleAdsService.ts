@@ -2,6 +2,7 @@ import axios from "axios";
 import { getGoogleAccessToken } from "./gmbSyncService";
 import prisma from "../utils/prisma";
 import { GoogleAdsBaseService } from "./googleAds/shared/GoogleAdsBaseService";
+import { CustomerBusinessProfileService } from "./googleAds/CustomerBusinessProfileService";
 
 const ADS_API_VERSION = "v24";
 const ADS_BASE = `https://googleads.googleapis.com/${ADS_API_VERSION}`;
@@ -3627,14 +3628,7 @@ export class GoogleAdsService {
 
     // 10. Local CRM Business Profile Completeness
     try {
-      const profile = await (prisma as any).googleAdsCustomerProfile.findUnique({
-        where: {
-          organizationId_customerId: {
-            organizationId,
-            customerId: cleanCid
-          }
-        }
-      });
+      const profile = await CustomerBusinessProfileService.getProfile(organizationId, cleanCid);
       if (profile) {
         const hasBusName = Boolean(profile.businessName);
         const hasWeb = Boolean(profile.primaryWebsite);

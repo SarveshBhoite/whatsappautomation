@@ -49,7 +49,8 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       structuredSnippets = [],
       adSchedule = [],
       devices,
-      demographicExclusions
+      demographicExclusions,
+      conversionGoals = []
     } = payload;
 
     if (!campaignName || !campaignName.trim()) {
@@ -158,6 +159,11 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
     }
 
     const effectiveAdSchedule = Array.isArray(adSchedule) ? adSchedule : [];
+
+    // Pre-declare Conversion Goals Tracking Variables for campaign lifecycle & DB persistence
+    const rawGoalsList = Array.isArray(conversionGoals) ? conversionGoals : (conversionGoals ? [conversionGoals] : []);
+    const mappedGoogleAdsGoals: Array<{ category: string; origin: string; biddable: boolean }> = [];
+    let goalConfigLevel = "CUSTOMER_LEVEL";
 
     let apiResult: any = { campaignId: `sales-pmax-${Date.now()}` };
     const ADS_BASE = "https://googleads.googleapis.com/v24";
@@ -543,7 +549,90 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
         }
       }
 
-      // 8. Attach Campaign Extension Assets (Sitelinks, Callouts, Promotions, Prices, Call, Snippets)
+      // 7c. Campaign Conversion Goals Configuration (campaignConversionGoals:mutate or customer-level inheritance)
+      let appliedGoals: string[] = [];
+      let skippedGoals: string[] = [];
+      let skipReason: string | null = null;
+
+      // Goal category/origin mapping dictionary
+      const goalMappingDict: Record<string, { category: string; origin: string }> = {
+        "phone_leads": { category: "PHONE_CALL_LEAD", origin: "WEBSITE" },
+        "phone call leads": { category: "PHONE_CALL_LEAD", origin: "WEBSITE" },
+        "contacts": { category: "CONTACT", origin: "WEBSITE" },
+        "get_directions": { category: "GET_DIRECTIONS", origin: "GOOGLE_HOSTED" },
+        "get directions": { category: "GET_DIRECTIONS", origin: "GOOGLE_HOSTED" },
+        "engagements": { category: "ENGAGEMENT", origin: "YOUTUBE" },
+        "youtube follow-on views": { category: "ENGAGEMENT", origin: "YOUTUBE" },
+        "purchase": { category: "PURCHASE", origin: "WEBSITE" },
+        "purchases": { category: "PURCHASE", origin: "WEBSITE" },
+        "submit_lead_form": { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE" },
+        "lead": { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE" },
+        "leads": { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE" },
+        "sign_up": { category: "SIGNUP", origin: "WEBSITE" }
+      };
+
+      for (const rg of rawGoalsList) {
+        if (!rg) continue;
+        const normKey = String(rg).trim().toLowerCase();
+        if (goalMappingDict[normKey]) {
+          mappedGoogleAdsGoals.push({
+            category: goalMappingDict[normKey].category,
+            origin: goalMappingDict[normKey].origin,
+            biddable: true
+          });
+          appliedGoals.push(`${rg} -> ${goalMappingDict[normKey].category} (${goalMappingDict[normKey].origin})`);
+        } else if (typeof rg === "object" && rg.category && rg.origin) {
+          mappedGoogleAdsGoals.push({
+            category: rg.category,
+            origin: rg.origin,
+            biddable: rg.biddable !== undefined ? Boolean(rg.biddable) : true
+          });
+          appliedGoals.push(`${rg.category} (${rg.origin})`);
+        } else {
+          skippedGoals.push(String(rg));
+        }
+      }
+
+      if (mappedGoogleAdsGoals.length > 0) {
+        try {
+          const conversionOps: any[] = [];
+          for (const cg of mappedGoogleAdsGoals) {
+            const goalResName = `customers/${cid}/campaignConversionGoals/${campaignRef.split("/").pop()}~${cg.category}~${cg.origin}`;
+            conversionOps.push({
+              update: {
+                resourceName: goalResName,
+                biddable: cg.biddable
+              },
+              updateMask: "biddable"
+            });
+          }
+          if (conversionOps.length > 0) {
+            await axios.post(`${ADS_BASE}/customers/${cid}/campaignConversionGoals:mutate`, {
+              operations: conversionOps
+            }, { headers });
+            goalConfigLevel = "CAMPAIGN_LEVEL";
+          }
+        } catch (cgErr: any) {
+          goalConfigLevel = "CUSTOMER_LEVEL (Inherited)";
+          skipReason = cgErr?.response?.data?.error?.message || cgErr?.message || "Campaign inherits account-level conversion goal settings";
+          console.warn("[SalesPerformanceMaxService] campaignConversionGoals mutate notice (inheriting customer-level goals):", skipReason);
+        }
+      } else {
+        goalConfigLevel = "CUSTOMER_LEVEL (Inherited)";
+        if (rawGoalsList.length === 0) {
+          skipReason = "No campaign-level conversion goal overrides specified; inheriting customer-level conversion goals";
+        }
+      }
+
+      console.log(`\n==================== 🎯 [AI GUIDED CONVERSION GOALS] ====================`);
+      console.log(`Objective:                   Sales`);
+      console.log(`Selected UI Goals:           ${JSON.stringify(rawGoalsList)}`);
+      console.log(`Mapped Google Ads Goals:     ${JSON.stringify(mappedGoogleAdsGoals)}`);
+      console.log(`Goal Config Level:           ${goalConfigLevel}`);
+      console.log(`Successfully Applied:        ${appliedGoals.length > 0 ? appliedGoals.join(", ") : "Customer-Level Inherited"}`);
+      console.log(`Skipped:                     ${skippedGoals.length > 0 ? skippedGoals.join(", ") : "None"}`);
+      if (skipReason) console.log(`Skip Reason / Notice:        ${skipReason}`);
+      console.log(`=========================================================================\n`);
       try {
         const campaignAssetOperations: any[] = [];
 
@@ -792,7 +881,13 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
         devices: devices || null,
         demographicExclusions: demographicExclusions || null,
         callouts: callouts || [],
-        structuredSnippets: structuredSnippets || []
+        structuredSnippets: structuredSnippets || [],
+        conversionGoals: {
+          objective: "Sales",
+          selectedConversionGoals: rawGoalsList,
+          effectiveConversionGoals: mappedGoogleAdsGoals,
+          goalConfigLevel
+        }
       },
       languages: languages || ["Hindi"],
       searchThemes: Array.isArray(searchThemes) && searchThemes.length > 0 ? searchThemes : null,

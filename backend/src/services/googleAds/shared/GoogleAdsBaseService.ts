@@ -222,9 +222,14 @@ export class GoogleAdsBaseService {
     name: string; amountPerDay: number; deliveryMethod?: string; shared?: boolean;
   }) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
-    // Respect user's specified amount (min 1 INR / 1 unit)
-    const safeAmountPerDay = Math.max(Number(params.amountPerDay) || 1, 1);
-    const amountMicros = Math.round(safeAmountPerDay * 1_000_000);
+    // Respect user's specified amount (min 1 INR / 1 unit, max 10,000,000 INR)
+    let rawAmount = Number(params.amountPerDay);
+    if (isNaN(rawAmount) || !isFinite(rawAmount) || rawAmount <= 0) {
+      rawAmount = 500;
+    }
+    // Cap to reasonable maximum to avoid scientific notation or int64 overflow
+    const safeAmountPerDay = Math.min(Math.max(rawAmount, 1), 10_000_000);
+    const amountMicros = String(Math.round(safeAmountPerDay * 1_000_000));
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignBudgets:mutate`, {
       operations: [{
         create: {
@@ -403,7 +408,7 @@ export class GoogleAdsBaseService {
       if (locationInput.id && /^\d+$/.test(String(locationInput.id))) {
         return String(locationInput.id);
       }
-      targetStr = (locationInput.canonicalName || locationInput.name || "").trim();
+      targetStr = (locationInput.canonicalName || locationInput.name || locationInput.locationName || "").trim();
     }
 
     if (!targetStr || targetStr.toUpperCase() === "ALL" || targetStr.toLowerCase() === "all countries and territories" || targetStr.toLowerCase() === "all countries") {
@@ -418,7 +423,7 @@ export class GoogleAdsBaseService {
       return this.GEO_TARGET_CONSTANT_MAP[lower];
     }
 
-    // 1. Try Google Ads GeoTargetConstants:suggest API with full string
+    // 1. Try Google Ads GeoTargetConstants:suggest API with full string (e.g. "Pune, Maharashtra, India")
     try {
       const suggestRes = await axios.get(`${ADS_BASE}/geoTargetConstants:suggest`, {
         params: { "location_names.names": targetStr, locale },
@@ -433,17 +438,13 @@ export class GoogleAdsBaseService {
       console.warn(`[GoogleAdsBaseService] GeoTargetConstants:suggest notice for "${targetStr}":`, suggestErr?.response?.data || suggestErr.message);
     }
 
-    // 2. Try individual parts / segments (e.g. for "Wai, Maharashtra, India" -> "Wai", "Maharashtra", "India")
+    // 2. Try suggest with leading segment (city / district name, e.g. "Pune" from "Pune, Maharashtra, India")
     const parts = targetStr.split(",").map(p => p.trim()).filter(Boolean);
-    for (const part of parts) {
-      const partLower = part.toLowerCase();
-      if (this.GEO_TARGET_CONSTANT_MAP[partLower]) {
-        return this.GEO_TARGET_CONSTANT_MAP[partLower];
-      }
-    }
-
-    // 3. Try suggest with leading segment (city / district name)
     if (parts.length > 1) {
+      const leadingPartLower = parts[0].toLowerCase();
+      if (this.GEO_TARGET_CONSTANT_MAP[leadingPartLower]) {
+        return this.GEO_TARGET_CONSTANT_MAP[leadingPartLower];
+      }
       try {
         const leadRes = await axios.get(`${ADS_BASE}/geoTargetConstants:suggest`, {
           params: { "location_names.names": parts[0], locale },
@@ -456,6 +457,14 @@ export class GoogleAdsBaseService {
         }
       } catch (e: any) {
         // Continue fallback
+      }
+    }
+
+    // 3. Fallback: check map for any part in order
+    for (const part of parts) {
+      const partLower = part.toLowerCase();
+      if (this.GEO_TARGET_CONSTANT_MAP[partLower]) {
+        return this.GEO_TARGET_CONSTANT_MAP[partLower];
       }
     }
 
@@ -480,6 +489,11 @@ export class GoogleAdsBaseService {
     const headers = params.headers || (await this.getAdsHeaders(organizationId, customerId)).headers;
     const operations: any[] = [];
 
+    // Track structured details for reporting & logging
+    const parsedLocationsReport: any[] = [];
+    const geoTargetsReport: string[] = [];
+    const proximityTargetsReport: string[] = [];
+
     // 1. Process Locations
     const locList = Array.isArray(params.locations) ? params.locations : [params.locations].filter(Boolean);
     for (const rawLoc of locList) {
@@ -488,33 +502,36 @@ export class GoogleAdsBaseService {
       let loc = rawLoc;
       const isNegative = typeof loc === "object" && Boolean(loc.isExcluded);
 
-      // Support radius patterns in string format (e.g. "20 km around Mumbai, Maharashtra, India" or "10 mi around New York")
+      // Support radius patterns in string format (e.g. "20 km around Mumbai, Maharashtra, India" or "25 km around Bengaluru, Karnataka, India")
       if (typeof loc === "string") {
         const radiusMatch = loc.match(/^(\d+(?:\.\d+)?)\s*(km|mi|miles|kilometers)\s+(?:around|radius\s+of)\s+(.+)$/i);
         if (radiusMatch) {
           loc = {
+            type: "PROXIMITY",
             mode: "RADIUS",
             radius: Number(radiusMatch[1]),
-            radiusUnit: radiusMatch[2].toLowerCase().startsWith("mi") ? "mi" : "km",
+            radiusUnit: radiusMatch[2].toLowerCase().startsWith("mi") ? "MILES" : "KILOMETERS",
+            locationName: radiusMatch[3].trim(),
             name: radiusMatch[3].trim(),
             canonicalName: radiusMatch[3].trim()
           };
         }
       }
 
-      const isRadiusMode = typeof loc === "object" && (loc.mode === "RADIUS" || (loc.radius && (loc.lat !== undefined && loc.lng !== undefined)));
+      // Proximity / Radius Mode
+      const isProximityObject = typeof loc === "object" && (loc.type === "PROXIMITY" || loc.mode === "RADIUS" || (loc.radius && (loc.lat !== undefined && loc.lng !== undefined)));
 
-      if (isRadiusMode) {
-        // Radius Targeting -> CampaignCriterion.proximity (ProximityInfo)
+      if (isProximityObject) {
         const radiusVal = Number(loc.radius) || 20;
-        const radiusUnits = (loc.radiusUnit || "km").toLowerCase().startsWith("mi") ? "MILES" : "KILOMETERS";
+        const radiusUnits = (String(loc.radiusUnit || "KM")).toUpperCase().startsWith("MI") ? "MILES" : "KILOMETERS";
+        const centerName = loc.locationName || loc.name || loc.canonicalName || "";
         let lat = Number(loc.lat);
         let lng = Number(loc.lng);
 
-        // If lat/lng missing, try resolving via Google Places details/geocoding or Nominatim/known city coordinates
+        // If lat/lng missing, try resolving via Google Places details/geocoding or known city coordinates
         if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
           const placesApiKey = process.env.GOOGLE_PLACES_API_KEY;
-          const queryStr = loc.placeId || loc.canonicalName || loc.name;
+          const queryStr = loc.placeId || centerName;
           if (placesApiKey && queryStr) {
             try {
               const geoUrl = loc.placeId
@@ -532,8 +549,8 @@ export class GoogleAdsBaseService {
           }
 
           // Fallback geocode for well-known Indian / Global metro centers if geocoding API was unreachable
-          if ((isNaN(lat) || isNaN(lng)) && (loc.name || loc.canonicalName)) {
-            const lowerName = String(loc.name || loc.canonicalName).toLowerCase();
+          if ((isNaN(lat) || isNaN(lng)) && centerName) {
+            const lowerName = String(centerName).toLowerCase();
             const knownCoords: Record<string, [number, number]> = {
               "mumbai": [19.0760, 72.8777],
               "delhi": [28.6139, 77.2090],
@@ -584,18 +601,21 @@ export class GoogleAdsBaseService {
             }
           };
 
-          if (loc.name || loc.canonicalName) {
+          if (centerName) {
             proximityOp.proximity.address = {
-              streetAddress: (loc.name || loc.canonicalName || "").slice(0, 100)
+              streetAddress: centerName.slice(0, 100)
             };
           }
 
           operations.push({ create: proximityOp });
+          parsedLocationsReport.push({ type: "PROXIMITY", locationName: centerName, radius: radiusVal, radiusUnit: radiusUnits, lat, lng });
+          proximityTargetsReport.push(`${radiusVal} ${radiusUnits} around ${centerName} (lat: ${lat}, lng: ${lng})`);
           continue;
         }
       }
 
       // Standard Location Targeting -> CampaignCriterion.location (LocationInfo)
+      const locLabel = typeof loc === "string" ? loc : (loc.name || loc.canonicalName || loc.locationName || "");
       const constantId = await this.resolveGeoTargetConstant(loc, headers);
       if (constantId) {
         operations.push({
@@ -607,8 +627,10 @@ export class GoogleAdsBaseService {
             }
           }
         });
+        parsedLocationsReport.push({ type: "LOCATION", name: locLabel, geoTargetConstantId: constantId });
+        geoTargetsReport.push(`${locLabel} -> geoTargetConstants/${constantId}`);
       } else if (typeof loc === "object" && (loc.lat || loc.lng || loc.placeId)) {
-        // Fallback for very granular village / locality lacking GeoTargetConstant: use ProximityInfo with small 10km circle
+        // Fallback for very granular village / locality lacking GeoTargetConstant: use ProximityInfo with 10km circle
         let lat = Number(loc.lat);
         let lng = Number(loc.lng);
         if (isNaN(lat) || isNaN(lng)) {
@@ -637,6 +659,8 @@ export class GoogleAdsBaseService {
               }
             }
           });
+          parsedLocationsReport.push({ type: "PROXIMITY", locationName: locLabel, radius: 10, radiusUnit: "KILOMETERS", lat, lng });
+          proximityTargetsReport.push(`10 KILOMETERS around ${locLabel} (lat: ${lat}, lng: ${lng})`);
         }
       }
     }
@@ -669,13 +693,23 @@ export class GoogleAdsBaseService {
       }
     }
 
+    console.log(`\n==================== 📍 [AI GUIDED LOCATION MAPPING] ====================`);
+    console.log(`Received Locations:          ${JSON.stringify(params.locations || [])}`);
+    console.log(`Parsed Locations:            ${JSON.stringify(parsedLocationsReport, null, 2)}`);
+    console.log(`Geo Targets:                 ${geoTargetsReport.length > 0 ? geoTargetsReport.join(", ") : "None"}`);
+    console.log(`Proximity Targets:           ${proximityTargetsReport.length > 0 ? proximityTargetsReport.join(", ") : "None"}`);
+    console.log(`Google Ads Criteria Operations Count: ${operations.length}`);
+    console.log(`=========================================================================\n`);
+
     if (operations.length === 0) return [];
 
     try {
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, {
         operations
       }, { headers });
-      return res.data?.results || [];
+      const createdCriteria = res.data?.results || [];
+      console.log(`[AI GUIDED LOCATION MAPPING] Google Ads Criteria Created: ${createdCriteria.length}`);
+      return createdCriteria;
     } catch (critErr: any) {
       console.warn(`[GoogleAdsBaseService] campaignCriteria:mutate warning:`, critErr?.response?.data || critErr.message);
       return [];
@@ -1041,6 +1075,32 @@ export class GoogleAdsBaseService {
       if (data && data[key] !== undefined) {
         sanitizedData[key] = data[key];
       }
+    }
+
+    // Preserve startDate and endDate as valid Date objects if provided as strings or dates
+    if (sanitizedData.startDate !== undefined) {
+      if (sanitizedData.startDate === null || sanitizedData.startDate === "") {
+        sanitizedData.startDate = null;
+      } else if (typeof sanitizedData.startDate === "string" || typeof sanitizedData.startDate === "number") {
+        sanitizedData.startDate = new Date(String(sanitizedData.startDate).split("T")[0]);
+      }
+    } else if (data?.startDate) {
+      sanitizedData.startDate = new Date(String(data.startDate).split("T")[0]);
+    }
+
+    if (sanitizedData.endDate !== undefined) {
+      if (sanitizedData.endDate === null || sanitizedData.endDate === "") {
+        sanitizedData.endDate = null;
+      } else if (typeof sanitizedData.endDate === "string" || typeof sanitizedData.endDate === "number") {
+        sanitizedData.endDate = new Date(String(sanitizedData.endDate).split("T")[0]);
+      }
+    } else if (data?.endDate) {
+      sanitizedData.endDate = new Date(String(data.endDate).split("T")[0]);
+    }
+
+    // Preserve languages explicitly if provided
+    if (sanitizedData.languages === undefined && data?.languages !== undefined) {
+      sanitizedData.languages = data.languages;
     }
 
     if (data?.mobileFinalUrl && sanitizedData.geoTargets && typeof sanitizedData.geoTargets === "object") {

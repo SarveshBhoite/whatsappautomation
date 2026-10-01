@@ -74,7 +74,8 @@ import {
   Link2,
   Link,
   Building2,
-  PhoneCall
+  PhoneCall,
+  Users
 } from "lucide-react";
 import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 import { GoogleCampaignChannelIcons } from "@/components/ads/GoogleCampaignChannelIcons";
@@ -313,7 +314,7 @@ export interface GoalDefinition {
   source?: string;
 }
 
-// Exactly the 7 allowed conversion goal combinations for Sales, Leads, and Website Traffic
+// Exactly the 7 allowed base conversion goal combinations for Sales, Leads, and Website Traffic
 export const SALES_LEADS_TRAFFIC_GOALS: GoalDefinition[] = [
   { id: "phone_leads", name: "Phone call leads" },
   { id: "contacts", name: "Contacts" },
@@ -323,6 +324,45 @@ export const SALES_LEADS_TRAFFIC_GOALS: GoalDefinition[] = [
   { id: "phone_leads,get_directions", name: "Phone call leads + Get directions" },
   { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" }
 ];
+
+// YouTube conversion goals and combinations when YouTube is connected
+export const YOUTUBE_CONVERSION_GOALS: GoalDefinition[] = [
+  { id: "Engagements", name: "Engagements" },
+  { id: "YouTube follow-on views", name: "YouTube follow-on views" },
+  { id: "Engagements,YouTube follow-on views", name: "Engagements + YouTube follow-on views" },
+  { id: "phone_leads,Engagements,YouTube follow-on views", name: "Phone call leads + Engagements + YouTube follow-on views" },
+  { id: "phone_leads,Engagements", name: "Phone call leads + Engagements" },
+  { id: "phone_leads,YouTube follow-on views", name: "Phone call leads + YouTube follow-on views" },
+  { id: "contacts,Engagements", name: "Contacts + Engagements" },
+  { id: "contacts,YouTube follow-on views", name: "Contacts + YouTube follow-on views" },
+  { id: "get_directions,Engagements", name: "Get directions + Engagements" },
+  { id: "get_directions,YouTube follow-on views", name: "Get directions + YouTube follow-on views" },
+  { id: "phone_leads,contacts,Engagements,YouTube follow-on views", name: "Phone call leads + Contacts + Engagements + YouTube follow-on views" },
+  { id: "phone_leads,get_directions,Engagements,YouTube follow-on views", name: "Phone call leads + Get directions + Engagements + YouTube follow-on views" },
+  { id: "phone_leads,contacts,get_directions,Engagements,YouTube follow-on views", name: "Phone call leads + Contacts + Get directions + Engagements + YouTube follow-on views" }
+];
+
+export const getSalesLeadsTrafficGoals = (isYouTubeConnected?: boolean): GoalDefinition[] => {
+  if (isYouTubeConnected) {
+    return [
+      { id: "phone_leads,Engagements,YouTube follow-on views", name: "Phone call leads + Engagements + YouTube follow-on views (Default)" },
+      { id: "Engagements,YouTube follow-on views", name: "Engagements + YouTube follow-on views" },
+      { id: "Engagements", name: "Engagements" },
+      { id: "YouTube follow-on views", name: "YouTube follow-on views" },
+      ...SALES_LEADS_TRAFFIC_GOALS,
+      { id: "phone_leads,Engagements", name: "Phone call leads + Engagements" },
+      { id: "phone_leads,YouTube follow-on views", name: "Phone call leads + YouTube follow-on views" },
+      { id: "contacts,Engagements", name: "Contacts + Engagements" },
+      { id: "contacts,YouTube follow-on views", name: "Contacts + YouTube follow-on views" },
+      { id: "get_directions,Engagements", name: "Get directions + Engagements" },
+      { id: "get_directions,YouTube follow-on views", name: "Get directions + YouTube follow-on views" },
+      { id: "phone_leads,contacts,Engagements,YouTube follow-on views", name: "Phone call leads + Contacts + Engagements + YouTube follow-on views" },
+      { id: "phone_leads,get_directions,Engagements,YouTube follow-on views", name: "Phone call leads + Get directions + Engagements + YouTube follow-on views" },
+      { id: "phone_leads,contacts,get_directions,Engagements,YouTube follow-on views", name: "Phone call leads + Contacts + Get directions + Engagements + YouTube follow-on views" }
+    ];
+  }
+  return SALES_LEADS_TRAFFIC_GOALS;
+};
 
 export const APP_PROMOTION_SUBTYPES: GoalDefinition[] = [
   { id: "installs", name: "App installs", source: "Get new people to install your app" },
@@ -681,11 +721,14 @@ export const reconcileCampaignStateWithManualFlow = (
   const isAppConn = isAppVerified(profSource);
 
   if (obj === "SALES" || obj === "LEADS" || obj === "WEBSITE_TRAFFIC") {
+    const isYtConnected = isYouTubeVerified(profSource);
+    const validGoalsList = getSalesLeadsTrafficGoals(isYtConnected);
+    const defaultFallback = isYtConnected ? "phone_leads,Engagements,YouTube follow-on views" : "phone_leads";
     const rawGoal = (updated.conversionGoals && updated.conversionGoals.length > 0)
       ? updated.conversionGoals.join(",")
-      : "phone_leads";
-    const isValid = SALES_LEADS_TRAFFIC_GOALS.some(g => g.id === rawGoal);
-    const resolvedGoal = isValid ? rawGoal : "phone_leads";
+      : defaultFallback;
+    const isValid = validGoalsList.some(g => g.id === rawGoal);
+    const resolvedGoal = isValid ? rawGoal : defaultFallback;
     updated.conversionGoals = resolvedGoal.split(",");
 
     const availableTypes = getAvailableCampaignTypes(obj, updated.conversionGoals, profSource);
@@ -953,7 +996,7 @@ export default function AiGuidedCampaignPage() {
     dailyBudget: null,
     locations: ["India"],
     language: "All languages",
-    startDate: undefined,
+    startDate: todayIso,
     endDate: undefined,
     demographicExclusions: {
       ages: ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"],
@@ -1371,8 +1414,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const [activePMaxMoreSetting, setActivePMaxMoreSetting] = useState<string | null>(null);
   const [pmaxBrandInput, setPmaxBrandInput] = useState<string>("");
   const [pmaxDataExclusionInput, setPmaxDataExclusionInput] = useState<string>("");
-  const [pmaxAgeExclusionsEnabled, setPmaxAgeExclusionsEnabled] = useState<boolean>(false);
-  const [pmaxGenderExclusionsEnabled, setPmaxGenderExclusionsEnabled] = useState<boolean>(false);
+  const [pmaxAgeExclusionsEnabled, setPmaxAgeExclusionsEnabled] = useState<boolean>(true);
+  const [pmaxGenderExclusionsEnabled, setPmaxGenderExclusionsEnabled] = useState<boolean>(true);
 
   const pmaxTimeOptions = [
     "00:00", "00:15", "00:30", "00:45", "01:00", "01:15", "01:30", "01:45",
@@ -1396,6 +1439,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
   // Cockpit Direct AI Generation Animation State
   const [cockpitGeneratingTarget, setCockpitGeneratingTarget] = useState<string | null>(null);
+
+  // Ad Schedule Inline Error State (prevents duplicate schedules and enforces start < end)
+  const [adScheduleError, setAdScheduleError] = useState<string | null>(null);
 
   // User Profile & CRM Login Context
   const [userProfile, setUserProfile] = useState<{
@@ -1649,9 +1695,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             ? (prof?.appDetails?.[0]?.platform || prof?.platform || profileData?.platform || "ANDROID")
             : undefined;
 
+          // Auto-fill default conversion goals preserving existing goals
+          let prefilledGoals = prev.conversionGoals;
+          if (!prefilledGoals || prefilledGoals.length === 0) {
+            const isYtConn = isYouTubeVerified(prof || profileData);
+            prefilledGoals = isYtConn
+              ? ["phone_leads", "Engagements", "YouTube follow-on views"]
+              : ["phone_leads"];
+          }
+
           return {
             ...prev,
             customerProfile: prof || prev.customerProfile,
+            conversionGoals: prefilledGoals,
             businessName: finalBiz,
             campaignName: defaultCampaignName,
             website: prefilledWebsite,
@@ -1679,7 +1735,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             logos: prefilledLogos,
             videos: prefilledVideos,
             mainBrandColor: prev.mainBrandColor || profileBrandColor || undefined,
-            brandFont: prev.brandFont || profileBrandFont || undefined
+            brandFont: prev.brandFont || profileBrandFont || undefined,
+            demographicExclusions: prev.demographicExclusions || {
+              ages: ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"],
+              genders: ["Female", "Male"]
+            }
           };
         });
 
@@ -2006,9 +2066,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const handleLoadDraftCampaign = (camp: any) => {
     if (!camp) return;
 
-    // Extract all parameters safely
-    const rawBudget = camp.budget ? Number(camp.budget) : (camp.amountMicros ? Number(camp.amountMicros) / 1_000_000 : null);
-    const parsedBudget = rawBudget && rawBudget > 0 ? rawBudget : null;
+    // Extract all parameters safely (handle Prisma BigInt amountMicros or standard budget number)
+    let rawBudget: number | null = null;
+    if (camp.budget && !isNaN(Number(camp.budget))) {
+      rawBudget = Number(camp.budget);
+    } else if (camp.amountMicros) {
+      const microsNum = Number(camp.amountMicros);
+      rawBudget = microsNum > 0 ? (microsNum > 100_000_000_000 ? 500 : microsNum / 1_000_000) : null;
+    }
+    const parsedBudget = rawBudget && !isNaN(rawBudget) && rawBudget > 0 && isFinite(rawBudget) ? Math.min(Math.round(rawBudget), 10_000_000) : null;
     const extractedBiz = camp.businessName || camp.name?.split(/[-–|]/)[0]?.trim() || "";
     const extractedWebsite = camp.website || camp.finalUrl || "";
     const extractedLocs = Array.isArray(camp.locations) && camp.locations.length > 0
@@ -2075,12 +2141,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         startDate: (() => {
           if (!camp.startDate) return prev.startDate || todayIso;
           const parsedStart = new Date(camp.startDate).toISOString().split("T")[0];
-          return parsedStart < todayIso ? todayIso : parsedStart;
+          return parsedStart || todayIso;
         })(),
         endDate: (() => {
           if (!camp.endDate) return prev.endDate;
           const parsedEnd = new Date(camp.endDate).toISOString().split("T")[0];
-          const effectiveStart = camp.startDate ? (new Date(camp.startDate).toISOString().split("T")[0] < todayIso ? todayIso : new Date(camp.startDate).toISOString().split("T")[0]) : todayIso;
+          const effectiveStart = camp.startDate ? new Date(camp.startDate).toISOString().split("T")[0] : todayIso;
           return parsedEnd <= effectiveStart ? undefined : parsedEnd;
         })(),
         biddingStrategy: camp.biddingStrategy || extraDraft.biddingStrategy || prev.biddingStrategy || "Maximize conversions",
@@ -2366,6 +2432,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   // Search Keywords input state in Cockpit
   const [newKeywordInput, setNewKeywordInput] = useState<string>("");
 
+  // YouTube Video URL Quick Input Modal & State
+  const [isYoutubeUrlModalOpen, setIsYoutubeUrlModalOpen] = useState<boolean>(false);
+  const [youtubeVideoUrlInput, setYoutubeVideoUrlInput] = useState<string>("");
+  const [youtubeVideoUrlError, setYoutubeVideoUrlError] = useState<string | null>(null);
+
   // Google Maps & Places API Key state for interactive maps
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>("");
   const [showLocationMapPreview, setShowLocationMapPreview] = useState<boolean>(true);
@@ -2566,8 +2637,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     }
     try {
       const parsed = new URL(trimmed);
-      if (!parsed.hostname || !parsed.hostname.includes(".")) {
+      const host = parsed.hostname.toLowerCase();
+      if (!host || !host.includes(".")) {
         return "Invalid website URL. Please enter a valid domain (e.g. yourbusiness.com).";
+      }
+      if (host === "example.com" || host.endsWith(".example.com") || host === "localhost" || host === "127.0.0.1" || host === "test.com") {
+        return `Landing page URL cannot use placeholder or local test domains (${host}).`;
       }
     } catch {
       return "Invalid website URL. Please enter a valid domain (e.g. yourbusiness.com).";
@@ -2584,8 +2659,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     }
     const str = String(val).trim();
     const num = Number(str);
-    if (isNaN(num)) {
-      return "Please enter a valid numeric budget.";
+    if (isNaN(num) || !isFinite(num)) {
+      return "Please enter a valid numeric budget (rejecting NaN and Infinity).";
     }
     if (num < 0) {
       return `${label} cannot be negative.`;
@@ -2593,20 +2668,44 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     if (num === 0) {
       return `${label} must be greater than 0.`;
     }
+    if (num > 10_000_000) {
+      return `${label} cannot exceed the maximum allowed limit of ₹10,000,000.`;
+    }
     const effectiveType = targetCampaignType || campaignState.campaignType;
-    if (effectiveType === "DEMAND_GEN" && !isTotal && num < 100) {
-      return "Demand Gen daily budget must be at least ₹100/day.";
+    if (effectiveType === "DEMAND_GEN") {
+      if (!isTotal && num < 416) {
+        return "Demand Gen daily budget must be at least ₹416/day (Google Ads minimum).";
+      }
+      if (isTotal) {
+        const sDate = tempEditValues.startDate || campaignState.startDate || todayIso;
+        const eDate = tempEditValues.endDate || campaignState.endDate;
+        if (sDate && eDate) {
+          const sTime = new Date(sDate).getTime();
+          const eTime = new Date(eDate).getTime();
+          if (!isNaN(sTime) && !isNaN(eTime) && eTime > sTime) {
+            const days = Math.max(1, Math.ceil((eTime - sTime) / (1000 * 60 * 60 * 24)));
+            const perDay = Math.round(num / days);
+            if (perDay < 416) {
+              const minTotal = Math.ceil(416 * days);
+              return `Demand Gen budget equates to ₹${perDay}/day across ${days} days, which is below Google Ads' minimum requirement (min ₹416/day). Please set a total budget of at least ₹${minTotal.toLocaleString("en-IN")}.`;
+            }
+          }
+        } else if (num < 416) {
+          return "Demand Gen campaign total budget must be at least ₹416/day (Google Ads minimum).";
+        }
+      }
     }
     return null;
   };
 
   // Real-time Start Date Validator
   const validateStartDate = (startVal?: string): string | null => {
-    if (!startVal) {
+    if (!startVal || !startVal.trim()) {
       return "Start date is required.";
     }
-    if (startVal < todayIso) {
-      return "Start date cannot be in the past.";
+    const cleanDate = startVal.trim().split("T")[0];
+    if (cleanDate < todayIso) {
+      return `Start date cannot be in the past (${cleanDate}). Please choose today (${todayIso}) or a future date.`;
     }
     return null;
   };
@@ -2620,9 +2719,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       }
       return null; // End date is optional for Daily Budget
     }
-    const effectiveStart = startVal || todayIso;
-    if (endVal <= effectiveStart) {
-      return `End date (${endVal}) must be after start date (${effectiveStart}).`;
+    const effectiveStart = (startVal || campaignState.startDate || todayIso).trim().split("T")[0];
+    const cleanEnd = endVal.trim().split("T")[0];
+    if (cleanEnd <= effectiveStart) {
+      return `End date (${cleanEnd}) must be after start date (${effectiveStart}).`;
     }
     return null;
   };
@@ -2642,11 +2742,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     return map[type] || type.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
   };
 
-  // Helper to format conversion goal display matching the 7 exact composite goals
+  // Helper to format conversion goal display matching composite goals
   const formatGoalName = (conversionGoals?: string[]) => {
     if (!conversionGoals || conversionGoals.length === 0) return "Not set";
     const key = conversionGoals.join(",");
     const match = SALES_LEADS_TRAFFIC_GOALS.find(g => g.id === key) 
+      || YOUTUBE_CONVERSION_GOALS.find(g => g.id === key)
       || NO_GUIDANCE_SHOPPING_GOALS.find(g => g.id === key)
       || NO_GUIDANCE_DEMAND_GEN_GOALS.find(g => g.id === key);
     if (match) return match.name;
@@ -2655,6 +2756,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       if (g === "phone_leads") return "Phone call leads";
       if (g === "contacts") return "Contacts";
       if (g === "get_directions") return "Get directions";
+      if (g === "Engagements") return "Engagements";
+      if (g === "YouTube follow-on views") return "YouTube follow-on views";
       return g;
     }).join(" + ");
   };
@@ -2712,9 +2815,24 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   // Helper to check if campaign state satisfies all Google Ads publishing requirements
   const checkIsCampaignReady = (state: CampaignState): boolean => {
     const cType = state.campaignType;
-    const isBudgetValid = cType === "DEMAND_GEN"
-      ? (state.dailyBudget && state.dailyBudget >= 100)
-      : (state.dailyBudget && state.dailyBudget > 0);
+    const isBudgetValid = (() => {
+      if (!state.dailyBudget || state.dailyBudget <= 0) return false;
+      if (cType === "DEMAND_GEN") {
+        if (state.budgetType === "TOTAL") {
+          if (state.startDate && state.endDate) {
+            const s = new Date(state.startDate).getTime();
+            const e = new Date(state.endDate).getTime();
+            if (!isNaN(s) && !isNaN(e) && e > s) {
+              const days = Math.max(1, Math.ceil((e - s) / (1000 * 60 * 60 * 24)));
+              return (Number(state.dailyBudget) / days) >= 416;
+            }
+          }
+          return state.dailyBudget >= 416;
+        }
+        return state.dailyBudget >= 416;
+      }
+      return state.dailyBudget > 0;
+    })();
     const hasBudget = Boolean(isBudgetValid);
     const hasBizName = !!(state.businessName?.trim() || state.business?.name?.trim());
     const hasName = !!(state.campaignName?.trim() || hasBizName);
@@ -2808,11 +2926,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       return hasBiz && hasUrl && hasImages && hasLogos && validHeadlines.length >= 1 && hasLongHl && validDescriptions.length >= 1;
     }
 
-    if (cType === "DEMAND_GEN" || cType === "VIDEO") {
+    if (cType === "VIDEO") {
       const isYtConn = isYouTubeVerified(customerProfile || state.customerProfile);
-      if (cType === "VIDEO" && !isYtConn) {
-        return false;
-      }
+      if (!isYtConn) return false;
+      return hasVideos && validHeadlines.length >= 1 && validDescriptions.length >= 1;
+    }
+
+    if (cType === "DEMAND_GEN") {
+      const isYtConn = isYouTubeVerified(customerProfile || state.customerProfile);
       if (dgFormat === "VIDEO") {
         if (!isYtConn) return false;
         return hasVideos && hasLogos && validHeadlines.length >= 1 && validLongHeadlines.length >= 1 && validDescriptions.length >= 1;
@@ -3136,6 +3257,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           fixAction: () => startFieldEdit("campaignType")
         });
       }
+      const allVideos = (state.videos || []).filter(v => v && (typeof v === "string" ? v.trim() : (v as any).asset || (v as any).videoId || (v as any).url));
+      if (allVideos.length < 1) {
+        missing.push({
+          label: "At least 1 YouTube Video is required for Video campaigns",
+          field: "videos",
+          fixAction: () => openMediaSourcePicker("VIDEO")
+        });
+      }
     }
 
     if (cType === "DEMAND_GEN" && (state.adFormat || "").toUpperCase() === "VIDEO") {
@@ -3208,7 +3337,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       impressionShareLocation: campaignState.impressionShareLocation || "",
       locations: currentLocs.join(", "),
       language: campaignState.language || "",
-      startDate: campaignState.startDate || "",
+      startDate: campaignState.startDate || todayIso,
       endDate: campaignState.endDate || "",
       merchantCenterId: campaignState.merchantCenterId || "",
       salesCountry: campaignState.salesCountry || "",
@@ -3309,9 +3438,21 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         return;
       }
     } else if (editingField === "locations") {
-      if (locationMode === "CUSTOM" && selectedLocationsList.length === 0) {
-        setFieldError("Please select at least one valid location target.");
-        return;
+      if (locationMode === "CUSTOM") {
+        if (selectedLocationsList.length === 0) {
+          setFieldError("Please select at least one valid location target.");
+          return;
+        }
+        for (const loc of selectedLocationsList) {
+          const match = String(loc).match(/^(\d+(?:\.\d+)?)\s*(km|mi|miles|kilometers)\s+(?:around|radius\s+of)\s+(.+)$/i);
+          if (match) {
+            const rad = Number(match[1]);
+            if (isNaN(rad) || !isFinite(rad) || rad < 1 || rad > 500) {
+              setFieldError("Proximity radius must be between 1 and the maximum supported radius (500 km / 300 mi).");
+              return;
+            }
+          }
+        }
       }
     } else if (editingField === "merchantCenterId") {
       const val = (tempEditValues.merchantCenterId || "").trim();
@@ -5105,12 +5246,24 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                      text.match(/target\s+([a-zA-Z0-9\u0900-\u097F\s,.-]+?)(?:\s+(?:with|language|daily budget|budget|inr|rs|₹|is|aahe|आहे)|\.|\s*,|\s*$)/i) ||
                      text.match(/\bin\s+([a-zA-Z\u0900-\u097F\s,.-]+?)(?:\s*,|\s+(?:and|with|language|budget)|\.|\s*$)/i);
     if (locMatch && locMatch[1]) {
-      const rawLocs = locMatch[1]
-        .split(/,|and|\s+आणि\s+/)
-        .map(s => s.trim())
-        .filter(s => s.length > 1 && !s.toLowerCase().includes("budget") && !s.toLowerCase().includes("website") && !s.toLowerCase().includes("language"));
+      const rawLocText = locMatch[1].trim();
+      // If it's a radius string like "25 km around Bengaluru, Karnataka, India", keep as a single target!
+      const isRadiusStr = /^\d+(?:\.\d+)?\s*(?:km|mi|miles|kilometers)\s+(?:around|radius\s+of)\s+/i.test(rawLocText);
+      // If it contains "State/Country" hierarchy (like "Pune, Maharashtra, India" or "City, Country"), treat as a single target
+      const isHierarchy = rawLocText.includes(",") && (rawLocText.toLowerCase().includes("india") || rawLocText.toLowerCase().includes("maharashtra") || rawLocText.toLowerCase().includes("karnataka") || rawLocText.toLowerCase().includes("gujarat") || rawLocText.toLowerCase().includes("usa") || rawLocText.toLowerCase().includes("uk"));
+      
+      let rawLocs: string[] = [];
+      if (isRadiusStr || isHierarchy) {
+        rawLocs = [rawLocText.replace(/[\s,]+$/, "").trim()];
+      } else {
+        rawLocs = rawLocText
+          .split(/and|\s+आणि\s+/)
+          .map(s => s.trim())
+          .filter(s => s.length > 1 && !s.toLowerCase().includes("budget") && !s.toLowerCase().includes("website") && !s.toLowerCase().includes("language"));
+      }
+
       if (rawLocs.length > 0) {
-        const titleCased = rawLocs.map(l => l.replace(/\b\w/g, c => c.toUpperCase()));
+        const titleCased = rawLocs.map(l => isRadiusStr ? l : l.replace(/\b\w/g, c => c.toUpperCase()));
         activeState.locations = titleCased;
         setSelectedLocationsList(titleCased);
         didUserProvideManualValues = true;
@@ -5379,6 +5532,33 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         throw new Error(`${isTotalBudget ? "Campaign Total Budget" : "Daily Budget"} is required and must be greater than ₹0. Please set a budget in chat or the Live Cockpit.`);
       }
 
+      if (effectiveState.campaignType === "DEMAND_GEN") {
+        if (!isTotalBudget && budgetNum < 416) {
+          startFieldEdit("dailyBudget");
+          throw new Error("Demand Gen daily budget must be at least ₹416/day (Google Ads minimum).");
+        }
+        if (isTotalBudget) {
+          const sDate = effectiveState.startDate || todayIso;
+          const eDate = effectiveState.endDate;
+          if (sDate && eDate) {
+            const s = new Date(sDate).getTime();
+            const e = new Date(eDate).getTime();
+            if (!isNaN(s) && !isNaN(e) && e > s) {
+              const days = Math.max(1, Math.ceil((e - s) / (1000 * 60 * 60 * 24)));
+              const perDay = Math.round(budgetNum / days);
+              if (perDay < 416) {
+                startFieldEdit("dailyBudget");
+                const minTotal = Math.ceil(416 * days);
+                throw new Error(`Demand Gen budget equates to ₹${perDay}/day across ${days} days, which is below Google Ads' minimum requirement (min ₹416/day). Please set a total budget of at least ₹${minTotal.toLocaleString("en-IN")}.`);
+              }
+            }
+          } else if (budgetNum < 416) {
+            startFieldEdit("dailyBudget");
+            throw new Error("Demand Gen campaign total budget must be at least ₹416/day (Google Ads minimum).");
+          }
+        }
+      }
+
       // 3. Campaign Name Validation (Must not be empty)
       if (!effectiveState.campaignName || !effectiveState.campaignName.trim()) {
         effectiveState.campaignName = generateCampaignName(cleanBizName, effectiveState.campaignType);
@@ -5433,6 +5613,30 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         }
       }
 
+      // Check proximity radius in locations
+      for (const rawLoc of (effectiveState.locations || []) as any[]) {
+        if (!rawLoc) continue;
+        if (typeof rawLoc === "object") {
+          const locObj = rawLoc as Record<string, any>;
+          if (locObj.type === "PROXIMITY" || locObj.mode === "RADIUS" || locObj.radius !== undefined) {
+            const rad = Number(locObj.radius);
+            if (isNaN(rad) || !isFinite(rad) || rad < 1 || rad > 500) {
+              startFieldEdit("locations");
+              throw new Error("Proximity radius must be between 1 and the maximum supported radius (500 km / 300 mi).");
+            }
+          }
+        } else if (typeof rawLoc === "string") {
+          const radiusMatch = rawLoc.match(/^(\d+(?:\.\d+)?)\s*(km|mi|miles|kilometers)\s+(?:around|radius\s+of)\s+(.+)$/i);
+          if (radiusMatch) {
+            const rad = Number(radiusMatch[1]);
+            if (isNaN(rad) || !isFinite(rad) || rad < 1 || rad > 500) {
+              startFieldEdit("locations");
+              throw new Error("Proximity radius must be between 1 and the maximum supported radius (500 km / 300 mi).");
+            }
+          }
+        }
+      }
+
       // 6. Language Auto-Resolution
       if (!effectiveState.language || !effectiveState.language.trim()) {
         effectiveState.language = "All languages";
@@ -5441,10 +5645,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
       // 6b. Start Date and End Date Sanitization (Google Ads requires End Date > Start Date >= Today)
       const todayStr = new Date().toISOString().split("T")[0];
-      if (!effectiveState.startDate || !String(effectiveState.startDate).trim() || String(effectiveState.startDate).trim() < todayStr) {
+      if (!effectiveState.startDate || !String(effectiveState.startDate).trim()) {
         effectiveState.startDate = todayStr;
         setCampaignState(p => ({ ...p, startDate: todayStr }));
+      } else {
+        const cleanStart = String(effectiveState.startDate).trim().split("T")[0];
+        if (cleanStart < todayStr) {
+          startFieldEdit("startDate");
+          throw new Error(`Start date cannot be in the past (${cleanStart}). Please choose today (${todayStr}) or a future date.`);
+        }
+        effectiveState.startDate = cleanStart;
       }
+
       // Helper to calculate default end date (+30 days from start date)
       const computeDefaultEndDate = (start: string) => {
         const d = new Date(start || todayStr);
@@ -5455,20 +5667,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       // Check End Date requirement based on Budget Type
       if (effectiveState.budgetType === "TOTAL") {
         if (!effectiveState.endDate || !String(effectiveState.endDate).trim()) {
-          const autoEnd = computeDefaultEndDate(effectiveState.startDate);
-          effectiveState.endDate = autoEnd;
-          setCampaignState(p => ({ ...p, endDate: autoEnd }));
-          console.info(`[AI-GUIDED] Auto-assigned 30-day End Date (${autoEnd}) for Campaign Total Budget.`);
+          startFieldEdit("endDate");
+          throw new Error("End date is required when using Campaign Total Budget.");
         }
       }
 
       if (effectiveState.endDate) {
-        const rawEndDate = String(effectiveState.endDate).trim();
+        const rawEndDate = String(effectiveState.endDate).trim().split("T")[0];
         if (!rawEndDate) {
           if (effectiveState.budgetType === "TOTAL") {
-            const autoEnd = computeDefaultEndDate(effectiveState.startDate);
-            effectiveState.endDate = autoEnd;
-            setCampaignState(p => ({ ...p, endDate: autoEnd }));
+            startFieldEdit("endDate");
+            throw new Error("End date is required when using Campaign Total Budget.");
           } else {
             delete effectiveState.endDate;
           }
@@ -5476,18 +5685,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           const startMs = new Date(effectiveState.startDate).getTime();
           const endMs = new Date(rawEndDate).getTime();
           if (isNaN(endMs) || endMs <= startMs) {
-            if (effectiveState.budgetType === "TOTAL") {
-              // Auto-correct invalid end date to 30 days ahead of start date
-              const autoEnd = computeDefaultEndDate(effectiveState.startDate);
-              effectiveState.endDate = autoEnd;
-              setCampaignState(p => ({ ...p, endDate: autoEnd }));
-              console.warn(`[AI-GUIDED] Auto-corrected invalid End Date (${rawEndDate}) to (${autoEnd}) for Total Budget.`);
-            } else {
-              // End date must strictly be after start date; for optional daily budget, remove invalid same-day or past end date so campaign runs continuously
-              console.warn(`[AI-GUIDED] Removing invalid same-day/past end date (${rawEndDate}) <= start date (${effectiveState.startDate}) to prevent Google Ads validation error.`);
-              delete effectiveState.endDate;
-              setCampaignState(p => ({ ...p, endDate: undefined }));
-            }
+            startFieldEdit("endDate");
+            throw new Error(`End date (${rawEndDate}) must be strictly after start date (${effectiveState.startDate}).`);
           } else {
             effectiveState.endDate = rawEndDate;
           }
@@ -5545,13 +5744,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
       if (effectiveState.adSchedule && Array.isArray(effectiveState.adSchedule)) {
         const seen = new Set<string>();
-        effectiveState.adSchedule = effectiveState.adSchedule.filter((s: any) => {
+        const filtered = effectiveState.adSchedule.filter((s: any) => {
           if (!s || !s.day || !s.start || !s.end) return false;
+          // Filter out default 00:00 - 00:00 (or 24:00) 24/7 all days schedules as Google Ads already runs 24/7 by default
+          const isAllDay = (s.start === "00:00" || s.start === "0:00") && (s.end === "00:00" || s.end === "0:00" || s.end === "24:00" || s.end === "23:45");
+          const isAllDays = String(s.day).trim().toLowerCase() === "all days";
+          if (isAllDay && isAllDays) return false;
           const key = `${s.day}_${s.start}_${s.end}`;
           if (seen.has(key)) return false;
           seen.add(key);
           return true;
         });
+        effectiveState.adSchedule = filtered;
       }
 
       if (effectiveState.searchThemes && Array.isArray(effectiveState.searchThemes)) {
@@ -5694,7 +5898,27 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           effectiveState.logos = autoLogos;
           setCampaignState(p => ({ ...p, logos: autoLogos }));
         }
-        if (dgFormat === "SINGLE_IMAGE") {
+        // Auto-correct adFormat: if VIDEO format is selected but user has no videos, gracefully fall back to SINGLE_IMAGE if images exist or auto-create images
+        if (dgFormat === "VIDEO") {
+          const dgVideos = (effectiveState.videos || []).filter((v: any) => v && (typeof v === "string" ? v.trim() : v.asset || v.videoId || v.url));
+          if (dgVideos.length < 1) {
+            console.warn("[AI-GUIDED] Demand Gen had VIDEO adFormat but no videos provided. Auto-falling back to SINGLE_IMAGE format.");
+            effectiveState.adFormat = "SINGLE_IMAGE";
+            setCampaignState(p => ({ ...p, adFormat: "SINGLE_IMAGE" }));
+          } else {
+            const isYtConnected = isYouTubeVerified(customerProfile || campaignState.customerProfile);
+            if (!isYtConnected) {
+              startFieldEdit("adFormat");
+              throw new Error("YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue.");
+            }
+            if (validLH.length < 1) {
+              effectiveState.longHeadlines = [validH[0]];
+            }
+          }
+        }
+
+        const effectiveDgFormat = (effectiveState.adFormat || "SINGLE_IMAGE").toUpperCase();
+        if (effectiveDgFormat === "SINGLE_IMAGE") {
           const dgImages = (effectiveState.images || []).filter((im: any) => im && (typeof im === "string" ? im.trim() : im.url || im.data || im.asset));
           if (dgImages.length < 1) {
             const autoImages = [
@@ -5704,20 +5928,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             effectiveState.images = autoImages;
             setCampaignState(p => ({ ...p, images: autoImages }));
           }
-        } else if (dgFormat === "VIDEO") {
-          const isYtConnected = isYouTubeVerified(customerProfile || campaignState.customerProfile);
-          if (!isYtConnected) {
-            startFieldEdit("adFormat");
-            throw new Error("YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue.");
-          }
-          const dgVideos = (effectiveState.videos || []).filter((v: any) => v && (typeof v === "string" ? v.trim() : v.asset || v.videoId || v.url));
-          if (dgVideos.length < 1) {
-            throw new Error("Demand Gen Video format requires at least 1 YouTube video URL or asset.");
-          }
-          if (validLH.length < 1) {
-            effectiveState.longHeadlines = [validH[0]];
-          }
-        } else if (dgFormat === "CAROUSEL") {
+        } else if (effectiveDgFormat === "CAROUSEL") {
           const cards = Array.isArray(effectiveState.carouselCards) ? effectiveState.carouselCards : [];
           const validCards = cards.filter((c: any) => c && c.image?.trim() && c.headline?.trim());
           if (validCards.length < 2) {
@@ -5729,6 +5940,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         if (!isYtConnected) {
           startFieldEdit("campaignType");
           throw new Error("YouTube connection is required for Video campaigns. Connect your YouTube channel to continue.");
+        }
+        const vVideos = (effectiveState.videos || []).filter((v: any) => v && (typeof v === "string" ? v.trim() : v.asset || v.videoId || v.url));
+        if (vVideos.length < 1) {
+          setIsYoutubeUrlModalOpen(true);
+          setYoutubeVideoUrlError("At least 1 YouTube video URL/asset is required for Video campaigns.");
+          throw new Error("At least 1 YouTube video URL/asset is required for Video campaigns. Please enter a YouTube video URL or switch to Image format.");
         }
       } else if (cType === "APP") {
         if (!effectiveState.appId || !effectiveState.appId.trim()) {
@@ -9550,8 +9767,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <div className="flex items-center gap-1 max-w-[220px]">
                           {(() => {
                             const curObj = tempEditValues.objective || campaignState.objective || "SALES";
-                            let goalOptions: GoalDefinition[] = SALES_LEADS_TRAFFIC_GOALS;
-                            let defaultVal = "phone_leads";
+                            const effectiveProfile = customerProfile || campaignState.customerProfile;
+                            const isYtConnected = isYouTubeVerified(effectiveProfile);
+                            let goalOptions: GoalDefinition[] = getSalesLeadsTrafficGoals(isYtConnected);
+                            let defaultVal = isYtConnected ? "phone_leads,Engagements,YouTube follow-on views" : "phone_leads";
 
                             if (curObj === "APP_PROMOTION") {
                               goalOptions = APP_PROMOTION_SUBTYPES;
@@ -9570,7 +9789,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             }
 
                             const currentGoalVal = tempEditValues.conversionGoal || defaultVal;
-                            const effectiveProfile = customerProfile || campaignState.customerProfile;
 
                             return (
                               <select
@@ -10023,7 +10241,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                               const val = e.target.value;
                               setTempEditValues({ ...tempEditValues, dailyBudget: val });
                               if (val !== "") {
-                                setFieldError(validateDailyBudget(val));
+                                setFieldError(validateDailyBudget(val, tempEditValues.campaignType || campaignState.campaignType, tempEditValues.budgetType || campaignState.budgetType));
                               } else {
                                 setFieldError(null);
                               }
@@ -10999,6 +11217,26 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   />
                                 </div>
                               </div>
+                            </div>
+
+                            {/* Brand Font */}
+                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
+                              <span className="text-slate-500">Brand Font:</span>
+                              <select
+                                value={campaignState.brandFont || "Any font"}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, brandFont: e.target.value }))}
+                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-medium text-slate-800 focus:outline-none"
+                              >
+                                <option value="Any font">Any font</option>
+                                <option value="Open Sans">Open Sans</option>
+                                <option value="Roboto">Roboto</option>
+                                <option value="Roboto Slab">Roboto Slab</option>
+                                <option value="Montserrat">Montserrat</option>
+                                <option value="Poppins">Poppins</option>
+                                <option value="Lato">Lato</option>
+                                <option value="Oswald">Oswald</option>
+                                <option value="Playfair Display">Playfair Display</option>
+                              </select>
                             </div>
 
                             {/* 6 Google AI Creative Enhancements Switches */}
@@ -12072,6 +12310,160 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </div>
                       </div>
                     </div>
+
+                    {/* Brand Font Selection */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500 font-semibold">Brand Font:</span>
+                      <select
+                        value={campaignState.brandFont || "Any font"}
+                        onChange={(e) => setCampaignState(prev => ({ ...prev, brandFont: e.target.value }))}
+                        className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-medium text-slate-800 focus:outline-none"
+                      >
+                        <option value="Any font">Any font</option>
+                        <option value="Open Sans">Open Sans</option>
+                        <option value="Roboto">Roboto</option>
+                        <option value="Roboto Slab">Roboto Slab</option>
+                        <option value="Montserrat">Montserrat</option>
+                        <option value="Poppins">Poppins</option>
+                        <option value="Lato">Lato</option>
+                        <option value="Oswald">Oswald</option>
+                        <option value="Playfair Display">Playfair Display</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Search Themes (Demand Gen Targeting Guidance) */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-slate-800 font-semibold text-[11px]">
+                        <Target className="h-3 w-3 text-purple-600" />
+                        <span>Search Themes</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {(campaignState.searchThemes || []).length}/25
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Inform Google AI what search queries & buyer interests relate to your Demand Gen ads across YouTube, Gmail & Discover.
+                    </p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={newSearchThemeInput}
+                        maxLength={80}
+                        onChange={(e) => setNewSearchThemeInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newSearchThemeInput.trim()) {
+                            e.preventDefault();
+                            const val = newSearchThemeInput.trim();
+                            if ((campaignState.searchThemes || []).length < 25 && !(campaignState.searchThemes || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, searchThemes: [...(prev.searchThemes || []), val] }));
+                            }
+                            setNewSearchThemeInput("");
+                          }
+                        }}
+                        placeholder="e.g. business automation, luxury travel..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newSearchThemeInput.trim()) {
+                            const val = newSearchThemeInput.trim();
+                            if ((campaignState.searchThemes || []).length < 25 && !(campaignState.searchThemes || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, searchThemes: [...(prev.searchThemes || []), val] }));
+                            }
+                            setNewSearchThemeInput("");
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                    {(campaignState.searchThemes || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1 max-h-28 overflow-y-auto">
+                        {(campaignState.searchThemes || []).map((theme, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-[10px] text-purple-800 font-medium">
+                            <span>{theme}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, searchThemes: (prev.searchThemes || []).filter((_, i) => i !== idx) }))}
+                              className="text-purple-400 hover:text-rose-600 cursor-pointer"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Audience Signals (Audience Segments Guidance) */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-slate-800 font-semibold text-[11px]">
+                        <Users className="h-3 w-3 text-purple-600" />
+                        <span>Audience Signals</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {(campaignState.audienceSignals || []).length} added
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Target specific in-market interests, custom segments, or buyer personas to guide Google AI's conversion optimization.
+                    </p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        id="dg-audience-signal-input"
+                        placeholder="e.g. Technology Enthusiasts, Small Business Owners..."
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const target = e.currentTarget;
+                            const val = target.value.trim();
+                            if (val && !(campaignState.audienceSignals || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
+                            }
+                            target.value = "";
+                          }
+                        }}
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const inputEl = document.getElementById("dg-audience-signal-input") as HTMLInputElement | null;
+                          if (inputEl && inputEl.value.trim()) {
+                            const val = inputEl.value.trim();
+                            if (!(campaignState.audienceSignals || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
+                            }
+                            inputEl.value = "";
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                    {(campaignState.audienceSignals || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1 max-h-28 overflow-y-auto">
+                        {(campaignState.audienceSignals || []).map((signal, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] text-slate-800 font-medium">
+                            <span>👥 {typeof signal === "string" ? signal : (signal?.name || signal?.segmentName || "Custom Audience")}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, audienceSignals: (prev.audienceSignals || []).filter((_, i) => i !== idx) }))}
+                              className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Google AI Creative Enhancements */}
@@ -12526,18 +12918,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 2b-2. SEARCH & PERFORMANCE MAX CONTROLS: MORE CAMPAIGN SETTINGS */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SEARCH") && (
+            {/* 2b-2. SEARCH, DEMAND GEN & PERFORMANCE MAX CONTROLS: MORE CAMPAIGN SETTINGS */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SEARCH" || campaignState.campaignType === "DEMAND_GEN") && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="h-4 w-4 text-blue-600" />
                     <span className="font-bold text-xs text-slate-900">
-                      {campaignState.campaignType === "SEARCH" ? "Search Campaign Settings" : "Performance Max Controls"}
+                      {campaignState.campaignType === "SEARCH" ? "Search Campaign Settings" : campaignState.campaignType === "DEMAND_GEN" ? "Demand Gen Advanced Settings" : "Performance Max Controls"}
                     </span>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
-                    {campaignState.campaignType === "SEARCH" ? "Schedule & URL Options" : "PMax Controls"}
+                    {campaignState.campaignType === "SEARCH" ? "Schedule & URL Options" : campaignState.campaignType === "DEMAND_GEN" ? "Schedule & Devices" : "PMax Controls"}
                   </span>
                 </div>
 
@@ -12576,99 +12968,146 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           </div>
                           
                           <div className="space-y-1.5">
-                            {(campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "00:00" }]).map((sched, idx) => (
-                              <div key={idx} className="flex flex-wrap items-center gap-1.5 bg-slate-50 p-1.5 rounded-lg border border-slate-200 text-[10px]">
-                                <select
-                                  value={sched.day}
-                                  onChange={(e) => {
-                                    const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
-                                    const updatedSched = { ...currentList[idx], day: e.target.value };
-                                    const isDup = currentList.some((s, i) => i !== idx && s.day === updatedSched.day && s.start === updatedSched.start && s.end === updatedSched.end);
-                                    if (isDup) {
-                                      alert("This ad schedule already exists. Duplicate schedules are not saved.");
-                                      return;
-                                    }
-                                    currentList[idx] = updatedSched;
-                                    setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
-                                  }}
-                                  className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-medium focus:outline-none"
-                                >
-                                  {pmaxDayOptions.map((d, i) => (
-                                    <option key={i} value={d}>{d}</option>
-                                  ))}
-                                </select>
-
-                                <select
-                                  value={sched.start}
-                                  onChange={(e) => {
-                                    const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
-                                    const updatedSched = { ...currentList[idx], start: e.target.value };
-                                    const isDup = currentList.some((s, i) => i !== idx && s.day === updatedSched.day && s.start === updatedSched.start && s.end === updatedSched.end);
-                                    if (isDup) {
-                                      alert("This ad schedule already exists. Duplicate schedules are not saved.");
-                                      return;
-                                    }
-                                    currentList[idx] = updatedSched;
-                                    setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
-                                  }}
-                                  className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-mono focus:outline-none"
-                                >
-                                  {pmaxTimeOptions.map((t, i) => (
-                                    <option key={i} value={t}>{t}</option>
-                                  ))}
-                                </select>
-
-                                <span className="text-slate-400">to</span>
-
-                                <select
-                                  value={sched.end}
-                                  onChange={(e) => {
-                                    const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
-                                    const updatedSched = { ...currentList[idx], end: e.target.value };
-                                    const isDup = currentList.some((s, i) => i !== idx && s.day === updatedSched.day && s.start === updatedSched.start && s.end === updatedSched.end);
-                                    if (isDup) {
-                                      alert("This ad schedule already exists. Duplicate schedules are not saved.");
-                                      return;
-                                    }
-                                    currentList[idx] = updatedSched;
-                                    setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
-                                  }}
-                                  className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-mono focus:outline-none"
-                                >
-                                  {pmaxTimeOptions.map((t, i) => (
-                                    <option key={i} value={t}>{t}</option>
-                                  ))}
-                                </select>
-
-                                {(campaignState.adSchedule || []).length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const currentList = [...(campaignState.adSchedule || [])];
-                                      currentList.splice(idx, 1);
-                                      setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
-                                    }}
-                                    className="p-1 text-slate-400 hover:text-rose-600 ml-auto cursor-pointer"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
-                                )}
+                            {adScheduleError && (
+                              <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-1.5 text-[10px] text-rose-600 font-semibold animate-pulse">
+                                <AlertCircle className="h-3 w-3 shrink-0" />
+                                <span>{adScheduleError}</span>
                               </div>
-                            ))}
+                            )}
+
+                            {(campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "00:00" }]).map((sched, idx) => {
+                              const isAllDay = sched.start === "00:00" && (sched.end === "00:00" || sched.end === "24:00");
+                              const hasTimeError = !isAllDay && sched.start >= sched.end;
+                              const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "00:00" }];
+                              const isRowDuplicate = currentList.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === sched.end);
+                              const hasRowError = hasTimeError || isRowDuplicate;
+
+                              return (
+                                <div key={idx} className="space-y-1">
+                                  <div className={`flex flex-wrap items-center gap-1.5 p-1.5 rounded-lg border text-[10px] transition-colors ${
+                                    hasRowError ? "bg-rose-50/70 border-rose-300" : "bg-slate-50 border-slate-200"
+                                  }`}>
+                                    <select
+                                      value={sched.day}
+                                      onChange={(e) => {
+                                        const nextDay = e.target.value;
+                                        const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                        const isDup = list.some((s, i) => i !== idx && s.day === nextDay && s.start === sched.start && s.end === sched.end);
+                                        if (isDup) {
+                                          setAdScheduleError(`Duplicate schedule: "${nextDay}: ${sched.start} - ${sched.end}" already exists. Cannot save duplicate.`);
+                                          return;
+                                        }
+                                        list[idx] = { ...list[idx], day: nextDay };
+                                        setAdScheduleError(null);
+                                        setCampaignState(prev => ({ ...prev, adSchedule: list }));
+                                      }}
+                                      className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-medium focus:outline-none"
+                                    >
+                                      {pmaxDayOptions.map((d, i) => (
+                                        <option key={i} value={d}>{d}</option>
+                                      ))}
+                                    </select>
+
+                                    <select
+                                      value={sched.start}
+                                      onChange={(e) => {
+                                        const nextStart = e.target.value;
+                                        const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                        const isDup = list.some((s, i) => i !== idx && s.day === sched.day && s.start === nextStart && s.end === sched.end);
+                                        if (isDup) {
+                                          setAdScheduleError(`Duplicate schedule: "${sched.day}: ${nextStart} - ${sched.end}" already exists. Cannot save duplicate.`);
+                                          return;
+                                        }
+                                        const isFull = nextStart === "00:00" && (sched.end === "00:00" || sched.end === "24:00");
+                                        if (!isFull && nextStart >= sched.end) {
+                                          setAdScheduleError(`Invalid time: Start time (${nextStart}) must be before end time (${sched.end}).`);
+                                          return;
+                                        }
+                                        list[idx] = { ...list[idx], start: nextStart };
+                                        setAdScheduleError(null);
+                                        setCampaignState(prev => ({ ...prev, adSchedule: list }));
+                                      }}
+                                      className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-mono focus:outline-none"
+                                    >
+                                      {pmaxTimeOptions.map((t, i) => (
+                                        <option key={i} value={t}>{t}</option>
+                                      ))}
+                                    </select>
+
+                                    <span className="text-slate-400">to</span>
+
+                                    <select
+                                      value={sched.end}
+                                      onChange={(e) => {
+                                        const nextEnd = e.target.value;
+                                        const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                        const isDup = list.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === nextEnd);
+                                        if (isDup) {
+                                          setAdScheduleError(`Duplicate schedule: "${sched.day}: ${sched.start} - ${nextEnd}" already exists. Cannot save duplicate.`);
+                                          return;
+                                        }
+                                        const isFull = sched.start === "00:00" && (nextEnd === "00:00" || nextEnd === "24:00");
+                                        if (!isFull && sched.start >= nextEnd) {
+                                          setAdScheduleError(`Invalid time: Start time (${sched.start}) must be before end time (${nextEnd}).`);
+                                          return;
+                                        }
+                                        list[idx] = { ...list[idx], end: nextEnd };
+                                        setAdScheduleError(null);
+                                        setCampaignState(prev => ({ ...prev, adSchedule: list }));
+                                      }}
+                                      className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-mono focus:outline-none"
+                                    >
+                                      {pmaxTimeOptions.map((t, i) => (
+                                        <option key={i} value={t}>{t}</option>
+                                      ))}
+                                    </select>
+
+                                    {(campaignState.adSchedule || []).length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const currentList = [...(campaignState.adSchedule || [])];
+                                          currentList.splice(idx, 1);
+                                          setAdScheduleError(null);
+                                          setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-rose-600 ml-auto cursor-pointer"
+                                        title="Delete schedule row"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {hasRowError && (
+                                    <div className="text-[9px] text-rose-600 font-semibold px-1 flex items-center gap-1">
+                                      <AlertCircle className="h-2.5 w-2.5 shrink-0" />
+                                      <span>
+                                        {isRowDuplicate
+                                          ? "Duplicate schedule detected for this day and time."
+                                          : `Start time (${sched.start}) must be strictly before end time (${sched.end}).`}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
 
                             <button
                               type="button"
                               onClick={() => {
                                 const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
-                                const defaultRow = { day: "Monday", start: "09:00", end: "18:00" };
-                                const isDup = currentList.some(s => s.day === defaultRow.day && s.start === defaultRow.start && s.end === defaultRow.end);
+                                // Find an available day not already in currentList
+                                const availableDay = pmaxDayOptions.find(d => !currentList.some(s => s.day === d && s.start === "09:00" && s.end === "18:00")) ||
+                                  pmaxDayOptions.find(d => !currentList.some(s => s.day === d)) || "All days";
+                                const newRow = { day: availableDay, start: "09:00", end: "18:00" };
+                                const isDup = currentList.some(s => s.day === newRow.day && s.start === newRow.start && s.end === newRow.end);
                                 if (isDup) {
-                                  // Pick the first available day that isn't already scheduled
-                                  const availableDay = pmaxDayOptions.find(d => !currentList.some(s => s.day === d && s.start === "09:00" && s.end === "18:00")) || "All days";
-                                  setCampaignState(prev => ({ ...prev, adSchedule: [...currentList, { day: availableDay, start: "09:00", end: "18:00" }] }));
-                                } else {
-                                  setCampaignState(prev => ({ ...prev, adSchedule: [...currentList, defaultRow] }));
+                                  setAdScheduleError(`Schedule for ${newRow.day} (09:00 - 18:00) already exists. Please adjust the existing row.`);
+                                  return;
                                 }
+                                setAdScheduleError(null);
+                                setCampaignState(prev => ({ ...prev, adSchedule: [...currentList, newRow] }));
                               }}
                               className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
                             >
@@ -13895,10 +14334,43 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
-                        <span>Daily Budget (≥ ₹100):</span>
-                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
-                        </span>
+                        <span>{campaignState.budgetType === "TOTAL" ? "Budget (min ₹416/day):" : "Daily Budget (≥ ₹416):"}</span>
+                        {(() => {
+                          const num = Number(campaignState.dailyBudget);
+                          const isTotal = campaignState.budgetType === "TOTAL";
+                          let isValid = false;
+                          let labelText = "";
+                          if (num > 0) {
+                            if (isTotal) {
+                              if (campaignState.startDate && campaignState.endDate) {
+                                const s = new Date(campaignState.startDate).getTime();
+                                const e = new Date(campaignState.endDate).getTime();
+                                if (!isNaN(s) && !isNaN(e) && e > s) {
+                                  const days = Math.max(1, Math.ceil((e - s) / (1000 * 60 * 60 * 24)));
+                                  const perDay = Math.round(num / days);
+                                  isValid = perDay >= 416;
+                                  labelText = `₹${num.toLocaleString("en-IN")} total (≈ ₹${perDay.toLocaleString("en-IN")}/day, ${days}d)${isValid ? " ✓" : " (min ₹416/day)"}`;
+                                } else {
+                                  isValid = num >= 416;
+                                  labelText = `₹${num.toLocaleString("en-IN")} total${isValid ? " ✓" : " (min ₹416)"}`;
+                                }
+                              } else {
+                                isValid = num >= 416;
+                                labelText = `₹${num.toLocaleString("en-IN")} total${isValid ? " ✓" : " (min ₹416)"}`;
+                              }
+                            } else {
+                              isValid = num >= 416;
+                              labelText = `₹${num.toLocaleString("en-IN")}/day${isValid ? " ✓" : " (min ₹416)"}`;
+                            }
+                          } else {
+                            labelText = "Not set";
+                          }
+                          return (
+                            <span className={isValid ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                              {labelText}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -14004,6 +14476,102 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
                         </span>
                       </div>
+                    </div>
+                  </div>
+                )}
+                {/* Live Video Requirements Checklist when type is VIDEO */}
+                {(campaignState.campaignType as string) === "VIDEO" && (
+                  <div className="p-2.5 rounded-xl bg-white border border-rose-200 shadow-2xs space-y-2 text-[10px]">
+                    <div className="flex items-center justify-between font-bold text-slate-800">
+                      <span className="flex items-center gap-1 text-rose-700">
+                        <Video className="h-3 w-3 text-rose-600" />
+                        Video Campaign Readiness
+                      </span>
+                      <span className={Boolean(
+                        isYouTubeVerified(customerProfile || campaignState.customerProfile) &&
+                        (campaignState.videos?.length || 0) > 0 &&
+                        (campaignState.headlines?.length || 0) >= 1 &&
+                        (campaignState.descriptions?.length || 0) >= 1 &&
+                        (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
+                      ) ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
+                        {Boolean(
+                          isYouTubeVerified(customerProfile || campaignState.customerProfile) &&
+                          (campaignState.videos?.length || 0) > 0 &&
+                          (campaignState.headlines?.length || 0) >= 1 &&
+                          (campaignState.descriptions?.length || 0) >= 1 &&
+                          (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
+                        ) ? "Ready ✓" : "Required items missing"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1 text-slate-600">
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>YouTube Channel Connection:</span>
+                        <span className={isYouTubeVerified(customerProfile || campaignState.customerProfile) ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                          {isYouTubeVerified(customerProfile || campaignState.customerProfile) ? "✓ Connected" : "Not Connected (Required)"}
+                        </span>
+                      </div>
+                      {!isYouTubeVerified(customerProfile || campaignState.customerProfile) && (
+                        <p className="text-[9.5px] text-rose-600 font-medium col-span-2">
+                          YouTube connection is required for Video campaigns. Connect your YouTube channel to continue.
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>YouTube Video Asset:</span>
+                        <span className={(campaignState.videos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.videos?.length || 0) > 0 ? `✓ ${(campaignState.videos || []).length} Video(s) attached` : "Missing (Required)"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Headlines:</span>
+                        <span className={(campaignState.headlines?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {campaignState.headlines?.length || 0} (min 1)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                        <span>Descriptions:</span>
+                        <span className={(campaignState.descriptions?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {campaignState.descriptions?.length || 0} (min 1)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                        <span>Daily Budget (≥ ₹100):</span>
+                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Quick Inline Actions for Video Campaign */}
+                    <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setYoutubeVideoUrlError(null);
+                          setYoutubeVideoUrlInput("");
+                          setIsYoutubeUrlModalOpen(true);
+                        }}
+                        className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9.5px] transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                      >
+                        <Plus className="h-3 w-3" />
+                        <span>+ Enter YouTube URL</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCampaignState(p => ({
+                            ...p,
+                            campaignType: "DEMAND_GEN",
+                            adFormat: "SINGLE_IMAGE"
+                          }));
+                          if (publishError) setPublishError(null);
+                        }}
+                        className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[9.5px] border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
+                        title="If you only have marketing images or banners, switch to Demand Gen (Single Image)"
+                      >
+                        <ImageIcon className="h-3 w-3 text-slate-500" />
+                        <span>Switch to Image Ad (Demand Gen)</span>
+                      </button>
                     </div>
                   </div>
                 )}
@@ -14625,13 +15193,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 4b. PERFORMANCE MAX SEARCH THEMES MANAGER (Dedicated Card for Performance Max Asset Group Signals) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "PERFORMANCE_MAX" && (
+            {/* 4b. PERFORMANCE MAX & DEMAND GEN SEARCH THEMES MANAGER */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "DEMAND_GEN") && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Target className="h-4 w-4 text-purple-600" />
-                    <span className="font-bold text-xs text-slate-900">Search Themes (Signals)</span>
+                    <span className="font-bold text-xs text-slate-900">
+                      {campaignState.campaignType === "DEMAND_GEN" ? "Demand Gen Search Themes (Targeting Signals)" : "Search Themes (Signals)"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
@@ -16148,9 +16718,44 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 </div>
 
                 {publishError && (
-                  <div className="text-[10px] p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-1.5 animate-in fade-in">
-                    <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0 mt-0.5" />
-                    <span>{publishError}</span>
+                  <div className="text-[10px] p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 space-y-2 animate-in fade-in">
+                    <div className="flex items-start gap-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0 mt-0.5" />
+                      <span className="leading-tight flex-1">{publishError}</span>
+                    </div>
+
+                    {/* Interactive resolution buttons for Video Campaign missing video errors */}
+                    {(publishError.includes("YouTube video URL") || publishError.includes("Video campaigns") || publishError.includes("Video ads")) && (
+                      <div className="flex items-center gap-1.5 pt-1 border-t border-rose-200/60 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setYoutubeVideoUrlError(null);
+                            setYoutubeVideoUrlInput("");
+                            setIsYoutubeUrlModalOpen(true);
+                          }}
+                          className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9.5px] cursor-pointer shadow-2xs flex items-center gap-1"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>+ Enter YouTube URL</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCampaignState(p => ({
+                              ...p,
+                              campaignType: "DEMAND_GEN",
+                              adFormat: "SINGLE_IMAGE"
+                            }));
+                            setPublishError(null);
+                          }}
+                          className="px-2 py-1 rounded-lg bg-white hover:bg-rose-100 text-rose-800 border border-rose-300 font-semibold text-[9.5px] cursor-pointer flex items-center gap-1"
+                        >
+                          <ImageIcon className="h-3 w-3 text-rose-600" />
+                          <span>Switch to Demand Gen (Image)</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -16917,6 +17522,32 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   </p>
                 </div>
               </button>
+
+              {/* Option 3: YouTube Video URL (For Videos) */}
+              {activeUploadTarget === "VIDEO" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMediaSourceModalOpen(false);
+                    setYoutubeVideoUrlError(null);
+                    setYoutubeVideoUrlInput("");
+                    setIsYoutubeUrlModalOpen(true);
+                  }}
+                  className="p-4 rounded-2xl border-2 border-slate-200 hover:border-rose-500 bg-white hover:bg-rose-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md sm:col-span-2"
+                >
+                  <div className="h-12 w-12 rounded-2xl bg-rose-100/70 text-rose-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Video className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-xs text-slate-800 group-hover:text-rose-600">
+                      Enter YouTube Video URL
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                      Paste a direct YouTube URL (e.g. youtube.com/watch?v=... or youtu.be/...)
+                    </p>
+                  </div>
+                </button>
+              )}
             </div>
 
             {/* Footer */}
@@ -16928,6 +17559,137 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 1B: DIRECT YOUTUBE VIDEO URL INPUT MODAL                */}
+      {/* ------------------------------------------------------------- */}
+      {isYoutubeUrlModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col scale-in-95 duration-150">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-rose-50 via-red-50 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-2xl bg-rose-600 text-white flex items-center justify-center shadow-md shadow-rose-500/20">
+                  <Video className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">
+                    Add YouTube Video URL
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Google Ads Video & Demand Gen campaigns require a public or unlisted YouTube video</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsYoutubeUrlModalOpen(false)}
+                className="p-1.5 rounded-full hover:bg-slate-200/70 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Body Form */}
+            <div className="p-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                  <span>YouTube Video Link:</span>
+                  <span className="text-[10px] text-slate-400 font-normal">e.g. https://www.youtube.com/watch?v=...</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={youtubeVideoUrlInput}
+                    onChange={(e) => {
+                      setYoutubeVideoUrlInput(e.target.value);
+                      if (youtubeVideoUrlError) setYoutubeVideoUrlError(null);
+                    }}
+                    placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+                    autoFocus
+                  />
+                </div>
+                {youtubeVideoUrlError && (
+                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    <span>{youtubeVideoUrlError}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                <p className="font-semibold text-slate-800">Tips for Google Ads Video Assets:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-slate-500 text-[10px]">
+                  <li>Videos must be uploaded to YouTube and set to <strong>Public</strong> or <strong>Unlisted</strong>.</li>
+                  <li>Accepted link formats: <code className="bg-slate-200 px-1 rounded">youtube.com/watch?v=...</code>, <code className="bg-slate-200 px-1 rounded">youtu.be/...</code>, or Shorts URL.</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsYoutubeUrlModalOpen(false);
+                  setCampaignState(p => ({
+                    ...p,
+                    campaignType: "DEMAND_GEN",
+                    adFormat: "SINGLE_IMAGE"
+                  }));
+                }}
+                className="text-xs font-semibold text-slate-600 hover:text-blue-600 cursor-pointer flex items-center gap-1"
+                title="If you do not have a video, switch to Demand Gen Single Image ad format"
+              >
+                <ImageIcon className="h-3.5 w-3.5" />
+                <span>Switch to Image Ad instead</span>
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsYoutubeUrlModalOpen(false)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const raw = youtubeVideoUrlInput.trim();
+                    if (!raw) {
+                      setYoutubeVideoUrlError("Please enter a YouTube video URL.");
+                      return;
+                    }
+                    const isYt = /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i.test(raw);
+                    if (!isYt && !raw.startsWith("http://") && !raw.startsWith("https://")) {
+                      setYoutubeVideoUrlError("Please enter a valid YouTube video URL (e.g. https://www.youtube.com/watch?v=...)");
+                      return;
+                    }
+
+                    // Extract video ID if possible
+                    const match = raw.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+                    const videoId = match ? match[1] : undefined;
+
+                    setCampaignState(prev => {
+                      const updatedVideos = [...(prev.videos || []), { url: raw, videoId, name: `YouTube Video ${videoId ? `(${videoId})` : ""}` }];
+                      return {
+                        ...prev,
+                        videos: updatedVideos
+                      };
+                    });
+
+                    if (publishError) setPublishError(null);
+                    setIsYoutubeUrlModalOpen(false);
+                  }}
+                  className="px-4 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-xs transition-colors flex items-center gap-1"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Attach Video</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

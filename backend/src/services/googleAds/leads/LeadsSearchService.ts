@@ -676,13 +676,17 @@ export class LeadsSearchService extends GoogleAdsBaseService {
       budget: effectiveDailyBudget,
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: startDate ? new Date(String(startDate).split("T")[0]) : null,
+      endDate: endDate ? new Date(String(endDate).split("T")[0]) : null,
       finalUrl,
       headlines: validHeadlines,
       descriptions: validDescriptions,
+      keywords: validKeywords,
+      languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
       geoTargets: {
         objective: "Leads",
         locations,
-        languages,
+        languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
         keywords: validKeywords,
         adGroupResourceName: apiResult.adGroupResourceName,
         adGroupAdResourceName: apiResult.adGroupAdResourceName

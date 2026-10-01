@@ -176,10 +176,12 @@ export type ConversionType =
   | "App Purchase"
   | "Store Visit"
   | "Get Directions"
+  | "Engagements"
+  | "YouTube follow-on views"
   | "Other"
   | string;
 
-export type ConversionSource = "Website" | "Phone" | "App" | "Store" | "Other" | string;
+export type ConversionSource = "Website" | "Phone" | "App" | "Store" | "YouTube hosted" | "Call from Ads" | "Other" | string;
 
 export interface ConversionGoalItem {
   id: string;
@@ -7169,6 +7171,8 @@ function ProfilePageContent() {
                           <option value="App Purchase">App Purchase</option>
                           <option value="Store Visit">Store Visit</option>
                           <option value="Get Directions">Get Directions</option>
+                          <option value="Engagements">Engagements (YouTube hosted)</option>
+                          <option value="YouTube follow-on views">YouTube follow-on views</option>
                           <option value="Other">Other</option>
                         </select>
                       </div>
@@ -7182,6 +7186,8 @@ function ProfilePageContent() {
                         >
                           <option value="Website">Website</option>
                           <option value="Phone">Phone</option>
+                          <option value="Call from Ads">Call from Ads</option>
+                          <option value="YouTube hosted">YouTube hosted</option>
                           <option value="App">App</option>
                           <option value="Store">Store</option>
                           <option value="Other">Other</option>

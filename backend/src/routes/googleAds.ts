@@ -524,16 +524,10 @@ router.post("/customer-profile/disconnect", async (req, res) => {
       updateData.appDetails = [];
     }
 
-    const updated = await (prisma as any).googleAdsCustomerProfile.upsert({
-      where: {
-        organizationId_customerId: { organizationId: orgId, customerId: cleanCid }
-      },
-      update: updateData,
-      create: {
-        organizationId: orgId,
-        customerId: cleanCid,
-        ...updateData
-      }
+    const currentProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+    const updated = await CustomerBusinessProfileService.saveProfile(orgId, cleanCid, {
+      ...(currentProfile || {}),
+      ...updateData
     });
 
     res.status(200).json({
@@ -627,27 +621,55 @@ router.post("/customer-profile/sync-youtube", async (req, res) => {
     }
 
     // Merge with existing links from the profile
-    const existingProfile = await (prisma as any).googleAdsCustomerProfile.findFirst({
-      where: { organizationId: orgId, customerId: cleanCid }
-    });
+    const existingProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
     const existingLinks: string[] = existingProfile?.metadata?.youtubeLinks || [];
     const mergedLinks = Array.from(new Set([...existingLinks, ...discoveredLinks]));
 
-    await (prisma as any).googleAdsCustomerProfile.upsert({
-      where: {
-        organizationId_customerId: { organizationId: orgId, customerId: cleanCid }
-      },
-      update: {
-        metadata: {
-          ...(existingProfile?.metadata || {}),
-          youtubeLinks: mergedLinks,
-          youtubeChannels: discoveredChannels
-        }
-      },
-      create: {
-        organizationId: orgId,
-        customerId: cleanCid,
-        metadata: { youtubeLinks: mergedLinks, youtubeChannels: discoveredChannels }
+    // Auto-add default YouTube conversion goals if YouTube channels are connected, preserving existing goals
+    const currentGoals = Array.isArray(existingProfile?.conversionGoals) ? [...existingProfile.conversionGoals] : [];
+    const hasEngagements = currentGoals.some((g: any) =>
+      (g.goalName || g.name || "").toLowerCase().includes("engagement") ||
+      g.conversionType === "Engagements"
+    );
+    const hasYtViews = currentGoals.some((g: any) =>
+      (g.goalName || g.name || "").toLowerCase().includes("follow-on") ||
+      (g.goalName || g.name || "").toLowerCase().includes("youtube view") ||
+      g.conversionType === "YouTube follow-on views"
+    );
+
+    if (!hasEngagements) {
+      currentGoals.push({
+        id: `goal-yt-eng-${Date.now()}`,
+        goalName: "Engagements (account default)",
+        conversionType: "Engagements",
+        source: "YouTube hosted",
+        description: "Engagements (account default) YouTube hosted 1 action",
+        isPrimary: true,
+        isActive: true,
+        currency: "INR"
+      });
+    }
+
+    if (!hasYtViews) {
+      currentGoals.push({
+        id: `goal-yt-views-${Date.now() + 1}`,
+        goalName: "YouTube follow-on views (account default)",
+        conversionType: "YouTube follow-on views",
+        source: "YouTube hosted",
+        description: "YouTube follow-on views (account default) YouTube hosted 1 action",
+        isPrimary: true,
+        isActive: true,
+        currency: "INR"
+      });
+    }
+
+    await CustomerBusinessProfileService.saveProfile(orgId, cleanCid, {
+      ...(existingProfile || {}),
+      conversionGoals: currentGoals,
+      metadata: {
+        ...(existingProfile?.metadata || {}),
+        youtubeLinks: mergedLinks,
+        youtubeChannels: discoveredChannels
       }
     });
 
@@ -1096,8 +1118,8 @@ router.get("/connected-apps", async (req, res) => {
             asset.id,
             asset.name,
             asset.type,
-            asset.app_asset.app_id,
-            asset.app_asset.app_store
+            asset.mobile_app_asset.app_id,
+            asset.mobile_app_asset.app_store
           FROM asset
           WHERE asset.type = 'MOBILE_APP'
           LIMIT 50
@@ -1109,9 +1131,9 @@ router.get("/connected-apps", async (req, res) => {
 
         for (const row of results) {
           const a = row.asset;
-          const aId = a?.appAsset?.appId;
+          const aId = a?.mobileAppAsset?.appId || a?.appAsset?.appId;
           if (aId && !appsMap.has(String(aId).toLowerCase())) {
-            const store = a?.appAsset?.appStore;
+            const store = a?.mobileAppAsset?.appStore || a?.appAsset?.appStore;
             const isIos = store === "APPLE_APP_STORE" || /^\d+$/.test(String(aId));
             const platform = isIos ? "IOS" : "ANDROID";
             appsMap.set(String(aId).toLowerCase(), {
