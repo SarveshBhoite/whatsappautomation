@@ -316,6 +316,8 @@ export class NoGuidanceSearchService extends GoogleAdsBaseService {
       descriptions = [],
       dailyBudget = isAiGuided ? 0 : 1000,
       budget,
+      budgetType,
+      totalBudget,
       startDate,
       endDate,
       euPolitical = "NO",
@@ -354,9 +356,12 @@ export class NoGuidanceSearchService extends GoogleAdsBaseService {
 
     try {
       // ── 3. CREATE CAMPAIGN BUDGET ──
+      const isCustomPeriod = String(budgetType).toUpperCase() === "TOTAL" && Number(totalBudget) > 0 && Boolean(startDate && endDate);
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: amountMicros / 1_000_000
+        amountPerDay: amountMicros / 1_000_000,
+        period: isCustomPeriod ? "CUSTOM_PERIOD" : "DAILY",
+        totalAmount: isCustomPeriod ? Number(totalBudget) : undefined
       });
       apiResult.budgetResourceName = budgetRef;
 

@@ -983,6 +983,9 @@ export default function NoGuidanceSearchPage() {
           ? (Number(targetRoasValue) > 10 ? Number(targetRoasValue) / 100 : Number(targetRoasValue))
           : undefined,
         budget: numericBudget,
+        dailyBudget: budgetType === "DAILY" ? numericBudget : undefined,
+        totalBudget: budgetType === "TOTAL" ? numericBudget : undefined,
+        budgetType: budgetType.toUpperCase(),
         startDate: startDate || undefined,
         endDate: endDate && endDate.trim() ? endDate.trim() : undefined,
         networkSearch: searchPartnersNetwork,

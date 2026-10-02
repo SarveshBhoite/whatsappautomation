@@ -308,4 +308,144 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
       })
     );
   });
+
+  it("SalesSearchService: creates CUSTOM_PERIOD totalAmountMicros budget when budgetType is TOTAL with start & end dates", async () => {
+    let capturedBudgetPayload: any = null;
+    mockedAxios.post.mockImplementation((url: string, payload: any) => {
+      if (url.includes("campaignBudgets:mutate")) {
+        capturedBudgetPayload = payload;
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/campaignBudgets/bud-custom-1` }] } });
+      }
+      if (url.includes("campaigns:mutate")) {
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/campaigns/camp-search-1` }] } });
+      }
+      if (url.includes("adGroups:mutate")) {
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/adGroups/ag-1` }] } });
+      }
+      if (url.includes("adGroupCriteria:mutate")) {
+        return Promise.resolve({ data: { results: [] } });
+      }
+      return Promise.resolve({ data: { results: [] } });
+    });
+
+    // Un-mock createBudget to test actual GoogleAdsBaseService.createBudget execution
+    jest.spyOn<any, any>(SalesSearchService as any, "createBudget").mockRestore?.();
+
+    await SalesSearchService.createCampaign(orgId, customerId, {
+      campaignName: "Test Total Budget Search",
+      website: "https://example.com",
+      budgetType: "TOTAL",
+      totalBudget: 68000,
+      dailyBudget: 2519,
+      startDate: "2026-10-02",
+      endDate: "2026-10-28",
+      keywords: ["custom software"],
+      headlines: ["Top Software", "Best Service", "Hire Experts"],
+      descriptions: ["Quality development solutions tailored for business.", "Contact us today for custom tech solutions."],
+      conversionGoals: []
+    });
+
+    expect(capturedBudgetPayload).toBeDefined();
+    const op = capturedBudgetPayload.operations[0].create;
+    expect(op.period).toBe("CUSTOM_PERIOD");
+    expect(op.totalAmountMicros).toBe("68000000000"); // ₹68,000 * 1,000,000
+    expect(op.explicitlyShared).toBe(false);
+  });
+
+  it("SalesPerformanceMaxService: creates CUSTOM_PERIOD totalAmountMicros budget when budgetType is TOTAL", async () => {
+    let capturedBudgetPayload: any = null;
+    mockedAxios.post.mockImplementation((url: string, payload: any) => {
+      if (url.includes("campaignBudgets:mutate")) {
+        capturedBudgetPayload = payload;
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/campaignBudgets/bud-pmax-1` }] } });
+      }
+      if (url.includes("campaigns:mutate")) {
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/campaigns/camp-pmax-1` }] } });
+      }
+      if (url.includes("assets:mutate")) {
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/assets/ast-1` }] } });
+      }
+      if (url.includes("googleAds:mutate")) {
+        return Promise.resolve({ data: { mutateOperationResponses: [{ assetGroupResult: { resourceName: `customers/${cid}/assetGroups/ag-1` } }] } });
+      }
+      return Promise.resolve({ data: { results: [] } });
+    });
+
+    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "getAdsHeaders").mockResolvedValue({
+      headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
+    });
+    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "uploadImageAsset").mockResolvedValue(`customers/${cid}/assets/img-1`);
+    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "mutateCampaignGeoAndLanguageCriteria").mockResolvedValue([]);
+    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "saveCampaignToDatabase").mockResolvedValue({
+      id: "local-camp-pmax",
+      amountMicros: BigInt(68000000000),
+      costMicros: BigInt(0),
+      impressions: BigInt(0),
+      clicks: BigInt(0)
+    });
+
+    await SalesPerformanceMaxService.createCampaign(orgId, customerId, {
+      campaignName: "Test Total Budget PMax",
+      businessName: "Test Enterprise",
+      finalUrl: "https://example.com",
+      budgetType: "TOTAL",
+      totalBudget: 68000,
+      dailyBudget: 2519,
+      startDate: "2026-10-02",
+      endDate: "2026-10-28",
+      headlines: ["Headline One", "Headline Two", "Headline Three"],
+      longHeadlines: ["Long Headline One Example"],
+      descriptions: ["Description One Example", "Description Two Example"]
+    });
+
+    expect(capturedBudgetPayload).toBeDefined();
+    const op = capturedBudgetPayload.operations[0].create;
+    expect(op.period).toBe("CUSTOM_PERIOD");
+    expect(op.totalAmountMicros).toBe("68000000000");
+  });
+
+  it("SalesDisplayService: strictly enforces STANDARD daily amountMicros budget and never sends CUSTOM_PERIOD", async () => {
+    let capturedBudgetPayload: any = null;
+    mockedAxios.post.mockImplementation((url: string, payload: any) => {
+      if (url.includes("campaignBudgets:mutate")) {
+        capturedBudgetPayload = payload;
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/campaignBudgets/bud-display-1` }] } });
+      }
+      if (url.includes("campaigns:mutate")) {
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/campaigns/camp-display-1` }] } });
+      }
+      return Promise.resolve({ data: { results: [] } });
+    });
+
+    jest.spyOn<any, any>(SalesDisplayService as any, "getAdsHeaders").mockResolvedValue({
+      headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
+    });
+    jest.spyOn<any, any>(SalesDisplayService as any, "saveCampaignToDatabase").mockResolvedValue({
+      id: "local-camp-display",
+      amountMicros: BigInt(2519000000),
+      costMicros: BigInt(0),
+      impressions: BigInt(0),
+      clicks: BigInt(0)
+    });
+
+    // Un-mock createBudget to test actual GoogleAdsBaseService.createBudget execution
+    jest.spyOn<any, any>(SalesDisplayService as any, "createBudget").mockRestore?.();
+
+    await SalesDisplayService.createCampaign(orgId, customerId, {
+      campaignName: "Test Sales Display",
+      businessName: "Test Enterprise",
+      finalUrl: "https://example.com",
+      dailyBudget: 2519,
+      headlines: ["Display Headline 1"],
+      descriptions: ["Display Description 1"]
+    });
+
+    expect(capturedBudgetPayload).toBeDefined();
+    const op = capturedBudgetPayload.operations[0].create;
+    expect(op.period).toBeUndefined(); // Standard daily budget does not set period (or leaves it default standard)
+    expect(op.amountMicros).toBe("2519000000");
+    expect(op.totalAmountMicros).toBeUndefined();
+  });
 });
+
+

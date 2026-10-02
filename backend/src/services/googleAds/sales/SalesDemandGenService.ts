@@ -31,6 +31,8 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
       businessName = "",
       dailyBudget,
       budget,
+      totalBudget: inputTotalBudget,
+      budgetType: inputBudgetType,
       demandGenBudgetType,
       euPolitical = "NO",
       channels = [],
@@ -76,9 +78,14 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
     const ADS_BASE = "https://googleads.googleapis.com/v24";
 
     try {
+      const isTotalBudget = String(inputBudgetType).toUpperCase() === "TOTAL" || String(demandGenBudgetType).toLowerCase().includes("total");
+      const resolvedTotal = inputTotalBudget ? Number(inputTotalBudget) : (isTotalBudget ? effectiveBudget : undefined);
+      const isCustomPeriod = isTotalBudget && resolvedTotal && resolvedTotal > 0 && Boolean(startDate && endDate);
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: amountMicros / 1_000_000
+        amountPerDay: amountMicros / 1_000_000,
+        period: isCustomPeriod ? "CUSTOM_PERIOD" : "DAILY",
+        totalAmount: isCustomPeriod ? resolvedTotal : undefined
       });
       apiResult.budgetResourceName = budgetRef;
 

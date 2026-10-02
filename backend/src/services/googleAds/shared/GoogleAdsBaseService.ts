@@ -323,25 +323,47 @@ export class GoogleAdsBaseService {
 
 
   protected static async createBudget(organizationId: string, customerId: string, params: {
-    name: string; amountPerDay: number; deliveryMethod?: string; shared?: boolean;
+    name: string;
+    amountPerDay: number;
+    deliveryMethod?: string;
+    shared?: boolean;
+    period?: "DAILY" | "CUSTOM_PERIOD";
+    totalAmount?: number;
   }) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
-    // Respect user's specified amount (min 1 INR / 1 unit, max 10,000,000 INR)
-    let rawAmount = Number(params.amountPerDay);
-    if (isNaN(rawAmount) || !isFinite(rawAmount) || rawAmount <= 0) {
-      rawAmount = 500;
+    const isCustomPeriod = params.period === "CUSTOM_PERIOD" && params.totalAmount && Number(params.totalAmount) > 0;
+    
+    let budgetCreateObj: any;
+    if (isCustomPeriod) {
+      const safeTotal = Math.min(Math.max(Number(params.totalAmount), 1), 100_000_000);
+      const totalAmountMicros = String(Math.round(safeTotal * 1_000_000));
+      budgetCreateObj = {
+        name: params.name || `Total Budget ${safeTotal} (${Date.now()})`,
+        period: "CUSTOM_PERIOD",
+        totalAmountMicros,
+        deliveryMethod: params.deliveryMethod || "STANDARD",
+        explicitlyShared: false
+      };
+    } else {
+      // Respect user's specified amount (min 1 INR / 1 unit, max 10,000,000 INR)
+      let rawAmount = Number(params.amountPerDay);
+      if (isNaN(rawAmount) || !isFinite(rawAmount) || rawAmount <= 0) {
+        rawAmount = 500;
+      }
+      // Cap to reasonable maximum to avoid scientific notation or int64 overflow
+      const safeAmountPerDay = Math.min(Math.max(rawAmount, 1), 10_000_000);
+      const amountMicros = String(Math.round(safeAmountPerDay * 1_000_000));
+      budgetCreateObj = {
+        name: params.name || `Budget ${safeAmountPerDay}/day (${Date.now()})`,
+        amountMicros,
+        deliveryMethod: params.deliveryMethod || "STANDARD",
+        explicitlyShared: params.shared || false
+      };
     }
-    // Cap to reasonable maximum to avoid scientific notation or int64 overflow
-    const safeAmountPerDay = Math.min(Math.max(rawAmount, 1), 10_000_000);
-    const amountMicros = String(Math.round(safeAmountPerDay * 1_000_000));
+
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignBudgets:mutate`, {
       operations: [{
-        create: {
-          name: params.name || `Budget ${safeAmountPerDay}/day (${Date.now()})`,
-          amountMicros,
-          deliveryMethod: params.deliveryMethod || "STANDARD",
-          explicitlyShared: params.shared || false
-        }
+        create: budgetCreateObj
       }]
     }, { headers });
     return res.data.results?.[0]?.resourceName;

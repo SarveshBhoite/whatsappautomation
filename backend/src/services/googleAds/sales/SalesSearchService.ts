@@ -37,11 +37,13 @@ export class SalesSearchService extends GoogleAdsBaseService {
       leadForms = [],
       dailyBudget,
       budget,
+      budgetType,
+      totalBudget,
       startDate,
       endDate,
       euPolitical = "NO",
       networkSearch = true,
-      networkDisplay = true,
+      networkDisplay = false,
       adRotationMode = "OPTIMIZE",
       locationOptionsPresence = "PRESENCE_INTEREST",
       locationOptionsExclude = "PRESENCE",
@@ -113,9 +115,12 @@ export class SalesSearchService extends GoogleAdsBaseService {
     let createdCampaignResource: string | null = null;
 
     try {
+      const isCustomPeriod = String(budgetType).toUpperCase() === "TOTAL" && Number(totalBudget) > 0 && Boolean(startDate && endDate);
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: effectiveDailyBudget
+        amountPerDay: effectiveDailyBudget,
+        period: isCustomPeriod ? "CUSTOM_PERIOD" : "DAILY",
+        totalAmount: isCustomPeriod ? Number(totalBudget) : undefined
       });
       apiResult.budgetResourceName = budgetRef;
 

@@ -15,6 +15,10 @@ export class SalesShoppingService extends GoogleAdsBaseService {
       targetRoas,
       dailyBudget,
       budget,
+      budgetType,
+      totalBudget,
+      startDate,
+      endDate,
       euPolitical = "NO",
       shoppingSetting,
       conversionGoals
@@ -43,9 +47,12 @@ export class SalesShoppingService extends GoogleAdsBaseService {
     const cid = (customerId || "").replace(/-/g, "").trim();
 
     try {
+      const isCustomPeriod = String(budgetType).toUpperCase() === "TOTAL" && Number(totalBudget) > 0 && Boolean(startDate && endDate);
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: amountMicros / 1_000_000
+        amountPerDay: effectiveBudget,
+        period: isCustomPeriod ? "CUSTOM_PERIOD" : "DAILY",
+        totalAmount: isCustomPeriod ? Number(totalBudget) : undefined
       });
       apiResult.budgetResourceName = budgetRef;
 

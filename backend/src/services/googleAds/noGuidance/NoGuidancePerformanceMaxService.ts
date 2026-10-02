@@ -83,6 +83,8 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       images = [],
       dailyBudget,
       budget,
+      budgetType,
+      totalBudget,
       startDate,
       endDate,
       euPolitical = "NO",
@@ -281,9 +283,12 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
 
     try {
       // 1. Create Budget
+      const isCustomPeriod = String(budgetType).toUpperCase() === "TOTAL" && Number(totalBudget) > 0 && Boolean(startDate && endDate);
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: effectiveBudget
+        amountPerDay: effectiveBudget,
+        period: isCustomPeriod ? "CUSTOM_PERIOD" : "DAILY",
+        totalAmount: isCustomPeriod ? Number(totalBudget) : undefined
       });
       apiResult.budgetResourceName = budgetRef;
 

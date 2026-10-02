@@ -2871,51 +2871,25 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       let hasLg = allLgs.length > 0;
 
       for (const im of allImgs) {
-        const raw = typeof im === "string" ? im : (im as any)?.url || (im as any)?.data || "";
         const fType = typeof im === "object" ? (im as any)?.fieldType : null;
         const ratio = typeof im === "object" ? (im as any)?.aspectRatio : null;
-        const name = (typeof im === "object" && (im as any)?.name) ? (im as any).name.toLowerCase() : "";
         const dims = typeof im === "object" ? (im as any)?.dimensions : null;
 
         const isSquareDetected = fType === "SQUARE_MARKETING_IMAGE" ||
           ratio === "1:1" ||
-          name.includes("1x1") ||
-          name.includes("1:1") ||
-          name.includes("square") ||
-          (dims && Math.abs(dims.width - dims.height) <= 20);
+          (dims && dims.width > 0 && dims.height > 0 && Math.abs(dims.width / dims.height - 1.0) <= 0.05);
 
         const isLandscapeDetected = fType === "MARKETING_IMAGE" ||
           ratio === "1.91:1" ||
-          name.includes("1.91x1") ||
-          name.includes("1.91:1") ||
-          name.includes("landscape") ||
-          (dims && dims.width >= dims.height * 1.3);
+          (dims && dims.width > 0 && dims.height > 0 && Math.abs(dims.width / dims.height - 1.91) <= 0.08);
 
         if (isSquareDetected) hasSq = true;
         if (isLandscapeDetected) hasLand = true;
         if (fType === "LOGO") hasLg = true;
-        else if (typeof raw === "string" && (raw.includes("ik.imagekit.io") || raw.startsWith("data:image/") || raw.startsWith("http"))) {
-          if (!hasLand && !hasSq) {
-            hasLand = true;
-            hasSq = true;
-          } else if (!hasLand) {
-            hasLand = true;
-          } else if (!hasSq) {
-            hasSq = true;
-          }
-        }
-      }
-
-      if (allImgs.length >= 2 && (!hasLand || !hasSq)) {
-        hasLand = true;
-        hasSq = true;
-      } else if (allImgs.length === 1 && !hasLand && !hasSq) {
-        hasLand = true;
-        hasSq = true;
       }
 
       const hasBiz = !!(state.businessName?.trim() || state.business?.name?.trim());
-      const hasUrl = !!(state.website && (state.website.startsWith("http://") || state.website.startsWith("https://")));
+      const hasUrl = !!(state.website && (state.website.startsWith("http://") || state.website.startsWith("https://")) && !state.website.includes("example.com"));
       const bStrat = (state.biddingStrategy || "").toLowerCase();
       let isBiddingValid = true;
       if (bStrat === "target cpa" || bStrat === "target_cpa") {
@@ -2931,7 +2905,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
     if (cType === "DISPLAY") {
       const hasBiz = !!(state.businessName?.trim() || state.business?.name?.trim());
-      const hasUrl = !!(state.website && (state.website.startsWith("http://") || state.website.startsWith("https://")));
+      const hasUrl = !!(state.website && (state.website.startsWith("http://") || state.website.startsWith("https://")) && !state.website.includes("example.com"));
       const hasLongHl = validLongHeadlines.length >= 1 || validHeadlines.length >= 1;
       return hasBiz && hasUrl && hasImages && hasLogos && validHeadlines.length >= 1 && hasLongHl && validDescriptions.length >= 1;
     }
@@ -2965,9 +2939,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     if (cType === "SHOPPING") {
       const mId = (state.merchantCenterId || (state as any).merchantId || "").trim();
       const isMidValid = /^\d+$/.test(mId);
-      const hasCountry = !!(state.salesCountry || (state as any).feedLabel || "IN");
+      const hasCountry = !!(state.salesCountry || (state as any).feedLabel);
       const shoppingUrl = (state.website || "").trim();
-      const isUrlValid = !shoppingUrl || shoppingUrl.startsWith("http://") || shoppingUrl.startsWith("https://");
+      const isUrlValid = shoppingUrl && (shoppingUrl.startsWith("http://") || shoppingUrl.startsWith("https://")) && !shoppingUrl.includes("example.com");
       return Boolean(isMidValid && hasCountry && isUrlValid && hasBudget);
     }
 
@@ -3062,47 +3036,21 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       let hasLg = allLgs.length > 0;
 
       for (const im of allImgs) {
-        const raw = typeof im === "string" ? im : (im as any)?.url || (im as any)?.data || "";
         const fType = typeof im === "object" ? (im as any)?.fieldType : null;
         const ratio = typeof im === "object" ? (im as any)?.aspectRatio : null;
-        const name = (typeof im === "object" && (im as any)?.name) ? (im as any).name.toLowerCase() : "";
         const dims = typeof im === "object" ? (im as any)?.dimensions : null;
 
         const isSquareDetected = fType === "SQUARE_MARKETING_IMAGE" ||
           ratio === "1:1" ||
-          name.includes("1x1") ||
-          name.includes("1:1") ||
-          name.includes("square") ||
-          (dims && Math.abs(dims.width - dims.height) <= 20);
+          (dims && dims.width > 0 && dims.height > 0 && Math.abs(dims.width / dims.height - 1.0) <= 0.05);
 
         const isLandscapeDetected = fType === "MARKETING_IMAGE" ||
           ratio === "1.91:1" ||
-          name.includes("1.91x1") ||
-          name.includes("1.91:1") ||
-          name.includes("landscape") ||
-          (dims && dims.width >= dims.height * 1.3);
+          (dims && dims.width > 0 && dims.height > 0 && Math.abs(dims.width / dims.height - 1.91) <= 0.08);
 
         if (isSquareDetected) hasSq = true;
         if (isLandscapeDetected) hasLand = true;
         if (fType === "LOGO") hasLg = true;
-        else if (typeof raw === "string" && (raw.includes("ik.imagekit.io") || raw.startsWith("data:image/") || raw.startsWith("http"))) {
-          if (!hasLand && !hasSq) {
-            hasLand = true;
-            hasSq = true;
-          } else if (!hasLand) {
-            hasLand = true;
-          } else if (!hasSq) {
-            hasSq = true;
-          }
-        }
-      }
-
-      if (allImgs.length >= 2 && (!hasLand || !hasSq)) {
-        hasLand = true;
-        hasSq = true;
-      } else if (allImgs.length === 1 && !hasLand && !hasSq) {
-        hasLand = true;
-        hasSq = true;
       }
 
       if (validHeadlines.length < 3) {

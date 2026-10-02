@@ -396,7 +396,7 @@ router.post("/analyze-url", async (req, res) => {
         const u = new URL(url);
         const hostParts = u.hostname.replace(/^www\./, "").split(".");
         derivedBusinessName = hostParts[0].charAt(0).toUpperCase() + hostParts[0].slice(1);
-      } catch {}
+      } catch { }
     }
 
     // Call Groq if we have any scraped text
@@ -697,7 +697,7 @@ Return ONLY JSON matching this format:
       .slice(0, 8)
       .map((s, idx) => {
         let sitelinkUrl = s.url ? (GoogleAdsBaseService.cleanUrl ? GoogleAdsBaseService.cleanUrl(s.url) : s.url) : cleanBaseUrl;
-        
+
         // If url is the same as the base homepage or already used by another sitelink, synthesize a distinct subpage URL
         const normalized = sitelinkUrl.trim().replace(/\/+$/, "");
         if (normalized === cleanBaseUrl || usedUrls.has(normalized)) {
@@ -820,7 +820,7 @@ router.get("/media-library", async (req, res) => {
     }
 
     const authHeader = Buffer.from(`${privateKey}:`).toString("base64");
-    
+
     // Query files from ImageKit API (searches all files or specific google_ads folder)
     const ikRes = await axios.get("https://api.imagekit.io/v1/files", {
       headers: {
@@ -852,7 +852,7 @@ router.get("/media-library", async (req, res) => {
       const width = f.width || 0;
       const height = f.height || 0;
       const ratio = height > 0 ? (width / height) : 1;
-      
+
       let inferredFieldType: "MARKETING_IMAGE" | "SQUARE_MARKETING_IMAGE" | "LOGO" | "VIDEO" = "MARKETING_IMAGE";
       let inferredAspect = "1.91:1";
 
@@ -1385,7 +1385,7 @@ router.post("/performance-forecast", async (req, res) => {
     let savedProfile: any = null;
     try {
       savedProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
-    } catch (_profErr) {}
+    } catch (_profErr) { }
 
     const forecastResult = await GoogleAdsPerformancePlannerService.generateForecastForPlan(
       orgId,
@@ -1557,7 +1557,7 @@ router.post("/recommendations", async (req, res) => {
     let savedProfile: any = null;
     try {
       savedProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
-    } catch (_profErr) {}
+    } catch (_profErr) { }
 
     const bizName = savedProfile?.businessName || "";
     const bizCategory = savedProfile?.businessCategory || savedProfile?.industry || "";
@@ -2573,19 +2573,19 @@ router.post("/conversion-goal-intelligence", async (req, res) => {
 
       if (campObj.includes("SALE") || campType === "SHOPPING") {
         return g.includes("purchase") || g.includes("sale") || g.includes("checkout") || g.includes("cart") ||
-               cat.includes("purchase") || cat.includes("ecommerce");
+          cat.includes("purchase") || cat.includes("ecommerce");
       }
       if (campObj.includes("LEAD")) {
         return g.includes("lead") || g.includes("form") || g.includes("contact") || g.includes("call") || g.includes("quote") || g.includes("inquiry") ||
-               cat.includes("lead") || cat.includes("submit_lead_form") || cat.includes("phone_call_lead") || cat.includes("contact");
+          cat.includes("lead") || cat.includes("submit_lead_form") || cat.includes("phone_call_lead") || cat.includes("contact");
       }
       if (campObj.includes("APP") || campType === "APP") {
         return g.includes("install") || g.includes("download") || g.includes("app") ||
-               cat.includes("download") || cat.includes("mobile_app");
+          cat.includes("download") || cat.includes("mobile_app");
       }
       if (campObj.includes("STORE") || campObj.includes("LOCAL")) {
         return g.includes("direction") || g.includes("store") || g.includes("visit") || g.includes("location") ||
-               cat.includes("store_visit") || cat.includes("store_sale");
+          cat.includes("store_visit") || cat.includes("store_sale");
       }
       if (campObj.includes("TRAFFIC") || campObj.includes("AWARENESS") || campObj.includes("YOUTUBE")) {
         return true; // Broader compatibility
@@ -2677,8 +2677,8 @@ router.post("/conversion-goal-intelligence", async (req, res) => {
       notice: matchedItems.length > 0
         ? "Live conversion actions verified against profile intent. Only verified live actions are used for Smart Bidding."
         : profileOnlyItems.length > 0
-        ? "Profile conversion goals are customer context. Live conversion actions must be configured in Google Ads for conversion optimization."
-        : "No conversion goals or actions detected. Standard click or conversion bidding will apply based on campaign configuration.",
+          ? "Profile conversion goals are customer context. Live conversion actions must be configured in Google Ads for conversion optimization."
+          : "No conversion goals or actions detected. Standard click or conversion bidding will apply based on campaign configuration.",
       authoritativeSource: "Google Ads conversion_action API (Live)"
     };
 
@@ -2940,22 +2940,22 @@ router.post("/save-profile", async (req, res) => {
           existingGoals.push(
             typeof cg === "string"
               ? {
-                  id: `cg-${Date.now()}-${addedGoalsCount}`,
-                  goalName: gName,
-                  conversionType: "Lead Form",
-                  source: "Website",
-                  isPrimary: true,
-                  isActive: true
-                }
+                id: `cg-${Date.now()}-${addedGoalsCount}`,
+                goalName: gName,
+                conversionType: "Lead Form",
+                source: "Website",
+                isPrimary: true,
+                isActive: true
+              }
               : {
-                  ...cg,
-                  id: cg.id || `cg-${Date.now()}-${addedGoalsCount}`,
-                  goalName: gName,
-                  conversionType: cg.conversionType || "Lead Form",
-                  source: cg.source || "Website",
-                  isPrimary: cg.isPrimary !== undefined ? Boolean(cg.isPrimary) : true,
-                  isActive: true
-                }
+                ...cg,
+                id: cg.id || `cg-${Date.now()}-${addedGoalsCount}`,
+                goalName: gName,
+                conversionType: cg.conversionType || "Lead Form",
+                source: cg.source || "Website",
+                isPrimary: cg.isPrimary !== undefined ? Boolean(cg.isPrimary) : true,
+                isActive: true
+              }
           );
           addedGoalsCount++;
         }
@@ -3367,58 +3367,14 @@ router.post("/create-campaign", async (req, res) => {
     console.log(`=====================================================================\n`);
 
     // Ensure AI Guided flow context flags
+    // Ensure AI Guided flow context flags
     (state as any).isAiGuided = true;
     (state as any).source = "AI_GUIDED";
 
-    if (state.campaignType === "PERFORMANCE_MAX" || state.campaignType === "DISPLAY") {
-      const DEFAULT_IMAGE = "https://ik.imagekit.io/automationjds/tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
-      const DEFAULT_LOGO = "https://ik.imagekit.io/automationjds/tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
-
-      if (state.campaignType === "DISPLAY") {
-        // Strip out pre-existing customer asset resource strings (which may not match 1:1 Display logo spec)
-        if (Array.isArray(state.logos)) {
-          state.logos = state.logos.filter((l: any) => {
-            const raw = typeof l === "string" ? l : l?.url || l?.data || "";
-            return raw && !raw.startsWith("customers/");
-          });
-        }
-        if (Array.isArray(state.images)) {
-          state.images = state.images.filter((im: any) => {
-            const raw = typeof im === "string" ? im : im?.url || im?.data || "";
-            return raw && !raw.startsWith("customers/");
-          });
-        }
-      }
-
-      if (!state.images || !Array.isArray(state.images) || state.images.length === 0) {
-        state.images = [
-          { url: DEFAULT_IMAGE, fieldType: "MARKETING_IMAGE", name: "Default_Landscape_Marketing_Image", aspectRatio: "1.91:1" },
-          { url: DEFAULT_IMAGE, fieldType: "SQUARE_MARKETING_IMAGE", name: "Default_Square_Marketing_Image", aspectRatio: "1:1" }
-        ];
-      }
-      if (!state.logos || !Array.isArray(state.logos) || state.logos.length === 0) {
-        state.logos = [
-          { url: DEFAULT_LOGO, fieldType: "LOGO", name: "Default_Brand_Logo", aspectRatio: "1:1" }
-        ];
-      }
-    }
-
-    if (state.campaignType === "SHOPPING") {
-      const validH = (state.headlines || []).filter((h: any) => typeof h === "string" && h.trim().length > 0);
-      if (validH.length === 0) {
-        state.headlines = ["Shop Top Deals Now"];
-      }
-      const validD = (state.descriptions || []).filter((d: any) => typeof d === "string" && d.trim().length > 0);
-      if (validD.length === 0) {
-        state.descriptions = ["Explore our exclusive shopping collection with fast delivery and great discounts."];
-      }
-      if (!state.salesCountry && !(state as any).feedLabel) {
-        state.salesCountry = "IN";
-        (state as any).feedLabel = "IN";
-      }
-      if (!state.website && (state as any).finalUrl) {
-        state.website = (state as any).finalUrl;
-      }
+    // Normalize VIDEO intent to DEMAND_GEN with VIDEO format (official Google Ads API contract)
+    if (state.campaignType === "VIDEO") {
+      state.campaignType = "DEMAND_GEN";
+      state.adFormat = "VIDEO";
     }
 
     const valResult = GoogleAdsCampaignValidator.validate(state);
@@ -3440,7 +3396,8 @@ router.post("/create-campaign", async (req, res) => {
       if (state.startDate && state.endDate) {
         const start = new Date(state.startDate).getTime();
         const end = new Date(state.endDate).getTime();
-        const days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+        // Google Ads inclusive campaign duration: e.g. Oct 2 to Oct 28 inclusive = 27 days
+        const days = Math.max(1, Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1);
         effectiveDailyBudget = Math.max(1, Math.round(totalBudget / days));
       } else {
         effectiveDailyBudget = Math.max(1, Math.round(totalBudget / 30));
@@ -3509,7 +3466,7 @@ router.post("/create-campaign", async (req, res) => {
     let result: any;
     const objective = (state.objective || "").toUpperCase();
 
-    switch (state.campaignType) {
+    switch (state.campaignType as any) {
       case "SEARCH": {
         const anyState = state as any;
         const payload = {
@@ -3520,6 +3477,9 @@ router.post("/create-campaign", async (req, res) => {
           websiteVisitsUrl: state.website || state.finalUrl || anyState.websiteVisitsUrl,
           businessName: state.businessName,
           dailyBudget,
+          budget: budgetType === "TOTAL" && totalBudget ? totalBudget : dailyBudget,
+          budgetType,
+          totalBudget,
           locations,
           languages: languages.length > 0 ? languages : ["English"],
           biddingFocus: state.biddingStrategy || "Maximize conversions",
@@ -3538,7 +3498,7 @@ router.post("/create-campaign", async (req, res) => {
           euPolitical: state.euPolitical || "NO",
           // Search Networks & Location Settings
           networkSearch: anyState.networkSearch !== undefined ? anyState.networkSearch : (state.networkSearch !== undefined ? state.networkSearch : true),
-          networkDisplay: anyState.networkDisplay !== undefined ? anyState.networkDisplay : (state.networkDisplay !== undefined ? state.networkDisplay : true),
+          networkDisplay: anyState.networkDisplay !== undefined ? anyState.networkDisplay : (state.networkDisplay !== undefined ? state.networkDisplay : false),
           locationOptionsPresence: anyState.locationOptionsPresence || state.locationOptionsPresence || "PRESENCE_INTEREST",
           locationOptionsExclude: anyState.locationOptionsExclude || state.locationOptionsExclude || "PRESENCE",
           adRotationMode: anyState.adRotationMode || state.adRotationMode || "OPTIMIZE",
@@ -3599,6 +3559,9 @@ router.post("/create-campaign", async (req, res) => {
           finalUrl: cleanPmaxUrl,
           businessName: state.businessName,
           dailyBudget,
+          budget: budgetType === "TOTAL" && totalBudget ? totalBudget : dailyBudget,
+          budgetType,
+          totalBudget,
           locations,
           languages,
           biddingFocus: state.biddingStrategy || (state as any).biddingFocus || (objective === "LEADS" ? "Maximize conversions" : "Maximize conversion value"),
@@ -3633,8 +3596,8 @@ router.post("/create-campaign", async (req, res) => {
           audienceSignals: plan?.targeting?.audienceSignalIds?.length
             ? plan.targeting.audienceSignalIds
             : (state?.audienceSignalIds?.length
-                ? state.audienceSignalIds
-                : (anyState.audienceSignals || anyState.audiences || [])),
+              ? state.audienceSignalIds
+              : (anyState.audienceSignals || anyState.audiences || [])),
           sitelinks: anyState.sitelinks || [],
           callouts: anyState.callouts || [],
           promotions: anyState.promotions || [],
@@ -3836,7 +3799,9 @@ router.post("/create-campaign", async (req, res) => {
       }
 
       case "VIDEO": {
+        // Official Google Ads API Contract: Video advertising is provisioned via DEMAND_GEN with VIDEO ad format
         const anyState = state as any;
+        const resolvedBudgetType = anyState.demandGenBudgetType || (budgetType === "TOTAL" ? "Total" : "Daily");
         const payload = {
           source: "AI_GUIDED",
           isAiGuided: true,
@@ -3844,8 +3809,9 @@ router.post("/create-campaign", async (req, res) => {
           finalUrl: state.website || state.finalUrl,
           businessName: state.businessName,
           dailyBudget,
-          budget: dailyBudget,
-          demandGenBudgetType: anyState.budgetType === "TOTAL" ? "Total" : (anyState.demandGenBudgetType || "Daily"),
+          budget: budgetType === "TOTAL" && totalBudget ? totalBudget : dailyBudget,
+          totalBudget: totalBudget || (budgetType === "TOTAL" ? (state.totalBudget || state.dailyBudget) : undefined),
+          demandGenBudgetType: resolvedBudgetType,
           locations,
           languages,
           biddingStrategy: state.biddingStrategy || "MAXIMIZE_CONVERSIONS",
@@ -3854,69 +3820,33 @@ router.post("/create-campaign", async (req, res) => {
           targetRoas: state.targetRoas || undefined,
           startDate: state.startDate,
           endDate: state.endDate,
-          adFormat: state.adFormat || "SINGLE_IMAGE",
+          adFormat: "VIDEO",
           channelTargeting: state.channelTargeting || "ALL",
           channels: state.channels || [],
-          carouselCards: state.carouselCards || [],
           callToAction: state.callToAction || "Automated",
           youtubeVideos: (state.videos && state.videos.length > 0) ? state.videos : (anyState.youtubeVideos || []),
-          headlines: validHeadlines.length > 0 ? validHeadlines : ["Watch Video Now", "Explore Solutions"],
+          headlines: validHeadlines.length > 0 ? validHeadlines : ["Watch Video Now"],
           longHeadlines: state.longHeadlines && state.longHeadlines.length > 0 ? state.longHeadlines : [validHeadlines[0] || "Watch Video Now and Explore Solutions"],
           descriptions: validDescriptions.length > 0 ? validDescriptions : ["Discover how our solutions help your business succeed."],
           images: state.images && state.images.length > 0 ? state.images : [],
           logos: state.logos && state.logos.length > 0 ? state.logos : [],
           videos: state.videos && state.videos.length > 0 ? state.videos : [],
           euPolitical: state.euPolitical || "NO",
-          includeViewThrough: anyState.includeViewThrough !== undefined ? Boolean(anyState.includeViewThrough) : false,
-          mainBrandColor: anyState.mainBrandColor || state.mainBrandColor || undefined,
-          accentBrandColor: anyState.accentBrandColor || state.accentBrandColor || undefined,
-          brandFont: anyState.brandFont || state.brandFont || undefined,
-          brandGuidelines: anyState.brandGuidelines || (state.brandGuidelinesEnabled ? {
-            mainColor: anyState.mainBrandColor || state.mainBrandColor,
-            accentColor: anyState.accentBrandColor || state.accentBrandColor,
-            font: anyState.brandFont || state.brandFont
-          } : undefined),
-          // Google AI Creative Enhancements
-          optAdaptiveLayouts: anyState.optAdaptiveLayouts !== undefined ? Boolean(anyState.optAdaptiveLayouts) : true,
-          optAnimatedImages: anyState.optAnimatedImages !== undefined ? Boolean(anyState.optAnimatedImages) : true,
-          optGeneratedVideos: anyState.optGeneratedVideos !== undefined ? Boolean(anyState.optGeneratedVideos) : true,
-          optShorterVideos: anyState.optShorterVideos !== undefined ? Boolean(anyState.optShorterVideos) : true,
-          optResizedVideos: anyState.optResizedVideos !== undefined ? Boolean(anyState.optResizedVideos) : true,
-          optLandingPagePreviews: anyState.optLandingPagePreviews !== undefined ? Boolean(anyState.optLandingPagePreviews) : true,
-          adName: anyState.adName || state.adName || undefined,
           adSchedule: normalizedAdSchedule,
-          mobileFinalUrl: anyState.mobileFinalUrl || state.mobileFinalUrl || undefined,
-          displayPath1: anyState.displayPath1 || state.displayPath1 || undefined,
-          displayPath2: anyState.displayPath2 || state.displayPath2 || undefined,
-          deviceTargeting: anyState.deviceTargeting || "ALL",
           devices: normalizedDevices,
-          trackingTemplate: state.trackingTemplate || anyState.trackingTemplate || undefined,
-          finalUrlSuffix: state.finalUrlSuffix || anyState.finalUrlSuffix || undefined,
-          customParameters: anyState.customParameters || anyState.customParamsList || [],
-          sitelinks: anyState.sitelinks || [],
-          callouts: anyState.callouts || [],
-          structuredSnippets: anyState.structuredSnippets || [],
-          promotions: anyState.promotions || [],
-          keywords: validKeywords.length > 0 ? validKeywords : (anyState.keywords || []),
           searchThemes: anyState.searchThemes || state.searchThemes || [],
-          audienceSignal: anyState.audienceSignal || (anyState.audienceSignals?.[0] ? anyState.audienceSignals[0] : (state.audienceSignals?.[0] || undefined)),
-          audienceSignals: anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || [])),
-          audience: anyState.audience || undefined,
-          customerAcquisitionMode: anyState.customerAcquisitionMode || (state.onlyBidNewCustomers ? "ONLY_NEW" : "EQUAL"),
-          optimizedTargeting: anyState.optimizedTargeting !== undefined ? Boolean(anyState.optimizedTargeting) : true,
-          ipExclusions: anyState.ipExclusions || undefined,
           conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
         if (objective === "LEADS") {
-          result = await LeadsVideoService.createCampaign(orgId, customerId, payload);
+          result = await LeadsDemandGenService.createCampaign(orgId, customerId, payload);
         } else if (objective === "WEBSITE_TRAFFIC") {
-          result = await WebsiteTrafficVideoService.createCampaign(orgId, customerId, payload);
-        } else if (objective === "AWARENESS" || objective === "YOUTUBE_REACH" || objective === "YOUTUBE") {
-          result = await YoutubeVideoService.createCampaign(orgId, customerId, payload);
+          result = await WebsiteTrafficDemandGenService.createCampaign(orgId, customerId, payload);
         } else if (objective === "NO_GUIDANCE" || objective === "NO-GUIDANCE") {
-          result = await NoGuidanceVideoService.createCampaign(orgId, customerId, payload);
+          result = await NoGuidanceDemandGenService.createCampaign(orgId, customerId, payload);
+        } else if (objective === "AWARENESS" || objective === "YOUTUBE" || objective === "YOUTUBE_REACH" || objective === "YOUTUBE-REACH") {
+          result = await YoutubeDemandGenService.createCampaign(orgId, customerId, payload);
         } else {
-          result = await SalesVideoService.createCampaign(orgId, customerId, payload);
+          result = await SalesDemandGenService.createCampaign(orgId, customerId, payload);
         }
         break;
       }
@@ -3965,8 +3895,9 @@ router.post("/create-campaign", async (req, res) => {
           salesCountry: state.salesCountry || "IN",
           feedLabel: state.feedLabel || state.salesCountry || "IN",
           dailyBudget,
-          budget: dailyBudget,
-          budgetType: anyState.budgetType || "DAILY",
+          budget: budgetType === "TOTAL" && totalBudget ? totalBudget : dailyBudget,
+          budgetType,
+          totalBudget,
           locations,
           languages: Array.isArray(languages) && languages.length > 0 ? languages : (anyState.languages || ["All languages"]),
           biddingStrategy: state.biddingStrategy || "MAXIMIZE_CONVERSION_VALUE",
@@ -4181,8 +4112,8 @@ router.post("/create-campaign", async (req, res) => {
 
     // Attach selected shared negative lists if present in campaign plan / state
     const createdCampaignId = result?.campaign?.googleAdsCampaignId || result?.campaignId || result?.campaign?.id;
-    const sharedSetIdsToAttach = Array.isArray(plan?.keywordsConfig?.linkedSharedNegativeSetIds)
-      ? plan.keywordsConfig.linkedSharedNegativeSetIds
+    const sharedSetIdsToAttach = Array.isArray((plan as any)?.keywordsConfig?.linkedSharedNegativeSetIds)
+      ? (plan as any).keywordsConfig.linkedSharedNegativeSetIds
       : (Array.isArray(state?.linkedSharedNegativeSetIds) ? state.linkedSharedNegativeSetIds : []);
 
     if (createdCampaignId && sharedSetIdsToAttach.length > 0) {
@@ -4208,7 +4139,8 @@ router.post("/create-campaign", async (req, res) => {
       campaignName: String(campaignName || "AI Campaign"),
       campaignType: String(state.campaignType || "SEARCH"),
       customerId: String(cleanCid),
-      budget: Number(dailyBudget || 0),
+      budget: budgetType === "TOTAL" && totalBudget !== undefined ? Number(totalBudget) : Number(dailyBudget || 0),
+      dailyBudget: Number(dailyBudget || 0),
       budgetType: String(budgetType || "DAILY"),
       totalBudget: totalBudget !== undefined ? Number(totalBudget) : undefined,
       startDate: state.startDate ? String(state.startDate).split("T")[0] : null,
@@ -4216,6 +4148,43 @@ router.post("/create-campaign", async (req, res) => {
       locations: Array.isArray(locations) ? locations : [],
       languages: Array.isArray(languages) ? languages : ["All languages"],
       biddingStrategy: String(anyState?.biddingStrategy || anyState?.biddingFocus || "Maximize conversions"),
+      targetCpa: anyState?.targetCpa !== undefined && anyState?.targetCpa !== null && anyState?.targetCpa !== "" ? Number(anyState.targetCpa) : undefined,
+      targetRoas: anyState?.targetRoas !== undefined && anyState?.targetRoas !== null && anyState?.targetRoas !== "" ? Number(anyState.targetRoas) : undefined,
+      finalUrl: state.website || state.finalUrl || anyState.websiteVisitsUrl || result?.campaign?.finalUrl || undefined,
+      mobileFinalUrl: anyState.mobileFinalUrl || undefined,
+      businessName: state.businessName || undefined,
+      displayPath1: anyState.displayPath1 || state.displayPath1 || undefined,
+      displayPath2: anyState.displayPath2 || state.displayPath2 || undefined,
+      trackingTemplate: state.trackingTemplate || anyState.trackingTemplate || undefined,
+      finalUrlSuffix: state.finalUrlSuffix || anyState.finalUrlSuffix || undefined,
+      customParameters: anyState.customParameters || state.customParameters || undefined,
+      headlines: Array.isArray(validHeadlines) && validHeadlines.length > 0 ? validHeadlines : (result?.campaign?.headlines || undefined),
+      longHeadlines: Array.isArray(validLongHeadlines) && validLongHeadlines.length > 0 ? validLongHeadlines : undefined,
+      descriptions: Array.isArray(validDescriptions) && validDescriptions.length > 0 ? validDescriptions : (result?.campaign?.descriptions || undefined),
+      images: Array.isArray(state.images) && state.images.length > 0 ? state.images : undefined,
+      logos: Array.isArray(state.logos) && state.logos.length > 0 ? state.logos : undefined,
+      videos: Array.isArray(state.videos) && state.videos.length > 0 ? state.videos : undefined,
+      searchThemes: Array.isArray(anyState.searchThemes) && anyState.searchThemes.length > 0 ? anyState.searchThemes : (result?.campaign?.searchThemes || undefined),
+      audienceSignals: plan?.targeting?.audienceSignalIds?.length
+        ? plan.targeting.audienceSignalIds
+        : (state?.audienceSignalIds?.length
+          ? state.audienceSignalIds
+          : (Array.isArray(anyState.audienceSignals) && anyState.audienceSignals.length > 0 ? anyState.audienceSignals : undefined)),
+      sitelinks: Array.isArray(anyState.sitelinks) && anyState.sitelinks.length > 0 ? anyState.sitelinks : undefined,
+      callouts: Array.isArray(anyState.callouts) && anyState.callouts.length > 0 ? anyState.callouts : undefined,
+      structuredSnippets: Array.isArray(anyState.structuredSnippets) && anyState.structuredSnippets.length > 0 ? anyState.structuredSnippets : undefined,
+      callAsset: anyState.callAsset || (anyState.callPhoneNumber ? { phoneNumber: anyState.callPhoneNumber } : undefined),
+      leadForms: Array.isArray(anyState.leadForms) && anyState.leadForms.length > 0 ? anyState.leadForms : undefined,
+      promotions: Array.isArray(anyState.promotions) && anyState.promotions.length > 0 ? anyState.promotions : undefined,
+      prices: Array.isArray(anyState.prices) && anyState.prices.length > 0 ? anyState.prices : undefined,
+      merchantCenterId: state.merchantCenterId || state.merchantId || undefined,
+      feedLabel: state.feedLabel || undefined,
+      salesCountry: state.salesCountry || undefined,
+      customerAcquisitionMode: state.customerAcquisitionMode || undefined,
+      brandGuidelinesEnabled: anyState.brandGuidelinesEnabled !== undefined ? Boolean(anyState.brandGuidelinesEnabled) : undefined,
+      assetGroupName: anyState.assetGroupName || undefined,
+      conversionGoals: state.conversionGoals || anyState.conversionGoals || undefined,
+      adSchedule: Array.isArray(anyState.adSchedule) && anyState.adSchedule.length > 0 ? anyState.adSchedule : (result?.campaign?.adSchedule || undefined),
       status: "SUCCESS",
       createdAt: new Date().toISOString(),
       resourceName: result?.campaign?.resourceName || result?.resourceName || undefined,
