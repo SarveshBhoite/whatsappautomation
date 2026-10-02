@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class LeadsSearchService extends GoogleAdsBaseService {
@@ -236,7 +237,8 @@ export class LeadsSearchService extends GoogleAdsBaseService {
       budget,
       startDate,
       endDate,
-      euPolitical = "NO"
+      euPolitical = "NO",
+      conversionGoals
     } = payload;
 
     const finalUrl = (inputFinalUrl || websiteVisitsUrl || website || "").trim();
@@ -622,6 +624,18 @@ export class LeadsSearchService extends GoogleAdsBaseService {
         } catch (caErr: any) {
           console.warn("[LeadsSearchService] campaignAssets:mutate linking warning:", caErr?.message || caErr);
         }
+      }
+
+      // Campaign Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "LeadsSearchService"
+        );
       }
 
     } catch (apiErr: any) {

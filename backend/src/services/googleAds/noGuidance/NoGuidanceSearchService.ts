@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class NoGuidanceSearchService extends GoogleAdsBaseService {
@@ -331,7 +332,8 @@ export class NoGuidanceSearchService extends GoogleAdsBaseService {
       callAsset,
       promotions = [],
       prices = [],
-      leadForms = []
+      leadForms = [],
+      conversionGoals
     } = payload;
 
     const finalUrl = (inputFinalUrl || websiteVisitsUrl || website || "").trim();
@@ -838,6 +840,18 @@ export class NoGuidanceSearchService extends GoogleAdsBaseService {
           operations: campaignAssetOperations
         }, { headers });
         apiResult.campaignAssetResourceNames = (caRes.data?.results || []).map((r: any) => r.resourceName);
+      }
+
+      // Campaign Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "NoGuidanceSearchService"
+        );
       }
 
     } catch (apiErr: any) {

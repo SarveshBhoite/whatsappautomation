@@ -3403,6 +3403,24 @@ router.post("/create-campaign", async (req, res) => {
       }
     }
 
+    if (state.campaignType === "SHOPPING") {
+      const validH = (state.headlines || []).filter((h: any) => typeof h === "string" && h.trim().length > 0);
+      if (validH.length === 0) {
+        state.headlines = ["Shop Top Deals Now"];
+      }
+      const validD = (state.descriptions || []).filter((d: any) => typeof d === "string" && d.trim().length > 0);
+      if (validD.length === 0) {
+        state.descriptions = ["Explore our exclusive shopping collection with fast delivery and great discounts."];
+      }
+      if (!state.salesCountry && !(state as any).feedLabel) {
+        state.salesCountry = "IN";
+        (state as any).feedLabel = "IN";
+      }
+      if (!state.website && (state as any).finalUrl) {
+        state.website = (state as any).finalUrl;
+      }
+    }
+
     const valResult = GoogleAdsCampaignValidator.validate(state);
     if (!valResult.isValid) {
       if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
@@ -3555,7 +3573,8 @@ router.post("/create-campaign", async (req, res) => {
           callPhone: state.callPhoneNumber || anyState.callPhoneNumber || anyState.callPhone || undefined,
           promotions: anyState.promotions || state.promotions || [],
           prices: anyState.prices || state.prices || [],
-          leadForms: anyState.leadForms || state.leadForms || []
+          leadForms: anyState.leadForms || state.leadForms || [],
+          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
         if (objective === "NO_GUIDANCE" || objective === "NO-GUIDANCE") {
           result = await NoGuidanceSearchService.createCampaign(orgId, customerId, payload);
@@ -3714,7 +3733,7 @@ router.post("/create-campaign", async (req, res) => {
           promotions: anyState.promotions || [],
           callAsset: anyState.callAsset || undefined,
           leadFormAsset: anyState.leadFormAsset || undefined,
-          conversionGoals: anyState.conversionGoals || []
+          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
         if (objective === "LEADS") {
           result = await LeadsDisplayService.createCampaign(orgId, customerId, payload);
@@ -3800,7 +3819,7 @@ router.post("/create-campaign", async (req, res) => {
           customerAcquisitionMode: anyState.customerAcquisitionMode || (state.onlyBidNewCustomers ? "ONLY_NEW" : "EQUAL"),
           optimizedTargeting: anyState.optimizedTargeting !== undefined ? Boolean(anyState.optimizedTargeting) : true,
           ipExclusions: anyState.ipExclusions || undefined,
-          conversionGoals: anyState.conversionGoals || []
+          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
         if (objective === "LEADS") {
           result = await LeadsDemandGenService.createCampaign(orgId, customerId, payload);
@@ -3886,7 +3905,7 @@ router.post("/create-campaign", async (req, res) => {
           customerAcquisitionMode: anyState.customerAcquisitionMode || (state.onlyBidNewCustomers ? "ONLY_NEW" : "EQUAL"),
           optimizedTargeting: anyState.optimizedTargeting !== undefined ? Boolean(anyState.optimizedTargeting) : true,
           ipExclusions: anyState.ipExclusions || undefined,
-          conversionGoals: anyState.conversionGoals || []
+          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
         if (objective === "LEADS") {
           result = await LeadsVideoService.createCampaign(orgId, customerId, payload);
@@ -3926,7 +3945,8 @@ router.post("/create-campaign", async (req, res) => {
           videos: (state as any).videos || (state as any).youtubeVideos || [],
           trackingTemplate: state.trackingTemplate || anyState.trackingTemplate || undefined,
           finalUrlSuffix: state.finalUrlSuffix || anyState.finalUrlSuffix || undefined,
-          customParameters: anyState.customParameters || anyState.customParamsList || []
+          customParameters: anyState.customParameters || anyState.customParamsList || [],
+          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
         result = await AppPromotionAppService.createCampaign(orgId, customerId, payload);
         break;
@@ -3934,6 +3954,8 @@ router.post("/create-campaign", async (req, res) => {
 
       case "SHOPPING": {
         const anyState = state as any;
+        const audSignal = anyState.audienceSignal || (anyState.audienceSignals?.[0] ? anyState.audienceSignals[0] : (state.audienceSignals?.[0] || undefined));
+        const audSignals = anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || []));
         const payload = {
           source: "AI_GUIDED",
           isAiGuided: true,
@@ -3946,7 +3968,7 @@ router.post("/create-campaign", async (req, res) => {
           budget: dailyBudget,
           budgetType: anyState.budgetType || "DAILY",
           locations,
-          languages,
+          languages: Array.isArray(languages) && languages.length > 0 ? languages : (anyState.languages || ["All languages"]),
           biddingStrategy: state.biddingStrategy || "MAXIMIZE_CONVERSION_VALUE",
           biddingFocus: state.biddingStrategy || "MAXIMIZE_CONVERSION_VALUE",
           targetRoas: state.targetRoas || undefined,
@@ -3967,9 +3989,15 @@ router.post("/create-campaign", async (req, res) => {
           devices: normalizedDevices,
           startDate: state.startDate,
           endDate: state.endDate,
+          keywords: validKeywords.length > 0 ? validKeywords : (anyState.keywords || []),
+          searchThemes: anyState.searchThemes || state.searchThemes || [],
+          audienceSignal: audSignal,
+          audienceSignals: audSignals,
+          audience: anyState.audience || undefined,
           headlines: validHeadlines.length > 0 ? validHeadlines : ["Shop Top Deals Now"],
           descriptions: validDescriptions.length > 0 ? validDescriptions : ["Explore our exclusive shopping collection with fast delivery and great discounts."],
-          euPolitical: state.euPolitical || "NO"
+          euPolitical: state.euPolitical || "NO",
+          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
         if (objective === "LEADS") {
           result = await LeadsShoppingService.createCampaign(orgId, customerId, payload);

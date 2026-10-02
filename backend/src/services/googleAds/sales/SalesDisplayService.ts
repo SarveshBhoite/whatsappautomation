@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class SalesDisplayService extends GoogleAdsBaseService {
@@ -21,7 +22,8 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       dailyBudget,
       budget,
       startDate,
-      endDate
+      endDate,
+      conversionGoals
     } = payload;
 
     if (!finalUrl) {
@@ -133,6 +135,18 @@ export class SalesDisplayService extends GoogleAdsBaseService {
         );
       } catch (critErr: any) {
         console.warn("[SalesDisplayService] mutateCampaignGeoAndLanguageCriteria warning:", critErr?.message || critErr);
+      }
+
+      // Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "SalesDisplayService"
+        );
       }
 
       // 3. Create Standard Display Ad Group

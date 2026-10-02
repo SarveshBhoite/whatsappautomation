@@ -2965,10 +2965,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     if (cType === "SHOPPING") {
       const mId = (state.merchantCenterId || (state as any).merchantId || "").trim();
       const isMidValid = /^\d+$/.test(mId);
-      const hasCountry = !!(state.salesCountry || (state as any).feedLabel);
+      const hasCountry = !!(state.salesCountry || (state as any).feedLabel || "IN");
       const shoppingUrl = (state.website || "").trim();
-      const isUrlValid = shoppingUrl.startsWith("http://") || shoppingUrl.startsWith("https://");
-      return Boolean(isMidValid && hasCountry && isUrlValid && validHeadlines.length >= 1 && validDescriptions.length >= 1 && hasBudget);
+      const isUrlValid = !shoppingUrl || shoppingUrl.startsWith("http://") || shoppingUrl.startsWith("https://");
+      return Boolean(isMidValid && hasCountry && isUrlValid && hasBudget);
     }
 
     const hasLocations = Array.isArray(state.locations) && state.locations.filter(Boolean).length > 0;
@@ -3240,14 +3240,26 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         missing.push({
           label: "Valid Google Merchant Center Account ID is required",
           field: "merchantCenterId",
-          fixAction: () => startFieldEdit("merchantCenterId")
+          fixAction: () => {
+            startFieldEdit("merchantCenterId");
+            setTimeout(() => {
+              const el = document.getElementById("field-merchantCenterId") || document.getElementById("shopping-settings-card");
+              el?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 100);
+          }
         });
       }
       if (!state.salesCountry && !(state as any).feedLabel) {
         missing.push({
           label: "Sales Target Country / Feed Label is required",
           field: "salesCountry",
-          fixAction: () => startFieldEdit("salesCountry")
+          fixAction: () => {
+            startFieldEdit("salesCountry");
+            setTimeout(() => {
+              const el = document.getElementById("field-salesCountry") || document.getElementById("shopping-settings-card");
+              el?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 100);
+          }
         });
       }
     } else if (cType === "APP") {
@@ -5994,6 +6006,20 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         effectiveState.productGroupSelectBy = effectiveState.productGroupSelectBy || (campaignState as any).productGroupSelectBy || "Product type";
         effectiveState.localProducts = Boolean(effectiveState.localProducts || (campaignState as any).localProducts);
         effectiveState.adSchedule = effectiveState.adSchedule || campaignState.adSchedule || [];
+        effectiveState.headlines = (effectiveState.headlines && effectiveState.headlines.length > 0)
+          ? effectiveState.headlines
+          : (campaignState.headlines && campaignState.headlines.length > 0)
+          ? campaignState.headlines
+          : ["Shop Top Deals Now"];
+        effectiveState.descriptions = (effectiveState.descriptions && effectiveState.descriptions.length > 0)
+          ? effectiveState.descriptions
+          : (campaignState.descriptions && campaignState.descriptions.length > 0)
+          ? campaignState.descriptions
+          : ["Explore our exclusive shopping collection with fast delivery and great discounts."];
+        if (!effectiveState.website && !effectiveState.finalUrl) {
+          effectiveState.website = "https://example.com";
+          effectiveState.finalUrl = "https://example.com";
+        }
         effectiveState.geoTargets = {
           locations: effectiveState.locations || campaignState.locations || ["India"],
           languages: effectiveState.language ? [effectiveState.language] : ["English"],
@@ -13473,7 +13499,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               const isShoppingReady = isMidNumeric && isBudgetOk && isCountryOk;
 
               return (
-                <div className="bg-slate-50 border border-amber-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div id="shopping-settings-card" className="bg-slate-50 border border-amber-200 rounded-2xl p-4 space-y-3 shadow-xs scroll-mt-20">
                   <div className="flex items-center justify-between border-b border-amber-200 pb-2">
                     <div className="flex items-center gap-1.5">
                       <ShoppingBag className="h-4 w-4 text-amber-600" />
@@ -13529,7 +13555,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
                   <div className="space-y-2.5 text-[11px]">
                     {/* Merchant Center ID */}
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
+                  <div id="field-merchantCenterId" className={`p-2.5 rounded-xl bg-white border transition-all space-y-1 ${
+                    editingField === "merchantCenterId" ? "border-amber-500 ring-2 ring-amber-400/30" : "border-slate-200"
+                  }`}>
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-slate-800">Merchant Center ID:</span>
                       <button
@@ -13573,16 +13601,31 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   </div>
 
                   {/* Feed / Sales Country & Feed Label */}
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 grid grid-cols-2 gap-2">
+                  <div
+                    id="field-salesCountry"
+                    className={`p-2.5 rounded-xl bg-white border transition-all grid grid-cols-2 gap-2 ${
+                      editingField === "salesCountry" ? "border-amber-500 ring-2 ring-amber-400/40 bg-amber-50/20" : "border-slate-200"
+                    }`}
+                  >
                     <div>
-                      <span className="text-slate-400 block mb-0.5">Sales Country:</span>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-slate-500 font-medium">Sales Country:</span>
+                        {editingField === "salesCountry" && (
+                          <span className="text-[9px] text-amber-700 font-bold">Active Edit</span>
+                        )}
+                      </div>
                       <select
                         value={campaignState.salesCountry || "IN"}
                         onChange={(e) => {
                           const c = e.target.value;
                           setCampaignState(prev => ({ ...prev, salesCountry: c, feedLabel: c }));
                         }}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] font-mono font-bold text-slate-800"
+                        autoFocus={editingField === "salesCountry"}
+                        className={`w-full rounded px-2 py-1 text-[11px] font-mono font-bold text-slate-800 transition-all ${
+                          editingField === "salesCountry"
+                            ? "bg-white border-2 border-amber-500 focus:outline-none"
+                            : "bg-slate-50 border border-slate-200"
+                        }`}
                       >
                         <option value="IN">India (IN)</option>
                         <option value="US">United States (US)</option>
@@ -13596,13 +13639,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </select>
                     </div>
                     <div>
-                      <span className="text-slate-400 block mb-0.5">Feed Label:</span>
+                      <span className="text-slate-500 font-medium block mb-0.5">Feed Label:</span>
                       <input
                         type="text"
                         value={campaignState.feedLabel || campaignState.salesCountry || "IN"}
                         onChange={(e) => setCampaignState(prev => ({ ...prev, feedLabel: e.target.value.toUpperCase() }))}
                         placeholder="IN"
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] font-mono font-bold text-slate-800"
+                        className={`w-full rounded px-2 py-1 text-[11px] font-mono font-bold text-slate-800 transition-all ${
+                          editingField === "salesCountry"
+                            ? "bg-white border-2 border-amber-500 focus:outline-none"
+                            : "bg-slate-50 border border-slate-200"
+                        }`}
                       />
                     </div>
                   </div>
@@ -13897,6 +13944,250 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         placeholder="10"
                         className="w-16 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
                       />
+                    </div>
+                  </div>
+
+                  {/* Campaign Schedule Dates (Start Date & End Date) */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                        <Calendar className="h-3.5 w-3.5 text-amber-600" />
+                        <span>Campaign Duration & Dates</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {campaignState.endDate ? "Scheduled End" : "Runs Continuously"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div>
+                        <span className="text-slate-500 font-medium block mb-1">Start Date:</span>
+                        <input
+                          type="date"
+                          value={campaignState.startDate ? String(campaignState.startDate).split("T")[0] : ""}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, startDate: e.target.value }))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-800 font-mono focus:outline-none focus:bg-white focus:border-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-slate-500 font-medium">End Date:</span>
+                          {campaignState.endDate && (
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, endDate: undefined }))}
+                              className="text-[9px] text-rose-500 hover:text-rose-700 cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="date"
+                          value={campaignState.endDate ? String(campaignState.endDate).split("T")[0] : ""}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, endDate: e.target.value }))}
+                          placeholder="No end date"
+                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-800 font-mono focus:outline-none focus:bg-white focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Target Languages */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                        <Globe className="h-3.5 w-3.5 text-amber-600" />
+                        <span>Target Languages</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {(campaignState.languages || ["All languages"]).length} selected
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {[
+                        "All languages",
+                        "English",
+                        "Hindi",
+                        "Bengali",
+                        "Telugu",
+                        "Marathi",
+                        "Tamil",
+                        "Gujarati",
+                        "Kannada",
+                        "Malayalam",
+                        "Punjabi",
+                        "Spanish",
+                        "French",
+                        "German",
+                        "Arabic"
+                      ].map((lang) => {
+                        const curLangs = campaignState.languages && campaignState.languages.length > 0 ? campaignState.languages : ["All languages"];
+                        const isSelected = curLangs.includes(lang);
+                        return (
+                          <button
+                            key={lang}
+                            type="button"
+                            onClick={() => {
+                              if (lang === "All languages") {
+                                setCampaignState(prev => ({ ...prev, languages: ["All languages"] }));
+                                return;
+                              }
+                              let next = curLangs.filter((l: string) => l !== "All languages");
+                              if (isSelected) {
+                                next = next.filter((l: string) => l !== lang);
+                                if (next.length === 0) next = ["All languages"];
+                              } else {
+                                next.push(lang);
+                              }
+                              setCampaignState(prev => ({ ...prev, languages: next }));
+                            }}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition-colors cursor-pointer ${
+                              isSelected
+                                ? "bg-amber-600 text-white border-amber-600 shadow-2xs"
+                                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            {isSelected ? "✓ " : ""}{lang}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Target Keywords & Search Themes for Shopping */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                        <Target className="h-3.5 w-3.5 text-amber-600" />
+                        <span>Product Keywords & Search Themes</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {((campaignState.keywords?.length || 0) + (campaignState.searchThemes?.length || 0))} active
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Define search intent, product attributes, and high-converting commercial keywords to guide Google Shopping placement matching.
+                    </p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          placeholder="Type product keyword or search theme & press Enter..."
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const val = (e.currentTarget.value || "").trim();
+                              if (val) {
+                                const curKw = campaignState.keywords || [];
+                                const curSt = campaignState.searchThemes || [];
+                                if (!curKw.includes(val)) {
+                                  setCampaignState(p => ({
+                                    ...p,
+                                    keywords: [...curKw, val],
+                                    searchThemes: curSt.includes(val) ? curSt : [...curSt, val]
+                                  }));
+                                }
+                                e.currentTarget.value = "";
+                              }
+                            }
+                          }}
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[10.5px] text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 font-medium"
+                        />
+                      </div>
+                      {((campaignState.keywords || []).length > 0 || (campaignState.searchThemes || []).length > 0) && (
+                        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-0.5">
+                          {Array.from(new Set([...(campaignState.keywords || []), ...(campaignState.searchThemes || [])])).map((kw, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-[10px] text-amber-800 font-medium shadow-2xs"
+                            >
+                              <span>{kw}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCampaignState(p => ({
+                                    ...p,
+                                    keywords: (p.keywords || []).filter(k => k !== kw),
+                                    searchThemes: (p.searchThemes || []).filter(t => t !== kw)
+                                  }));
+                                }}
+                                className="text-amber-400 hover:text-rose-600 cursor-pointer"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Audience Signal Targeting */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                        <Users className="h-3.5 w-3.5 text-amber-600" />
+                        <span>Audience Signals (Buyer Segments)</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {(campaignState.audienceSignals || (campaignState.audienceSignal ? [campaignState.audienceSignal] : [])).length} added
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Direct Google Ads to customers with in-market purchase intent, past store visitors, and affinity shopper segments.
+                    </p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          placeholder="e.g. In-Market Online Shoppers, Luxury Buyers, Cart Abandoners..."
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const val = (e.currentTarget.value || "").trim();
+                              if (val) {
+                                const curSignals = campaignState.audienceSignals || (campaignState.audienceSignal ? [campaignState.audienceSignal] : []);
+                                if (!curSignals.includes(val)) {
+                                  const nextSignals = [...curSignals, val];
+                                  setCampaignState(p => ({
+                                    ...p,
+                                    audienceSignals: nextSignals,
+                                    audienceSignal: nextSignals[0]
+                                  }));
+                                }
+                                e.currentTarget.value = "";
+                              }
+                            }
+                          }}
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[10.5px] text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 font-medium"
+                        />
+                      </div>
+                      {(campaignState.audienceSignals || (campaignState.audienceSignal ? [campaignState.audienceSignal] : [])).length > 0 && (
+                        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-0.5">
+                          {(campaignState.audienceSignals || (campaignState.audienceSignal ? [campaignState.audienceSignal] : [])).map((aud, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-[10px] text-purple-800 font-medium shadow-2xs"
+                            >
+                              <span>👥 {typeof aud === "string" ? aud : aud?.name || "Custom Segment"}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const curSignals = (campaignState.audienceSignals || (campaignState.audienceSignal ? [campaignState.audienceSignal] : [])).filter((_, i) => i !== idx);
+                                  setCampaignState(p => ({
+                                    ...p,
+                                    audienceSignals: curSignals,
+                                    audienceSignal: curSignals[0] || undefined
+                                  }));
+                                }}
+                                className="text-purple-400 hover:text-rose-600 cursor-pointer"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -14870,6 +15161,42 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           <span>Product Partition:</span>
                           <span className="text-slate-700 font-semibold truncate max-w-[150px]">
                             {(campaignState as any).productGroupFilter || "All products"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>End Date:</span>
+                          <span className="text-slate-700 font-semibold font-mono">
+                            {campaignState.endDate ? String(campaignState.endDate).split("T")[0] : "No end date (Continuous)"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Languages:</span>
+                          <span className="text-slate-700 font-semibold truncate max-w-[120px]">
+                            {(campaignState.languages || ["All languages"]).join(", ")}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Product Keywords:</span>
+                          <span className={(campaignState.keywords?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-slate-500 font-medium"}>
+                            {(campaignState.keywords?.length || 0) > 0 ? `${campaignState.keywords?.length} keyword(s)` : "Broad Feed"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>Search Themes:</span>
+                          <span className={(campaignState.searchThemes?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-slate-500 font-medium"}>
+                            {(campaignState.searchThemes?.length || 0) > 0 ? `${campaignState.searchThemes?.length} theme(s)` : "Auto Themes"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                          <span>Audience Signals:</span>
+                          <span className={(campaignState.audienceSignals?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-slate-500 font-medium"}>
+                            {(campaignState.audienceSignals?.length || 0) > 0 ? `${campaignState.audienceSignals?.length} signal(s) active` : "All Shoppers"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
+                          <span>Shopping Promotional Copy:</span>
+                          <span className="text-emerald-600 font-bold">
+                            {(campaignState.headlines?.length || 1)} HL • {(campaignState.descriptions?.length || 1)} Desc ✓
                           </span>
                         </div>
                       </div>
@@ -16751,27 +17078,33 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             )}
 
             {/* 5. GENERATED AD COPY CARD (Headlines, Long Headlines & Descriptions with Vertical Scrollbar & Add Buttons) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "SHOPPING" && (
+            {Boolean(campaignState.objective && campaignState.campaignType) && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
               <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                 <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                  <span>{campaignState.campaignType === "SEARCH" ? "Create ads to get more sales" : "Ad Copy & Creatives"}</span>
+                  <span>
+                    {campaignState.campaignType === "SEARCH"
+                      ? "Create ads to get more sales"
+                      : campaignState.campaignType === "SHOPPING"
+                      ? "Shopping Promotional Copy & Brand Creatives"
+                      : "Ad Copy & Creatives"}
+                  </span>
                 </span>
                 <span className="text-[10px] text-slate-500 font-mono">
-                  {campaignState.headlines?.length || 0} HL • {campaignState.campaignType === "SEARCH" ? "" : `${campaignState.longHeadlines?.length || 0} Long HL • `}{campaignState.descriptions?.length || 0} Desc
+                  {campaignState.headlines?.length || 0} HL • {campaignState.campaignType === "SEARCH" || campaignState.campaignType === "SHOPPING" ? "" : `${campaignState.longHeadlines?.length || 0} Long HL • `}{campaignState.descriptions?.length || 0} Desc
                 </span>
               </div>
 
-              {/* Search Specific: Final URL, Display Path, Calls Header */}
-              {campaignState.campaignType === "SEARCH" && (
+              {/* Search & Shopping: Final URL, Display Path, Calls Header */}
+              {(campaignState.campaignType === "SEARCH" || campaignState.campaignType === "SHOPPING") && (
                 <div className="space-y-3 pb-3 border-b border-slate-200">
                   {/* Final URL */}
                   <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-slate-900 flex items-center gap-1">
                         <Globe className="h-3.5 w-3.5 text-blue-600" />
-                        <span>Final URL</span>
+                        <span>{campaignState.campaignType === "SHOPPING" ? "Store / Product Landing Page URL" : "Final URL"}</span>
                       </label>
                       <button
                         type="button"
@@ -17374,13 +17707,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 )}
               </div>
 
-              {/* Search & Demand Gen Specific: Business Name & Logo + Ad URL Options */}
-              {(campaignState.campaignType === "SEARCH" || campaignState.campaignType === "DEMAND_GEN") && (
+              {/* Search, Demand Gen & Shopping Specific: Business Name & Logo + Ad URL Options */}
+              {(campaignState.campaignType === "SEARCH" || campaignState.campaignType === "DEMAND_GEN" || campaignState.campaignType === "SHOPPING") && (
                 <div className="space-y-3 pt-3 border-t border-slate-200">
                   {/* Business Name */}
                   <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-slate-900">Business name</label>
+                      <label className="text-xs font-semibold text-slate-900">
+                        {campaignState.campaignType === "SHOPPING" ? "Store / Merchant Brand Name" : "Business name"}
+                      </label>
                       <span className="text-[10px] text-slate-400 font-mono">{(campaignState.businessName || "").length}/25</span>
                     </div>
                     <input
@@ -17388,10 +17723,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       maxLength={25}
                       value={campaignState.businessName || ""}
                       onChange={(e) => setCampaignState(prev => ({ ...prev, businessName: e.target.value }))}
-                      placeholder="e.g. My Brand"
+                      placeholder="e.g. My Brand / Store Name"
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
                     />
-                    <p className="text-[10px] text-slate-400">Matches your domain or verified advertiser identity</p>
+                    <p className="text-[10px] text-slate-400">
+                      {campaignState.campaignType === "SHOPPING"
+                        ? "Displayed alongside your merchant products and showcase shopping ads"
+                        : "Matches your domain or verified advertiser identity"}
+                    </p>
                   </div>
 
                   {/* Business Logo */}
@@ -17399,7 +17738,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
                         <ImageIcon className="h-3.5 w-3.5 text-blue-600" />
-                        <span>Business logo</span>
+                        <span>Store / Brand Logo</span>
                       </label>
                       <span className="text-[10px] text-slate-400 font-mono">{(campaignState.logos || []).length} logo(s)</span>
                     </div>
@@ -17446,11 +17785,93 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           }}
                         />
                         <UploadCloud className="h-4 w-4 text-blue-600 mx-auto mb-1" />
-                        <span className="text-[11px] font-semibold text-blue-700 block">Upload Business Logo</span>
+                        <span className="text-[11px] font-semibold text-blue-700 block">Upload Brand Logo</span>
                         <span className="text-[9px] text-slate-400 block">Square 1:1 (min 128x128) or Landscape 4:1</span>
                       </label>
                     )}
                   </div>
+
+                  {/* Shopping Lifestyle & Marketing Images */}
+                  {campaignState.campaignType === "SHOPPING" && (
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
+                          <ImageIcon className="h-3.5 w-3.5 text-amber-600" />
+                          <span>Promotional & Showcase Images</span>
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-mono">{(campaignState.images || []).length} image(s)</span>
+                      </div>
+                      {(campaignState.images || []).length > 0 ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {(campaignState.images || []).map((img, idx) => {
+                            const imgSrc = typeof img === "string" ? img : (img?.url || img?.data || "");
+                            return (
+                              <div key={idx} className="relative w-14 h-14 rounded-xl border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center group">
+                                {imgSrc ? (
+                                  <img src={imgSrc} alt="Image" className="w-full h-full object-cover" />
+                                ) : (
+                                  <ImageIcon className="h-5 w-5 text-slate-400" />
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, images: (prev.images || []).filter((_, i) => i !== idx) }))}
+                                  className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                          <label className="w-14 h-14 border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-amber-50/30">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = () => {
+                                    setCampaignState(prev => ({
+                                      ...prev,
+                                      images: [...(prev.images || []), reader.result as string]
+                                    }));
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                            <UploadCloud className="h-4 w-4 text-amber-600" />
+                            <span className="text-[8px] font-semibold text-amber-700 mt-0.5">+ Add</span>
+                          </label>
+                        </div>
+                      ) : (
+                        <label className="block border border-dashed border-slate-300 hover:border-amber-500 rounded-xl p-3 text-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-amber-50/30">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    images: [...(prev.images || []), reader.result as string]
+                                  }));
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                          <UploadCloud className="h-4 w-4 text-amber-600 mx-auto mb-1" />
+                          <span className="text-[11px] font-semibold text-amber-700 block">Upload Showcase / Product Images</span>
+                          <span className="text-[9px] text-slate-400 block">Landscape 1.91:1 or Square 1:1 for Shopping Showcase & Discovery</span>
+                        </label>
+                      )}
+                    </div>
+                  )}
 
                   {/* Ad URL Options Collapsible Section */}
                   <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">

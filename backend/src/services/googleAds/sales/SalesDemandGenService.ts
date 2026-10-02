@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class SalesDemandGenService extends GoogleAdsBaseService {
@@ -42,7 +43,8 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
       finalUrlSuffix,
       customParameters = [],
       ipExclusions,
-      adSchedule = []
+      adSchedule = [],
+      conversionGoals
     } = payload;
 
     const validHeadlines = (headlines || []).filter((h: any) => h && h.trim());
@@ -154,6 +156,18 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
       
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
+
+      // Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "SalesDemandGenService"
+        );
+      }
 
       // 2. Create Ad Group without a type for Demand Gen
       const adGroupCreate: any = {

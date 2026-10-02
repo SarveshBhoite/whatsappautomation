@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class LeadsDemandGenService extends GoogleAdsBaseService {
@@ -441,7 +442,8 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
       customParameters = [],
       ipExclusions,
       adSchedule = [],
-      adGroups: inputAdGroups
+      adGroups: inputAdGroups,
+      conversionGoals
     } = payload;
 
     const finalUrl = (inputFinalUrl || website || (isAiGuided ? "" : "https://www.example.com")).trim();
@@ -621,6 +623,18 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
             throw campCritErr;
           }
         }
+      }
+
+      // Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "LeadsDemandGenService"
+        );
       }
 
       // ── 6. CREATE AD GROUPS & CHANNEL CONTROLS ──

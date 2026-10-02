@@ -39,7 +39,8 @@ export class YoutubeVideoService extends GoogleAdsBaseService {
       mainBrandColor,
       accentBrandColor,
       brandGuidelines,
-      channels = ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"]
+      channels = ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"],
+      conversionGoals
     } = payload;
 
     const allVideoList = [...(videos || []), ...(youtubeVideos || [])];
@@ -141,7 +142,8 @@ export class YoutubeVideoService extends GoogleAdsBaseService {
         deviceTargeting,
         devices,
         adSchedule,
-        videoUrls: resolvedVideoUrls
+        videoUrls: resolvedVideoUrls,
+        conversionGoals: conversionGoals || []
       },
       advertisingChannelType: "VIDEO",
       amountMicros: BigInt(amountMicros),

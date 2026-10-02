@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
@@ -111,7 +112,8 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       structuredSnippets = [],
       adSchedule = [],
       devices,
-      demographicExclusions
+      demographicExclusions,
+      conversionGoals
     } = payload;
 
     // Final URL Validation
@@ -771,6 +773,18 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
         }
       } catch (extErr: any) {
         console.warn("[PMax Extension Assets Warning]:", extErr?.response?.data || extErr.message);
+      }
+
+      // Campaign Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "NoGuidancePerformanceMaxService"
+        );
       }
 
     } catch (err: any) {

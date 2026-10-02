@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class AppPromotionAppService extends GoogleAdsBaseService {
@@ -145,7 +146,8 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
       youtubeVideos = [],
       startDate,
       endDate,
-      adGroupName
+      adGroupName,
+      conversionGoals
     } = payload;
 
     const trimmedCampaignName = (campaignName || "").trim();
@@ -204,7 +206,7 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
       }
     }
 
-    const biddingStrategyGoalType = "OPTIMIZE_INSTALLS_TARGET_INSTALL_COST";
+    const biddingStrategyGoalType = GoogleAdsConversionGoalMapper.resolveAppBiddingGoalType(conversionGoals);
     const amountMicros = Math.round(effectiveBudget * 1_000_000);
     const targetCpaMicros = Math.round(rawTargetCpa * 1_000_000);
     const cid = (customerId || "").replace(/-/g, "").trim();

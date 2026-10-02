@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
@@ -111,7 +112,8 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
       structuredSnippets = [],
       adSchedule = [],
       devices,
-      demographicExclusions
+      demographicExclusions,
+      conversionGoals
     } = payload;
 
     const safeFinalUrl = GoogleAdsBaseService.cleanUrl(finalUrl);
@@ -765,6 +767,18 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
         }
       } catch (extErr: any) {
         console.warn("[PMax Extension Assets Warning]:", extErr?.response?.data || extErr.message);
+      }
+
+      // Campaign Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "WebsiteTrafficPerformanceMaxService"
+        );
       }
 
     } catch (err: any) {

@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class SalesSearchService extends GoogleAdsBaseService {
@@ -53,7 +54,8 @@ export class SalesSearchService extends GoogleAdsBaseService {
       displayPath2,
       adGroupName,
       adSchedule = [],
-      adScheduleList = []
+      adScheduleList = [],
+      conversionGoals
     } = payload;
 
     const finalUrl = (inputFinalUrl || websiteVisitsUrl || website || "").trim();
@@ -602,6 +604,18 @@ export class SalesSearchService extends GoogleAdsBaseService {
         } catch (caErr: any) {
           console.warn("[SalesSearchService] campaignAssets:mutate linking warning:", caErr?.message || caErr);
         }
+      }
+
+      // Campaign Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          createdCampaignResource || apiResult.campaignResourceName,
+          conversionGoals,
+          headers,
+          "SalesSearchService"
+        );
       }
 
     } catch (apiErr: any) {

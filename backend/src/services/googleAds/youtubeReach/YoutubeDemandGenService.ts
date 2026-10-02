@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class YoutubeDemandGenService extends GoogleAdsBaseService {
@@ -1029,29 +1030,15 @@ export class YoutubeDemandGenService extends GoogleAdsBaseService {
       }
 
       // ── 9B. CONVERSION GOALS CONFIGURATION (campaignConversionGoals:mutate) ──
-      if (Array.isArray(conversionGoals) && conversionGoals.length > 0) {
-        try {
-          const conversionOps: any[] = [];
-          for (const cg of conversionGoals) {
-            const goalResName = cg.resourceName || (cg.category && cg.origin ? `customers/${cid}/campaignConversionGoals/${campaignRef.split("/").pop()}~${cg.category}~${cg.origin}` : null);
-            if (goalResName) {
-              conversionOps.push({
-                update: {
-                  resourceName: goalResName,
-                  biddable: cg.biddable !== undefined ? Boolean(cg.biddable) : true
-                },
-                updateMask: "biddable"
-              });
-            }
-          }
-          if (conversionOps.length > 0) {
-            await axios.post(`${ADS_BASE}/customers/${cid}/campaignConversionGoals:mutate`, {
-              operations: conversionOps
-            }, { headers });
-          }
-        } catch (cgErr: any) {
-          console.warn("[YoutubeDemandGenService] campaignConversionGoals mutate warning:", cgErr?.response?.data || cgErr.message);
-        }
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "YoutubeDemandGenService"
+        );
       }
 
       // ── 10. UPLOAD ASSETS & PREPARE FORMAT-SPECIFIC AD ──

@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import { YouTubeService } from "../../youtubeService";
 import axios from "axios";
 
@@ -40,7 +41,8 @@ export class NoGuidanceVideoService extends GoogleAdsBaseService {
       mainBrandColor,
       accentBrandColor,
       brandGuidelines,
-      channels = ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"]
+      channels = ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"],
+      conversionGoals
     } = payload;
 
     const allVideoList = [...(videos || []), ...(youtubeVideos || [])];
@@ -112,6 +114,18 @@ export class NoGuidanceVideoService extends GoogleAdsBaseService {
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
       
+      // Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "NoGuidanceVideoService"
+        );
+      }
+
       try {
         const adGroupPayload = {
           operations: [{
