@@ -136,11 +136,16 @@ export function isBiddingStrategyCompatibleWithTotalBudget(
  */
 export function checkImageRatio(
   img: any,
-  targetRatio: "1:1" | "1.91:1" | "4:5" | "9:16",
+  targetRatio: "1:1" | "1.91:1" | "4:5" | "9:16" | "4:1",
   minWidth = 300,
   minHeight = 300
 ): boolean {
   if (!img) return false;
+
+  const size = Number(img.size || img.fileSize || img.fileSizeBytes || img.bytes || 0);
+  if (size > 5 * 1024 * 1024) {
+    return false; // Reject files larger than 5 MB
+  }
 
   const w = Number(img.width || img.dimensions?.width);
   const h = Number(img.height || img.dimensions?.height);
@@ -161,6 +166,9 @@ export function checkImageRatio(
     if (targetRatio === "9:16") {
       return Math.abs(ratio - (9 / 16)) <= 0.05;
     }
+    if (targetRatio === "4:1") {
+      return Math.abs(ratio - 4.0) <= 0.2;
+    }
   }
 
   // If explicit aspectRatio metadata is verified
@@ -175,6 +183,9 @@ export function checkImageRatio(
     return true;
   }
   if (targetRatio === "1.91:1" && ft === "MARKETING_IMAGE") {
+    return true;
+  }
+  if (targetRatio === "4:1" && (ft === "LANDSCAPE_LOGO" || ft === "LOGO_LANDSCAPE")) {
     return true;
   }
 
@@ -220,12 +231,46 @@ export class CommonCampaignRules {
       });
     }
 
-    // Budget Presence & Value
+    // Objective validation (reject unknown or incompatible objective)
+    const rawObj = state.objective;
+    const normObj = String(rawObj || "SALES").toUpperCase().replace(/-/g, "_").trim();
+    const cType = String(state.campaignType || "").toUpperCase().trim();
+    const validObjectives = [
+      "SALES",
+      "LEADS",
+      "WEBSITE_TRAFFIC",
+      "APP_PROMOTION",
+      "AWARENESS",
+      "YOUTUBE",
+      "YOUTUBE_REACH",
+      "STORE_VISITS",
+      "LOCAL",
+      "NO_GUIDANCE",
+      "WITHOUT_GUIDANCE"
+    ];
+    if (rawObj && !validObjectives.includes(normObj)) {
+      errors.push({
+        code: "UNSUPPORTED_OBJECTIVE",
+        field: "objective",
+        message: `Unsupported objective "${rawObj}" for campaign creation.`,
+        severity: "BLOCKING"
+      });
+    }
+
+    // Budget Presence & Value (parse string amounts like "₹6,500", "6500/day")
     const budgetType = String(state.budgetType || "DAILY").toUpperCase();
     const rawBudget = budgetType === "TOTAL"
       ? (state.totalBudget !== undefined && state.totalBudget !== null && state.totalBudget !== "" ? state.totalBudget : (state.dailyBudget || state.budget))
       : (state.dailyBudget !== undefined && state.dailyBudget !== null && state.dailyBudget !== "" ? state.dailyBudget : state.budget);
-    const budgetNum = Number(rawBudget);
+
+    let budgetNum = NaN;
+    if (rawBudget !== undefined && rawBudget !== null && String(rawBudget).trim() !== "") {
+      const cleaned = String(rawBudget)
+        .replace(/[₹$€£,]/g, "")
+        .replace(/\s*(?:\/|\bper\b)\s*(?:day|daily|month|campaign|total)?/gi, "")
+        .trim();
+      budgetNum = Number(cleaned);
+    }
 
     if (rawBudget === undefined || rawBudget === null || String(rawBudget).trim() === "" || isNaN(budgetNum) || !isFinite(budgetNum)) {
       errors.push({
@@ -301,7 +346,6 @@ export class CommonCampaignRules {
     }
 
     // Validate campaign type support for TOTAL budget
-    const cType = String(state.campaignType || "").toUpperCase();
     if (budgetType === "TOTAL") {
       if (!isTotalBudgetSupported(cType)) {
         errors.push({
@@ -428,7 +472,8 @@ export class SearchCampaignRules {
 
     // CPA only with MAXIMIZE_CONVERSIONS or TARGET_CPA
     if (state.targetCpa !== undefined && state.targetCpa !== null && state.targetCpa !== "") {
-      const cpaNum = Number(state.targetCpa);
+      const cleanedCpa = String(state.targetCpa).replace(/[₹$€£,]/g, "").trim();
+      const cpaNum = Number(cleanedCpa);
       if (strat === "MAXIMIZE_CONVERSION_VALUE") {
         errors.push({
           code: "SEARCH_INCOMPATIBLE_TARGET_CPA",
@@ -455,7 +500,8 @@ export class SearchCampaignRules {
 
     // ROAS only with MAXIMIZE_CONVERSION_VALUE or TARGET_ROAS
     if (state.targetRoas !== undefined && state.targetRoas !== null && state.targetRoas !== "") {
-      const roasNum = Number(state.targetRoas);
+      const cleanedRoas = String(state.targetRoas).replace(/%/g, "").trim();
+      const roasNum = Number(cleanedRoas);
       if (strat === "MAXIMIZE_CONVERSIONS") {
         errors.push({
           code: "SEARCH_INCOMPATIBLE_TARGET_ROAS",
@@ -720,6 +766,53 @@ export class PerformanceMaxCampaignRules {
       });
     }
 
+    // Asset Group Name (Google Ads API Asset Group name: max 128 characters)
+    if (state.assetGroupName !== undefined && state.assetGroupName !== null) {
+      const agName = String(state.assetGroupName).trim();
+      if (agName.length > 128) {
+        errors.push({
+          code: "PMAX_ASSET_GROUP_NAME_TOO_LONG",
+          field: "assetGroupName",
+          message: "Performance Max Asset Group Name must not exceed 128 characters.",
+          severity: "BLOCKING"
+        });
+      }
+    }
+
+    // Brand Guidelines Enabled (Boolean)
+    if (state.brandGuidelinesEnabled !== undefined && typeof state.brandGuidelinesEnabled !== "boolean" && typeof state.brandGuidelinesEnabled !== "string") {
+      errors.push({
+        code: "PMAX_INVALID_BRAND_GUIDELINES",
+        field: "brandGuidelinesEnabled",
+        message: "Brand Guidelines setting must be a boolean (On/Off).",
+        severity: "BLOCKING"
+      });
+    }
+
+    // Customer Acquisition Mode (TARGET_ALL_EQUALLY, BID_HIGHER_FOR_NEW_CUSTOMERS, TARGET_NEW_CUSTOMER_ONLY)
+    if (state.customerAcquisitionMode !== undefined && state.customerAcquisitionMode !== null && String(state.customerAcquisitionMode).trim() !== "") {
+      const rawMode = String(state.customerAcquisitionMode).trim().toUpperCase();
+      const validModes = [
+        "TARGET_ALL_EQUALLY",
+        "BID_HIGHER_FOR_NEW_CUSTOMERS",
+        "TARGET_NEW_CUSTOMER_ONLY",
+        // Friendly UI aliases mapped canonically by services
+        "EQUAL",
+        "BID_HIGHER",
+        "ONLY_NEW",
+        "ALL_CUSTOMERS",
+        "NEW_CUSTOMERS_ONLY"
+      ];
+      if (!validModes.includes(rawMode)) {
+        errors.push({
+          code: "PMAX_INVALID_CUSTOMER_ACQUISITION_MODE",
+          field: "customerAcquisitionMode",
+          message: `Invalid customer acquisition mode "${state.customerAcquisitionMode}" for Performance Max. Supported: Bid equally (TARGET_ALL_EQUALLY), Bid higher for new customers (BID_HIGHER_FOR_NEW_CUSTOMERS), or Only bid for new customers (TARGET_NEW_CUSTOMER_ONLY).`,
+          severity: "BLOCKING"
+        });
+      }
+    }
+
     return errors;
   }
 }
@@ -806,7 +899,8 @@ export class DisplayCampaignRules {
 
     const hasLandscape = images.some(im => checkImageRatio(im, "1.91:1", 600, 314));
     const hasSquare = images.some(im => checkImageRatio(im, "1:1", 300, 300));
-    const hasLogo = logos.some(l => checkImageRatio(l, "1:1", 128, 128)) || images.some(im => im?.fieldType === "LOGO" && checkImageRatio(im, "1:1", 128, 128));
+    const hasLogo = logos.some(l => checkImageRatio(l, "1:1", 128, 128) || checkImageRatio(l, "4:1", 512, 128)) ||
+      images.some(im => im?.fieldType === "LOGO" && (checkImageRatio(im, "1:1", 128, 128) || checkImageRatio(im, "4:1", 512, 128)));
 
     if (!hasLandscape) {
       errors.push({
@@ -824,11 +918,13 @@ export class DisplayCampaignRules {
         severity: "BLOCKING"
       });
     }
-    if (!hasLogo) {
+    // Brand logos are optional for Google Display campaigns at launch.
+    // If a logo is provided, ensure it adheres to Display logo specifications (1:1 min 128x128 or 4:1 min 512x128).
+    if (logos.length > 0 && !hasLogo) {
       errors.push({
-        code: "DISPLAY_MISSING_LOGO",
+        code: "DISPLAY_INVALID_LOGO",
         field: "logos",
-        message: "Responsive Display ads require at least 1 square brand logo (1:1 ratio, min 128×128 px).",
+        message: "Provided brand logo must be a valid format: 1:1 square (min 128×128 px) or 4:1 landscape (min 512×128 px).",
         severity: "BLOCKING"
       });
     }

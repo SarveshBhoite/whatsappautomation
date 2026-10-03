@@ -265,6 +265,8 @@ export interface PerformanceMaxCampaignPlan extends BaseCampaignPlanFields {
     endDate?: string;
     euPolitical?: "YES" | "NO";
     assetGroupName?: string;
+    brandGuidelinesEnabled?: boolean;
+    customerAcquisitionMode?: "TARGET_ALL_EQUALLY" | "BID_HIGHER_FOR_NEW_CUSTOMERS" | "TARGET_NEW_CUSTOMER_ONLY" | string;
   };
   budgetConfig: {
     budgetType: "DAILY";
@@ -579,7 +581,9 @@ export class CampaignPlanMapper {
           startDate,
           endDate,
           euPolitical,
-          assetGroupName: state.assetGroupName
+          assetGroupName: state.assetGroupName,
+          brandGuidelinesEnabled: state.brandGuidelinesEnabled !== undefined ? Boolean(state.brandGuidelinesEnabled) : false,
+          customerAcquisitionMode: state.customerAcquisitionMode
         },
         budgetConfig: {
           budgetType: "DAILY",

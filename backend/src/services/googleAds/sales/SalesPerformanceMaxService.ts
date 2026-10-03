@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { CampaignNormalizationService } from "../shared/CampaignNormalizationService";
 import axios from "axios";
 
 export class SalesPerformanceMaxService extends GoogleAdsBaseService {
@@ -66,10 +67,13 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
     const safeFinalUrl = GoogleAdsBaseService.cleanUrl(finalUrl);
     if (!safeFinalUrl) throw new Error("A valid Final URL is required.");
 
-    const rawBudget = dailyBudget !== undefined && dailyBudget !== null ? dailyBudget : budget;
+    const isCustomPeriod = String(budgetType).toUpperCase() === "TOTAL" && Number(totalBudget) > 0 && Boolean(startDate && endDate);
+    const rawBudget = dailyBudget !== undefined && dailyBudget !== null && dailyBudget !== ""
+      ? dailyBudget
+      : (budget !== undefined && budget !== null && budget !== "" ? budget : (isCustomPeriod ? totalBudget : null));
     const effectiveBudget = Number(rawBudget);
     if (isNaN(effectiveBudget) || effectiveBudget <= 0) {
-      throw new Error("Daily Budget is required and must be a valid positive amount greater than 0.");
+      throw new Error("A valid positive budget greater than 0 is required.");
     }
     const amountMicrosVal = amountMicros || Math.round(effectiveBudget * 1_000_000);
 
@@ -142,13 +146,11 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       };
     }
 
-    // Customer Acquisition Setting
+    // Customer Acquisition Setting (Google Ads API: customerAcquisitionSetting.optimizationMode)
     let customerAcquisitionSetting: any = undefined;
     if (customerAcquisitionMode) {
-      const normAcq = String(customerAcquisitionMode).toUpperCase();
-      if (normAcq === "BID_ONLY_FOR_NEW_CUSTOMERS" || normAcq === "BID_HIGHER_FOR_NEW_CUSTOMERS" || normAcq === "TARGET_ALL_EQUALLY") {
-        customerAcquisitionSetting = { optimizationMode: normAcq };
-      }
+      const normAcq = CampaignNormalizationService.normalizeCustomerAcquisitionMode(customerAcquisitionMode);
+      customerAcquisitionSetting = { optimizationMode: normAcq };
     }
 
     // Geo Target Type Setting
@@ -400,31 +402,39 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
           assetGroupOperation: {
             create: assetGroupCreate
           }
-        },
-        {
-          assetGroupAssetOperation: {
-            create: {
-              assetGroup: tempAssetGroupResourceName,
-              asset: businessNameAssetRef,
-              fieldType: "BUSINESS_NAME",
-              status: "ENABLED"
-            }
-          }
         }
       ];
 
-      logoRefs.forEach((asset: string) => {
-        mutateOperations.push({
-          assetGroupAssetOperation: {
-            create: {
-              assetGroup: tempAssetGroupResourceName,
-              asset,
-              fieldType: "LOGO",
-              status: "ENABLED"
+      // Brand Guidelines Rule (Google Ads API v21+ / v24):
+      // When brandGuidelinesEnabled is true, brand assets (BUSINESS_NAME, LOGO) are linked at the CAMPAIGN level via CampaignAsset.
+      // When brandGuidelinesEnabled is false, brand assets are linked at the ASSET_GROUP level via AssetGroupAsset.
+      if (!brandGuidelinesEnabled) {
+        if (businessNameAssetRef) {
+          mutateOperations.push({
+            assetGroupAssetOperation: {
+              create: {
+                assetGroup: tempAssetGroupResourceName,
+                asset: businessNameAssetRef,
+                fieldType: "BUSINESS_NAME",
+                status: "ENABLED"
+              }
             }
-          }
+          });
+        }
+
+        logoRefs.forEach((asset: string) => {
+          mutateOperations.push({
+            assetGroupAssetOperation: {
+              create: {
+                assetGroup: tempAssetGroupResourceName,
+                asset,
+                fieldType: "LOGO",
+                status: "ENABLED"
+              }
+            }
+          });
         });
-      });
+      }
 
       headlineRefs.forEach((asset: string) => {
         mutateOperations.push({
@@ -640,6 +650,32 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       console.log(`=========================================================================\n`);
       try {
         const campaignAssetOperations: any[] = [];
+
+        // Brand Guidelines (Google Ads API v21+ / v24):
+        // When brandGuidelinesEnabled is true, BUSINESS_NAME and LOGO must be linked as CampaignAsset
+        if (brandGuidelinesEnabled) {
+          if (businessNameAssetRef) {
+            campaignAssetOperations.push({
+              create: {
+                campaign: campaignRef,
+                asset: businessNameAssetRef,
+                fieldType: "BUSINESS_NAME",
+                status: "ENABLED"
+              }
+            });
+          }
+
+          logoRefs.forEach((asset: string) => {
+            campaignAssetOperations.push({
+              create: {
+                campaign: campaignRef,
+                asset,
+                fieldType: "LOGO",
+                status: "ENABLED"
+              }
+            });
+          });
+        }
 
         // Sitelinks
         const validSitelinks = Array.isArray(sitelinks) ? sitelinks.filter((s: any) => s && s.text && s.url) : [];

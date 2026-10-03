@@ -75,7 +75,14 @@ import {
   Link,
   Building2,
   PhoneCall,
-  Users
+  Users,
+  ShieldCheck,
+  UserCheck,
+  Palette,
+  Type,
+  MousePointerClick,
+  Share2,
+  Phone
 } from "lucide-react";
 import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 import { GoogleCampaignChannelIcons } from "@/components/ads/GoogleCampaignChannelIcons";
@@ -2907,9 +2914,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       const hasBiz = !!(state.businessName?.trim() || state.business?.name?.trim());
       const hasUrl = !!(state.website && (state.website.startsWith("http://") || state.website.startsWith("https://")) && !state.website.includes("example.com"));
       const hasLongHl = validLongHeadlines.length >= 1 || validHeadlines.length >= 1;
-      return hasBiz && hasUrl && hasImages && hasLogos && validHeadlines.length >= 1 && hasLongHl && validDescriptions.length >= 1;
+      // Brand logos are optional at launch for Display campaigns
+      return hasBiz && hasUrl && hasImages && validHeadlines.length >= 1 && hasLongHl && validDescriptions.length >= 1;
     }
-
     if (cType === "VIDEO") {
       const isYtConn = isYouTubeVerified(customerProfile || state.customerProfile);
       if (!isYtConn) return false;
@@ -3175,13 +3182,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           fixAction: () => handleTriggerAiAssetGeneration("IMAGE")
         });
       }
-      if (allLogos.length < 1) {
-        missing.push({
-          label: "At least 1 Brand Logo (1:1) is required for Display",
-          field: "logos",
-          fixAction: () => handleTriggerAiAssetGeneration("LOGO")
-        });
-      }
+      // Note: Brand logos are optional at launch for Display campaigns
     } else if (cType === "SHOPPING") {
       const mId = (state.merchantCenterId || (state as any).merchantId || "").trim();
       if (!/^\d+$/.test(mId)) {
@@ -3312,6 +3313,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       merchantCenterId: campaignState.merchantCenterId || "",
       salesCountry: campaignState.salesCountry || "",
       adGroupName: campaignState.adGroupName || "",
+      assetGroupName: campaignState.assetGroupName || "",
       brandGuidelinesEnabled: Boolean(campaignState.brandGuidelinesEnabled),
       customerAcquisitionMode: campaignState.customerAcquisitionMode || "",
       trackingTemplate: campaignState.trackingTemplate || "",
@@ -4105,9 +4107,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     setEditorPanY(0);
 
     // Pick best default crop ratio
+    const isDisplayCampaign = campaignState.campaignType === "DISPLAY";
     if (targetType === "LOGO") {
       const isWide = dimensions.width / (dimensions.height || 1) >= 2.5;
       setEditorCropRatio(isWide ? "4:1" : "1:1");
+    } else if (isDisplayCampaign) {
+      // DISPLAY supports ONLY Landscape (1.91:1) and Square (1:1)
+      const ratio = dimensions.width / (dimensions.height || 1);
+      setEditorCropRatio(ratio >= 1.4 ? "1.91:1" : "1:1");
     } else {
       const ratio = dimensions.width / (dimensions.height || 1);
       if (ratio >= 1.4) {
@@ -4232,9 +4239,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           ? `Generate 1 high-intent Google Ads search keyword related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
           : `Generate 1 high-intent Google Ads search keyword for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
       } else if (targetType === "IMAGE") {
-        intentMessage = `Generate high-converting marketing creative images for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Landscape (1.91:1) and Square (1:1) ad creative concepts.`;
+        if (campaignState.campaignType === "DISPLAY") {
+          intentMessage = `Generate Google Ads Display compliant marketing images for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Generate Display Landscape (1200x628 px, 1.91:1) and Display Square (1200x1200 px, 1:1). Follow professional advertising creative standards: clear product/service visibility, clean composition, high-quality commercial photography, safe central area, avoid excessive text, fake CTA buttons, borders, collages, and separate overlay logos.`;
+        } else {
+          intentMessage = `Generate high-converting marketing creative images for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Landscape (1.91:1) and Square (1:1) ad creative concepts.`;
+        }
       } else if (targetType === "LOGO") {
-        intentMessage = `Generate a modern, high-resolution Google Ads business logo for "${bizContext}"${descContext}${siteContext}. Requirements: Clean vector style, square (1:1) aspect ratio on a solid background.`;
+        if (campaignState.campaignType === "DISPLAY") {
+          intentMessage = `Generate Google Ads Display compliant logo assets for "${bizContext}"${descContext}${siteContext}. Requirements: Display Square Logo (1200x1200 px, 1:1) and Display Landscape Logo (1200x300 px, 4:1). Ensure clean vector style, readable at small sizes, centered inside safe area, and no distortion or fake UI elements.`;
+        } else {
+          intentMessage = `Generate a modern, high-resolution Google Ads business logo for "${bizContext}"${descContext}${siteContext}. Requirements: Clean vector style, square (1:1) aspect ratio on a solid background.`;
+        }
       }
 
       const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
@@ -4875,53 +4890,81 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       let detectedAspect = "1.91:1";
       let detectedFieldType: "MARKETING_IMAGE" | "SQUARE_MARKETING_IMAGE" | "LOGO" = "MARKETING_IMAGE";
 
+      const isDisplayMode = campaignState.campaignType === "DISPLAY";
+
       if (targetType === "LOGO") {
         detectedFieldType = "LOGO";
         // Logo Guidelines:
-        // Square (1:1): Min 128x128, Rec 1200x1200 (aspect ratio 0.95 - 1.05)
+        // Square (1:1): Min 128x128, Rec 1200x1200 (aspect ratio 0.90 - 1.10)
         // Landscape (4:1): Min 512x128, Rec 1200x300 (aspect ratio 3.5 - 4.5)
         const isSquare = ratio >= 0.9 && ratio <= 1.1;
         const isLandscapeLogo = ratio >= 3.5 && ratio <= 4.5;
         detectedAspect = isLandscapeLogo ? "4:1" : "1:1";
 
         if (!isSquare && !isLandscapeLogo) {
-          ruleViolationReason = `Logo aspect ratio (${ratio.toFixed(2)}:1, ${width}x${height}px) does not match Google Ads logo specifications. Required: Square (1:1) or Landscape (4:1).`;
+          ruleViolationReason = isDisplayMode
+            ? `Display logo aspect ratio (${ratio.toFixed(2)}:1, ${width}x${height}px) does not match Display logo specifications. Required: Square (1:1) or Landscape Logo (4:1).`
+            : `Logo aspect ratio (${ratio.toFixed(2)}:1, ${width}x${height}px) does not match Google Ads logo specifications. Required: Square (1:1) or Landscape (4:1).`;
         } else if (isSquare && (width < 128 || height < 128)) {
           ruleViolationReason = `Square logo must be at least 128x128 pixels (uploaded: ${width}x${height}px).`;
         } else if (isLandscapeLogo && (width < 512 || height < 128)) {
           ruleViolationReason = `Landscape logo (4:1) must be at least 512x128 pixels (uploaded: ${width}x${height}px).`;
         }
       } else if (targetType === "IMAGE") {
-        // Marketing Image Guidelines:
-        // Landscape (1.91:1): Min 600x314, Rec 1200x628 (ratio ~1.85 - 2.05)
-        // Square (1:1): Min 300x300, Rec 1200x1200 (ratio ~0.95 - 1.05)
-        // Portrait (4:5): Min 480x600, Rec 960x1200 (ratio ~0.75 - 0.85)
-        // Tall Portrait (9:16): Min 600x1067, Rec 1080x1920 (ratio ~0.50 - 0.62)
-        const isLandscape = ratio >= 1.8 && ratio <= 2.05;
-        const isSquare = ratio >= 0.95 && ratio <= 1.05;
-        const isPortrait45 = ratio >= 0.75 && ratio <= 0.85;
-        const isTall916 = ratio >= 0.50 && ratio <= 0.62;
+        if (isDisplayMode) {
+          // DISPLAY CAMPAIGN SPECIFIC RULES:
+          // Strictly Landscape (1.91:1) min 600x314, or Square (1:1) min 300x300.
+          // Portrait (4:5) and Story (9:16) are NOT permitted for Display.
+          const isLandscape = ratio >= 1.83 && ratio <= 2.05;
+          const isSquare = ratio >= 0.95 && ratio <= 1.05;
 
-        if (isSquare) {
-          detectedFieldType = "SQUARE_MARKETING_IMAGE";
-          detectedAspect = "1:1";
-        } else if (isLandscape) {
-          detectedFieldType = "MARKETING_IMAGE";
-          detectedAspect = "1.91:1";
-        } else if (isPortrait45) {
-          detectedFieldType = "MARKETING_IMAGE";
-          detectedAspect = "4:5";
-        } else if (isTall916) {
-          detectedFieldType = "MARKETING_IMAGE";
-          detectedAspect = "9:16";
-        }
+          if (isSquare) {
+            detectedFieldType = "SQUARE_MARKETING_IMAGE";
+            detectedAspect = "1:1";
+            if (width < 300 || height < 300) {
+              ruleViolationReason = `Display Square image (1:1) must be at least 300x300 pixels (uploaded: ${width}x${height}px). Recommended: 1200x1200px.`;
+            }
+          } else if (isLandscape) {
+            detectedFieldType = "MARKETING_IMAGE";
+            detectedAspect = "1.91:1";
+            if (width < 600 || height < 314) {
+              ruleViolationReason = `Display Landscape image (1.91:1) must be at least 600x314 pixels (uploaded: ${width}x${height}px). Recommended: 1200x628px.`;
+            }
+          } else {
+            ruleViolationReason = `Display campaigns support only Landscape (1.91:1) or Square (1:1) images. Uploaded image is ${width}x${height}px (${ratio.toFixed(2)}:1). Please crop to a valid Display format.`;
+          }
+        } else {
+          // Marketing Image Guidelines for PMax / Demand Gen:
+          // Landscape (1.91:1): Min 600x314, Rec 1200x628 (ratio ~1.85 - 2.05)
+          // Square (1:1): Min 300x300, Rec 1200x1200 (ratio ~0.95 - 1.05)
+          // Portrait (4:5): Min 480x600, Rec 960x1200 (ratio ~0.75 - 0.85)
+          // Tall Portrait (9:16): Min 600x1067, Rec 1080x1920 (ratio ~0.50 - 0.62)
+          const isLandscape = ratio >= 1.8 && ratio <= 2.05;
+          const isSquare = ratio >= 0.95 && ratio <= 1.05;
+          const isPortrait45 = ratio >= 0.75 && ratio <= 0.85;
+          const isTall916 = ratio >= 0.50 && ratio <= 0.62;
 
-        const matchesStandardRatio = isLandscape || isSquare || isPortrait45 || isTall916;
+          if (isSquare) {
+            detectedFieldType = "SQUARE_MARKETING_IMAGE";
+            detectedAspect = "1:1";
+          } else if (isLandscape) {
+            detectedFieldType = "MARKETING_IMAGE";
+            detectedAspect = "1.91:1";
+          } else if (isPortrait45) {
+            detectedFieldType = "MARKETING_IMAGE";
+            detectedAspect = "4:5";
+          } else if (isTall916) {
+            detectedFieldType = "MARKETING_IMAGE";
+            detectedAspect = "9:16";
+          }
 
-        if (!matchesStandardRatio) {
-          ruleViolationReason = `Image aspect ratio (${ratio.toFixed(2)}:1, ${width}x${height}px) does not match Google Ads standard creative ratios (Landscape 1.91:1, Square 1:1, Portrait 4:5, or Story 9:16).`;
-        } else if (width < 300 || height < 300) {
-          ruleViolationReason = `Marketing image must have at least 300x300px minimum dimension (uploaded: ${width}x${height}px).`;
+          const matchesStandardRatio = isLandscape || isSquare || isPortrait45 || isTall916;
+
+          if (!matchesStandardRatio) {
+            ruleViolationReason = `Image aspect ratio (${ratio.toFixed(2)}:1, ${width}x${height}px) does not match Google Ads standard creative ratios (Landscape 1.91:1, Square 1:1, Portrait 4:5, or Story 9:16).`;
+          } else if (width < 300 || height < 300) {
+            ruleViolationReason = `Marketing image must have at least 300x300px minimum dimension (uploaded: ${width}x${height}px).`;
+          }
         }
       }
 
@@ -5763,6 +5806,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           effectiveState.logos = autoLogos;
           setCampaignState(p => ({ ...p, logos: autoLogos }));
         }
+        if (campaignState.assetGroupName && campaignState.assetGroupName.trim()) {
+          effectiveState.assetGroupName = campaignState.assetGroupName.trim();
+        }
       } else if (cType === "DISPLAY") {
         if (validH.length < 1) {
           throw new Error("Display campaigns require at least 1 Headline (up to 30 chars). Please add a headline in the Live Cockpit or ask AI to generate it.");
@@ -5808,11 +5854,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           return raw && !raw.startsWith("customers/");
         });
 
-        if (currentLogos.length === 0) {
-          currentLogos = [
-            { url: DEFAULT_DISP_LOGO, fieldType: "LOGO", name: "Default_Brand_Logo", aspectRatio: "1:1" }
-          ];
-        }
+        // Brand logos are optional for Display campaigns - do not force default logo if empty
         effectiveState.logos = currentLogos;
         setCampaignState(p => ({ ...p, logos: currentLogos }));
       } else if (cType === "SEARCH") {
@@ -5977,6 +6019,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         };
       }
 
+      // Automatically resolve customerId from active context, userProfile, or campaignState
+      const effectiveCustomerId = customerId || userProfile?.customerId || (campaignState as any)?.customerId || "";
+      if (effectiveCustomerId) {
+        effectiveState.customerId = effectiveCustomerId.replace(/-/g, "").trim();
+      }
+
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/create-campaign`, {
         method: "POST",
         headers: {
@@ -5984,7 +6032,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           "x-organization-id": orgId
         },
         body: JSON.stringify({
-          customerId,
+          customerId: effectiveCustomerId,
           campaignState: effectiveState,
           userConfirmed: true,
           idempotencyKey
@@ -6035,8 +6083,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
       setPublishSuccess(`🎉 Success! Campaign "${campaignState.campaignName || "AI Campaign"}" has been created in Google Ads.`);
 
+      const redirectCid = effectiveCustomerId || data?.customerId || "";
       setTimeout(() => {
-        router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+        router.push(`/ads${redirectCid ? `?customerId=${redirectCid}` : ""}`);
       }, 2500);
     } catch (err: any) {
       const rawMsg = err.message || "Failed to publish campaign to Google Ads.";
@@ -9576,8 +9625,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             )}
 
             {/* 1. CAMPAIGN STRATEGY CARD (All 11 Exact Fields with Inline Edit Support) */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-              <div className="flex items-center justify-between">
+            <div className="bg-slate-50/90 border border-slate-200 rounded-2xl p-3 sm:p-3.5 space-y-2 shadow-xs">
+              <div className="flex items-center justify-between pb-1 border-b border-slate-200/80">
                 <div className="flex items-center gap-2">
                   <GoogleCampaignChannelIcons
                     campaignType={campaignState.campaignType}
@@ -9587,7 +9636,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   <span className="font-bold text-xs text-slate-900">Campaign Strategy</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
                     campaignState.objective
                       ? "bg-blue-50 text-blue-700 border-blue-200"
                       : "bg-slate-100 text-slate-500 border-slate-200"
@@ -9597,186 +9646,264 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 </div>
               </div>
 
-              <div className="space-y-1.5 text-[11px]">
+              <div className="space-y-1 text-[11px]">
                 
                 {/* Field 1: Business */}
-                <div className="flex justify-between items-center py-1 border-b border-slate-200 group">
-                  <div className="flex items-center gap-1 text-slate-500">
-                    <span>Business:</span>
-                    <button
-                      type="button"
-                      onClick={() => (editingField === "businessName" ? cancelFieldEdit() : startFieldEdit("businessName"))}
-                      className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                      title="Edit Business Name"
-                    >
-                      <Edit3 className="h-3 w-3" />
-                    </button>
+                <div className="py-1.5 border-b border-slate-200/80 group">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Business:</span>
+                      <button
+                        type="button"
+                        onClick={() => (editingField === "businessName" ? cancelFieldEdit() : startFieldEdit("businessName"))}
+                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
+                        title="Edit Business Name"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                      </button>
+                    </div>
+
+                    {editingField !== "businessName" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[210px] truncate text-right">
+                        {campaignState.businessName || campaignState.business?.name ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span className="truncate">{campaignState.businessName || campaignState.business?.name}</span>
+                          </>
+                        ) : (
+                          <span className="text-slate-400 font-normal italic">Not set</span>
+                        )}
+                      </span>
+                    )}
                   </div>
-                  {editingField === "businessName" ? (
-                    <div className="flex items-center gap-1 max-w-[220px]">
+
+                  {editingField === "businessName" && (
+                    <div className="mt-1.5 p-2 bg-white border border-blue-200 rounded-xl space-y-1.5 shadow-xs animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1">
+                          <Building2 className="w-3 h-3 text-blue-600" /> Edit Business Name
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={saveFieldEdit}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold transition-colors flex items-center gap-0.5 shadow-2xs cursor-pointer"
+                            title="Save"
+                          >
+                            <Check className="h-3 w-3" />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelFieldEdit}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X className="h-3 w-3" />
+                            <span>Cancel</span>
+                          </button>
+                        </div>
+                      </div>
                       <input
                         type="text"
                         value={tempEditValues.businessName || ""}
                         onChange={(e) => setTempEditValues({ ...tempEditValues, businessName: e.target.value })}
                         onKeyDown={handleKeyDownSave}
                         placeholder="Business name"
-                        className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                        className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2 py-1 text-[11px] text-slate-900 focus:outline-none transition-colors"
                         autoFocus
                       />
-                      <button
-                        type="button"
-                        onClick={saveFieldEdit}
-                        className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-                        title="Save"
-                      >
-                        <Check className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelFieldEdit}
-                        className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors"
-                        title="Cancel"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
                     </div>
-                  ) : (
-                    <span className="font-semibold text-slate-800 truncate max-w-[200px] flex items-center gap-1">
-                      {campaignState.businessName || campaignState.business?.name ? (
-                        <>
-                          <span className="text-emerald-600 font-bold">✓</span>
-                          {campaignState.businessName || campaignState.business?.name}
-                        </>
-                      ) : (
-                        <span className="text-slate-400 font-normal italic">Not set</span>
-                      )}
-                    </span>
                   )}
                 </div>
 
                 {/* Field 2: Campaign Name */}
-                <div className="flex justify-between items-center py-1 border-b border-slate-200 group">
-                  <div className="flex items-center gap-1 text-slate-500">
-                    <span>Campaign Name:</span>
-                    <button
-                      type="button"
-                      onClick={() => (editingField === "campaignName" ? cancelFieldEdit() : startFieldEdit("campaignName"))}
-                      className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                      title="Edit Campaign Name"
-                    >
-                      <Edit3 className="h-3 w-3" />
-                    </button>
+                <div className="py-1.5 border-b border-slate-200/80 group">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <FileText className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Campaign Name:</span>
+                      <button
+                        type="button"
+                        onClick={() => (editingField === "campaignName" ? cancelFieldEdit() : startFieldEdit("campaignName"))}
+                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
+                        title="Edit Campaign Name"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                      </button>
+                    </div>
+
+                    {editingField !== "campaignName" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[210px] truncate text-right">
+                        <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span className="truncate">{campaignState.campaignName || "Auto-generated after business info"}</span>
+                      </span>
+                    )}
                   </div>
-                  {editingField === "campaignName" ? (
-                    <div className="flex items-center gap-1 max-w-[220px]">
+
+                  {editingField === "campaignName" && (
+                    <div className="mt-1.5 p-2 bg-white border border-blue-200 rounded-xl space-y-1.5 shadow-xs animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1">
+                          <FileText className="w-3 h-3 text-blue-600" /> Edit Campaign Name
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={saveFieldEdit}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold transition-colors flex items-center gap-0.5 shadow-2xs cursor-pointer"
+                            title="Save"
+                          >
+                            <Check className="h-3 w-3" />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelFieldEdit}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X className="h-3 w-3" />
+                            <span>Cancel</span>
+                          </button>
+                        </div>
+                      </div>
                       <input
                         type="text"
                         value={tempEditValues.campaignName || ""}
                         onChange={(e) => setTempEditValues({ ...tempEditValues, campaignName: e.target.value })}
                         onKeyDown={handleKeyDownSave}
                         placeholder="Campaign name"
-                        className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                        className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2 py-1 text-[11px] text-slate-900 focus:outline-none transition-colors"
                         autoFocus
                       />
-                      <button
-                        type="button"
-                        onClick={saveFieldEdit}
-                        className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-                        title="Save"
-                      >
-                        <Check className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelFieldEdit}
-                        className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors"
-                        title="Cancel"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
                     </div>
-                  ) : (
-                    <span className="font-semibold text-slate-800 truncate max-w-[200px] text-right">
-                      {campaignState.campaignName || "Auto-generated after business info"}
-                    </span>
                   )}
                 </div>
 
                 {/* Field 3: Objective */}
-                <div className="flex justify-between items-center py-1 border-b border-slate-200 group">
-                  <div className="flex items-center gap-1 text-slate-500">
-                    <span>Objective:</span>
-                    <button
-                      type="button"
-                      onClick={() => (editingField === "objective" ? cancelFieldEdit() : startFieldEdit("objective"))}
-                      className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                      title="Edit Objective"
-                    >
-                      <Edit3 className="h-3 w-3" />
-                    </button>
-                  </div>
-                  {editingField === "objective" ? (
-                    <div className="flex items-center gap-1 max-w-[220px]">
-                      <select
-                        value={tempEditValues.objective || ""}
-                        onChange={(e) => {
-                          const newObj = e.target.value;
-                          let defaultGoal = "phone_leads";
-                          if (newObj === "APP_PROMOTION") defaultGoal = "installs";
-                          else if (newObj === "AWARENESS") defaultGoal = "views";
-                          else if (newObj === "LOCAL" || newObj === "NO_GUIDANCE") defaultGoal = "";
-
-                          const effectiveProfile = customerProfile || campaignState.customerProfile;
-                          const newAvailableTypes = getAvailableCampaignTypes(newObj, defaultGoal ? [defaultGoal] : [], effectiveProfile);
-                          setTempEditValues({
-                            ...tempEditValues,
-                            objective: newObj,
-                            conversionGoal: defaultGoal,
-                            campaignType: newAvailableTypes[0]?.id || "PERFORMANCE_MAX"
-                          });
-                        }}
-                        className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                <div className="py-2 border-b border-slate-200 group">
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <Target className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Objective:</span>
+                      <button
+                        type="button"
+                        onClick={() => (editingField === "objective" ? cancelFieldEdit() : startFieldEdit("objective"))}
+                        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all cursor-pointer"
+                        title="Edit Objective"
                       >
-                        <option value="">-- Select Objective --</option>
+                        <Edit3 className="h-3 w-3" />
+                      </button>
+                    </div>
+
+                    {editingField !== "objective" && (
+                      <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gradient-to-r from-blue-50 to-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs">
+                          {campaignState.objective ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span>{MANUAL_OBJECTIVES.find(o => o.id === campaignState.objective)?.title || campaignState.objective}</span>
+                            </>
+                          ) : (
+                            <span className="text-slate-400 italic font-normal">Not set</span>
+                          )}
+                        </span>
+                        {campaignState.objective === "APP_PROMOTION" && !isAppVerified(customerProfile || campaignState.customerProfile) && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            App Disconnected
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {editingField === "objective" ? (
+                    <div className="mt-2 p-3 bg-white rounded-xl border border-indigo-200 shadow-xs space-y-2.5 animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1">
+                          <SlidersHorizontal className="w-3 h-3 text-indigo-600" /> Select Objective
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={saveFieldEdit}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold transition-colors flex items-center gap-0.5 shadow-2xs cursor-pointer"
+                            title="Apply Objective"
+                          >
+                            <Check className="h-3 w-3" />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelFieldEdit}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X className="h-3 w-3" />
+                            <span>Cancel</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Tab format cards for Objective options */}
+                      <div className="grid grid-cols-1 gap-1.5 max-h-56 overflow-y-auto pr-1">
                         {MANUAL_OBJECTIVES.map((obj) => {
                           const effectiveProfile = customerProfile || campaignState.customerProfile;
                           const isAppConn = isAppVerified(effectiveProfile);
+                          const isSelected = tempEditValues.objective === obj.id;
                           return (
-                            <option key={obj.id} value={obj.id}>
-                              {obj.title}{obj.id === "APP_PROMOTION" && !isAppConn ? " (Mobile App Disconnected)" : ""}
-                            </option>
+                            <button
+                              key={obj.id}
+                              type="button"
+                              onClick={() => {
+                                const newObj = obj.id;
+                                let defaultGoal = "phone_leads";
+                                if (newObj === "APP_PROMOTION") defaultGoal = "installs";
+                                else if (newObj === "AWARENESS") defaultGoal = "views";
+                                else if (newObj === "LOCAL" || newObj === "NO_GUIDANCE") defaultGoal = "";
+
+                                const newAvailableTypes = getAvailableCampaignTypes(newObj, defaultGoal ? [defaultGoal] : [], effectiveProfile);
+                                setTempEditValues({
+                                  ...tempEditValues,
+                                  objective: newObj,
+                                  conversionGoal: defaultGoal,
+                                  campaignType: newAvailableTypes[0]?.id || "PERFORMANCE_MAX"
+                                });
+                              }}
+                              className={`w-full text-left p-2 rounded-lg border text-[11px] transition-all flex items-start gap-2 cursor-pointer ${
+                                isSelected
+                                  ? "bg-indigo-50/90 border-indigo-500 shadow-2xs ring-1 ring-indigo-400"
+                                  : "bg-slate-50/70 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300"
+                              }`}
+                            >
+                              <div className={`mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                isSelected ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300 bg-white"
+                              }`}>
+                                {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className={`font-semibold ${isSelected ? "text-indigo-950 font-bold" : "text-slate-800"}`}>
+                                    {obj.title}
+                                  </span>
+                                  {obj.id === "APP_PROMOTION" && !isAppConn && (
+                                    <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                                      App Disconnected
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-500 leading-snug line-clamp-1 mt-0.5">
+                                  {obj.desc}
+                                </p>
+                              </div>
+                            </button>
                           );
                         })}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={saveFieldEdit}
-                        className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-                        title="Save"
-                      >
-                        <Check className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelFieldEdit}
-                        className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors"
-                        title="Cancel"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 justify-end flex-wrap">
-                      <span className="font-semibold text-blue-700">
-                        {campaignState.objective ? `${MANUAL_OBJECTIVES.find(o => o.id === campaignState.objective)?.title || campaignState.objective} ✓` : "Not set"}
-                      </span>
-                      {campaignState.objective === "APP_PROMOTION" && !isAppVerified(customerProfile || campaignState.customerProfile) && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                          App Disconnected
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Field 4: Conversion Goal / Campaign Subtype (Conditional based on Objective) */}
@@ -9789,305 +9916,537 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   const showNoGuidanceGoal = isNoGuidance && (campaignState.campaignType === "DEMAND_GEN" || campaignState.campaignType === "SHOPPING");
 
                   if (!isSalesLeadsTraffic && !isAppPromotion && !isAwareness && !showNoGuidanceGoal) {
-                    // Hide Conversion Goal / Subtype row completely (e.g. for LOCAL or NO_GUIDANCE without Demand Gen/Shopping)
                     return null;
                   }
 
                   const fieldLabel = (isAppPromotion || isAwareness) ? "Campaign Subtype:" : "Conversion Goal:";
                   const editTitle = (isAppPromotion || isAwareness) ? "Edit Campaign Subtype" : "Edit Conversion Goal";
 
+                  // Display all 5 primary conversion goal options for Sales/Leads/Traffic with checkboxes
+                  const effectiveProfile = customerProfile || campaignState.customerProfile;
+                  const isYtConnected = isYouTubeVerified(effectiveProfile);
+                  const goalCatalog = [
+                    { id: "phone_leads", name: "Phone call leads", desc: "Calls directly to your phone number or call extensions" },
+                    { id: "contacts", name: "Contacts", desc: "Contact form submits, messages & contact button clicks" },
+                    { id: "get_directions", name: "Get directions", desc: "Store visits, Google Maps routing & directions" },
+                    { id: "Engagements", name: "Engagements", desc: "Ad clicks, video interactions & rich media clicks" },
+                    { id: "YouTube follow-on views", name: "YouTube follow-on views", desc: "Subsequent video views after watching initial ad" }
+                  ];
+
+                  // In editing mode or read mode, resolve selected goals set
+                  const activeGoalsArr = (editingField === "conversionGoal"
+                    ? (tempEditValues.conversionGoal ? tempEditValues.conversionGoal.split(",") : [])
+                    : (campaignState.conversionGoals || ["phone_leads"])
+                  ).map(s => s.trim()).filter(Boolean);
+
                   return (
-                    <div className="flex justify-between items-center py-1 border-b border-slate-200 group">
-                      <div className="flex items-center gap-1 text-slate-500">
-                        <span>{fieldLabel}</span>
-                        <button
-                          type="button"
-                          onClick={() => (editingField === "conversionGoal" ? cancelFieldEdit() : startFieldEdit("conversionGoal"))}
-                          className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                          title={editTitle}
-                        >
-                          <Edit3 className="h-3 w-3" />
-                        </button>
-                      </div>
-                      {editingField === "conversionGoal" ? (
-                        <div className="flex items-center gap-1 max-w-[220px]">
-                          {(() => {
-                            const curObj = tempEditValues.objective || campaignState.objective || "SALES";
-                            const effectiveProfile = customerProfile || campaignState.customerProfile;
-                            const isYtConnected = isYouTubeVerified(effectiveProfile);
-                            let goalOptions: GoalDefinition[] = getSalesLeadsTrafficGoals(isYtConnected);
-                            let defaultVal = isYtConnected ? "phone_leads,Engagements,YouTube follow-on views" : "phone_leads";
-
-                            if (curObj === "APP_PROMOTION") {
-                              goalOptions = APP_PROMOTION_SUBTYPES;
-                              defaultVal = "installs";
-                            } else if (curObj === "AWARENESS") {
-                              goalOptions = AWARENESS_SUBTYPES;
-                              defaultVal = "views";
-                            } else if (curObj === "NO_GUIDANCE") {
-                              if (tempEditValues.campaignType === "DEMAND_GEN") {
-                                goalOptions = NO_GUIDANCE_DEMAND_GEN_GOALS;
-                                defaultVal = "phone_leads";
-                              } else if (tempEditValues.campaignType === "SHOPPING") {
-                                goalOptions = NO_GUIDANCE_SHOPPING_GOALS;
-                                defaultVal = "phone_leads";
-                              }
-                            }
-
-                            const currentGoalVal = tempEditValues.conversionGoal || defaultVal;
-
-                            return (
-                              <select
-                                value={currentGoalVal}
-                                onChange={(e) => {
-                                  const selectedGoal = e.target.value;
-                                  const availableTypes = getAvailableCampaignTypes(curObj, [selectedGoal], effectiveProfile);
-                                  const isCurrentTypeStillValid = availableTypes.some(t => t.id === tempEditValues.campaignType);
-                                  setTempEditValues({
-                                    ...tempEditValues,
-                                    conversionGoal: selectedGoal,
-                                    campaignType: isCurrentTypeStillValid ? tempEditValues.campaignType : (availableTypes[0]?.id || "")
-                                  });
-                                }}
-                                className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                              >
-                                {goalOptions.map((g) => (
-                                  <option key={g.id} value={g.id}>
-                                    {g.name}
-                                  </option>
-                                ))}
-                              </select>
-                            );
-                          })()}
+                    <div className="py-2 border-b border-slate-200 group">
+                      <div className="flex justify-between items-center mb-1">
+                        <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                          <CheckSquare className="w-3.5 h-3.5 text-emerald-500" />
+                          <span>{fieldLabel}</span>
                           <button
                             type="button"
-                            onClick={saveFieldEdit}
-                            className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-                            title="Save"
+                            onClick={() => (editingField === "conversionGoal" ? cancelFieldEdit() : startFieldEdit("conversionGoal"))}
+                            className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-all cursor-pointer"
+                            title={editTitle}
                           >
-                            <Check className="h-3 w-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelFieldEdit}
-                            className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors"
-                            title="Cancel"
-                          >
-                            <X className="h-3 w-3" />
+                            <Edit3 className="h-3 w-3" />
                           </button>
                         </div>
-                      ) : (
-                        <span className="font-medium text-slate-800 truncate max-w-[200px] text-right">
-                          {(isAppPromotion || isAwareness)
-                            ? formatSubtypeName(campaignState.objective, campaignState.conversionGoals)
-                            : formatGoalName(campaignState.conversionGoals)}
-                        </span>
-                      )}
+                        {editingField !== "conversionGoal" && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs max-w-[210px] truncate text-right">
+                            <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span className="truncate">
+                              {(isAppPromotion || isAwareness)
+                                ? formatSubtypeName(campaignState.objective, campaignState.conversionGoals)
+                                : formatGoalName(campaignState.conversionGoals)}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+
+                      {editingField === "conversionGoal" ? (
+                        <div className="mt-2 p-3 bg-white rounded-xl border border-emerald-200 shadow-xs space-y-2.5 animate-in fade-in-50 duration-150">
+                          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1">
+                              <CheckSquare className="w-3 h-3 text-emerald-600" />
+                              {isSalesLeadsTraffic ? "Select Conversion Goals (Checkboxes)" : "Select Subtype"}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={saveFieldEdit}
+                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold transition-colors flex items-center gap-0.5 shadow-2xs cursor-pointer"
+                                title="Apply Goal"
+                              >
+                                <Check className="h-3 w-3" />
+                                <span>Save</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelFieldEdit}
+                                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                                title="Cancel"
+                              >
+                                <X className="h-3 w-3" />
+                                <span>Cancel</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* If Sales/Leads/Traffic: Render all 5 conversion goal options with modern styled checkboxes */}
+                          {isSalesLeadsTraffic ? (
+                            <div className="space-y-1.5">
+                              {goalCatalog.map((item) => {
+                                const isChecked = activeGoalsArr.includes(item.id);
+                                return (
+                                  <label
+                                    key={item.id}
+                                    className={`w-full flex items-start gap-2.5 p-2 rounded-lg border text-[11px] transition-all cursor-pointer select-none ${
+                                      isChecked
+                                        ? "bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-300"
+                                        : "bg-slate-50/60 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {
+                                        let updated: string[];
+                                        if (isChecked) {
+                                          updated = activeGoalsArr.filter(g => g !== item.id);
+                                          // Ensure at least one goal remains selected
+                                          if (updated.length === 0) {
+                                            updated = ["phone_leads"];
+                                          }
+                                        } else {
+                                          updated = [...activeGoalsArr, item.id];
+                                        }
+                                        const newGoalStr = updated.join(",");
+                                        const curObj = tempEditValues.objective || campaignState.objective || "SALES";
+                                        const availableTypes = getAvailableCampaignTypes(curObj, [newGoalStr], effectiveProfile);
+                                        const isCurrentTypeStillValid = availableTypes.some(t => t.id === tempEditValues.campaignType);
+                                        setTempEditValues({
+                                          ...tempEditValues,
+                                          conversionGoal: newGoalStr,
+                                          campaignType: isCurrentTypeStillValid ? tempEditValues.campaignType : (availableTypes[0]?.id || "PERFORMANCE_MAX")
+                                        });
+                                      }}
+                                      className="sr-only"
+                                    />
+                                    <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                      isChecked
+                                        ? "bg-emerald-600 border-emerald-600 text-white shadow-2xs"
+                                        : "bg-white border-slate-300"
+                                    }`}>
+                                      {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-semibold text-slate-900 leading-tight">
+                                        {item.name}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                                        {item.desc}
+                                      </div>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            /* Subtype list for App Promotion, Awareness, No Guidance in clean tab card layout */
+                            <div className="space-y-1.5">
+                              {(() => {
+                                const curObj = tempEditValues.objective || campaignState.objective || "SALES";
+                                let goalOptions: GoalDefinition[] = [];
+                                if (curObj === "APP_PROMOTION") goalOptions = APP_PROMOTION_SUBTYPES;
+                                else if (curObj === "AWARENESS") goalOptions = AWARENESS_SUBTYPES;
+                                else if (curObj === "NO_GUIDANCE") {
+                                  if (tempEditValues.campaignType === "DEMAND_GEN") goalOptions = NO_GUIDANCE_DEMAND_GEN_GOALS;
+                                  else if (tempEditValues.campaignType === "SHOPPING") goalOptions = NO_GUIDANCE_SHOPPING_GOALS;
+                                }
+
+                                return goalOptions.map((g) => {
+                                  const isSelected = activeGoalsArr.includes(g.id);
+                                  return (
+                                    <button
+                                      key={g.id}
+                                      type="button"
+                                      onClick={() => {
+                                        const availableTypes = getAvailableCampaignTypes(curObj, [g.id], effectiveProfile);
+                                        const isCurrentTypeStillValid = availableTypes.some(t => t.id === tempEditValues.campaignType);
+                                        setTempEditValues({
+                                          ...tempEditValues,
+                                          conversionGoal: g.id,
+                                          campaignType: isCurrentTypeStillValid ? tempEditValues.campaignType : (availableTypes[0]?.id || "")
+                                        });
+                                      }}
+                                      className={`w-full text-left p-2 rounded-lg border text-[11px] transition-all flex items-start gap-2 cursor-pointer ${
+                                        isSelected
+                                          ? "bg-emerald-50/90 border-emerald-500 shadow-2xs ring-1 ring-emerald-400"
+                                          : "bg-slate-50/70 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300"
+                                      }`}
+                                    >
+                                      <div className={`mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                        isSelected ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 bg-white"
+                                      }`}>
+                                        {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="font-semibold text-slate-800">{g.name}</div>
+                                        {g.source && <div className="text-[10px] text-slate-500 mt-0.5">{g.source}</div>}
+                                      </div>
+                                    </button>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })()}
 
                 {/* Field 5: Campaign Type */}
-                <div className="flex justify-between items-center py-1 border-b border-slate-200 group">
-                  <div className="flex items-center gap-1 text-slate-500">
-                    <span>Campaign Type:</span>
-                    <button
-                      type="button"
-                      onClick={() => (editingField === "campaignType" ? cancelFieldEdit() : startFieldEdit("campaignType"))}
-                      className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                      title="Edit Campaign Type"
-                    >
-                      <Edit3 className="h-3 w-3" />
-                    </button>
-                  </div>
-                  {editingField === "campaignType" ? (
-                    <div className="flex items-center gap-1 max-w-[220px]">
-                      {(() => {
-                        const activeObj = tempEditValues.objective || campaignState.objective || "";
-                        const activeGoals = tempEditValues.conversionGoal ? [tempEditValues.conversionGoal] : campaignState.conversionGoals;
-                        const effectiveProfile = customerProfile || campaignState.customerProfile;
-                        const availableTypes = getAvailableCampaignTypes(activeObj, activeGoals, effectiveProfile);
-                        const currentTypeVal = tempEditValues.campaignType && availableTypes.some(t => t.id === tempEditValues.campaignType)
-                          ? tempEditValues.campaignType
-                          : (availableTypes[0]?.id || "PERFORMANCE_MAX");
-
-                        const effectiveProfileForMerchant = customerProfile || campaignState.customerProfile;
-                        const isMerchConn = Boolean(isMerchantVerified(effectiveProfileForMerchant));
-                        return (
-                          <select
-                            value={currentTypeVal}
-                            onChange={(e) => setTempEditValues({ ...tempEditValues, campaignType: e.target.value })}
-                            className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                          >
-                            {availableTypes.map((type) => (
-                              <option key={type.id} value={type.id}>
-                                {type.title}{type.id === "SHOPPING" && !isMerchConn ? " (Not Connected)" : ""}
-                              </option>
-                            ))}
-                          </select>
-                        );
-                      })()}
+                <div className="py-2 border-b border-slate-200 group">
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <Layers className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Campaign Type:</span>
                       <button
                         type="button"
-                        onClick={saveFieldEdit}
-                        className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-                        title="Save"
+                        onClick={() => (editingField === "campaignType" ? cancelFieldEdit() : startFieldEdit("campaignType"))}
+                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
+                        title="Edit Campaign Type"
                       >
-                        <Check className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelFieldEdit}
-                        className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors"
-                        title="Cancel"
-                      >
-                        <X className="h-3 w-3" />
+                        <Edit3 className="h-3 w-3" />
                       </button>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 justify-end flex-wrap">
-                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2 py-1 rounded-lg shadow-2xs">
-                        {campaignState.campaignType ? (
-                          <>
-                            <GoogleCampaignChannelIcons campaignType={campaignState.campaignType} iconClassName="w-3.5 h-3.5 shrink-0" />
-                            <span className="font-bold text-xs text-slate-800">
-                              {formatCampaignTypeDisplay(campaignState.campaignType)}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-slate-400 font-normal italic">Not set</span>
+
+                    {editingField !== "campaignType" && (
+                      <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                        <div className="flex items-center gap-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-2.5 py-1 rounded-full shadow-2xs">
+                          {campaignState.campaignType ? (
+                            <>
+                              <GoogleCampaignChannelIcons campaignType={campaignState.campaignType} iconClassName="w-3.5 h-3.5 shrink-0" />
+                              <span className="font-bold text-xs text-blue-950">
+                                {formatCampaignTypeDisplay(campaignState.campaignType)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-slate-400 font-normal italic">Not set</span>
+                          )}
+                        </div>
+                        {campaignState.campaignType === "SHOPPING" && !isMerchantVerified(customerProfile || campaignState.customerProfile) && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            Merchant Disconnected
+                          </span>
                         )}
                       </div>
-                      {campaignState.campaignType === "SHOPPING" && !isMerchantVerified(customerProfile || campaignState.customerProfile) && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                          Merchant Disconnected
+                    )}
+                  </div>
+
+                  {editingField === "campaignType" ? (
+                    <div className="mt-2 p-3 bg-white rounded-xl border border-blue-200 shadow-xs space-y-2.5 animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1">
+                          <Layers className="w-3 h-3 text-blue-600" /> Select Campaign Type
                         </span>
-                      )}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={saveFieldEdit}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold transition-colors flex items-center gap-0.5 shadow-2xs cursor-pointer"
+                            title="Apply Campaign Type"
+                          >
+                            <Check className="h-3 w-3" />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelFieldEdit}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X className="h-3 w-3" />
+                            <span>Cancel</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Tab format cards for Campaign Type */}
+                      <div className="grid grid-cols-1 gap-1.5 max-h-56 overflow-y-auto pr-1">
+                        {(() => {
+                          const activeObj = tempEditValues.objective || campaignState.objective || "";
+                          const activeGoals = tempEditValues.conversionGoal ? [tempEditValues.conversionGoal] : campaignState.conversionGoals;
+                          const effectiveProfile = customerProfile || campaignState.customerProfile;
+                          const availableTypes = getAvailableCampaignTypes(activeObj, activeGoals, effectiveProfile);
+                          const isMerchConn = Boolean(isMerchantVerified(effectiveProfile));
+
+                          return availableTypes.map((type) => {
+                            const isSelected = (tempEditValues.campaignType || campaignState.campaignType) === type.id;
+                            return (
+                              <button
+                                key={type.id}
+                                type="button"
+                                onClick={() => setTempEditValues({ ...tempEditValues, campaignType: type.id })}
+                                className={`w-full text-left p-2 rounded-lg border text-[11px] transition-all flex items-start gap-2 cursor-pointer ${
+                                  isSelected
+                                    ? "bg-blue-50/90 border-blue-500 shadow-2xs ring-1 ring-blue-400"
+                                    : "bg-slate-50/70 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300"
+                                }`}
+                              >
+                                <div className="mt-0.5 shrink-0">
+                                  <GoogleCampaignChannelIcons
+                                    campaignType={type.id}
+                                    className="p-1 bg-white rounded border border-slate-200 shadow-2xs"
+                                    iconClassName="w-3.5 h-3.5 shrink-0"
+                                  />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className={`font-semibold ${isSelected ? "text-blue-950 font-bold" : "text-slate-800"}`}>
+                                      {type.title}
+                                    </span>
+                                    {type.id === "SHOPPING" && !isMerchConn && (
+                                      <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                                        Merchant Disconnected
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 leading-snug line-clamp-1 mt-0.5">
+                                    {type.desc}
+                                  </p>
+                                </div>
+                                <div className={`mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                  isSelected ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white"
+                                }`}>
+                                  {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                </div>
+                              </button>
+                            );
+                          });
+                        })()}
+                      </div>
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Field 5b: Bidding Strategy (PMax / Smart Bidding) */}
-                <div className="py-1 border-b border-slate-200 group">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1 text-slate-500">
+                <div className="py-2 border-b border-slate-200 group">
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <Zap className="w-3.5 h-3.5 text-amber-500" />
                       <span>Bidding:</span>
                       <button
                         type="button"
                         onClick={() => (editingField === "biddingStrategy" ? cancelFieldEdit() : startFieldEdit("biddingStrategy"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-all cursor-pointer"
                         title="Edit Bidding Strategy"
                       >
                         <Edit3 className="h-3 w-3" />
                       </button>
                     </div>
-                    {editingField === "biddingStrategy" ? (
-                      <div className="flex flex-col gap-1.5 flex-1 max-w-[240px] items-end">
-                        <select
-                          value={tempEditValues.biddingStrategy || (campaignState.campaignType === "SHOPPING" ? "Maximize conversion value" : "Maximize conversions")}
-                          onChange={(e) => {
-                            setTempEditValues({ ...tempEditValues, biddingStrategy: e.target.value });
-                            setFieldError(null);
-                          }}
-                          className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                        >
-                          {campaignState.campaignType === "SHOPPING" ? (
-                            <>
-                              <option value="Maximize conversion value">Maximize conversion value</option>
-                              <option value="Target ROAS">Target ROAS</option>
-                              <option value="Maximize clicks">Maximize clicks</option>
-                              <option value="Manual CPC">Manual CPC</option>
-                            </>
-                          ) : campaignState.campaignType === "APP" ? (
-                            <>
-                              <option value="Target CPA">Target CPA (Cost per install)</option>
-                            </>
-                          ) : (
-                            <>
-                              {/* Search / Multi-channel Bidding options */}
-                              <option value="Maximize conversions">Maximize conversions</option>
-                              <option value="Target CPA">Target CPA</option>
-                              <option value="Maximize conversion value">Maximize conversion value</option>
-                              <option value="Target ROAS">Target ROAS</option>
-                              {campaignState.campaignType === "SEARCH" && (
-                                <>
-                                  <option value="Maximize Clicks">Maximize Clicks</option>
-                                  <option value="Target Impression Share">Target Impression Share</option>
-                                </>
-                              )}
-                            </>
-                          )}
-                        </select>
-                        
-                        {tempEditValues.biddingStrategy === "Target CPA" && (
+
+                    {editingField !== "biddingStrategy" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200/80 shadow-2xs max-w-[210px] truncate text-right">
+                        <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span className="truncate">
+                          {campaignState.biddingStrategy || (campaignState.campaignType === "SHOPPING" ? "Maximize conversion value" : "Maximize conversions")}
+                          {campaignState.biddingStrategy === "Target CPA" && campaignState.targetCpa ? ` (₹${campaignState.targetCpa})` : ""}
+                          {campaignState.biddingStrategy === "Target ROAS" && campaignState.targetRoas ? ` (${campaignState.targetRoas}%)` : ""}
+                          {(campaignState.biddingStrategy === "Maximize clicks" || campaignState.biddingStrategy === "Maximize Clicks" || campaignState.biddingStrategy === "Clicks") && campaignState.maxCpcLimit ? ` (Max ₹${campaignState.maxCpcLimit})` : ""}
+                          {campaignState.biddingStrategy === "Manual CPC" && campaignState.adGroupBid ? ` (Bid ₹${campaignState.adGroupBid})` : ""}
+                          {(campaignState.biddingStrategy === "Target Impression Share" || campaignState.biddingStrategy === "Impression share") && campaignState.targetImpressionSharePercent ? ` (${campaignState.targetImpressionSharePercent}%)` : ""}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+
+                  {editingField === "biddingStrategy" ? (
+                    <div className="mt-2 p-3 bg-white rounded-xl border border-amber-200 shadow-xs space-y-2.5 animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-amber-600" /> Select Bidding Strategy
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={saveFieldEdit}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold transition-colors flex items-center gap-0.5 shadow-2xs cursor-pointer"
+                            title="Apply Bidding"
+                          >
+                            <Check className="h-3 w-3" />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelFieldEdit}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X className="h-3 w-3" />
+                            <span>Cancel</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Tab format cards for Bidding Strategy */}
+                      <div className="grid grid-cols-1 gap-1.5 max-h-56 overflow-y-auto pr-1">
+                        {(() => {
+                          const currentCampType = tempEditValues.campaignType || campaignState.campaignType;
+                          let biddingOptions: Array<{ id: string; name: string; desc: string }> = [];
+
+                          if (currentCampType === "SHOPPING") {
+                            biddingOptions = [
+                              { id: "Maximize conversion value", name: "Maximize conversion value", desc: "Get the highest revenue within budget" },
+                              { id: "Target ROAS", name: "Target ROAS", desc: "Target return on ad spend percentage" },
+                              { id: "Maximize clicks", name: "Maximize clicks", desc: "Drive highest possible traffic to shop" },
+                              { id: "Manual CPC", name: "Manual CPC", desc: "Set individual bid limit per product/ad group" }
+                            ];
+                          } else if (currentCampType === "APP") {
+                            biddingOptions = [
+                              { id: "Target CPA", name: "Target CPA (Cost per install)", desc: "Set cost you are willing to pay per install" }
+                            ];
+                          } else {
+                            biddingOptions = [
+                              { id: "Maximize conversions", name: "Maximize conversions", desc: "Get as many conversions as possible within budget" },
+                              { id: "Target CPA", name: "Target CPA", desc: "Set average cost per action/conversion target" },
+                              { id: "Maximize conversion value", name: "Maximize conversion value", desc: "Optimize for highest total sales value" },
+                              { id: "Target ROAS", name: "Target ROAS", desc: "Target specific percentage return on ad spend" },
+                              ...(currentCampType === "SEARCH" ? [
+                                { id: "Maximize Clicks", name: "Maximize Clicks", desc: "Drive maximum visitors to website" },
+                                { id: "Target Impression Share", name: "Target Impression Share", desc: "Show ads at top of search results page" }
+                              ] : [])
+                            ];
+                          }
+
+                          const activeBid = tempEditValues.biddingStrategy || (currentCampType === "SHOPPING" ? "Maximize conversion value" : "Maximize conversions");
+
+                          return biddingOptions.map((opt) => {
+                            const isSelected = activeBid === opt.id;
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => {
+                                  setTempEditValues({ ...tempEditValues, biddingStrategy: opt.id });
+                                  setFieldError(null);
+                                }}
+                                className={`w-full text-left p-2 rounded-lg border text-[11px] transition-all flex items-start gap-2 cursor-pointer ${
+                                  isSelected
+                                    ? "bg-amber-50/90 border-amber-500 shadow-2xs ring-1 ring-amber-400"
+                                    : "bg-slate-50/70 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300"
+                                }`}
+                              >
+                                <div className={`mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                  isSelected ? "border-amber-600 bg-amber-600 text-white" : "border-slate-300 bg-white"
+                                }`}>
+                                  {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className={`font-semibold ${isSelected ? "text-amber-950 font-bold" : "text-slate-800"}`}>
+                                    {opt.name}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 leading-snug line-clamp-1 mt-0.5">
+                                    {opt.desc}
+                                  </p>
+                                </div>
+                              </button>
+                            );
+                          });
+                        })()}
+                      </div>
+
+                      {/* Dynamic Parameters Based on Selected Bidding Tab */}
+                      {tempEditValues.biddingStrategy === "Target CPA" && (
+                        <div className="pt-2 border-t border-slate-100">
+                          <label className="text-[10px] font-semibold text-slate-700 block mb-1">Target CPA Amount (₹):</label>
                           <div className="relative w-full">
-                            <span className="absolute left-1.5 top-0.5 text-slate-400 text-[10px]">₹</span>
+                            <span className="absolute left-2 top-1.5 text-slate-400 text-[11px] font-bold">₹</span>
                             <input
                               type="number"
                               value={tempEditValues.targetCpa ?? ""}
                               onChange={(e) => setTempEditValues({ ...tempEditValues, targetCpa: e.target.value })}
                               onKeyDown={handleKeyDownSave}
-                              placeholder="Target CPA (₹)"
-                              className="w-full bg-white border border-blue-500 rounded pl-4 pr-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                              placeholder="e.g. 250"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-6 pr-2 py-1 text-[11px] text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500"
                             />
                           </div>
-                        )}
+                        </div>
+                      )}
 
-                        {tempEditValues.biddingStrategy === "Target ROAS" && (
+                      {tempEditValues.biddingStrategy === "Target ROAS" && (
+                        <div className="pt-2 border-t border-slate-100">
+                          <label className="text-[10px] font-semibold text-slate-700 block mb-1">Target ROAS (%):</label>
                           <div className="relative w-full">
-                            <span className="absolute right-2 top-0.5 text-slate-400 text-[10px]">%</span>
+                            <span className="absolute right-2.5 top-1.5 text-slate-400 text-[11px] font-bold">%</span>
                             <input
                               type="number"
                               value={tempEditValues.targetRoas ?? ""}
                               onChange={(e) => setTempEditValues({ ...tempEditValues, targetRoas: e.target.value })}
                               onKeyDown={handleKeyDownSave}
-                              placeholder="Target ROAS (%)"
-                              className="w-full bg-white border border-blue-500 rounded pl-1.5 pr-5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                              placeholder="e.g. 400"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-2 pr-6 py-1 text-[11px] text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500"
                             />
                           </div>
-                        )}
+                        </div>
+                      )}
 
-                        {(tempEditValues.biddingStrategy === "Maximize clicks" || tempEditValues.biddingStrategy === "Maximize Clicks" || tempEditValues.biddingStrategy === "Clicks") && (
+                      {(tempEditValues.biddingStrategy === "Maximize clicks" || tempEditValues.biddingStrategy === "Maximize Clicks" || tempEditValues.biddingStrategy === "Clicks") && (
+                        <div className="pt-2 border-t border-slate-100">
+                          <label className="text-[10px] font-semibold text-slate-700 block mb-1">Max CPC Bid Limit (₹, Optional):</label>
                           <div className="relative w-full">
-                            <span className="absolute left-1.5 top-0.5 text-slate-400 text-[10px]">₹</span>
+                            <span className="absolute left-2 top-1.5 text-slate-400 text-[11px] font-bold">₹</span>
                             <input
                               type="number"
                               value={tempEditValues.maxCpcLimit ?? ""}
                               onChange={(e) => setTempEditValues({ ...tempEditValues, maxCpcLimit: e.target.value })}
                               onKeyDown={handleKeyDownSave}
-                              placeholder="Max CPC limit (₹, optional)"
-                              className="w-full bg-white border border-blue-500 rounded pl-4 pr-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                              placeholder="e.g. 15"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-6 pr-2 py-1 text-[11px] text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500"
                             />
                           </div>
-                        )}
+                        </div>
+                      )}
 
-                        {tempEditValues.biddingStrategy === "Manual CPC" && (
+                      {tempEditValues.biddingStrategy === "Manual CPC" && (
+                        <div className="pt-2 border-t border-slate-100">
+                          <label className="text-[10px] font-semibold text-slate-700 block mb-1">Ad Group Bid (₹, Required):</label>
                           <div className="relative w-full">
-                            <span className="absolute left-1.5 top-0.5 text-slate-400 text-[10px]">₹</span>
+                            <span className="absolute left-2 top-1.5 text-slate-400 text-[11px] font-bold">₹</span>
                             <input
                               type="number"
                               value={tempEditValues.adGroupBid ?? ""}
                               onChange={(e) => setTempEditValues({ ...tempEditValues, adGroupBid: e.target.value })}
                               onKeyDown={handleKeyDownSave}
-                              placeholder="Ad group bid (₹, required)"
-                              className="w-full bg-white border border-blue-500 rounded pl-4 pr-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                              placeholder="e.g. 20"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-6 pr-2 py-1 text-[11px] text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500"
                             />
                           </div>
-                        )}
+                        </div>
+                      )}
 
-                        {(tempEditValues.biddingStrategy === "Target Impression Share" || tempEditValues.biddingStrategy === "Impression share") && (
-                          <div className="space-y-1 w-full">
+                      {(tempEditValues.biddingStrategy === "Target Impression Share" || tempEditValues.biddingStrategy === "Impression share") && (
+                        <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-700 block mb-1">Placement Location:</label>
                             <select
                               value={tempEditValues.impressionShareLocation || "Anywhere on results page"}
                               onChange={(e) => setTempEditValues({ ...tempEditValues, impressionShareLocation: e.target.value })}
-                              className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[10px] text-slate-900 focus:outline-none"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[11px] text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500"
                             >
                               <option value="Anywhere on results page">Anywhere on results page</option>
                               <option value="Top of results page">Top of results page</option>
                               <option value="Absolute top of results page">Absolute top of results page</option>
                             </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-700 block mb-1">Target Impression Share (%):</label>
                             <div className="relative w-full">
-                              <span className="absolute right-2 top-0.5 text-slate-400 text-[10px]">%</span>
+                              <span className="absolute right-2.5 top-1.5 text-slate-400 text-[11px] font-bold">%</span>
                               <input
                                 type="number"
                                 min="1"
@@ -10095,43 +10454,16 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 value={tempEditValues.targetImpressionSharePercent ?? "50"}
                                 onChange={(e) => setTempEditValues({ ...tempEditValues, targetImpressionSharePercent: e.target.value })}
                                 onKeyDown={handleKeyDownSave}
-                                placeholder="Target Share % (1-100)"
-                                className="w-full bg-white border border-blue-500 rounded pl-1.5 pr-5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                placeholder="50"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-2 pr-6 py-1 text-[11px] text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500"
                               />
                             </div>
                           </div>
-                        )}
-
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={saveFieldEdit}
-                            className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                            title="Save"
-                          >
-                            <Check className="h-3 w-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelFieldEdit}
-                            className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                            title="Cancel"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
                         </div>
-                      </div>
-                    ) : (
-                      <span className="font-semibold text-slate-800 text-right truncate max-w-[200px]">
-                        {campaignState.biddingStrategy || (campaignState.campaignType === "SHOPPING" ? "Maximize conversion value" : "Maximize conversions")}
-                        {campaignState.biddingStrategy === "Target CPA" && campaignState.targetCpa ? ` (₹${campaignState.targetCpa})` : ""}
-                        {campaignState.biddingStrategy === "Target ROAS" && campaignState.targetRoas ? ` (${campaignState.targetRoas}%)` : ""}
-                        {(campaignState.biddingStrategy === "Maximize clicks" || campaignState.biddingStrategy === "Maximize Clicks" || campaignState.biddingStrategy === "Clicks") && campaignState.maxCpcLimit ? ` (Max ₹${campaignState.maxCpcLimit})` : ""}
-                        {campaignState.biddingStrategy === "Manual CPC" && campaignState.adGroupBid ? ` (Bid ₹${campaignState.adGroupBid})` : ""}
-                        {(campaignState.biddingStrategy === "Target Impression Share" || campaignState.biddingStrategy === "Impression share") && campaignState.targetImpressionSharePercent ? ` (${campaignState.targetImpressionSharePercent}%)` : ""}
-                      </span>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  ) : null}
+
                   {editingField === "biddingStrategy" && fieldError && (
                     <div className="mt-1 text-[10px] text-rose-600 font-medium flex items-center gap-1">
                       <AlertCircle className="h-2.5 w-2.5 shrink-0" />
@@ -10141,69 +10473,90 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 </div>
 
                 {/* Field 6: Website */}
-                <div className="py-1 border-b border-slate-200 group">
+                <div className="py-1.5 border-b border-slate-200/80 group">
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1 text-slate-500">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <Globe className="w-3.5 h-3.5 text-blue-500" />
                       <span>Website:</span>
                       <button
                         type="button"
                         onClick={() => (editingField === "website" ? cancelFieldEdit() : startFieldEdit("website"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
                         title="Edit Website"
                       >
                         <Edit3 className="h-3 w-3" />
                       </button>
                     </div>
-                    {editingField === "website" ? (
-                      <div className="flex items-center gap-1 flex-1 max-w-[240px] justify-end">
-                        <input
-                          type="url"
-                          value={tempEditValues.website || ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setTempEditValues({ ...tempEditValues, website: val });
-                            if (val.trim()) {
-                              setFieldError(validateWebsiteUrl(val));
-                            } else {
-                              setFieldError(null);
-                            }
-                          }}
-                          onKeyDown={handleKeyDownSave}
-                          placeholder="https://example.com"
-                          className={`w-full bg-white border ${fieldError ? "border-rose-500 focus:ring-rose-500" : "border-blue-500"} rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none`}
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          onClick={saveFieldEdit}
-                          className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                          title="Save & Analyze"
-                        >
-                          <Check className="h-3 w-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelFieldEdit}
-                          className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                          title="Cancel"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 truncate max-w-[240px] justify-end">
+
+                    {editingField !== "website" && (
+                      <div className="flex items-center gap-1.5 justify-end">
                         {isAnalyzingUrl && (
                           <span className="flex items-center gap-1 text-[10px] text-blue-600 font-medium animate-pulse">
                             <Loader2 className="h-3 w-3 animate-spin text-blue-600 shrink-0" />
                             <span>Analyzing...</span>
                           </span>
                         )}
-                        <span className="font-mono text-blue-600 truncate text-right">
-                          {campaignState.website || "Not set"}
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-blue-700 shadow-2xs max-w-[210px] truncate text-right font-mono">
+                          {campaignState.website ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span className="truncate">{campaignState.website}</span>
+                            </>
+                          ) : (
+                            <span className="text-slate-400 font-normal italic">Not set</span>
+                          )}
                         </span>
                       </div>
                     )}
                   </div>
+
+                  {editingField === "website" && (
+                    <div className="mt-1.5 p-2 bg-white border border-blue-200 rounded-xl space-y-1.5 shadow-xs animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1">
+                          <Globe className="w-3 h-3 text-blue-600" /> Edit Website URL
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={saveFieldEdit}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold transition-colors flex items-center gap-0.5 shadow-2xs cursor-pointer"
+                            title="Save & Analyze"
+                          >
+                            <Check className="h-3 w-3" />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelFieldEdit}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X className="h-3 w-3" />
+                            <span>Cancel</span>
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="url"
+                        value={tempEditValues.website || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setTempEditValues({ ...tempEditValues, website: val });
+                          if (val.trim()) {
+                            setFieldError(validateWebsiteUrl(val));
+                          } else {
+                            setFieldError(null);
+                          }
+                        }}
+                        onKeyDown={handleKeyDownSave}
+                        placeholder="https://example.com"
+                        className={`w-full bg-slate-50 focus:bg-white border ${fieldError ? "border-rose-500 focus:ring-rose-500" : "border-slate-200 focus:border-blue-500"} rounded-lg px-2 py-1 text-[11px] text-slate-900 focus:outline-none transition-colors`}
+                        autoFocus
+                      />
+                    </div>
+                  )}
+
                   {editingField === "website" && fieldError && (
                     <div className="mt-1 text-[10px] text-rose-600 font-medium flex items-center gap-1">
                       <AlertCircle className="h-2.5 w-2.5 shrink-0" />
@@ -10212,136 +10565,148 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   )}
                 </div>
 
-                {/* Field 7a: Budget Type (Daily Budget vs Campaign Total Budget) */}
-                <div className="py-1 border-b border-slate-200 group">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1 text-slate-500">
+                {/* Field 7a: Budget Type (Daily Budget vs Campaign Total Budget in Tab Format) */}
+                <div className="py-1.5 border-b border-slate-200/80 group">
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Budget Type:</span>
-                      <button
-                        type="button"
-                        onClick={() => (editingField === "budgetType" ? cancelFieldEdit() : startFieldEdit("budgetType"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                        title="Edit Budget Type"
-                      >
-                        <Edit3 className="h-3 w-3" />
-                      </button>
                     </div>
-                    {editingField === "budgetType" ? (
-                      <div className="flex items-center gap-1.5 flex-1 max-w-[240px] justify-end">
-                        <select
-                          value={tempEditValues.budgetType || "DAILY"}
-                          onChange={(e) => setTempEditValues({ ...tempEditValues, budgetType: e.target.value as "TOTAL" | "DAILY" })}
-                          className="bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                          autoFocus
-                        >
-                          <option value="DAILY">Daily Budget (Per Day)</option>
-                          <option value="TOTAL">Campaign Total Budget (Total Spend)</option>
-                        </select>
-                        <button
-                          type="button"
-                          onClick={saveFieldEdit}
-                          className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                          title="Save"
-                        >
-                          <Check className="h-3 w-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelFieldEdit}
-                          className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                          title="Cancel"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="font-medium text-slate-800">
-                        {campaignState.budgetType === "TOTAL" ? "Campaign Total Budget" : "Daily Budget"}
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs">
+                      {campaignState.budgetType === "TOTAL" ? "Campaign Total Budget" : "Daily Budget"}
+                    </span>
+                  </div>
+
+                  {/* Direct interactive Segmented Tab Format */}
+                  <div className="flex items-center gap-1 bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCampaignState(prev => ({
+                          ...prev,
+                          budgetType: "DAILY"
+                        }));
+                        setTempEditValues(prev => ({ ...prev, budgetType: "DAILY" }));
+                      }}
+                      className={`flex-1 py-1 px-2 rounded-lg text-[10.5px] font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                        (campaignState.budgetType || "DAILY") === "DAILY"
+                          ? "bg-white text-emerald-800 shadow-xs border border-emerald-300 font-bold"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                      }`}
+                    >
+                      <DollarSign className="w-3 h-3 text-emerald-600" />
+                      <span>Daily Budget</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const baseStart = campaignState.startDate || todayIso;
+                        const d = new Date(baseStart);
+                        d.setDate(d.getDate() + 30);
+                        const autoEndDate = campaignState.endDate || d.toISOString().split("T")[0];
+                        setCampaignState(prev => ({
+                          ...prev,
+                          budgetType: "TOTAL",
+                          endDate: autoEndDate
+                        }));
+                        setTempEditValues(prev => ({ ...prev, budgetType: "TOTAL", endDate: autoEndDate }));
+                      }}
+                      className={`flex-1 py-1 px-2 rounded-lg text-[10.5px] font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                        campaignState.budgetType === "TOTAL"
+                          ? "bg-white text-emerald-800 shadow-xs border border-emerald-300 font-bold"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                      }`}
+                    >
+                      <Layers className="w-3 h-3 text-emerald-600" />
+                      <span>Total Budget</span>
+                    </button>
                   </div>
                 </div>
 
                 {/* Field 7b: Budget Amount */}
-                <div className="py-1 border-b border-slate-200 group">
+                <div className="py-1.5 border-b border-slate-200/80 group">
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1 text-slate-500">
-                      <span>{campaignState.budgetType === "TOTAL" ? "Campaign Total Budget:" : "Daily Budget:"}</span>
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{campaignState.budgetType === "TOTAL" ? "Total Budget:" : "Budget Amount:"}</span>
                       <button
                         type="button"
                         onClick={() => (editingField === "dailyBudget" ? cancelFieldEdit() : startFieldEdit("dailyBudget"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-all cursor-pointer"
                         title="Edit Budget"
                       >
                         <Edit3 className="h-3 w-3" />
                       </button>
                     </div>
-                    {editingField === "dailyBudget" ? (
-                      <div className="flex items-center gap-1 flex-1 max-w-[240px] justify-end">
-                        <div className="relative flex-1">
-                          <span className="absolute left-1.5 top-0.5 text-slate-400 text-[10px]">₹</span>
-                          <input
-                            type="number"
-                            value={tempEditValues.dailyBudget ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setTempEditValues({ ...tempEditValues, dailyBudget: val });
-                              if (val !== "") {
-                                setFieldError(validateDailyBudget(val, tempEditValues.campaignType || campaignState.campaignType, tempEditValues.budgetType || campaignState.budgetType));
-                              } else {
-                                setFieldError(null);
-                              }
-                            }}
-                            onKeyDown={handleKeyDownSave}
-                            placeholder={tempEditValues.budgetType === "TOTAL" || campaignState.budgetType === "TOTAL" ? "50000" : "1000"}
-                            className={`w-full bg-white border ${fieldError ? "border-rose-500 focus:ring-rose-500" : "border-blue-500"} rounded pl-4 pr-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none`}
-                            autoFocus
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={saveFieldEdit}
-                          className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                          title="Save"
-                        >
-                          <Check className="h-3 w-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelFieldEdit}
-                          className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                          title="Cancel"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="font-mono font-bold text-emerald-600 text-right">
+
+                    {editingField !== "dailyBudget" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs font-mono text-right">
                         {campaignState.dailyBudget && campaignState.dailyBudget > 0 ? (
-                          campaignState.budgetType === "TOTAL" ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600 shrink-0" />
                             <span>
-                              ₹{campaignState.dailyBudget.toLocaleString("en-IN")} total ✓
-                              {campaignState.startDate && campaignState.endDate && (() => {
-                                const start = new Date(campaignState.startDate).getTime();
-                                const end = new Date(campaignState.endDate).getTime();
-                                const days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
-                                const avgDaily = Math.round(Number(campaignState.dailyBudget) / days);
-                                return (
-                                  <span className="block text-[9px] font-normal text-slate-500">
-                                    ≈ ₹{avgDaily.toLocaleString("en-IN")}/day ({days} days)
-                                  </span>
-                                );
-                              })()}
+                              {campaignState.budgetType === "TOTAL"
+                                ? `₹${campaignState.dailyBudget.toLocaleString("en-IN")} total`
+                                : `₹${campaignState.dailyBudget.toLocaleString("en-IN")}/day`}
                             </span>
-                          ) : (
-                            `₹${campaignState.dailyBudget.toLocaleString("en-IN")}/day ✓`
-                          )
+                          </>
                         ) : (
                           <span className="text-slate-400 font-normal italic">Not set</span>
                         )}
                       </span>
                     )}
                   </div>
+
+                  {editingField === "dailyBudget" && (
+                    <div className="mt-1.5 p-2 bg-white border border-emerald-200 rounded-xl space-y-1.5 shadow-xs animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1">
+                          <DollarSign className="w-3 h-3 text-emerald-600" /> Edit Budget Amount (₹)
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={saveFieldEdit}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold transition-colors flex items-center gap-0.5 shadow-2xs cursor-pointer"
+                            title="Save"
+                          >
+                            <Check className="h-3 w-3" />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelFieldEdit}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X className="h-3 w-3" />
+                            <span>Cancel</span>
+                          </button>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1 text-slate-400 text-[11px] font-bold">₹</span>
+                        <input
+                          type="number"
+                          value={tempEditValues.dailyBudget ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTempEditValues({ ...tempEditValues, dailyBudget: val });
+                            if (val !== "") {
+                              setFieldError(validateDailyBudget(val, tempEditValues.campaignType || campaignState.campaignType, tempEditValues.budgetType || campaignState.budgetType));
+                            } else {
+                              setFieldError(null);
+                            }
+                          }}
+                          onKeyDown={handleKeyDownSave}
+                          placeholder={tempEditValues.budgetType === "TOTAL" || campaignState.budgetType === "TOTAL" ? "50000" : "1000"}
+                          className={`w-full bg-slate-50 focus:bg-white border ${fieldError ? "border-rose-500 focus:ring-rose-500" : "border-slate-200 focus:border-emerald-500"} rounded-lg pl-6 pr-2 py-1 text-[11px] text-slate-900 focus:outline-none transition-colors font-mono`}
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {editingField === "dailyBudget" && fieldError && (
                     <div className="mt-1 text-[10px] text-rose-600 font-medium flex items-center gap-1">
                       <AlertCircle className="h-2.5 w-2.5 shrink-0" />
@@ -10351,28 +10716,31 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 </div>
 
                 {/* Field 8: Location (Interactive 3 Options + Google Ads API Autocomplete) */}
-                <div className="py-1 border-b border-slate-200 group">
+                <div className="py-1.5 border-b border-slate-200/80 group">
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1 text-slate-500">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <MapPin className="w-3.5 h-3.5 text-red-500" />
                       <span>Location:</span>
                       <button
                         type="button"
                         onClick={() => (editingField === "locations" ? cancelFieldEdit() : startFieldEdit("locations"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
                         title="Edit Locations"
                       >
                         <Edit3 className="h-3 w-3" />
                       </button>
                     </div>
+
                     {editingField !== "locations" && (
-                      <span className="text-slate-800 font-medium truncate max-w-[200px] text-right">
-                        {campaignState.locations && campaignState.locations.length > 0 ? campaignState.locations.join(", ") : "India"}
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[210px] truncate text-right">
+                        <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span className="truncate">{campaignState.locations && campaignState.locations.length > 0 ? campaignState.locations.join(", ") : "India"}</span>
                       </span>
                     )}
                   </div>
 
                   {editingField === "locations" && (
-                    <div className="mt-2 p-2.5 bg-white border border-slate-200 rounded-xl space-y-2 shadow-xs">
+                    <div className="mt-1.5 p-2 bg-white border border-slate-200 rounded-xl space-y-1.5 shadow-xs animate-in fade-in-50 duration-150">
                       <div className="space-y-1 text-[11px]">
                         <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
                           <input
@@ -10634,7 +11002,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 {(() => {
                                   const primaryTarget = selectedLocationsList[0] || (locationSearchQuery.trim() || "India");
                                   const encodedLoc = encodeURIComponent(primaryTarget);
-                                  // Universal Google Maps search embed URL - works 100% reliably without requiring separate "Maps Embed API" activation on Cloud Console
                                   const zoomLevel = locationTab === "RADIUS" ? 12 : 8;
                                   const mapUrl = `https://maps.google.com/maps?q=${encodedLoc}&t=&z=${zoomLevel}&ie=UTF8&iwloc=&output=embed`;
                                   return (
@@ -10668,14 +11035,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <button
                           type="button"
                           onClick={cancelFieldEdit}
-                          className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-medium"
+                          className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-medium cursor-pointer"
                         >
                           Cancel
                         </button>
                         <button
                           type="button"
                           onClick={saveFieldEdit}
-                          className="px-2.5 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold shadow-xs flex items-center gap-1"
+                          className="px-2.5 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold shadow-xs flex items-center gap-1 cursor-pointer"
                         >
                           <Check className="h-2.5 w-2.5" />
                           Save Location
@@ -10686,28 +11053,31 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 </div>
 
                 {/* Field 9: Language (Multi-Select with Valid Google Ads Languages) */}
-                <div className="py-1 border-b border-slate-200 group">
+                <div className="py-1.5 border-b border-slate-200/80 group">
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1 text-slate-500">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <Globe className="w-3.5 h-3.5 text-indigo-500" />
                       <span>Language:</span>
                       <button
                         type="button"
                         onClick={() => (editingField === "language" ? cancelFieldEdit() : startFieldEdit("language"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
                         title="Edit Language"
                       >
                         <Edit3 className="h-3 w-3" />
                       </button>
                     </div>
+
                     {editingField !== "language" && (
-                      <span className="text-slate-800 font-medium truncate max-w-[200px] text-right">
-                        {campaignState.language || "All languages"}
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[210px] truncate text-right">
+                        <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span className="truncate">{campaignState.language || "All languages"}</span>
                       </span>
                     )}
                   </div>
 
                   {editingField === "language" && (
-                    <div className="mt-2 p-2.5 bg-white border border-slate-200 rounded-xl space-y-2 shadow-xs">
+                    <div className="mt-1.5 p-2 bg-white border border-slate-200 rounded-xl space-y-1.5 shadow-xs animate-in fade-in-50 duration-150">
                       {/* Selected Language Badges */}
                       <div className="flex flex-wrap gap-1">
                         {selectedLanguagesList.map((lang) => (
@@ -10720,7 +11090,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                               <button
                                 type="button"
                                 onClick={() => setSelectedLanguagesList(selectedLanguagesList.filter(l => l !== lang))}
-                                className="hover:text-blue-900"
+                                className="hover:text-blue-900 cursor-pointer"
                               >
                                 <X className="h-2.5 w-2.5" />
                               </button>
@@ -10735,12 +11105,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         value={languageSearchQuery}
                         onChange={(e) => setLanguageSearchQuery(e.target.value)}
                         placeholder="Search Google Ads languages..."
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-900 focus:outline-none focus:bg-white focus:border-blue-500"
+                        className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2 py-1 text-[11px] text-slate-900 focus:outline-none transition-colors"
                         autoFocus
                       />
 
                       {/* Available Google Ads Languages List */}
-                      <div className="max-h-28 overflow-y-auto border border-slate-200 rounded bg-white divide-y divide-slate-100 text-[10px]">
+                      <div className="max-h-28 overflow-y-auto border border-slate-200 rounded-lg bg-white divide-y divide-slate-100 text-[10px]">
                         {GOOGLE_ADS_LANGUAGES
                           .filter(l => l.name.toLowerCase().includes(languageSearchQuery.toLowerCase()))
                           .map((lang) => {
@@ -10760,14 +11130,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                         setSelectedLanguagesList(["All languages"]);
                                       }
                                     } else {
-                                      // If user picks a specific language, replace "All languages" or append
                                       const withoutAll = selectedLanguagesList.filter(l => l !== "All languages");
                                       setSelectedLanguagesList([...withoutAll, lang.name]);
                                     }
                                   }
                                   setFieldError(null);
                                 }}
-                                className={`w-full text-left px-2 py-1 flex items-center justify-between hover:bg-slate-50 transition-colors ${
+                                className={`w-full text-left px-2 py-1 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer ${
                                   isSelected ? "bg-blue-50/60 font-semibold text-blue-800" : "text-slate-700"
                                 }`}
                               >
@@ -10791,14 +11160,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <button
                           type="button"
                           onClick={cancelFieldEdit}
-                          className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-medium"
+                          className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-medium cursor-pointer"
                         >
                           Cancel
                         </button>
                         <button
                           type="button"
                           onClick={saveFieldEdit}
-                          className="px-2.5 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold shadow-xs flex items-center gap-1"
+                          className="px-2.5 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold shadow-xs flex items-center gap-1 cursor-pointer"
                         >
                           <Check className="h-2.5 w-2.5" />
                           Save Languages
@@ -10808,56 +11177,80 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   )}
                 </div>
 
-                {/* Field 10: Start Date */}
-                <div className="py-1 border-b border-slate-200 group">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1 text-slate-500">
+                {/* Field 10: Start Date (Styled Date Button & Modern Input) */}
+                <div className="py-1.5 border-b border-slate-200 group">
+                  <div className="flex justify-between items-center mb-0.5">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <Calendar className="w-3.5 h-3.5 text-blue-500" />
                       <span>Start Date:</span>
                       <button
                         type="button"
                         onClick={() => (editingField === "startDate" ? cancelFieldEdit() : startFieldEdit("startDate"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
                         title="Edit Start Date"
                       >
                         <Edit3 className="h-3 w-3" />
                       </button>
                     </div>
-                    {editingField === "startDate" ? (
-                      <div className="flex items-center gap-1 flex-1 max-w-[240px] justify-end">
-                        <input
-                          type="date"
-                          min={todayIso}
-                          value={tempEditValues.startDate || todayIso}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setTempEditValues({ ...tempEditValues, startDate: val });
-                            setFieldError(validateStartDate(val));
-                          }}
-                          onKeyDown={handleKeyDownSave}
-                          className={`w-full bg-white border ${fieldError ? "border-rose-500" : "border-blue-500"} rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none`}
-                          autoFocus
-                        />
+
+                    {editingField !== "startDate" && (
+                      <button
+                        type="button"
+                        onClick={() => startFieldEdit("startDate")}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-mono font-semibold bg-white hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 text-slate-800 shadow-2xs transition-all cursor-pointer group-hover:border-slate-300"
+                      >
+                        <Calendar className="w-3 h-3 text-blue-600 shrink-0" />
+                        <span>{campaignState.startDate || todayIso}</span>
+                        <ChevronDown className="w-3 h-3 text-slate-400" />
+                      </button>
+                    )}
+                  </div>
+
+                  {editingField === "startDate" && (
+                    <div className="mt-2 p-2.5 bg-white border border-blue-200 rounded-xl space-y-2 shadow-xs animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-blue-600" /> Choose Start Date
+                        </span>
+                        <span className="text-[10px] text-slate-500">Must be today or future</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="date"
+                            min={todayIso}
+                            value={tempEditValues.startDate || todayIso}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setTempEditValues({ ...tempEditValues, startDate: val });
+                              setFieldError(validateStartDate(val));
+                            }}
+                            onKeyDown={handleKeyDownSave}
+                            className={`w-full bg-slate-50 hover:bg-white focus:bg-white border ${fieldError ? "border-rose-500" : "border-slate-200 focus:border-blue-500"} rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-slate-900 focus:outline-none transition-colors shadow-2xs`}
+                            autoFocus
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={saveFieldEdit}
-                          className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                          title="Save"
+                          className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0 text-[10px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title="Save Start Date"
                         >
                           <Check className="h-3 w-3" />
+                          <span>Save</span>
                         </button>
                         <button
                           type="button"
                           onClick={cancelFieldEdit}
-                          className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                          className="px-2 py-1.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors shrink-0 text-[10px] font-medium cursor-pointer"
                           title="Cancel"
                         >
                           <X className="h-3 w-3" />
                         </button>
                       </div>
-                    ) : (
-                      <span className="text-slate-800 font-medium font-mono">{campaignState.startDate || todayIso}</span>
-                    )}
-                  </div>
+                    </div>
+                  )}
+
                   {editingField === "startDate" && fieldError && (
                     <div className="mt-1 text-[10px] text-rose-600 font-medium flex items-center gap-1">
                       <AlertCircle className="h-2.5 w-2.5 shrink-0" />
@@ -10866,10 +11259,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   )}
                 </div>
 
-                {/* Field 11: End Date (Optional for Daily Budget, Mandatory for Total Budget) */}
-                <div className="py-1 group">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1.5 text-slate-500">
+                {/* Field 11: End Date (Styled Date Button & Modern Input) */}
+                <div className="py-1.5 group">
+                  <div className="flex justify-between items-center mb-0.5">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                      <Calendar className="w-3.5 h-3.5 text-purple-500" />
                       <span>End Date:</span>
                       {campaignState.budgetType === "TOTAL" ? (
                         <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
@@ -10883,55 +11277,89 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <button
                         type="button"
                         onClick={() => (editingField === "endDate" ? cancelFieldEdit() : startFieldEdit("endDate"))}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-all cursor-pointer"
                         title="Edit End Date"
                       >
                         <Edit3 className="h-3 w-3" />
                       </button>
                     </div>
-                    {editingField === "endDate" ? (
-                      <div className="flex items-center gap-1 flex-1 max-w-[240px] justify-end">
-                        <input
-                          type="date"
-                          min={tempEditValues.startDate || campaignState.startDate || todayIso}
-                          value={tempEditValues.endDate || ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setTempEditValues({ ...tempEditValues, endDate: val });
-                            const effectiveStart = tempEditValues.startDate || campaignState.startDate || todayIso;
-                            setFieldError(validateEndDate(val, effectiveStart, tempEditValues.budgetType || campaignState.budgetType));
-                          }}
-                          onKeyDown={handleKeyDownSave}
-                          className={`w-full bg-white border ${fieldError ? "border-rose-500" : "border-blue-500"} rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none`}
-                          autoFocus
-                        />
+
+                    {editingField !== "endDate" && (
+                      <button
+                        type="button"
+                        onClick={() => startFieldEdit("endDate")}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-mono font-semibold bg-white hover:bg-purple-50/70 border border-slate-200 hover:border-purple-300 text-slate-800 shadow-2xs transition-all cursor-pointer group-hover:border-slate-300"
+                      >
+                        <Calendar className="w-3 h-3 text-purple-600 shrink-0" />
+                        {campaignState.endDate ? (
+                          <span className="font-bold text-purple-950">{campaignState.endDate}</span>
+                        ) : campaignState.budgetType === "TOTAL" ? (
+                          <span className="text-amber-600 font-medium text-[10px] italic">Set required date</span>
+                        ) : (
+                          <span className="text-slate-400 font-normal text-[10px]">No end date (Indefinite)</span>
+                        )}
+                        <ChevronDown className="w-3 h-3 text-slate-400" />
+                      </button>
+                    )}
+                  </div>
+
+                  {editingField === "endDate" && (
+                    <div className="mt-2 p-2.5 bg-white border border-purple-200 rounded-xl space-y-2 shadow-xs animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-purple-600" /> Choose End Date
+                        </span>
+                        {campaignState.budgetType !== "TOTAL" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTempEditValues({ ...tempEditValues, endDate: "" });
+                              setFieldError(null);
+                            }}
+                            className="text-[10px] text-slate-500 hover:text-rose-600 underline cursor-pointer"
+                          >
+                            Clear (Run Indefinitely)
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="date"
+                            min={tempEditValues.startDate || campaignState.startDate || todayIso}
+                            value={tempEditValues.endDate || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setTempEditValues({ ...tempEditValues, endDate: val });
+                              const effectiveStart = tempEditValues.startDate || campaignState.startDate || todayIso;
+                              setFieldError(validateEndDate(val, effectiveStart, tempEditValues.budgetType || campaignState.budgetType));
+                            }}
+                            onKeyDown={handleKeyDownSave}
+                            className={`w-full bg-slate-50 hover:bg-white focus:bg-white border ${fieldError ? "border-rose-500" : "border-slate-200 focus:border-purple-500"} rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-slate-900 focus:outline-none transition-colors shadow-2xs`}
+                            autoFocus
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={saveFieldEdit}
-                          className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                          title="Save"
+                          className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0 text-[10px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title="Save End Date"
                         >
                           <Check className="h-3 w-3" />
+                          <span>Save</span>
                         </button>
                         <button
                           type="button"
                           onClick={cancelFieldEdit}
-                          className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                          className="px-2 py-1.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors shrink-0 text-[10px] font-medium cursor-pointer"
                           title="Cancel"
                         >
                           <X className="h-3 w-3" />
                         </button>
                       </div>
-                    ) : (
-                      campaignState.endDate ? (
-                        <span className="text-slate-800 font-medium font-mono">{campaignState.endDate}</span>
-                      ) : campaignState.budgetType === "TOTAL" ? (
-                        <span className="text-amber-600 font-medium text-[11px] italic">Required for Total Budget</span>
-                      ) : (
-                        <span className="text-slate-400 font-normal text-[11px]">No end date (Indefinite)</span>
-                      )
-                    )}
-                  </div>
+                    </div>
+                  )}
+
                   {editingField === "endDate" && fieldError && (
                     <div className="mt-1 text-[10px] text-rose-600 font-medium flex items-center gap-1">
                       <AlertCircle className="h-2.5 w-2.5 shrink-0" />
@@ -10971,14 +11399,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </div>
 
                         {/* Optional Param 1: Asset Group / Ad Group Name */}
-                        <div className="py-1 border-b border-slate-200/70 group">
+                        <div className="py-1.5 border-b border-slate-200/80 group">
                           <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1 text-slate-500">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <Layers className="w-3.5 h-3.5 text-purple-600" />
                               <span>{campaignState.campaignType === "PERFORMANCE_MAX" ? "Asset Group Name:" : "Ad Group Name:"}</span>
                               <button
                                 type="button"
                                 onClick={() => (editingField === "assetGroupName" ? cancelFieldEdit() : startFieldEdit("assetGroupName"))}
-                                className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
                                 title="Edit Asset Group Name"
                               >
                                 <Edit3 className="h-3 w-3" />
@@ -10992,7 +11421,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   onChange={(e) => setTempEditValues({ ...tempEditValues, assetGroupName: e.target.value })}
                                   onKeyDown={handleKeyDownSave}
                                   placeholder="e.g. Sales Group 1"
-                                  className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                  className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
                                   autoFocus
                                 />
                                 <button
@@ -11013,53 +11442,28 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-slate-800 font-medium truncate max-w-[180px]">
-                                {campaignState.assetGroupName || `${campaignState.businessName || "Campaign"} ${campaignState.campaignType === "PERFORMANCE_MAX" ? "Asset Group" : "Ad Group"} 1`}
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[200px] truncate text-right">
+                                <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span className="truncate">{campaignState.assetGroupName || `${campaignState.businessName || "Campaign"} ${campaignState.campaignType === "PERFORMANCE_MAX" ? "Asset Group" : "Ad Group"} 1`}</span>
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Optional Param 2: EU Political Advertising */}
-                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                          <span className="text-slate-500">EU Political Ads:</span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setCampaignState(prev => ({ ...prev, euPolitical: "NO" }))}
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                                (campaignState.euPolitical || "NO") === "NO"
-                                  ? "bg-purple-600 text-white shadow-2xs"
-                                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                              }`}
-                            >
-                              NO
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setCampaignState(prev => ({ ...prev, euPolitical: "YES" }))}
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                                campaignState.euPolitical === "YES"
-                                  ? "bg-purple-600 text-white shadow-2xs"
-                                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                              }`}
-                            >
-                              YES
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Optional Param 3: Brand Guidelines (PMax & Display & Demand Gen) */}
-                        {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "DEMAND_GEN" || campaignState.campaignType === "DISPLAY") && (
-                          <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                            <span className="text-slate-500">Brand Guidelines:</span>
+                        {/* Optional Param 3: Brand Guidelines (Strictly Performance Max) */}
+                        {campaignState.campaignType === "PERFORMANCE_MAX" && (
+                          <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>Brand Guidelines:</span>
+                            </div>
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
                                 onClick={() => setCampaignState(prev => ({ ...prev, brandGuidelinesEnabled: false }))}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
                                   !campaignState.brandGuidelinesEnabled
-                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    ? "bg-purple-600 text-white"
                                     : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
                                 }`}
                               >
@@ -11068,9 +11472,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                               <button
                                 type="button"
                                 onClick={() => setCampaignState(prev => ({ ...prev, brandGuidelinesEnabled: true }))}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
                                   campaignState.brandGuidelinesEnabled
-                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    ? "bg-purple-600 text-white"
                                     : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
                                 }`}
                               >
@@ -11080,10 +11484,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           </div>
                         )}
 
-                        {/* Optional Param 4: Customer Acquisition Mode (Sales / Leads PMax & Search) */}
-                        {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SEARCH") && (
-                          <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                            <span className="text-slate-500">Customer Acquisition:</span>
+                        {/* Optional Param 4: Customer Acquisition Mode (Strictly Performance Max) */}
+                        {campaignState.campaignType === "PERFORMANCE_MAX" && (
+                          <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Customer Acquisition:</span>
+                            </div>
                             <select
                               value={campaignState.customerAcquisitionMode || "EQUAL"}
                               onChange={(e) => setCampaignState(prev => ({
@@ -11091,7 +11498,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 customerAcquisitionMode: e.target.value,
                                 onlyBidNewCustomers: e.target.value === "ONLY_NEW"
                               }))}
-                              className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:border-blue-500 max-w-[160px]"
+                              className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-medium focus:outline-none focus:border-blue-500 max-w-[170px] shadow-2xs"
                             >
                               <option value="EQUAL">Bid equally (New & Existing)</option>
                               <option value="BID_HIGHER">Bid higher for new customers</option>
@@ -11104,14 +11511,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         {campaignState.campaignType === "SEARCH" && (
                           <>
                             {/* Search Partners Network Toggle */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Google Search Partners:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <Search className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Google Search Partners:</span>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => setCampaignState(prev => ({ ...prev, networkSearch: prev.networkSearch === false ? true : false }))}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
                                   campaignState.networkSearch !== false
-                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    ? "bg-purple-600 text-white"
                                     : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
                                 }`}
                               >
@@ -11120,14 +11530,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             {/* Display Network Expansion Toggle */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Google Display Network:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <LayoutGrid className="w-3.5 h-3.5 text-sky-600" />
+                                <span>Google Display Network:</span>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => setCampaignState(prev => ({ ...prev, networkDisplay: prev.networkDisplay === false ? true : false }))}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
                                   campaignState.networkDisplay !== false
-                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    ? "bg-purple-600 text-white"
                                     : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
                                 }`}
                               >
@@ -11136,12 +11549,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             {/* Location Targeting Mode */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Location Targeting:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <MapPin className="w-3.5 h-3.5 text-red-500" />
+                                <span>Location Targeting:</span>
+                              </div>
                               <select
                                 value={campaignState.locationOptionsPresence || "PRESENCE_INTEREST"}
                                 onChange={(e) => setCampaignState(prev => ({ ...prev, locationOptionsPresence: e.target.value }))}
-                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:border-blue-500 max-w-[170px]"
+                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-medium focus:outline-none focus:border-blue-500 max-w-[170px] shadow-2xs"
                               >
                                 <option value="PRESENCE_INTEREST">Presence or Interest</option>
                                 <option value="PRESENCE">Presence only (In location)</option>
@@ -11149,12 +11565,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             {/* Ad Rotation Mode */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Ad Rotation:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                                <span>Ad Rotation:</span>
+                              </div>
                               <select
                                 value={campaignState.adRotationMode || "OPTIMIZE"}
                                 onChange={(e) => setCampaignState(prev => ({ ...prev, adRotationMode: e.target.value }))}
-                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:border-blue-500 max-w-[170px]"
+                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-medium focus:outline-none focus:border-blue-500 max-w-[170px] shadow-2xs"
                               >
                                 <option value="OPTIMIZE">Optimize (Prefer best ads)</option>
                                 <option value="DO_NOT_OPTIMIZE">Do not optimize (Rotate evenly)</option>
@@ -11162,14 +11581,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             {/* Search Term Matching (Broad Match AI Expansion) */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Search Term Matching:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <Cpu className="w-3.5 h-3.5 text-purple-600" />
+                                <span>Search Term Matching:</span>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => setCampaignState(prev => ({ ...prev, useSearchTermMatchingAdGroup: prev.useSearchTermMatchingAdGroup === false ? true : false }))}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
                                   campaignState.useSearchTermMatchingAdGroup !== false
-                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    ? "bg-purple-600 text-white"
                                     : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
                                 }`}
                               >
@@ -11178,14 +11600,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             {/* AI Text Customization Toggle */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Text Customization:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>Text Customization:</span>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => setCampaignState(prev => ({ ...prev, enableTextCustomization: prev.enableTextCustomization === false ? true : false }))}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
                                   campaignState.enableTextCustomization !== false
-                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    ? "bg-purple-600 text-white"
                                     : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
                                 }`}
                               >
@@ -11199,12 +11624,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         {campaignState.campaignType === "DEMAND_GEN" && (
                           <>
                             {/* Ad Format Selector */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Ad Format:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <LayoutGrid className="w-3.5 h-3.5 text-blue-500" />
+                                <span>Ad Format:</span>
+                              </div>
                               <select
                                 value={campaignState.adFormat || "SINGLE_IMAGE"}
                                 onChange={(e) => setCampaignState(prev => ({ ...prev, adFormat: e.target.value as any }))}
-                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-bold focus:outline-none focus:border-blue-500 max-w-[150px]"
+                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-medium focus:outline-none focus:border-blue-500 max-w-[160px] shadow-2xs"
                               >
                                 <option value="SINGLE_IMAGE">Single Image Ad</option>
                                 <option value="VIDEO">Video Ad (YouTube)</option>
@@ -11213,12 +11641,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             {/* Call to Action Button */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Call to Action:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <MousePointerClick className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>Call to Action:</span>
+                              </div>
                               <select
                                 value={campaignState.callToAction || "Automated"}
                                 onChange={(e) => setCampaignState(prev => ({ ...prev, callToAction: e.target.value }))}
-                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:border-blue-500 max-w-[150px]"
+                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-medium focus:outline-none focus:border-blue-500 max-w-[160px] shadow-2xs"
                               >
                                 <option value="Automated">Automated</option>
                                 <option value="Learn more">Learn more</option>
@@ -11233,15 +11664,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             {/* Channel Placements Targeting */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Channel Placements:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <Share2 className="w-3.5 h-3.5 text-purple-500" />
+                                <span>Channel Placements:</span>
+                              </div>
                               <div className="flex items-center gap-1">
                                 <button
                                   type="button"
                                   onClick={() => setCampaignState(prev => ({ ...prev, channelTargeting: "ALL" }))}
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
                                     (campaignState.channelTargeting || "ALL") === "ALL"
-                                      ? "bg-purple-600 text-white shadow-2xs"
+                                      ? "bg-purple-600 text-white"
                                       : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
                                   }`}
                                 >
@@ -11250,9 +11684,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 <button
                                   type="button"
                                   onClick={() => setCampaignState(prev => ({ ...prev, channelTargeting: "CHOOSE" }))}
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
                                     campaignState.channelTargeting === "CHOOSE"
-                                      ? "bg-purple-600 text-white shadow-2xs"
+                                      ? "bg-purple-600 text-white"
                                       : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
                                   }`}
                                 >
@@ -11262,14 +11696,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             {/* View-Through Conversions Toggle */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">View-Through Conversions:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <Eye className="w-3.5 h-3.5 text-teal-500" />
+                                <span>View-Through Conversions:</span>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => setCampaignState(prev => ({ ...prev, includeViewThrough: !prev.includeViewThrough }))}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
                                   campaignState.includeViewThrough
-                                    ? "bg-purple-600 text-white shadow-2xs"
+                                    ? "bg-purple-600 text-white"
                                     : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
                                 }`}
                               >
@@ -11278,41 +11715,47 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             {/* Brand Colors (Hex Code Inputs) */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Brand Colors:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <Palette className="w-3.5 h-3.5 text-pink-500" />
+                                <span>Brand Colors:</span>
+                              </div>
                               <div className="flex items-center gap-1.5">
                                 <div className="flex items-center gap-1">
-                                  <span className="w-3 h-3 rounded-full border border-slate-300" style={{ backgroundColor: campaignState.mainBrandColor || "#2563EB" }} />
+                                  <span className="w-3 h-3 rounded-full border border-slate-300 shadow-2xs" style={{ backgroundColor: campaignState.mainBrandColor || "#2563EB" }} />
                                   <input
                                     type="text"
                                     maxLength={7}
                                     value={campaignState.mainBrandColor || "#2563EB"}
                                     onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
                                     placeholder="#2563EB"
-                                    className="w-16 bg-white border border-slate-200 rounded px-1 py-0.5 text-[10px] font-mono text-slate-800"
+                                    className="w-16 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs"
                                   />
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <span className="w-3 h-3 rounded-full border border-slate-300" style={{ backgroundColor: campaignState.accentBrandColor || "#F59E0B" }} />
+                                  <span className="w-3 h-3 rounded-full border border-slate-300 shadow-2xs" style={{ backgroundColor: campaignState.accentBrandColor || "#F59E0B" }} />
                                   <input
                                     type="text"
                                     maxLength={7}
                                     value={campaignState.accentBrandColor || "#F59E0B"}
                                     onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
                                     placeholder="#F59E0B"
-                                    className="w-16 bg-white border border-slate-200 rounded px-1 py-0.5 text-[10px] font-mono text-slate-800"
+                                    className="w-16 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs"
                                   />
                                 </div>
                               </div>
                             </div>
 
                             {/* Brand Font */}
-                            <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                              <span className="text-slate-500">Brand Font:</span>
+                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <Type className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>Brand Font:</span>
+                              </div>
                               <select
                                 value={campaignState.brandFont || "Any font"}
                                 onChange={(e) => setCampaignState(prev => ({ ...prev, brandFont: e.target.value }))}
-                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-medium text-slate-800 focus:outline-none"
+                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-medium text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs"
                               >
                                 <option value="Any font">Any font</option>
                                 <option value="Open Sans">Open Sans</option>
@@ -11327,16 +11770,16 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             {/* 6 Google AI Creative Enhancements Switches */}
-                            <div className="py-1 border-b border-slate-200/70 space-y-1">
-                              <div className="text-[10px] font-bold text-slate-700 flex items-center gap-1">
-                                <Sparkles className="h-3 w-3 text-purple-600" />
+                            <div className="py-1.5 border-b border-slate-200/80 space-y-1.5">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <Wand2 className="w-3.5 h-3.5 text-purple-600" />
                                 <span>Google AI Creative Enhancements:</span>
                               </div>
                               <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                                 <button
                                   type="button"
                                   onClick={() => setCampaignState(prev => ({ ...prev, optAdaptiveLayouts: prev.optAdaptiveLayouts === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
                                     campaignState.optAdaptiveLayouts !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
                                   }`}
                                 >
@@ -11346,7 +11789,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 <button
                                   type="button"
                                   onClick={() => setCampaignState(prev => ({ ...prev, optAnimatedImages: prev.optAnimatedImages === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
                                     campaignState.optAnimatedImages !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
                                   }`}
                                 >
@@ -11356,7 +11799,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 <button
                                   type="button"
                                   onClick={() => setCampaignState(prev => ({ ...prev, optGeneratedVideos: prev.optGeneratedVideos === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
                                     campaignState.optGeneratedVideos !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
                                   }`}
                                 >
@@ -11366,7 +11809,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 <button
                                   type="button"
                                   onClick={() => setCampaignState(prev => ({ ...prev, optShorterVideos: prev.optShorterVideos === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
                                     campaignState.optShorterVideos !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
                                   }`}
                                 >
@@ -11376,7 +11819,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 <button
                                   type="button"
                                   onClick={() => setCampaignState(prev => ({ ...prev, optResizedVideos: prev.optResizedVideos === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
                                     campaignState.optResizedVideos !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
                                   }`}
                                 >
@@ -11386,7 +11829,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 <button
                                   type="button"
                                   onClick={() => setCampaignState(prev => ({ ...prev, optLandingPagePreviews: prev.optLandingPagePreviews === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors ${
+                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
                                     campaignState.optLandingPagePreviews !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
                                   }`}
                                 >
@@ -11398,260 +11841,271 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           </>
                         )}
 
-                        {/* Optional Param 5: Tracking Template */}
-                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
-                          <div className="flex items-center gap-1 text-slate-500">
-                            <span>Tracking Template:</span>
-                            <button
-                              type="button"
-                              onClick={() => (editingField === "trackingTemplate" ? cancelFieldEdit() : startFieldEdit("trackingTemplate"))}
-                              className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                              title="Edit Tracking Template"
-                            >
-                              <Edit3 className="h-3 w-3" />
-                            </button>
+                        {/* Optional Param 5: Campaign URL Options & Tracking (Tracking Template, Final URL Suffix & Custom Parameters) */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-2">
+                          <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-[11px]">
+                            <Globe className="w-3.5 h-3.5 text-purple-600" />
+                            <span>Campaign URL Options & Tracking:</span>
                           </div>
-                          {editingField === "trackingTemplate" ? (
-                            <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
-                              <input
-                                type="text"
-                                value={tempEditValues.trackingTemplate || ""}
-                                onChange={(e) => setTempEditValues({ ...tempEditValues, trackingTemplate: e.target.value })}
-                                onKeyDown={handleKeyDownSave}
-                                placeholder="{lpurl}?utm_source=google"
-                                className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                autoFocus
-                              />
-                              <button
-                                type="button"
-                                onClick={saveFieldEdit}
-                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                                title="Save"
-                              >
-                                <Check className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelFieldEdit}
-                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                                title="Cancel"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-slate-800 font-medium font-mono text-[10px] truncate max-w-[160px]">
-                              {campaignState.trackingTemplate || "None"}
-                            </span>
-                          )}
-                        </div>
 
-                        {/* Optional Param 6: Final URL Suffix */}
-                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
-                          <div className="flex items-center gap-1 text-slate-500">
-                            <span>Final URL Suffix:</span>
-                            <button
-                              type="button"
-                              onClick={() => (editingField === "finalUrlSuffix" ? cancelFieldEdit() : startFieldEdit("finalUrlSuffix"))}
-                              className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                              title="Edit Final URL Suffix"
-                            >
-                              <Edit3 className="h-3 w-3" />
-                            </button>
-                          </div>
-                          {editingField === "finalUrlSuffix" ? (
-                            <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-white/70 p-2.5 rounded-xl border border-slate-200/70">
+                            <div>
+                              <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mb-1">
+                                <Link className="w-3 h-3 text-blue-500" />
+                                <span>Tracking Template:</span>
+                              </div>
                               <input
                                 type="text"
-                                value={tempEditValues.finalUrlSuffix || ""}
-                                onChange={(e) => setTempEditValues({ ...tempEditValues, finalUrlSuffix: e.target.value })}
-                                onKeyDown={handleKeyDownSave}
-                                placeholder="utm_source=google&utm_medium=cpc"
-                                className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                autoFocus
+                                value={campaignState.trackingTemplate || ""}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, trackingTemplate: e.target.value }))}
+                                placeholder="{lpurl}?utm_source=google&utm_medium=cpc"
+                                className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-purple-400"
                               />
+                            </div>
+
+                            <div>
+                              <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mb-1">
+                                <SlidersHorizontal className="w-3 h-3 text-indigo-500" />
+                                <span>Final URL Suffix:</span>
+                              </div>
+                              <input
+                                type="text"
+                                value={campaignState.finalUrlSuffix || ""}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, finalUrlSuffix: e.target.value }))}
+                                placeholder="utm_source=google&utm_medium=cpc"
+                                className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-purple-400"
+                              />
+                            </div>
+
+                            <div className="md:col-span-2 pt-1 border-t border-slate-100 space-y-1">
+                              <span className="text-[10px] text-slate-500 font-medium block">Custom Parameters:</span>
+                              {(campaignState.customParameters || []).map((cp, cpIdx) => (
+                                <div key={cpIdx} className="flex items-center gap-1">
+                                  <span className="text-[10px] font-mono text-slate-400">{`{_`}</span>
+                                  <input
+                                    type="text"
+                                    value={cp.name}
+                                    placeholder="param"
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.customParameters || [])];
+                                      cur[cpIdx] = { ...cur[cpIdx], name: e.target.value };
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="w-24 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                                  />
+                                  <span className="text-[10px] font-mono text-slate-400">{`} =`}</span>
+                                  <input
+                                    type="text"
+                                    value={cp.value}
+                                    placeholder="value"
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.customParameters || [])];
+                                      cur[cpIdx] = { ...cur[cpIdx], value: e.target.value };
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="flex-1 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const cur = (campaignState.customParameters || []).filter((_, i) => i !== cpIdx);
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+
                               <button
                                 type="button"
-                                onClick={saveFieldEdit}
-                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                                title="Save"
+                                onClick={() => {
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    customParameters: [...(prev.customParameters || []), { id: Date.now().toString(), name: "", value: "" }]
+                                  }));
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
                               >
-                                <Check className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelFieldEdit}
-                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                                title="Cancel"
-                              >
-                                <X className="h-3 w-3" />
+                                <Plus className="h-3 w-3" /> Add URL parameter
                               </button>
                             </div>
-                          ) : (
-                            <span className="text-slate-800 font-medium font-mono text-[10px] truncate max-w-[160px]">
-                              {campaignState.finalUrlSuffix || "None"}
-                            </span>
-                          )}
+                          </div>
                         </div>
 
                         {/* Optional Param 7: Display Path 1 & 2 */}
-                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
-                          <div className="flex items-center gap-1 text-slate-500">
-                            <span>Display Paths:</span>
-                            <button
-                              type="button"
-                              onClick={() => (editingField === "displayPath1" ? cancelFieldEdit() : startFieldEdit("displayPath1"))}
-                              className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                              title="Edit Display Paths"
-                            >
-                              <Edit3 className="h-3 w-3" />
-                            </button>
-                          </div>
-                          {editingField === "displayPath1" ? (
-                            <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
-                              <input
-                                type="text"
-                                maxLength={15}
-                                value={tempEditValues.displayPath1 || ""}
-                                onChange={(e) => setTempEditValues({ ...tempEditValues, displayPath1: e.target.value })}
-                                placeholder="Path 1"
-                                className="w-1/2 bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                autoFocus
-                              />
-                              <input
-                                type="text"
-                                maxLength={15}
-                                value={tempEditValues.displayPath2 || ""}
-                                onChange={(e) => setTempEditValues({ ...tempEditValues, displayPath2: e.target.value })}
-                                onKeyDown={handleKeyDownSave}
-                                placeholder="Path 2"
-                                className="w-1/2 bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                              />
+                        <div className="py-1.5 border-b border-slate-200/80 group">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <Compass className="w-3.5 h-3.5 text-sky-500" />
+                              <span>Display Paths:</span>
                               <button
                                 type="button"
-                                onClick={saveFieldEdit}
-                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                                title="Save"
+                                onClick={() => (editingField === "displayPath1" ? cancelFieldEdit() : startFieldEdit("displayPath1"))}
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
+                                title="Edit Display Paths"
                               >
-                                <Check className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelFieldEdit}
-                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                                title="Cancel"
-                              >
-                                <X className="h-3 w-3" />
+                                <Edit3 className="h-3 w-3" />
                               </button>
                             </div>
-                          ) : (
-                            <span className="text-slate-800 font-medium font-mono text-[10px] truncate max-w-[160px]">
-                              {campaignState.displayPath1 || campaignState.displayPath2
-                                ? `/${campaignState.displayPath1 || ""}${campaignState.displayPath2 ? `/${campaignState.displayPath2}` : ""}`
-                                : "Standard URL"}
-                            </span>
-                          )}
+                            {editingField === "displayPath1" ? (
+                              <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                                <input
+                                  type="text"
+                                  maxLength={15}
+                                  value={tempEditValues.displayPath1 || ""}
+                                  onChange={(e) => setTempEditValues({ ...tempEditValues, displayPath1: e.target.value })}
+                                  placeholder="Path 1"
+                                  className="w-1/2 bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                  autoFocus
+                                />
+                                <input
+                                  type="text"
+                                  maxLength={15}
+                                  value={tempEditValues.displayPath2 || ""}
+                                  onChange={(e) => setTempEditValues({ ...tempEditValues, displayPath2: e.target.value })}
+                                  onKeyDown={handleKeyDownSave}
+                                  placeholder="Path 2"
+                                  className="w-1/2 bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={saveFieldEdit}
+                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                  title="Save"
+                                >
+                                  <Check className="h-3 w-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelFieldEdit}
+                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                  title="Cancel"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[190px] truncate text-right">
+                                <span className="font-mono text-[10px] truncate">
+                                  {campaignState.displayPath1 || campaignState.displayPath2
+                                    ? `/${campaignState.displayPath1 || ""}${campaignState.displayPath2 ? `/${campaignState.displayPath2}` : ""}`
+                                    : "Standard URL"}
+                                </span>
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Optional Param 8: Mobile Final URL */}
-                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
-                          <div className="flex items-center gap-1 text-slate-500">
-                            <span>Mobile Final URL:</span>
-                            <button
-                              type="button"
-                              onClick={() => (editingField === "mobileFinalUrl" ? cancelFieldEdit() : startFieldEdit("mobileFinalUrl"))}
-                              className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                              title="Edit Mobile URL"
-                            >
-                              <Edit3 className="h-3 w-3" />
-                            </button>
-                          </div>
-                          {editingField === "mobileFinalUrl" ? (
-                            <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
-                              <input
-                                type="url"
-                                value={tempEditValues.mobileFinalUrl || ""}
-                                onChange={(e) => setTempEditValues({ ...tempEditValues, mobileFinalUrl: e.target.value })}
-                                onKeyDown={handleKeyDownSave}
-                                placeholder="https://m.example.com"
-                                className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                autoFocus
-                              />
+                        <div className="py-1.5 border-b border-slate-200/80 group">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
+                              <span>Mobile Final URL:</span>
                               <button
                                 type="button"
-                                onClick={saveFieldEdit}
-                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                                title="Save"
+                                onClick={() => (editingField === "mobileFinalUrl" ? cancelFieldEdit() : startFieldEdit("mobileFinalUrl"))}
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
+                                title="Edit Mobile URL"
                               >
-                                <Check className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelFieldEdit}
-                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                                title="Cancel"
-                              >
-                                <X className="h-3 w-3" />
+                                <Edit3 className="h-3 w-3" />
                               </button>
                             </div>
-                          ) : (
-                            <span className="text-slate-800 font-medium truncate max-w-[160px]">
-                              {campaignState.mobileFinalUrl || "Same as Final URL"}
-                            </span>
-                          )}
+                            {editingField === "mobileFinalUrl" ? (
+                              <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                                <input
+                                  type="url"
+                                  value={tempEditValues.mobileFinalUrl || ""}
+                                  onChange={(e) => setTempEditValues({ ...tempEditValues, mobileFinalUrl: e.target.value })}
+                                  onKeyDown={handleKeyDownSave}
+                                  placeholder="https://m.example.com"
+                                  className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  onClick={saveFieldEdit}
+                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                  title="Save"
+                                >
+                                  <Check className="h-3 w-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelFieldEdit}
+                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                  title="Cancel"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[190px] truncate text-right">
+                                <span className="truncate">{campaignState.mobileFinalUrl || "Same as Final URL"}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Optional Param 9: Call Extension Phone Number */}
-                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
-                          <div className="flex items-center gap-1 text-slate-500">
-                            <span>Call Phone Number:</span>
-                            <button
-                              type="button"
-                              onClick={() => (editingField === "callPhoneNumber" ? cancelFieldEdit() : startFieldEdit("callPhoneNumber"))}
-                              className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                              title="Edit Phone Number"
-                            >
-                              <Edit3 className="h-3 w-3" />
-                            </button>
-                          </div>
-                          {editingField === "callPhoneNumber" ? (
-                            <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
-                              <input
-                                type="tel"
-                                value={tempEditValues.callPhoneNumber || ""}
-                                onChange={(e) => setTempEditValues({ ...tempEditValues, callPhoneNumber: e.target.value })}
-                                onKeyDown={handleKeyDownSave}
-                                placeholder="+91 9876543210"
-                                className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                autoFocus
-                              />
+                        <div className="py-1.5 border-b border-slate-200/80 group">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <Phone className="w-3.5 h-3.5 text-green-600" />
+                              <span>Call Phone Number:</span>
                               <button
                                 type="button"
-                                onClick={saveFieldEdit}
-                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                                title="Save"
+                                onClick={() => (editingField === "callPhoneNumber" ? cancelFieldEdit() : startFieldEdit("callPhoneNumber"))}
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
+                                title="Edit Phone Number"
                               >
-                                <Check className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelFieldEdit}
-                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                                title="Cancel"
-                              >
-                                <X className="h-3 w-3" />
+                                <Edit3 className="h-3 w-3" />
                               </button>
                             </div>
-                          ) : (
-                            <span className="text-slate-800 font-medium font-mono text-[10px] truncate max-w-[160px]">
-                              {campaignState.callPhoneNumber || "None"}
-                            </span>
-                          )}
+                            {editingField === "callPhoneNumber" ? (
+                              <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                                <input
+                                  type="tel"
+                                  value={tempEditValues.callPhoneNumber || ""}
+                                  onChange={(e) => setTempEditValues({ ...tempEditValues, callPhoneNumber: e.target.value })}
+                                  onKeyDown={handleKeyDownSave}
+                                  placeholder="+91 9876543210"
+                                  className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  onClick={saveFieldEdit}
+                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                  title="Save"
+                                >
+                                  <Check className="h-3 w-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelFieldEdit}
+                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                  title="Cancel"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[190px] truncate text-right">
+                                <span className="font-mono text-[10px] truncate">{campaignState.callPhoneNumber || "None"}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Optional Param 10: Device Targeting */}
-                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                          <span className="text-slate-500">Device Targeting:</span>
+                        <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                            <Monitor className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Device Targeting:</span>
+                          </div>
                           <div className="flex items-center gap-1 text-[10px]">
                             {["computers", "mobile", "tablets", "tv"].map((dev) => {
                               const active = (campaignState.devices as any)?.[dev] !== false;
@@ -11668,7 +12122,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                       };
                                     });
                                   }}
-                                  className={`px-1.5 py-0.5 rounded font-semibold transition-colors cursor-pointer ${
+                                  className={`px-2 py-0.5 rounded font-semibold transition-colors cursor-pointer shadow-2xs ${
                                     active
                                       ? "bg-purple-100 text-purple-700 border border-purple-300"
                                       : "bg-slate-100 text-slate-400 border border-slate-200 hover:bg-slate-200"
@@ -11683,8 +12137,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </div>
 
                         {/* Optional Param 11: Value Rules (Conversion Value Adjustments) */}
-                        <div className="py-1 border-b border-slate-200/70 flex items-center justify-between">
-                          <span className="text-slate-500">Value Rules:</span>
+                        <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                            <SlidersHorizontal className="w-3.5 h-3.5 text-violet-500" />
+                            <span>Value Rules:</span>
+                          </div>
                           <select
                             value={(campaignState.valueRules as any)?.type || "NONE"}
                             onChange={(e) => {
@@ -11698,7 +12155,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 }
                               }));
                             }}
-                            className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none max-w-[160px]"
+                            className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-medium focus:outline-none focus:border-blue-500 max-w-[160px] shadow-2xs"
                           >
                             <option value="NONE">None</option>
                             <option value="AUDIENCE">Adjust by Audience (1.2x)</option>
@@ -11707,76 +12164,264 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           </select>
                         </div>
 
-                        {/* Optional Param 12: Merchant Center & Feeds (PMax / Shopping) */}
-                        {Boolean(isMerchantVerified(customerProfile || campaignState.customerProfile)) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SHOPPING") && (
-                          <div className="py-1 border-b border-slate-200/70 flex items-center justify-between group">
-                            <div className="flex items-center gap-1 text-slate-500">
-                              <span>Merchant Center ID:</span>
-                              <button
-                                type="button"
-                                onClick={() => (editingField === "merchantCenterId" ? cancelFieldEdit() : startFieldEdit("merchantCenterId"))}
-                                className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                                title="Edit Merchant Center ID"
-                              >
-                                <Edit3 className="h-3 w-3" />
-                              </button>
+                        {/* Optional Param 12: Ad Schedule (Performance Max, Search & Demand Gen) */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-[11px]">
+                              <Clock className="w-3.5 h-3.5 text-purple-600" />
+                              <span>Ad Schedule:</span>
                             </div>
-                            {editingField === "merchantCenterId" ? (
-                              <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
-                                <input
-                                  type="text"
-                                  value={tempEditValues.merchantCenterId || ""}
-                                  onChange={(e) => setTempEditValues({ ...tempEditValues, merchantCenterId: e.target.value })}
-                                  onKeyDown={handleKeyDownSave}
-                                  placeholder="e.g. 5840531233"
-                                  className="w-full bg-white border border-blue-500 rounded px-1 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                  autoFocus
-                                />
-                                <button
-                                  type="button"
-                                  onClick={saveFieldEdit}
-                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                                  title="Save"
-                                >
-                                  <Check className="h-3 w-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelFieldEdit}
-                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                                  title="Cancel"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="text-slate-800 font-medium font-mono text-[10px] truncate max-w-[160px]">
-                                {campaignState.merchantCenterId || "None"}
-                              </span>
-                            )}
+                            <span className="text-[10px] text-slate-400">
+                              {(campaignState.adSchedule || []).length || 1} schedule(s)
+                            </span>
                           </div>
-                        )}
 
-                        {/* Optional Param 13: 3rd-Party Measurement */}
-                        <div className="py-1 flex items-center justify-between">
-                          <span className="text-slate-500">3rd-Party Measurement:</span>
-                          <select
-                            value={(campaignState.thirdPartyMeasurement as any)?.vendor || "NONE"}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setCampaignState(prev => ({
-                                ...prev,
-                                thirdPartyMeasurement: v === "NONE" ? undefined : { vendor: v }
-                              }));
-                            }}
-                            className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none max-w-[160px]"
-                          >
-                            <option value="NONE">None</option>
-                            <option value="ADLOOX">Adloox</option>
-                            <option value="DOUBLE_VERIFY">DoubleVerify</option>
-                            <option value="INTEGRAL_AD_SCIENCE">Integral Ad Science (IAS)</option>
-                            <option value="MOAT">Moat by Oracle</option>
-                          </select>
+                          <div className="space-y-1.5 bg-white/70 p-2.5 rounded-xl border border-slate-200/70">
+                            {adScheduleError && (
+                              <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-1.5 text-[10px] text-rose-600 font-semibold animate-pulse">
+                                <AlertCircle className="h-3 w-3 shrink-0" />
+                                <span>{adScheduleError}</span>
+                              </div>
+                            )}
+
+                            {(campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "00:00" }]).map((sched, idx) => {
+                              const isAllDay = sched.start === "00:00" && (sched.end === "00:00" || sched.end === "24:00");
+                              const hasTimeError = !isAllDay && sched.start >= sched.end;
+                              const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "00:00" }];
+                              const isRowDuplicate = currentList.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === sched.end);
+                              const hasRowError = hasTimeError || isRowDuplicate;
+
+                              return (
+                                <div key={idx} className="space-y-1">
+                                  <div className={`flex flex-wrap items-center gap-1.5 p-1.5 rounded-lg border text-[10px] transition-colors ${
+                                    hasRowError ? "bg-rose-50/70 border-rose-300" : "bg-slate-50 border-slate-200"
+                                  }`}>
+                                    <select
+                                      value={sched.day}
+                                      onChange={(e) => {
+                                        const nextDay = e.target.value;
+                                        const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                        const isDup = list.some((s, i) => i !== idx && s.day === nextDay && s.start === sched.start && s.end === sched.end);
+                                        if (isDup) {
+                                          setAdScheduleError(`Duplicate schedule: "${nextDay}: ${sched.start} - ${sched.end}" already exists. Cannot save duplicate.`);
+                                          return;
+                                        }
+                                        list[idx] = { ...list[idx], day: nextDay };
+                                        setAdScheduleError(null);
+                                        setCampaignState(prev => ({ ...prev, adSchedule: list }));
+                                      }}
+                                      className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-medium focus:outline-none"
+                                    >
+                                      {pmaxDayOptions.map((d, i) => (
+                                        <option key={i} value={d}>{d}</option>
+                                      ))}
+                                    </select>
+
+                                    <select
+                                      value={sched.start}
+                                      onChange={(e) => {
+                                        const nextStart = e.target.value;
+                                        const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                        const isDup = list.some((s, i) => i !== idx && s.day === sched.day && s.start === nextStart && s.end === sched.end);
+                                        if (isDup) {
+                                          setAdScheduleError(`Duplicate schedule: "${sched.day}: ${nextStart} - ${sched.end}" already exists. Cannot save duplicate.`);
+                                          return;
+                                        }
+                                        const isFull = nextStart === "00:00" && (sched.end === "00:00" || sched.end === "24:00");
+                                        if (!isFull && nextStart >= sched.end) {
+                                          setAdScheduleError(`Invalid time: Start time (${nextStart}) must be before end time (${sched.end}).`);
+                                          return;
+                                        }
+                                        list[idx] = { ...list[idx], start: nextStart };
+                                        setAdScheduleError(null);
+                                        setCampaignState(prev => ({ ...prev, adSchedule: list }));
+                                      }}
+                                      className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-mono focus:outline-none"
+                                    >
+                                      {pmaxTimeOptions.map((t, i) => (
+                                        <option key={i} value={t}>{t}</option>
+                                      ))}
+                                    </select>
+
+                                    <span className="text-slate-400">to</span>
+
+                                    <select
+                                      value={sched.end}
+                                      onChange={(e) => {
+                                        const nextEnd = e.target.value;
+                                        const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                        const isDup = list.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === nextEnd);
+                                        if (isDup) {
+                                          setAdScheduleError(`Duplicate schedule: "${sched.day}: ${sched.start} - ${nextEnd}" already exists. Cannot save duplicate.`);
+                                          return;
+                                        }
+                                        const isFull = sched.start === "00:00" && (nextEnd === "00:00" || nextEnd === "24:00");
+                                        if (!isFull && sched.start >= nextEnd) {
+                                          setAdScheduleError(`Invalid time: Start time (${sched.start}) must be before end time (${nextEnd}).`);
+                                          return;
+                                        }
+                                        list[idx] = { ...list[idx], end: nextEnd };
+                                        setAdScheduleError(null);
+                                        setCampaignState(prev => ({ ...prev, adSchedule: list }));
+                                      }}
+                                      className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-mono focus:outline-none"
+                                    >
+                                      {pmaxTimeOptions.map((t, i) => (
+                                        <option key={i} value={t}>{t}</option>
+                                      ))}
+                                    </select>
+
+                                    {(campaignState.adSchedule || []).length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const currentList = [...(campaignState.adSchedule || [])];
+                                          currentList.splice(idx, 1);
+                                          setAdScheduleError(null);
+                                          setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-rose-600 ml-auto cursor-pointer"
+                                        title="Delete schedule row"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {hasRowError && (
+                                    <div className="text-[9px] text-rose-600 font-semibold px-1 flex items-center gap-1">
+                                      <AlertCircle className="h-2.5 w-2.5 shrink-0" />
+                                      <span>
+                                        {isRowDuplicate
+                                          ? "Duplicate schedule detected for this day and time."
+                                          : `Start time (${sched.start}) must be strictly before end time (${sched.end}).`}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
+                                const availableDay = pmaxDayOptions.find(d => !currentList.some(s => s.day === d && s.start === "09:00" && s.end === "18:00")) ||
+                                  pmaxDayOptions.find(d => !currentList.some(s => s.day === d)) || "All days";
+                                const newRow = { day: availableDay, start: "09:00", end: "18:00" };
+                                const isDup = currentList.some(s => s.day === newRow.day && s.start === newRow.start && s.end === newRow.end);
+                                if (isDup) {
+                                  setAdScheduleError(`Schedule for ${newRow.day} (09:00 - 18:00) already exists. Please adjust the existing row.`);
+                                  return;
+                                }
+                                setAdScheduleError(null);
+                                setCampaignState(prev => ({ ...prev, adSchedule: [...currentList, newRow] }));
+                              }}
+                              className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
+                            >
+                              <Plus className="h-3 w-3" /> Add schedule row
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Optional Param 13: Demographic Exclusions (Performance Max, Search & Demand Gen) */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-2">
+                          <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-[11px]">
+                            <Users className="w-3.5 h-3.5 text-purple-600" />
+                            <span>Demographic Exclusions:</span>
+                          </div>
+
+                          <div className="space-y-2 bg-white/70 p-2.5 rounded-xl border border-slate-200/70">
+                            {/* Age Exclusions */}
+                            <div className="space-y-1">
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={pmaxAgeExclusionsEnabled}
+                                  onChange={(e) => setPmaxAgeExclusionsEnabled(e.target.checked)}
+                                  className="rounded text-purple-600 h-3 w-3"
+                                />
+                                <span className="text-[10px] font-semibold text-slate-700">Turn on age exclusions</span>
+                              </label>
+                              {pmaxAgeExclusionsEnabled && (
+                                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-3 gap-1 text-[10px]">
+                                  {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map((age) => {
+                                    const curExcluded = campaignState.demographicExclusions?.ages !== undefined
+                                      ? campaignState.demographicExclusions.ages
+                                      : ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
+                                    const isExcluded = curExcluded.includes(age);
+                                    return (
+                                      <label key={age} className="flex items-center gap-1 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={isExcluded}
+                                          onChange={(e) => {
+                                            const nextAges = e.target.checked
+                                              ? [...curExcluded, age]
+                                              : curExcluded.filter(a => a !== age);
+                                            setCampaignState(prev => ({
+                                              ...prev,
+                                              demographicExclusions: {
+                                                ...(prev.demographicExclusions || {}),
+                                                ages: nextAges
+                                              }
+                                            }));
+                                          }}
+                                          className="rounded text-rose-600 h-3 w-3"
+                                        />
+                                        <span>{age}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Gender Exclusions */}
+                            <div className="space-y-1 pt-1.5 border-t border-slate-100">
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={pmaxGenderExclusionsEnabled}
+                                  onChange={(e) => setPmaxGenderExclusionsEnabled(e.target.checked)}
+                                  className="rounded text-purple-600 h-3 w-3"
+                                />
+                                <span className="text-[10px] font-semibold text-slate-700">Turn on gender exclusions</span>
+                              </label>
+                              {pmaxGenderExclusionsEnabled && (
+                                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 flex gap-4 text-[10px]">
+                                  {["Female", "Male", "Unknown"].map((gender) => {
+                                    const curExcluded = campaignState.demographicExclusions?.genders !== undefined
+                                      ? campaignState.demographicExclusions.genders
+                                      : ["Female", "Male"];
+                                    const isExcluded = curExcluded.includes(gender);
+                                    return (
+                                      <label key={gender} className="flex items-center gap-1 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={isExcluded}
+                                          onChange={(e) => {
+                                            const nextGenders = e.target.checked
+                                              ? [...curExcluded, gender]
+                                              : curExcluded.filter(g => g !== gender);
+                                            setCampaignState(prev => ({
+                                              ...prev,
+                                              demographicExclusions: {
+                                                ...(prev.demographicExclusions || {}),
+                                                genders: nextGenders
+                                              }
+                                            }));
+                                          }}
+                                          className="rounded text-rose-600 h-3 w-3"
+                                        />
+                                        <span>{gender}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
 
                       </div>
@@ -13005,18 +13650,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 2b-2. SEARCH, DEMAND GEN & PERFORMANCE MAX CONTROLS: MORE CAMPAIGN SETTINGS */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SEARCH" || campaignState.campaignType === "DEMAND_GEN") && (
+            {/* 2b-2. SEARCH & DEMAND GEN CONTROLS: MORE CAMPAIGN SETTINGS */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "SEARCH" || campaignState.campaignType === "DEMAND_GEN") && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="h-4 w-4 text-blue-600" />
                     <span className="font-bold text-xs text-slate-900">
-                      {campaignState.campaignType === "SEARCH" ? "Search Campaign Settings" : campaignState.campaignType === "DEMAND_GEN" ? "Demand Gen Advanced Settings" : "Performance Max Controls"}
+                      {campaignState.campaignType === "SEARCH" ? "Search Campaign Settings" : "Demand Gen Advanced Settings"}
                     </span>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
-                    {campaignState.campaignType === "SEARCH" ? "Schedule & URL Options" : campaignState.campaignType === "DEMAND_GEN" ? "Schedule & Devices" : "PMax Controls"}
+                    {campaignState.campaignType === "SEARCH" ? "Schedule & URL Options" : "Schedule & Devices"}
                   </span>
                 </div>
 
@@ -14674,15 +15319,31 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 })()}
 
                 {/* Live Display Asset Requirements Checklist when type is DISPLAY */}
-                {campaignState.campaignType === "DISPLAY" && (
+                {campaignState.campaignType === "DISPLAY" && (() => {
+                  const hasDisplayLandImg = (campaignState.images || []).some(im => {
+                    const r = (typeof im === "object" && ((im as any)?.aspectRatio || ((im as any)?.fieldType === "MARKETING_IMAGE" ? "1.91:1" : null))) || "";
+                    const dims = typeof im === "object" ? (im as any)?.dimensions : null;
+                    return r === "1.91:1" || (dims && dims.width >= dims.height * 1.3);
+                  });
+                  const hasDisplaySqImg = (campaignState.images || []).some(im => {
+                    const r = (typeof im === "object" && ((im as any)?.aspectRatio || ((im as any)?.fieldType === "SQUARE_MARKETING_IMAGE" ? "1:1" : null))) || "";
+                    const dims = typeof im === "object" ? (im as any)?.dimensions : null;
+                    return r === "1:1" || (dims && Math.abs(dims.width - dims.height) <= 30);
+                  });
+                  const hasHeadlines = (campaignState.headlines?.length || 0) >= 1;
+                  const hasDescriptions = (campaignState.descriptions?.length || 0) >= 1;
+                  const hasBudget = Boolean(campaignState.dailyBudget && campaignState.dailyBudget >= 100);
+                  const isDisplayReady = (hasDisplayLandImg || (campaignState.images?.length || 0) >= 1) && hasHeadlines && hasDescriptions && hasBudget;
+
+                  return (
                   <div className="p-3 rounded-xl bg-white border border-blue-200 shadow-2xs space-y-2 text-[10px]">
                     <div className="flex items-center justify-between font-bold text-slate-800 border-b border-blue-100 pb-1.5">
                       <span className="flex items-center gap-1.5 text-blue-700">
                         <ImageIcon className="h-3.5 w-3.5" />
                         <span>Display Responsive Ad Readiness</span>
                       </span>
-                      <span className={campaignState.readyForPublish ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
-                        {campaignState.readyForPublish ? "Complete ✓" : "Required items missing"}
+                      <span className={isDisplayReady ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
+                        {isDisplayReady ? "Ready to Launch ✓" : "Required items missing"}
                       </span>
                     </div>
 
@@ -14700,7 +15361,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 pt-0.5 text-[9px]">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 pt-0.5 text-[9px]">
                         <div className="bg-white/80 p-1 rounded border border-blue-100">
                           <span className="font-bold text-slate-900 block">Landscape (1.91:1)</span>
                           <span className="text-slate-500 block">Rec: 1200 x 628</span>
@@ -14712,13 +15373,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           <span className="text-slate-400 block">Min: 300 x 300</span>
                         </div>
                         <div className="bg-white/80 p-1 rounded border border-blue-100">
-                          <span className="font-bold text-slate-900 block">Portrait (9:16)</span>
-                          <span className="text-slate-500 block">Rec: 900 x 1600</span>
-                          <span className="text-slate-400 block">Min: 600 x 1067</span>
+                          <span className="font-bold text-slate-900 block">Square Logo (1:1)</span>
+                          <span className="text-slate-500 block">Rec: 1200 x 1200</span>
+                          <span className="text-slate-400 block">Min: 128 x 128</span>
+                        </div>
+                        <div className="bg-white/80 p-1 rounded border border-blue-100">
+                          <span className="font-bold text-slate-900 block">Landscape Logo (4:1)</span>
+                          <span className="text-slate-500 block">Rec: 1200 x 300</span>
+                          <span className="text-slate-400 block">Min: 512 x 128</span>
                         </div>
                       </div>
                       <p className="text-[8.5px] text-slate-500 italic pt-0.5">
-                        * Maximum file size: 5120 KB (5 MB). Selected images are auto-cropped to specification and can be edited anytime.
+                        * Maximum file size: 5 MB (5120 KB). Display campaigns require at least 1 landscape image (1.91:1) and 1 square image (1:1). Brand logos (1:1 or 4:1) are optional at launch.
                       </p>
                     </div>
 
@@ -14730,9 +15396,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                        <span>Logo (1:1 Square):</span>
-                        <span className={(campaignState.logos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.logos?.length || 0) > 0 ? "✓ Uploaded" : "Missing"}
+                        <span>Brand Logo (1:1 / 4:1):</span>
+                        <span className={(campaignState.logos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-slate-400 font-medium"}>
+                          {(campaignState.logos?.length || 0) > 0 ? `✓ ${(campaignState.logos?.length || 0)} attached` : "Optional"}
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
@@ -14761,7 +15427,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </div>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Live Video Asset Requirements Checklist when type is VIDEO */}
                 {campaignState.campaignType === "VIDEO" && (
@@ -15995,51 +16662,92 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           {campaignState.images.map((img, idx) => {
                             const url = typeof img === "string" ? img : img?.url || "";
                             const name = typeof img === "object" ? img?.name : `Image ${idx + 1}`;
-                            const isSquare = typeof img === "object" && ((img as any)?.aspectRatio === "1:1" || (img as any)?.fieldType === "SQUARE_MARKETING_IMAGE");
+                            const isDisplay = campaignState.campaignType === "DISPLAY";
+                            const rawRatio = typeof img === "object" && (img as any)?.aspectRatio
+                              ? (img as any).aspectRatio
+                              : (typeof img === "object" && (img as any)?.fieldType === "SQUARE_MARKETING_IMAGE")
+                                ? "1:1"
+                                : "1.91:1";
+                            const isSquare = rawRatio === "1:1" || (typeof img === "object" && (img as any)?.fieldType === "SQUARE_MARKETING_IMAGE");
+                            const formatName = isSquare ? "Square" : "Landscape";
+                            const dims = typeof img === "object" && (img as any)?.dimensions;
+                            const dimsStr = dims ? `${dims.width} × ${dims.height}` : isSquare ? "1200 × 1200" : "1200 × 628";
+                            const isDisplayValid = !isDisplay || (rawRatio === "1.91:1" || rawRatio === "1:1");
+
                             return (
-                              <div key={idx} className={`relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-900 ${isSquare ? "aspect-square" : "aspect-video"} flex items-center justify-center`}>
-                                {url ? (
-                                  <img src={url} alt={name || "Creative"} className="w-full h-full object-cover" />
-                                ) : (
-                                  <ImageIcon className="h-4 w-4 text-slate-400" />
+                              <div key={idx} className="flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+                                <div className={`relative group w-full bg-slate-900 ${isSquare ? "aspect-square" : "aspect-video"} flex items-center justify-center`}>
+                                  {url ? (
+                                    <img src={url} alt={name || "Creative"} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <ImageIcon className="h-4 w-4 text-slate-400" />
+                                  )}
+                                  <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditExistingAsset("IMAGE", idx);
+                                      }}
+                                      className="p-1 rounded-md bg-black/70 hover:bg-blue-600 text-white transition-all cursor-pointer"
+                                      title="Edit / Crop image"
+                                    >
+                                      <Crop className="h-2.5 w-2.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCampaignState(prev => ({
+                                          ...prev,
+                                          images: (prev.images || []).filter((_, i) => i !== idx)
+                                        }));
+                                      }}
+                                      className="p-1 rounded-md bg-black/70 hover:bg-rose-600 text-white transition-all cursor-pointer"
+                                      title="Remove image"
+                                    >
+                                      <Trash2 className="h-2.5 w-2.5" />
+                                    </button>
+                                  </div>
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1.5 pointer-events-none">
+                                    <span className="text-[9px] text-white truncate font-medium">{name}</span>
+                                  </div>
+                                  <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono pointer-events-none">
+                                    {rawRatio}
+                                  </span>
+                                </div>
+
+                                {isDisplay && (
+                                  <div className="p-2 bg-slate-50 border-t border-slate-100 space-y-1 text-[9.5px]">
+                                    <div className="flex items-center justify-between font-semibold text-slate-700">
+                                      <span>Display Image</span>
+                                      <span className="text-slate-500 font-mono">{formatName} ({rawRatio})</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[8.5px] text-slate-500 font-mono">
+                                      <span>{dimsStr}</span>
+                                      <span>{isDisplayValid ? "Max 5MB" : "Invalid ratio"}</span>
+                                    </div>
+                                    <div className="pt-0.5">
+                                      {isDisplayValid ? (
+                                        <div className="flex items-center gap-1 text-[9px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                          <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+                                          <span>✓ Valid for Google Display</span>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center justify-between bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded text-[8.5px] text-rose-700">
+                                          <span>✕ Ratio must be 1.91:1 or 1:1</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleEditExistingAsset("IMAGE", idx)}
+                                            className="font-bold underline hover:text-rose-900 cursor-pointer ml-1"
+                                          >
+                                            Edit
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
                                 )}
-                                <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEditExistingAsset("IMAGE", idx);
-                                    }}
-                                    className="p-1 rounded-md bg-black/70 hover:bg-blue-600 text-white transition-all cursor-pointer"
-                                    title="Edit / Crop image"
-                                  >
-                                    <Crop className="h-2.5 w-2.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setCampaignState(prev => ({
-                                        ...prev,
-                                        images: (prev.images || []).filter((_, i) => i !== idx)
-                                      }));
-                                    }}
-                                    className="p-1 rounded-md bg-black/70 hover:bg-rose-600 text-white transition-all cursor-pointer"
-                                    title="Remove image"
-                                  >
-                                    <Trash2 className="h-2.5 w-2.5" />
-                                  </button>
-                                </div>
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1.5 pointer-events-none">
-                                  <span className="text-[9px] text-white truncate font-medium">{name}</span>
-                                </div>
-                                <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono pointer-events-none">
-                                  {typeof img === "object" && (img as any)?.aspectRatio
-                                    ? (img as any).aspectRatio
-                                    : (typeof img === "object" && (img as any)?.fieldType === "SQUARE_MARKETING_IMAGE")
-                                      ? "1:1"
-                                      : "1.91:1"}
-                                </span>
                               </div>
                             );
                           })}
@@ -16075,37 +16783,53 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <div className="flex flex-wrap gap-2">
                           {campaignState.logos.map((logo, idx) => {
                             const url = typeof logo === "string" ? logo : logo?.url || "";
+                            const isDisplay = campaignState.campaignType === "DISPLAY";
+                            const logoAspect = typeof logo === "object" && (logo as any)?.aspectRatio ? (logo as any).aspectRatio : "1:1";
+                            const logoDims = typeof logo === "object" && (logo as any)?.dimensions;
+                            const isLandscapeLogo = logoAspect === "4:1";
+                            const dimsStr = logoDims ? `${logoDims.width} × ${logoDims.height}` : isLandscapeLogo ? "1200 × 300" : "1200 × 1200";
+
                             return (
-                              <div key={idx} className="relative group w-14 h-14 rounded-lg border border-slate-200 bg-white p-1 flex items-center justify-center overflow-hidden">
-                                {url ? <img src={url} alt="Logo" className="max-w-full max-h-full object-contain" /> : <ImageIcon className="h-3 w-3 text-slate-400" />}
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEditExistingAsset("LOGO", idx);
-                                    }}
-                                    className="p-1 bg-blue-600 hover:bg-blue-700 text-white rounded cursor-pointer"
-                                    title="Edit / Crop logo"
-                                  >
-                                    <Crop className="h-3 w-3" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setCampaignState(prev => ({
-                                        ...prev,
-                                        logos: (prev.logos || []).filter((_, i) => i !== idx)
-                                      }));
-                                    }}
-                                    className="p-1 bg-rose-600 hover:bg-rose-700 text-white rounded cursor-pointer"
-                                    title="Remove logo"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
+                              <div key={idx} className="flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+                                <div className={`relative group ${isLandscapeLogo ? "w-28 h-12" : "w-16 h-16"} bg-slate-50 p-1 flex items-center justify-center overflow-hidden`}>
+                                  {url ? <img src={url} alt="Logo" className="max-w-full max-h-full object-contain" /> : <ImageIcon className="h-3 w-3 text-slate-400" />}
+                                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-1 z-10">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditExistingAsset("LOGO", idx);
+                                      }}
+                                      className="p-1 bg-blue-600 hover:bg-blue-700 text-white rounded cursor-pointer"
+                                      title="Edit / Crop logo"
+                                    >
+                                      <Crop className="h-2.5 w-2.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCampaignState(prev => ({
+                                          ...prev,
+                                          logos: (prev.logos || []).filter((_, i) => i !== idx)
+                                        }));
+                                      }}
+                                      className="p-1 bg-rose-600 hover:bg-rose-700 text-white rounded cursor-pointer"
+                                      title="Remove logo"
+                                    >
+                                      <Trash2 className="h-2.5 w-2.5" />
+                                    </button>
+                                  </div>
+                                  <span className="absolute bottom-0.5 right-0.5 bg-blue-600 text-white text-[7px] font-bold px-1 rounded pointer-events-none">
+                                    {logoAspect}
+                                  </span>
                                 </div>
-                                <span className="absolute bottom-0.5 right-0.5 bg-blue-600 text-white text-[7px] font-bold px-1 rounded pointer-events-none">1:1</span>
+                                {isDisplay && (
+                                  <div className="px-1.5 py-1 bg-slate-50 border-t border-slate-100 text-[8.5px] space-y-0.5 max-w-[120px]">
+                                    <span className="font-semibold text-slate-700 block truncate">{isLandscapeLogo ? "Landscape Logo" : "Square Logo"}</span>
+                                    <span className="text-[7.5px] text-emerald-700 font-bold block">✓ Google Display</span>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -16278,168 +17002,196 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             )}
 
             {/* 4a. MERCHANT CENTER & PRODUCT FEED CONDITIONAL SETUP (When Merchant Center verified in Profile - Performance Max & Sales only, Shopping uses dedicated Card 2c) */}
-            {Boolean(
-              campaignState.campaignType !== "SHOPPING" &&
-              isMerchantVerified(customerProfile || campaignState.customerProfile) &&
-              (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.objective === "SALES")
-            ) && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <ShoppingBag className="h-4 w-4 text-amber-600" />
-                    <span className="font-bold text-xs text-slate-900">Google Merchant Center & Products</span>
-                  </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                    (campaignState.merchantCenterId || (campaignState as any).merchantId)
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : hasMerchantCenterAccount === false
-                      ? "bg-slate-100 text-slate-600 border-slate-200"
-                      : "bg-amber-50 text-amber-700 border-amber-200"
-                  }`}>
-                    {(campaignState.merchantCenterId || (campaignState as any).merchantId) ? "Connected ✓" : hasMerchantCenterAccount === false ? "Skipped (No Feed)" : "Setup Needed"}
-                  </span>
-                </div>
+            {/* 4a. MERCHANT CENTER & PRODUCT FEED CONDITIONAL SETUP */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && (() => {
+              const effectiveProfile = customerProfile || campaignState.customerProfile;
+              const isMerchantConn = Boolean(isMerchantVerified(effectiveProfile));
+              const activeMerchantId = (
+                campaignState.merchantCenterId ||
+                (campaignState as any).merchantId ||
+                effectiveProfile?.merchantCenterId ||
+                effectiveProfile?.merchantId ||
+                ""
+              ).toString().trim();
+              const storeName = effectiveProfile?.merchantStoreName || effectiveProfile?.businessName || campaignState.businessName || "Connected Merchant Store";
 
-                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2.5">
-                  <p className="text-[11px] font-semibold text-slate-800">
-                    Do you have a Google Merchant Center account for your store products?
-                  </p>
-                  <p className="text-[10px] text-slate-500">
-                    Linking Merchant Center allows Performance Max to advertise your products directly across Google Shopping, Search, YouTube, and Maps.
-                  </p>
+              // Check if user chose NOT to use merchant account details in this campaign
+              const isExcludedFromCampaign = campaignState.useMerchantInCampaign === false;
 
-                  {/* Yes / No Quick Radio Selection */}
-                  <div className="flex items-center gap-3 pt-1">
-                    <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
-                      hasMerchantCenterAccount === true || Boolean(campaignState.merchantCenterId || (campaignState as any).merchantId)
-                        ? "bg-amber-50 border-amber-400 text-amber-900 shadow-2xs"
-                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-white"
+              return (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <ShoppingBag className="h-4 w-4 text-amber-600" />
+                      <span className="font-bold text-xs text-slate-900">Google Merchant Center & Products</span>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      !isMerchantConn
+                        ? "bg-rose-50 text-rose-700 border-rose-200"
+                        : isExcludedFromCampaign
+                        ? "bg-slate-100 text-slate-600 border-slate-200"
+                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
                     }`}>
-                      <input
-                        type="radio"
-                        name="merchantAccountRadio"
-                        checked={hasMerchantCenterAccount === true || Boolean(campaignState.merchantCenterId || (campaignState as any).merchantId)}
-                        onChange={() => {
-                          setHasMerchantCenterAccount(true);
-                        }}
-                        className="text-amber-600"
-                      />
-                      <span>Yes, I have Merchant Center</span>
-                    </label>
-
-                    <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
-                      hasMerchantCenterAccount === false && !Boolean(campaignState.merchantCenterId || (campaignState as any).merchantId)
-                        ? "bg-slate-100 border-slate-400 text-slate-900 shadow-2xs"
-                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-white"
-                    }`}>
-                      <input
-                        type="radio"
-                        name="merchantAccountRadio"
-                        checked={hasMerchantCenterAccount === false && !Boolean(campaignState.merchantCenterId || (campaignState as any).merchantId)}
-                        onChange={() => {
-                          setHasMerchantCenterAccount(false);
-                          setCampaignState(prev => ({
-                            ...prev,
-                            merchantCenterId: undefined,
-                            merchantId: undefined
-                          }));
-                        }}
-                        className="text-slate-600"
-                      />
-                      <span>No, advertise without Merchant Center</span>
-                    </label>
+                      {!isMerchantConn
+                        ? "Not Connected"
+                        : isExcludedFromCampaign
+                        ? "Excluded for this campaign"
+                        : "Connected ✓"}
+                    </span>
                   </div>
 
-                  {/* Merchant Center ID Input Field when Yes */}
-                  {(hasMerchantCenterAccount === true || Boolean(campaignState.merchantCenterId || (campaignState as any).merchantId)) && (
-                    <div className="pt-2 border-t border-slate-100 space-y-2 animate-in fade-in duration-150">
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-semibold text-slate-700">
-                          Merchant Center Account ID (Numeric, e.g. 5840531233):
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={campaignState.merchantCenterId || (campaignState as any).merchantId || ""}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/\D/g, "");
-                              setCampaignState(prev => ({
-                                ...prev,
-                                merchantCenterId: val,
-                                merchantId: val
-                              }));
-                            }}
-                            placeholder="Enter 10-digit Merchant Center ID"
-                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-amber-500"
-                          />
+                  {/* Case 1: Merchant Account IS CONNECTED */}
+                  {isMerchantConn ? (
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-3">
+                      {/* Merchant Account Details (Read Only) */}
+                      <div className="p-3 bg-gradient-to-r from-emerald-50/80 to-teal-50/60 border border-emerald-200 rounded-xl space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <div>
+                              <span className="font-bold text-xs text-emerald-950 block">{storeName}</span>
+                              <span className="text-[10px] font-mono text-emerald-800">
+                                Merchant Center ID: <strong className="font-mono text-emerald-900">{activeMerchantId || "Configured"}</strong>
+                              </span>
+                            </div>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => handleSendMessage("Suggest product feed information and how to optimize my Google Merchant Center products for Performance Max")}
-                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 shrink-0"
-                            title="AI Consult on Merchant Feed"
+                            onClick={() => handlePromptProfileNavigation(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                            className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="View or edit in Profile"
                           >
-                            <Sparkles className="h-3 w-3 text-amber-600" />
-                            <span>Feed Tips</span>
+                            <span>Profile</span>
+                            <ExternalLink className="h-3 w-3" />
                           </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-emerald-200/60 text-[10px] text-emerald-900/80">
+                          <div>
+                            <span className="text-emerald-700 font-medium">Status: </span>
+                            <span className="font-semibold text-emerald-900">Active (Read-Only)</span>
+                          </div>
+                          <div>
+                            <span className="text-emerald-700 font-medium">Feed Country: </span>
+                            <span className="font-semibold text-emerald-900">{campaignState.salesCountry || "India (IN)"}</span>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500">
-                        <div>
-                          <span>Feed Label: </span>
-                          <span className="font-semibold text-slate-700">{campaignState.feedLabel || "IN"}</span>
+                      {/* Question: Do not use merchant account detail in this campaign? */}
+                      <div className="p-2.5 bg-slate-50 border border-slate-200/90 rounded-xl space-y-2">
+                        <div className="flex items-start gap-1.5">
+                          <HelpCircle className="h-3.5 w-3.5 text-slate-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-[11px] font-bold text-slate-800">
+                              Do not use merchant account details in this campaign?
+                            </p>
+                            <p className="text-[10px] text-slate-500 leading-snug">
+                              If you select &quot;No&quot;, this campaign will run standard ads without attaching your Merchant Center product feed.
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <span>Target Country: </span>
-                          <span className="font-semibold text-slate-700">{campaignState.salesCountry || "India (IN)"}</span>
+
+                        {/* Interactive Tab/Card Selector for the Question */}
+                        <div className="grid grid-cols-2 gap-2 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => ({
+                                ...prev,
+                                useMerchantInCampaign: true,
+                                merchantCenterId: activeMerchantId || prev.merchantCenterId,
+                                merchantId: activeMerchantId || prev.merchantId
+                              }));
+                            }}
+                            className={`p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
+                              !isExcludedFromCampaign
+                                ? "bg-emerald-50 border-emerald-400 text-emerald-950 font-bold ring-1 ring-emerald-300 shadow-2xs"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            <div>
+                              <div className="text-[11px] font-semibold">Yes, use details</div>
+                              <div className="text-[9.5px] text-slate-500 font-normal">Include product feed</div>
+                            </div>
+                            <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                              !isExcludedFromCampaign ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 bg-white"
+                            }`}>
+                              {!isExcludedFromCampaign && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => ({
+                                ...prev,
+                                useMerchantInCampaign: false,
+                                merchantCenterId: undefined,
+                                merchantId: undefined
+                              }));
+                              setMessages(prev => [
+                                ...prev,
+                                {
+                                  id: `msg-merchant-skip-${Date.now()}`,
+                                  role: "assistant",
+                                  content: "Google Merchant Center details will not be used in this campaign.",
+                                  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                                }
+                              ]);
+                            }}
+                            className={`p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
+                              isExcludedFromCampaign
+                                ? "bg-amber-50 border-amber-400 text-amber-950 font-bold ring-1 ring-amber-300 shadow-2xs"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            <div>
+                              <div className="text-[11px] font-semibold">No, do not use</div>
+                              <div className="text-[9.5px] text-slate-500 font-normal">Skip only for this campaign</div>
+                            </div>
+                            <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                              isExcludedFromCampaign ? "border-amber-600 bg-amber-600 text-white" : "border-slate-300 bg-white"
+                            }`}>
+                              {isExcludedFromCampaign && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Case 2: Merchant Account IS NOT CONNECTED */
+                    <div className="p-3.5 bg-white rounded-xl border border-rose-200 space-y-3">
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
+                        <div className="flex items-start gap-2.5">
+                          <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5 flex-1">
+                            <h4 className="text-xs font-bold text-rose-950">Your Merchant Account is Not Connected</h4>
+                            <p className="text-[11px] text-rose-800 leading-snug">
+                              To advertise products with Google Merchant Center feeds in your campaigns, please connect your Merchant Account in your profile.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-rose-200/70 flex items-center justify-between">
+                          <span className="text-[10px] text-rose-700 font-medium">
+                            Profile &gt; Merchant &amp; Apps Tab
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handlePromptProfileNavigation(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                            className="px-3 py-1.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white rounded-lg text-[11px] font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            <span>Connect Merchant Account</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
                     </div>
                   )}
-
-                  {/* Action controls: Cancel / Skip Feed & Switch to Manual Campaign */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHasMerchantCenterAccount(false);
-                        setCampaignState(prev => ({
-                          ...prev,
-                          merchantCenterId: undefined,
-                          merchantId: undefined
-                        }));
-                        setMessages(prev => [
-                          ...prev,
-                          {
-                            id: `msg-merchant-cancel-${Date.now()}`,
-                            role: "assistant",
-                            content: "Google Merchant Center feed cleared and skipped for this campaign. You can re-enable it anytime.",
-                            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                          }
-                        ]);
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-800 text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                      title="Cancel Merchant Center integration and continue without products feed"
-                    >
-                      <X className="h-3 w-3 text-slate-500" />
-                      <span>Cancel / Skip Merchant Center</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        router.push(`/ads/campaigns/create/manual${customerId ? `?customerId=${customerId}` : ""}`);
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-                      title="Go to Manual Campaign creation"
-                    >
-                      <span>Go to Manual Campaign</span>
-                      <ArrowRight className="h-3 w-3 text-blue-600" />
-                    </button>
-                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* 4b. PERFORMANCE MAX & DEMAND GEN SEARCH THEMES MANAGER */}
             {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "DEMAND_GEN") && (
@@ -18270,6 +19022,37 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <span className="w-4 h-1.5 rounded-xs border border-current" />
                         <span>Landscape Logo (4:1)</span>
                         <span className="text-[9px] opacity-75 font-mono">1200x300</span>
+                      </button>
+                    </>
+                  ) : campaignState.campaignType === "DISPLAY" ? (
+                    <>
+                      {/* Option 1 — Landscape for Display */}
+                      <button
+                        type="button"
+                        onClick={() => setEditorCropRatio("1.91:1")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          editorCropRatio === "1.91:1"
+                            ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                        }`}
+                      >
+                        <span className="w-3.5 h-2 rounded-xs border border-current" />
+                        <span>Display Landscape (1.91:1)</span>
+                        <span className="text-[9px] opacity-75 font-mono">1200x628</span>
+                      </button>
+                      {/* Option 2 — Square for Display */}
+                      <button
+                        type="button"
+                        onClick={() => setEditorCropRatio("1:1")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          editorCropRatio === "1:1"
+                            ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-xs border border-current" />
+                        <span>Display Square (1:1)</span>
+                        <span className="text-[9px] opacity-75 font-mono">1200x1200</span>
                       </button>
                     </>
                   ) : (

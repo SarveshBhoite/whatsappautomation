@@ -6,6 +6,7 @@ import { LeadsDemandGenService } from "../src/services/googleAds/leads/LeadsDema
 import { SalesShoppingService } from "../src/services/googleAds/sales/SalesShoppingService";
 import { SalesDisplayService } from "../src/services/googleAds/sales/SalesDisplayService";
 import { AppPromotionAppService } from "../src/services/googleAds/appPromotion/AppPromotionAppService";
+import { GoogleAdsBaseService } from "../src/services/googleAds/shared/GoogleAdsBaseService";
 import { GoogleAdsCampaignValidator } from "../src/services/googleAds/shared/GoogleAdsCampaignValidator";
 import { CampaignPlanMapper } from "../src/services/googleAds/shared/CampaignPlan";
 
@@ -19,19 +20,26 @@ describe("Google Ads Campaign Creation End-to-End Resource Payload Integration T
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Mock getAdsHeaders / DB token retrieval by spying on GoogleAdsBaseService
-    jest.spyOn(SalesSearchService as any, "getAdsHeaders").mockResolvedValue({
+    // Mock getAdsHeaders / DB token retrieval by spying on GoogleAdsBaseService directly
+    jest.spyOn(GoogleAdsBaseService as any, "getAdsHeaders").mockResolvedValue({
       headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
     });
-    jest.spyOn(SalesSearchService as any, "saveCampaignToDatabase").mockResolvedValue({
+    jest.spyOn(GoogleAdsBaseService as any, "saveCampaignToDatabase").mockResolvedValue({
       id: "local-camp-1",
       amountMicros: BigInt(1500000000),
       costMicros: BigInt(0),
       impressions: BigInt(0),
       clicks: BigInt(0)
     });
-    jest.spyOn(SalesSearchService as any, "mutateCampaignGeoAndLanguageCriteria").mockResolvedValue(undefined);
-    jest.spyOn(SalesSearchService as any, "mutateCampaignAdScheduleCriteria").mockResolvedValue(undefined);
+    jest.spyOn(GoogleAdsBaseService as any, "mutateCampaignGeoAndLanguageCriteria").mockResolvedValue(undefined);
+    jest.spyOn(GoogleAdsBaseService as any, "mutateCampaignAdScheduleCriteria").mockResolvedValue(undefined);
+    jest.spyOn(GoogleAdsBaseService as any, "uploadImageAsset").mockImplementation(async (_orgId, _cid, name) => {
+      return `customers/1234567890/assets/mock_img_${name}`;
+    });
+
+    mockedAxios.get.mockResolvedValue({
+      data: Buffer.from("fake-image-bytes-longer-than-fifty-characters-for-testing-purposes-only")
+    });
 
     // Mock default axios post response for all API calls
     mockedAxios.post.mockImplementation((url: string, data: any) => {
@@ -68,6 +76,15 @@ describe("Google Ads Campaign Creation End-to-End Resource Payload Integration T
       if (url.includes("adGroupCriteria:mutate") || url.includes("campaignConversionGoals:mutate")) {
         return Promise.resolve({
           data: { results: [{ resourceName: "customers/1234567890/criteria/mock-crit-333" }] }
+        });
+      }
+      if (url.includes("googleAds:mutate")) {
+        return Promise.resolve({
+          data: {
+            mutateOperationResponses: [
+              { assetGroupResult: { resourceName: "customers/1234567890/assetGroups/mock-ag-444" } }
+            ]
+          }
         });
       }
       return Promise.resolve({ data: { results: [{ resourceName: "customers/1234567890/generic/mock-111" }] } });
@@ -245,7 +262,7 @@ describe("Google Ads Campaign Creation End-to-End Resource Payload Integration T
     };
     const valResult = GoogleAdsCampaignValidator.validate(state);
     expect(valResult.isValid).toBe(false);
-    expect(valResult.errors.some(e => e.code === "TOTAL_BUDGET_UNSUPPORTED")).toBe(true);
+    expect(valResult.errors.some(e => e.code === "TOTAL_BUDGET_UNSUPPORTED_FOR_CAMPAIGN_TYPE")).toBe(true);
   });
 
   // 8. App TOTAL -> blocked by validation
@@ -266,7 +283,7 @@ describe("Google Ads Campaign Creation End-to-End Resource Payload Integration T
     };
     const valResult = GoogleAdsCampaignValidator.validate(state);
     expect(valResult.isValid).toBe(false);
-    expect(valResult.errors.some(e => e.code === "TOTAL_BUDGET_UNSUPPORTED")).toBe(true);
+    expect(valResult.errors.some(e => e.code === "TOTAL_BUDGET_UNSUPPORTED_FOR_CAMPAIGN_TYPE")).toBe(true);
   });
 
   // 9. Search incompatible TOTAL bidding -> blocked
@@ -287,7 +304,7 @@ describe("Google Ads Campaign Creation End-to-End Resource Payload Integration T
     };
     const valResult = GoogleAdsCampaignValidator.validate(state);
     expect(valResult.isValid).toBe(false);
-    expect(valResult.errors.some(e => e.code === "INCOMPATIBLE_BIDDING_STRATEGY_WITH_TOTAL_BUDGET")).toBe(true);
+    expect(valResult.errors.some(e => e.code === "BIDDING_STRATEGY_INCOMPATIBLE_WITH_TOTAL_BUDGET")).toBe(true);
   });
 
   // 10. Shopping incompatible TOTAL bidding -> blocked
@@ -307,7 +324,7 @@ describe("Google Ads Campaign Creation End-to-End Resource Payload Integration T
     };
     const valResult = GoogleAdsCampaignValidator.validate(state);
     expect(valResult.isValid).toBe(false);
-    expect(valResult.errors.some(e => e.code === "INCOMPATIBLE_BIDDING_STRATEGY_WITH_TOTAL_BUDGET")).toBe(true);
+    expect(valResult.errors.some(e => e.code === "BIDDING_STRATEGY_INCOMPATIBLE_WITH_TOTAL_BUDGET")).toBe(true);
   });
 
   // 11. VIDEO intent -> Demand Gen VIDEO
@@ -382,10 +399,13 @@ describe("Google Ads Campaign Creation End-to-End Resource Payload Integration T
     });
 
     // Check asset upload calls: none should use default fallback ImageKit URL
-    const uploadCalls = mockedAxios.post.mock.calls.filter(c => c[0].includes("assets:mutate"));
-    expect(uploadCalls.length).toBeGreaterThan(0);
-    const serialized = JSON.stringify(uploadCalls);
-    expect(serialized).not.toContain("gads_dg_image_1788441362828");
+    const uploadSpy = jest.spyOn(GoogleAdsBaseService as any, "uploadImageAsset");
+    expect(uploadSpy).toHaveBeenCalled();
+    const calls = uploadSpy.mock.calls;
+    for (const call of calls) {
+      expect(call[3]).not.toContain("gads_dg_image_1788441362828");
+      expect(call[3]).not.toContain("gads_dg_logo_1788441370183");
+    }
   });
 
   // 15. Shopping does not inject example.com

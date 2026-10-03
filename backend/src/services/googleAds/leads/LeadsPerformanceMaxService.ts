@@ -1,5 +1,6 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
 import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
+import { CampaignNormalizationService } from "../shared/CampaignNormalizationService";
 import axios from "axios";
 
 export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
@@ -247,13 +248,11 @@ export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
       };
     }
 
-    // Customer Acquisition Setting
+    // Customer Acquisition Setting (Google Ads API: customerAcquisitionSetting.optimizationMode)
     let customerAcquisitionSetting: any = undefined;
     if (customerAcquisitionMode) {
-      const normAcq = String(customerAcquisitionMode).toUpperCase();
-      if (normAcq === "BID_ONLY_FOR_NEW_CUSTOMERS" || normAcq === "BID_HIGHER_FOR_NEW_CUSTOMERS" || normAcq === "TARGET_ALL_EQUALLY") {
-        customerAcquisitionSetting = { optimizationMode: normAcq };
-      }
+      const normAcq = CampaignNormalizationService.normalizeCustomerAcquisitionMode(customerAcquisitionMode);
+      customerAcquisitionSetting = { optimizationMode: normAcq };
     }
 
     // Geo Target Type Setting
@@ -504,31 +503,39 @@ export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
           assetGroupOperation: {
             create: assetGroupCreate
           }
-        },
-        {
-          assetGroupAssetOperation: {
-            create: {
-              assetGroup: tempAssetGroupResourceName,
-              asset: businessNameAssetRef,
-              fieldType: "BUSINESS_NAME",
-              status: "ENABLED"
-            }
-          }
         }
       ];
 
-      logoRefs.forEach((asset: string) => {
-        mutateOperations.push({
-          assetGroupAssetOperation: {
-            create: {
-              assetGroup: tempAssetGroupResourceName,
-              asset,
-              fieldType: "LOGO",
-              status: "ENABLED"
+      // Brand Guidelines Rule (Google Ads API v21+ / v24):
+      // When brandGuidelinesEnabled is true, brand assets (BUSINESS_NAME, LOGO) are linked at the CAMPAIGN level via CampaignAsset.
+      // When brandGuidelinesEnabled is false, brand assets are linked at the ASSET_GROUP level via AssetGroupAsset.
+      if (!brandGuidelinesEnabled) {
+        if (businessNameAssetRef) {
+          mutateOperations.push({
+            assetGroupAssetOperation: {
+              create: {
+                assetGroup: tempAssetGroupResourceName,
+                asset: businessNameAssetRef,
+                fieldType: "BUSINESS_NAME",
+                status: "ENABLED"
+              }
             }
-          }
+          });
+        }
+
+        logoRefs.forEach((asset: string) => {
+          mutateOperations.push({
+            assetGroupAssetOperation: {
+              create: {
+                assetGroup: tempAssetGroupResourceName,
+                asset,
+                fieldType: "LOGO",
+                status: "ENABLED"
+              }
+            }
+          });
         });
-      });
+      }
 
       headlineRefs.forEach((asset: string) => {
         mutateOperations.push({
@@ -653,9 +660,35 @@ export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
         }
       }
 
-      // 8. Attach Campaign Extension Assets (Sitelinks, Callouts, Promotions, Prices, Call, Snippets)
+      // 8. Attach Campaign Extension Assets (Brand Guidelines, Sitelinks, Callouts, Promotions, Prices, Call, Snippets)
       try {
         const campaignAssetOperations: any[] = [];
+
+        // Brand Guidelines (Google Ads API v21+ / v24):
+        // When brandGuidelinesEnabled is true, BUSINESS_NAME and LOGO must be linked as CampaignAsset
+        if (brandGuidelinesEnabled) {
+          if (businessNameAssetRef) {
+            campaignAssetOperations.push({
+              create: {
+                campaign: campaignRef,
+                asset: businessNameAssetRef,
+                fieldType: "BUSINESS_NAME",
+                status: "ENABLED"
+              }
+            });
+          }
+
+          logoRefs.forEach((asset: string) => {
+            campaignAssetOperations.push({
+              create: {
+                campaign: campaignRef,
+                asset,
+                fieldType: "LOGO",
+                status: "ENABLED"
+              }
+            });
+          });
+        }
 
         // Sitelinks
         const validSitelinks = Array.isArray(sitelinks) ? sitelinks.filter((s: any) => s && s.text && s.url) : [];

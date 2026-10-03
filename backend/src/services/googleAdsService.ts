@@ -3,6 +3,7 @@ import { getGoogleAccessToken } from "./gmbSyncService";
 import prisma from "../utils/prisma";
 import { GoogleAdsBaseService } from "./googleAds/shared/GoogleAdsBaseService";
 import { CustomerBusinessProfileService } from "./googleAds/CustomerBusinessProfileService";
+import { CampaignNormalizationService } from "./googleAds/shared/CampaignNormalizationService";
 
 const ADS_API_VERSION = "v24";
 const ADS_BASE = `https://googleads.googleapis.com/${ADS_API_VERSION}`;
@@ -1836,6 +1837,7 @@ export class GoogleAdsService {
       assetGroupCustomParameters?: Array<{ name: string; value: string }>;
       positiveGeoTargetType?: "PRESENCE_OR_INTEREST" | "PRESENCE";
       brandGuidelinesEnabled?: boolean;
+      customerAcquisitionMode?: string;
     }
   ) {
     try {
@@ -1916,6 +1918,11 @@ export class GoogleAdsService {
               audienceSetting: { useAudienceGrouped: true },
               brandGuidelinesEnabled: params.brandGuidelinesEnabled ?? false,
               containsEuPoliticalAdvertising: euPoliticalValue,
+              ...(params.customerAcquisitionMode ? {
+                customerAcquisitionSetting: {
+                  optimizationMode: CampaignNormalizationService.normalizeCustomerAcquisitionMode(params.customerAcquisitionMode)
+                }
+              } : {}),
               ...(params.positiveGeoTargetType ? {
                 geoTargetTypeSetting: {
                   positiveGeoTargetType: params.positiveGeoTargetType,
@@ -2124,8 +2131,8 @@ export class GoogleAdsService {
         });
       }
 
-      // Link Business Name
-      if (businessNameAssetRef) {
+      // Link Business Name (Only if Brand Guidelines is OFF; if ON, linked at Campaign level)
+      if (businessNameAssetRef && !params.brandGuidelinesEnabled) {
         atomicOperations.push({
           assetGroupAssetOperation: {
             create: {
@@ -2151,17 +2158,19 @@ export class GoogleAdsService {
         });
       }
 
-      // Link Logos
-      for (const lRef of logoRefs) {
-        atomicOperations.push({
-          assetGroupAssetOperation: {
-            create: {
-              assetGroup: tempAssetGroupRef,
-              asset: lRef,
-              fieldType: "LOGO"
+      // Link Logos (Only if Brand Guidelines is OFF; if ON, linked at Campaign level)
+      if (!params.brandGuidelinesEnabled) {
+        for (const lRef of logoRefs) {
+          atomicOperations.push({
+            assetGroupAssetOperation: {
+              create: {
+                assetGroup: tempAssetGroupRef,
+                asset: lRef,
+                fieldType: "LOGO"
+              }
             }
-          }
-        });
+          });
+        }
       }
 
       // Link Search Themes (AssetGroupSignal)
@@ -2460,6 +2469,30 @@ export class GoogleAdsService {
               campaign: campaignRef,
               asset: assetRef,
               fieldType: "PRICE",
+              status: "ENABLED"
+            }
+          });
+        }
+      }
+
+      // Brand Guidelines: When enabled on Performance Max, Business Name & Logo MUST be linked at the Campaign level
+      if (params.brandGuidelinesEnabled) {
+        if (businessNameAssetRef) {
+          campaignAssetOperations.push({
+            create: {
+              campaign: campaignRef,
+              asset: businessNameAssetRef,
+              fieldType: "BUSINESS_NAME",
+              status: "ENABLED"
+            }
+          });
+        }
+        for (const lRef of logoRefs) {
+          campaignAssetOperations.push({
+            create: {
+              campaign: campaignRef,
+              asset: lRef,
+              fieldType: "LOGO",
               status: "ENABLED"
             }
           });

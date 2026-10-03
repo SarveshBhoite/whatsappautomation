@@ -44,9 +44,11 @@ import { GoogleAdsSharedSetService } from "../../services/googleAds/GoogleAdsSha
 import { GoogleAdsPerformancePlannerService } from "../../services/googleAds/GoogleAdsPerformancePlannerService";
 import { GoogleAdsKeywordPlannerService } from "../../services/googleAds/GoogleAdsKeywordPlannerService";
 import { GoogleAdsService } from "../../services/googleAdsService";
-import { GoogleAdsAssetTypesService } from "../../services/googleAds/GoogleAdsAssetTypesService";
 import { GoogleAdsAssetGroupService } from "../../services/googleAds/GoogleAdsAssetGroupService";
+import { GoogleAdsAssetTypesService } from "../../services/googleAds/GoogleAdsAssetTypesService";
 import { GoogleAdsShoppingService } from "../../services/googleAds/GoogleAdsShoppingService";
+import { CampaignNormalizationService, CampaignValidationError, SupportedCampaignType, SupportedObjective } from "../../services/googleAds/shared/CampaignNormalizationService";
+import { CampaignPayloadBuilders, NormalizedCampaignContext } from "../../services/googleAds/shared/CampaignPayloadBuilders";
 
 import prisma from "../../utils/prisma";
 
@@ -54,6 +56,59 @@ import { validateCustomerOwnership } from "../../utils/customerOwnership";
 import { YouTubeService } from "../../services/youtubeService";
 
 const router = Router();
+
+/**
+ * Resolves the effective 10-digit Google Ads customer ID for an organization.
+ * If customerId is provided, validates that it matches 10-digit format and belongs to org.
+ * If customerId is missing, empty, or undefined, auto-detects from the organization's
+ * connected Google Ad Accounts (active first) or GMB Google Ads configuration.
+ */
+async function resolveEffectiveCustomerId(orgId: string, explicitCustomerId?: string | null): Promise<string | null> {
+  const cleanProvided = String(explicitCustomerId || "").replace(/-/g, "").trim();
+  if (cleanProvided && /^\d{10}$/.test(cleanProvided)) {
+    return cleanProvided;
+  }
+
+  if (!orgId) return null;
+
+  try {
+    const org = await (prisma.organization as any).findUnique({
+      where: { id: orgId },
+      include: {
+        googleAdAccounts: true,
+        gmbConfigs: { take: 1 }
+      }
+    });
+
+    if (org?.googleAdAccounts && org.googleAdAccounts.length > 0) {
+      const activeAccount = org.googleAdAccounts.find((a: any) => a.isActive && a.customerId && /^\d{10}$/.test(a.customerId.replace(/-/g, "").trim()));
+      if (activeAccount) {
+        return activeAccount.customerId.replace(/-/g, "").trim();
+      }
+      const anyAccount = org.googleAdAccounts.find((a: any) => a.customerId && /^\d{10}$/.test(a.customerId.replace(/-/g, "").trim()));
+      if (anyAccount) {
+        return anyAccount.customerId.replace(/-/g, "").trim();
+      }
+    }
+
+    const gmbCid = org?.gmbConfigs?.[0]?.googleAdsCustomerId;
+    if (gmbCid && /^\d{10}$/.test(String(gmbCid).replace(/-/g, "").trim())) {
+      return String(gmbCid).replace(/-/g, "").trim();
+    }
+
+    // Direct lookup on GoogleAdAccount table
+    const directAccount = await prisma.googleAdAccount.findFirst({
+      where: { organizationId: orgId, isActive: true }
+    });
+    if (directAccount?.customerId && /^\d{10}$/.test(directAccount.customerId.replace(/-/g, "").trim())) {
+      return directAccount.customerId.replace(/-/g, "").trim();
+    }
+  } catch (err: any) {
+    console.warn(`[AI-GUIDED] Warning auto-resolving customerId for org ${orgId}:`, err?.message || err);
+  }
+
+  return null;
+}
 
 // GET /api/ads/ai-guided/user-profile — Fetch detailed login, organization & Google Ads business profile
 router.get("/user-profile", async (req, res) => {
@@ -1068,14 +1123,20 @@ router.post("/chat", async (req, res) => {
   }
 });
 
+import * as crypto from "crypto";
+
 interface IdempotencyRecord {
   status: "IN_PROGRESS" | "SUCCESS" | "FAILED";
+  organizationId?: string;
+  customerId?: string;
+  requestHash?: string;
   result?: any;
   message?: string;
+  error?: any;
   timestamp: number;
 }
 
-// In-memory idempotency cache (TTL: 15 minutes)
+// In-memory idempotency cache (TTL: 15 minutes) with collision protection
 const idempotencyCache = new Map<string, IdempotencyRecord>();
 
 // Periodic cleanup of expired idempotency keys (every 5 minutes)
@@ -1094,9 +1155,11 @@ router.post("/preflight", async (req, res) => {
     const { customerId, campaignState } = req.body;
     const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
 
-    if (!customerId) {
+    let resolvedCid = await resolveEffectiveCustomerId(orgId, customerId || campaignState?.customerId);
+
+    if (!resolvedCid) {
       return res.status(400).json({
-        error: "Google Ads Customer ID is required.",
+        error: "Google Ads Customer ID is required. Please connect a Google Ads account in Settings or specify a customerId.",
         code: "MISSING_CUSTOMER_ID"
       });
     }
@@ -1108,7 +1171,7 @@ router.post("/preflight", async (req, res) => {
       });
     }
 
-    const cleanCid = customerId.replace(/-/g, "").trim();
+    const cleanCid = resolvedCid.replace(/-/g, "").trim();
     const isOwned = await validateCustomerOwnership(orgId, cleanCid);
     if (!isOwned) {
       return res.status(403).json({
@@ -3114,10 +3177,12 @@ router.post("/final-review", async (req, res) => {
     const { customerId, campaignState } = req.body;
     const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
 
-    if (!customerId || !/^\d{3}-?\d{3}-?\d{4}$|^\d{10}$/.test(String(customerId).trim())) {
+    const resolvedCid = await resolveEffectiveCustomerId(orgId, customerId || campaignState?.customerId);
+
+    if (!resolvedCid) {
       return res.status(400).json({
         success: false,
-        error: "A valid 10-digit Google Ads Customer ID is required.",
+        error: "A valid 10-digit Google Ads Customer ID is required. Please connect a Google Ads account in Settings.",
         code: "INVALID_CUSTOMER_ID"
       });
     }
@@ -3138,7 +3203,7 @@ router.post("/final-review", async (req, res) => {
       });
     }
 
-    const cleanCid = customerId.replace(/-/g, "").trim();
+    const cleanCid = resolvedCid.replace(/-/g, "").trim();
 
     // 1. Strict customer ownership validation
     const isOwned = await validateCustomerOwnership(orgId, cleanCid);
@@ -3192,9 +3257,38 @@ router.post("/create-campaign", async (req, res) => {
     const { customerId, campaignState, userConfirmed } = req.body;
     orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId) as string;
 
+    // Auto-resolve customerId if missing or unselected from client
+    const resolvedCid = await resolveEffectiveCustomerId(orgId, customerId || campaignState?.customerId);
+
+    if (!resolvedCid) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
+      return res.status(400).json({
+        error: "Google Ads Customer ID is required. Please connect a Google Ads account in Settings or specify a customerId.",
+        code: "MISSING_CUSTOMER_ID"
+      });
+    }
+
+    cleanCid = resolvedCid.replace(/-/g, "").trim();
+
+    const requestBodyForHash = JSON.stringify({
+      customerId: cleanCid,
+      orgId,
+      campaignType: campaignState?.campaignType,
+      objective: campaignState?.objective,
+      campaignName: campaignState?.campaignName,
+      budget: campaignState?.dailyBudget || campaignState?.totalBudget || campaignState?.budget
+    });
+    const currentRequestHash = crypto.createHash("sha256").update(requestBodyForHash).digest("hex");
+
     if (idempotencyKey && typeof idempotencyKey === "string" && idempotencyKey.trim()) {
       const existing = idempotencyCache.get(idempotencyKey.trim());
       if (existing) {
+        if (existing.requestHash && existing.requestHash !== currentRequestHash) {
+          return res.status(409).json({
+            error: "Idempotency key was previously used with a different campaign request payload.",
+            code: "IDEMPOTENCY_KEY_COLLISION"
+          });
+        }
         if (existing.status === "SUCCESS") {
           return res.status(200).json({
             success: true,
@@ -3213,14 +3307,13 @@ router.post("/create-campaign", async (req, res) => {
       // Register or reset to IN_PROGRESS
       idempotencyCache.set(idempotencyKey.trim(), {
         status: "IN_PROGRESS",
+        organizationId: orgId,
+        customerId: cleanCid,
+        requestHash: currentRequestHash,
         timestamp: Date.now()
       });
     }
 
-    if (!customerId || !/^\d{3}-?\d{3}-?\d{4}$|^\d{10}$/.test(String(customerId).trim())) {
-      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
-      return res.status(400).json({ error: "Invalid customerId format. Must be a 10-digit Google Ads Customer ID (e.g. '123-456-7890' or '1234567890')." });
-    }
     if (!orgId) {
       if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
       return res.status(400).json({ error: "Missing organization ID (x-organization-id header or orgId parameter)" });
@@ -3238,8 +3331,6 @@ router.post("/create-campaign", async (req, res) => {
         code: "USER_CONFIRMATION_REQUIRED"
       });
     }
-
-    cleanCid = customerId.replace(/-/g, "").trim();
 
     // Customer ownership validation before mutation
     const isOwned = await validateCustomerOwnership(orgId, cleanCid);
@@ -3330,53 +3421,101 @@ router.post("/create-campaign", async (req, res) => {
       state.language = "All languages";
     }
 
-    // Start Date and End Date Handling
-    const todayStr = new Date().toISOString().split("T")[0];
-    const rawReceivedStartDate = state.startDate;
-    const rawReceivedEndDate = state.endDate;
+    // ── Pipeline Step 1 & 2: Normalization & Strict Validation ─────────────────────
+    const rawType = state.campaignType;
+    const campaignType: SupportedCampaignType = CampaignNormalizationService.normalizeCampaignType(rawType);
+    const objective: SupportedObjective = CampaignNormalizationService.normalizeObjective(state.objective);
 
-    if (!state.startDate || !String(state.startDate).trim()) {
-      state.startDate = todayStr;
-    } else {
-      state.startDate = String(state.startDate).trim().split("T")[0];
+    // Validate objective compatibility with campaign type (throws if unsupported, NO silent fallback)
+    try {
+      CampaignNormalizationService.validateObjectiveCompatibility(campaignType, objective);
+    } catch (objErr: any) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
+      return res.status(400).json({
+        error: objErr.message,
+        code: objErr.code || "INCOMPATIBLE_CAMPAIGN_OBJECTIVE",
+        field: "objective"
+      });
     }
 
-    if (state.endDate) {
-      const rawEndDate = String(state.endDate).trim().split("T")[0];
-      if (!rawEndDate) {
-        delete state.endDate;
-      } else {
-        const startMs = new Date(state.startDate).getTime();
-        const endMs = new Date(rawEndDate).getTime();
-        if (isNaN(endMs) || endMs <= startMs) {
-          // If endDate is invalid (not a date or before start date), remove or handle
-          delete state.endDate;
-        } else {
-          state.endDate = rawEndDate;
-        }
-      }
+    state.campaignType = campaignType;
+    (state as any).objective = objective;
+
+    // Validate dates before budget calculation (reject endDate < startDate)
+    let normalizedDates;
+    try {
+      normalizedDates = CampaignNormalizationService.validateAndNormalizeDates(
+        state.startDate,
+        state.endDate,
+        (state.budgetType || "DAILY").toUpperCase() as "DAILY" | "TOTAL"
+      );
+    } catch (dateErr: any) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
+      return res.status(400).json({
+        error: dateErr.message,
+        code: dateErr.code || "INVALID_DATES",
+        field: dateErr.field || "dates"
+      });
     }
 
-    console.log(`\n==================== 📅 [AI GUIDED DATE MAPPING] ====================`);
-    console.log(`UI Start Date:                   ${rawReceivedStartDate || "N/A (defaults to today)"}`);
-    console.log(`UI End Date:                     ${rawReceivedEndDate || "None / Continuous"}`);
-    console.log(`Backend Received Start Date:     ${rawReceivedStartDate || "N/A"}`);
-    console.log(`Backend Received End Date:       ${rawReceivedEndDate || "N/A"}`);
-    console.log(`Effective Google Ads Start Date: ${state.startDate}`);
-    console.log(`Effective Google Ads End Date:   ${state.endDate || "None (Continuous)"}`);
-    console.log(`=====================================================================\n`);
+    state.startDate = normalizedDates.startDate;
+    state.endDate = normalizedDates.endDate;
 
-    // Ensure AI Guided flow context flags
+    // Normalize budget with strict parsing and API capability checking
+    let normalizedBudget;
+    try {
+      normalizedBudget = CampaignNormalizationService.normalizeBudget(
+        state,
+        campaignType,
+        normalizedDates
+      );
+    } catch (bErr: any) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
+      return res.status(400).json({
+        error: bErr.message,
+        code: bErr.code || "INVALID_BUDGET",
+        field: bErr.field || "budget"
+      });
+    }
+
+    // Normalize bidding strategy with CPA vs ROAS mutual exclusivity
+    let normalizedBidding;
+    try {
+      normalizedBidding = CampaignNormalizationService.normalizeBidding(
+        state,
+        campaignType,
+        normalizedBudget.type
+      );
+    } catch (bidErr: any) {
+      if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
+      return res.status(400).json({
+        error: bidErr.message,
+        code: bidErr.code || "INVALID_BIDDING",
+        field: bidErr.field || "biddingStrategy"
+      });
+    }
+
+    // Normalize languages & locations
+    const normalizedLanguages = CampaignNormalizationService.normalizeLanguages(state);
+    const normalizedLocations = CampaignNormalizationService.normalizeLocations(state);
+
+    state.dailyBudget = normalizedBudget.dailyBudget;
+    state.totalBudget = normalizedBudget.totalBudget;
+    state.budgetType = normalizedBudget.type;
+    state.biddingStrategy = normalizedBidding.strategy;
+    state.targetCpa = normalizedBidding.targetCpa;
+    state.targetRoas = normalizedBidding.targetRoas;
+    state.locations = normalizedLocations.locations;
+    state.languages = normalizedLanguages.languages;
+
+    // Ensure customerId is explicitly set on campaign state for common rule validation
+    state.customerId = cleanCid;
+
     // Ensure AI Guided flow context flags
     (state as any).isAiGuided = true;
     (state as any).source = "AI_GUIDED";
 
-    // Normalize VIDEO intent to DEMAND_GEN with VIDEO format (official Google Ads API contract)
-    if (state.campaignType === "VIDEO") {
-      state.campaignType = "DEMAND_GEN";
-      state.adFormat = "VIDEO";
-    }
-
+    // Run GoogleAdsCampaignValidator
     const valResult = GoogleAdsCampaignValidator.validate(state);
     if (!valResult.isValid) {
       if (idempotencyKey) idempotencyCache.delete(idempotencyKey.trim());
@@ -3387,47 +3526,12 @@ router.post("/create-campaign", async (req, res) => {
       });
     }
 
-    const campaignName = GoogleAdsBaseService.cleanAdText(state.campaignName || `${state.businessName} - ${state.campaignType}`, 100);
-    const budgetType = (state.budgetType || "DAILY").toUpperCase() as "DAILY" | "TOTAL";
-    let effectiveDailyBudget = Number(state.dailyBudget);
-    const totalBudget = state.totalBudget ? Number(state.totalBudget) : (budgetType === "TOTAL" ? Number(state.dailyBudget) : undefined);
-
-    if (budgetType === "TOTAL" && totalBudget && totalBudget > 0) {
-      if (state.startDate && state.endDate) {
-        const start = new Date(state.startDate).getTime();
-        const end = new Date(state.endDate).getTime();
-        // Google Ads inclusive campaign duration: e.g. Oct 2 to Oct 28 inclusive = 27 days
-        const days = Math.max(1, Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1);
-        effectiveDailyBudget = Math.max(1, Math.round(totalBudget / days));
-      } else {
-        effectiveDailyBudget = Math.max(1, Math.round(totalBudget / 30));
-      }
-    }
-    const dailyBudget = effectiveDailyBudget;
-    const locations = (state.locations && state.locations.length > 0) ? state.locations : [];
-
-    // Parse and split all languages (supporting comma-separated string e.g. "Bengali, Hindi" or array ["Bengali", "Hindi"])
-    const rawLanguageInputs: string[] = [];
-    if (state.language && typeof state.language === "string") {
-      rawLanguageInputs.push(...state.language.split(",").map((l: string) => l.trim()).filter(Boolean));
-    }
-    if (Array.isArray(state.languages)) {
-      for (const item of state.languages) {
-        if (typeof item === "string" && item.includes(",")) {
-          rawLanguageInputs.push(...item.split(",").map((l: string) => l.trim()).filter(Boolean));
-        } else if (item) {
-          rawLanguageInputs.push(String(item).trim());
-        }
-      }
-    }
-    const isAllLanguages = rawLanguageInputs.length === 0 || rawLanguageInputs.some(
-      (l: string) => ["all languages", "all", "any", "all_languages", "all languages / unrestricted"].includes(l.toLowerCase())
-    );
-    const filteredLanguages = isAllLanguages ? [] : Array.from(new Set(rawLanguageInputs)).filter(
-      (l: string) => !["all languages", "all", "any", "all_languages"].includes(l.toLowerCase())
-    );
-    // Explicitly preserve "All languages" for database, payload, and UI response
-    const languages = isAllLanguages ? ["All languages"] : (filteredLanguages.length > 0 ? filteredLanguages : ["All languages"]);
+    const campaignName = GoogleAdsBaseService.cleanAdText(state.campaignName || `${state.businessName} - ${campaignType}`, 100);
+    const budgetType = normalizedBudget.type;
+    const dailyBudget = normalizedBudget.dailyBudget;
+    const totalBudget = normalizedBudget.totalBudget;
+    const locations = normalizedLocations.locations;
+    const languages = normalizedLanguages.languages;
 
     // Centralize Ad Schedule Normalization & Deduplication across all campaign types
     const normalizedAdSchedule = (() => {
@@ -3450,21 +3554,20 @@ router.post("/create-campaign", async (req, res) => {
     const rawDevices = (state as any).devices;
     const normalizedDevices = Array.isArray(rawDevices) ? rawDevices : (rawDevices ? [rawDevices] : []);
 
-    const validHeadlines = (state.headlines || [])
-      .map(h => GoogleAdsBaseService.cleanAdText(String(h), 30))
-      .filter(h => h.length > 0);
-    const validLongHeadlines = (state.longHeadlines || [])
-      .map(lh => GoogleAdsBaseService.cleanAdText(String(lh), 90))
-      .filter(lh => lh.length > 0);
-    const validDescriptions = (state.descriptions || [])
-      .map(d => GoogleAdsBaseService.cleanAdText(String(d), 90))
-      .filter(d => d.length > 0);
-    const validKeywords = (state.keywords || [])
-      .map(k => GoogleAdsBaseService.cleanAdText(String(k), 80))
-      .filter(k => k.length > 0);
+    const validHeadlines = ((state as any).headlines || [])
+      .map((h: any) => GoogleAdsBaseService.cleanAdText(typeof h === "string" ? h : h?.text || "", 30))
+      .filter((h: string) => h.length > 0);
+    const validLongHeadlines = ((state as any).longHeadlines || [])
+      .map((lh: any) => GoogleAdsBaseService.cleanAdText(typeof lh === "string" ? lh : lh?.text || "", 90))
+      .filter((lh: string) => lh.length > 0);
+    const validDescriptions = ((state as any).descriptions || [])
+      .map((d: any) => GoogleAdsBaseService.cleanAdText(typeof d === "string" ? d : d?.text || "", 90))
+      .filter((d: string) => d.length > 0);
+    const validKeywords = ((state as any).keywords || [])
+      .map((k: any) => GoogleAdsBaseService.cleanAdText(typeof k === "string" ? k : k?.keyword || k?.text || "", 80))
+      .filter((k: string) => k.length > 0);
 
     let result: any;
-    const objective = (state.objective || "").toUpperCase();
 
     switch (state.campaignType as any) {
       case "SEARCH": {
@@ -3536,14 +3639,16 @@ router.post("/create-campaign", async (req, res) => {
           leadForms: anyState.leadForms || state.leadForms || [],
           conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
-        if (objective === "NO_GUIDANCE" || objective === "NO-GUIDANCE") {
+        if (objective === "NO_GUIDANCE") {
           result = await NoGuidanceSearchService.createCampaign(orgId, customerId, payload);
         } else if (objective === "LEADS") {
           result = await LeadsSearchService.createCampaign(orgId, customerId, payload);
         } else if (objective === "WEBSITE_TRAFFIC") {
           result = await WebsiteTrafficSearchService.createCampaign(orgId, customerId, payload);
-        } else {
+        } else if (objective === "SALES") {
           result = await SalesSearchService.createCampaign(orgId, customerId, payload);
+        } else {
+          return res.status(400).json({ error: `Unsupported objective "${objective}" for Search campaigns.` });
         }
         break;
       }
@@ -3573,7 +3678,7 @@ router.post("/create-campaign", async (req, res) => {
           images: state.images || [],
           logos: state.logos || [],
           brandLogos: state.logos || [],
-          assetGroupName: anyState.assetGroupName || `${state.businessName || (objective === "WEBSITE_TRAFFIC" ? "Website Traffic" : objective === "LEADS" ? "Leads" : (objective === "LOCAL" || objective === "STORE_VISITS") ? "Store Visits" : objective === "NO_GUIDANCE" ? "All Channels" : "Sales")} - ${objective === "WEBSITE_TRAFFIC" ? "Traffic Growth" : objective === "LEADS" ? "Lead Generation" : (objective === "LOCAL" || objective === "STORE_VISITS") ? "Store Visits" : objective === "NO_GUIDANCE" ? "Performance Max" : "Sales Growth"}`,
+          assetGroupName: (anyState.assetGroupName && String(anyState.assetGroupName).trim()) ? String(anyState.assetGroupName).trim() : `${state.businessName || (objective === "WEBSITE_TRAFFIC" ? "Website Traffic" : objective === "LEADS" ? "Leads" : (objective === "LOCAL" || objective === "STORE_VISITS") ? "Store Visits" : objective === "NO_GUIDANCE" ? "All Channels" : "Sales")} - ${objective === "WEBSITE_TRAFFIC" ? "Traffic Growth" : objective === "LEADS" ? "Lead Generation" : (objective === "LOCAL" || objective === "STORE_VISITS") ? "Store Visits" : objective === "NO_GUIDANCE" ? "Performance Max" : "Sales Growth"}`,
           brandGuidelinesEnabled: Boolean(anyState.brandGuidelinesEnabled),
           startDate: state.startDate,
           endDate: state.endDate,
@@ -3583,7 +3688,7 @@ router.post("/create-campaign", async (req, res) => {
           merchantId: state.merchantCenterId || state.merchantId,
           feedLabel: state.feedLabel,
           salesCountry: state.salesCountry,
-          customerAcquisitionMode: state.customerAcquisitionMode,
+          customerAcquisitionMode: CampaignNormalizationService.normalizeCustomerAcquisitionMode(state.customerAcquisitionMode || anyState.customerAcquisitionMode),
           positiveGeoTargetType: anyState.positiveGeoTargetType || anyState.locationOptionsPresence,
           negativeGeoTargetType: anyState.negativeGeoTargetType || anyState.locationOptionsExclude,
           trackingTemplate: state.trackingTemplate,
@@ -3612,18 +3717,20 @@ router.post("/create-campaign", async (req, res) => {
           demographicExclusions: anyState.demographicExclusions,
           dataExclusions: anyState.dataExclusions || anyState.selectedDataExclusions || [],
           conversionGoals: anyState.conversionGoals || state.conversionGoals || [],
-          localServicesEnabled: objective === "LOCAL" || objective === "STORE_VISITS" || objective === "STORE-VISITS"
+          localServicesEnabled: objective === "LOCAL" || objective === "STORE_VISITS"
         };
-        if (objective === "NO_GUIDANCE" || objective === "NO-GUIDANCE") {
+        if (objective === "NO_GUIDANCE") {
           result = await NoGuidancePerformanceMaxService.createCampaign(orgId, customerId, payload);
-        } else if (objective === "LOCAL" || objective === "STORE_VISITS" || objective === "STORE-VISITS") {
+        } else if (objective === "LOCAL" || objective === "STORE_VISITS") {
           result = await StoreVisitsPerformanceMaxService.createCampaign(orgId, customerId, payload);
         } else if (objective === "LEADS") {
           result = await LeadsPerformanceMaxService.createCampaign(orgId, customerId, payload);
         } else if (objective === "WEBSITE_TRAFFIC") {
           result = await WebsiteTrafficPerformanceMaxService.createCampaign(orgId, customerId, payload);
-        } else {
+        } else if (objective === "SALES") {
           result = await SalesPerformanceMaxService.createCampaign(orgId, customerId, payload);
+        } else {
+          return res.status(400).json({ error: `Unsupported objective "${objective}" for Performance Max.` });
         }
         break;
       }
@@ -3700,14 +3807,16 @@ router.post("/create-campaign", async (req, res) => {
         };
         if (objective === "LEADS") {
           result = await LeadsDisplayService.createCampaign(orgId, customerId, payload);
-        } else if (objective === "WEBSITE_TRAFFIC" || objective === "WEBSITE-TRAFFIC") {
+        } else if (objective === "WEBSITE_TRAFFIC") {
           result = await WebsiteTrafficDisplayService.createCampaign(orgId, customerId, payload);
         } else if (objective === "AWARENESS" || objective === "YOUTUBE_REACH") {
           result = await YoutubeDisplayLocalService.createCampaign(orgId, customerId, payload);
         } else if (objective === "NO_GUIDANCE") {
           result = await NoGuidanceDisplayService.createCampaign(orgId, customerId, payload);
-        } else {
+        } else if (objective === "SALES") {
           result = await SalesDisplayService.createCampaign(orgId, customerId, payload);
+        } else {
+          return res.status(400).json({ error: `Unsupported objective "${objective}" for Display campaigns.` });
         }
         break;
       }
@@ -3757,7 +3866,6 @@ router.post("/create-campaign", async (req, res) => {
             accentColor: resolvedAccentBrandColor,
             font: anyState.brandFont || state.brandFont
           } : undefined),
-          // Google AI Creative Enhancements
           optAdaptiveLayouts: anyState.optAdaptiveLayouts !== undefined ? Boolean(anyState.optAdaptiveLayouts) : true,
           optAnimatedImages: anyState.optAnimatedImages !== undefined ? Boolean(anyState.optAnimatedImages) : true,
           optGeneratedVideos: anyState.optGeneratedVideos !== undefined ? Boolean(anyState.optGeneratedVideos) : true,
@@ -3788,97 +3896,15 @@ router.post("/create-campaign", async (req, res) => {
           result = await LeadsDemandGenService.createCampaign(orgId, customerId, payload);
         } else if (objective === "WEBSITE_TRAFFIC") {
           result = await WebsiteTrafficDemandGenService.createCampaign(orgId, customerId, payload);
-        } else if (objective === "NO_GUIDANCE" || objective === "NO-GUIDANCE") {
+        } else if (objective === "NO_GUIDANCE") {
           result = await NoGuidanceDemandGenService.createCampaign(orgId, customerId, payload);
-        } else if (objective === "AWARENESS" || objective === "YOUTUBE" || objective === "YOUTUBE_REACH" || objective === "YOUTUBE-REACH") {
+        } else if (objective === "AWARENESS" || objective === "YOUTUBE" || objective === "YOUTUBE_REACH") {
           result = await YoutubeDemandGenService.createCampaign(orgId, customerId, payload);
-        } else {
+        } else if (objective === "SALES") {
           result = await SalesDemandGenService.createCampaign(orgId, customerId, payload);
-        }
-        break;
-      }
-
-      case "VIDEO": {
-        // Official Google Ads API Contract: Video advertising is provisioned via DEMAND_GEN with VIDEO ad format
-        const anyState = state as any;
-        const resolvedBudgetType = anyState.demandGenBudgetType || (budgetType === "TOTAL" ? "Total" : "Daily");
-        const payload = {
-          source: "AI_GUIDED",
-          isAiGuided: true,
-          campaignName,
-          finalUrl: state.website || state.finalUrl,
-          businessName: state.businessName,
-          dailyBudget,
-          budget: budgetType === "TOTAL" && totalBudget ? totalBudget : dailyBudget,
-          totalBudget: totalBudget || (budgetType === "TOTAL" ? (state.totalBudget || state.dailyBudget) : undefined),
-          demandGenBudgetType: resolvedBudgetType,
-          locations,
-          languages,
-          biddingStrategy: state.biddingStrategy || "MAXIMIZE_CONVERSIONS",
-          biddingFocus: state.biddingStrategy || "MAXIMIZE_CONVERSIONS",
-          targetCpa: state.targetCpa || undefined,
-          targetRoas: state.targetRoas || undefined,
-          startDate: state.startDate,
-          endDate: state.endDate,
-          adFormat: "VIDEO",
-          channelTargeting: state.channelTargeting || "ALL",
-          channels: state.channels || [],
-          callToAction: state.callToAction || "Automated",
-          youtubeVideos: (state.videos && state.videos.length > 0) ? state.videos : (anyState.youtubeVideos || []),
-          headlines: validHeadlines.length > 0 ? validHeadlines : ["Watch Video Now"],
-          longHeadlines: state.longHeadlines && state.longHeadlines.length > 0 ? state.longHeadlines : [validHeadlines[0] || "Watch Video Now and Explore Solutions"],
-          descriptions: validDescriptions.length > 0 ? validDescriptions : ["Discover how our solutions help your business succeed."],
-          images: state.images && state.images.length > 0 ? state.images : [],
-          logos: state.logos && state.logos.length > 0 ? state.logos : [],
-          videos: state.videos && state.videos.length > 0 ? state.videos : [],
-          euPolitical: state.euPolitical || "NO",
-          adSchedule: normalizedAdSchedule,
-          devices: normalizedDevices,
-          searchThemes: anyState.searchThemes || state.searchThemes || [],
-          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
-        };
-        if (objective === "LEADS") {
-          result = await LeadsDemandGenService.createCampaign(orgId, customerId, payload);
-        } else if (objective === "WEBSITE_TRAFFIC") {
-          result = await WebsiteTrafficDemandGenService.createCampaign(orgId, customerId, payload);
-        } else if (objective === "NO_GUIDANCE" || objective === "NO-GUIDANCE") {
-          result = await NoGuidanceDemandGenService.createCampaign(orgId, customerId, payload);
-        } else if (objective === "AWARENESS" || objective === "YOUTUBE" || objective === "YOUTUBE_REACH" || objective === "YOUTUBE-REACH") {
-          result = await YoutubeDemandGenService.createCampaign(orgId, customerId, payload);
         } else {
-          result = await SalesDemandGenService.createCampaign(orgId, customerId, payload);
+          return res.status(400).json({ error: `Unsupported objective "${objective}" for Demand Gen campaigns.` });
         }
-        break;
-      }
-
-      case "APP": {
-        const anyState = state as any;
-        const payload = {
-          source: "AI_GUIDED",
-          isAiGuided: true,
-          campaignName,
-          platform: state.platform || (state.appStore === "APPLE_APP_STORE" ? "IOS" : "ANDROID"),
-          appId: state.appId,
-          appName: state.appName || undefined,
-          businessName: state.businessName || undefined,
-          locations,
-          languages,
-          headlines: validHeadlines,
-          descriptions: validDescriptions,
-          targetCpa: state.targetCpa,
-          dailyBudget,
-          budget: dailyBudget,
-          startDate: state.startDate,
-          endDate: state.endDate,
-          euPolitical: state.euPolitical || "NO",
-          images: (state as any).images || (state as any).marketingImages || [],
-          videos: (state as any).videos || (state as any).youtubeVideos || [],
-          trackingTemplate: state.trackingTemplate || anyState.trackingTemplate || undefined,
-          finalUrlSuffix: state.finalUrlSuffix || anyState.finalUrlSuffix || undefined,
-          customParameters: anyState.customParameters || anyState.customParamsList || [],
-          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
-        };
-        result = await AppPromotionAppService.createCampaign(orgId, customerId, payload);
         break;
       }
 
@@ -3892,14 +3918,14 @@ router.post("/create-campaign", async (req, res) => {
           campaignName,
           finalUrl: state.website || state.finalUrl,
           merchantCenterId: state.merchantCenterId || state.merchantId,
-          salesCountry: state.salesCountry || "IN",
-          feedLabel: state.feedLabel || state.salesCountry || "IN",
+          salesCountry: state.salesCountry,
+          feedLabel: state.feedLabel || state.salesCountry,
           dailyBudget,
           budget: budgetType === "TOTAL" && totalBudget ? totalBudget : dailyBudget,
           budgetType,
           totalBudget,
           locations,
-          languages: Array.isArray(languages) && languages.length > 0 ? languages : (anyState.languages || ["All languages"]),
+          languages: Array.isArray(languages) && languages.length > 0 ? languages : ["All languages"],
           biddingStrategy: state.biddingStrategy || "MAXIMIZE_CONVERSION_VALUE",
           biddingFocus: state.biddingStrategy || "MAXIMIZE_CONVERSION_VALUE",
           targetRoas: state.targetRoas || undefined,
@@ -3925,20 +3951,56 @@ router.post("/create-campaign", async (req, res) => {
           audienceSignal: audSignal,
           audienceSignals: audSignals,
           audience: anyState.audience || undefined,
-          headlines: validHeadlines.length > 0 ? validHeadlines : ["Shop Top Deals Now"],
-          descriptions: validDescriptions.length > 0 ? validDescriptions : ["Explore our exclusive shopping collection with fast delivery and great discounts."],
+          headlines: validHeadlines,
+          descriptions: validDescriptions,
           euPolitical: state.euPolitical || "NO",
           conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
         if (objective === "LEADS") {
           result = await LeadsShoppingService.createCampaign(orgId, customerId, payload);
-        } else if (objective === "WEBSITE_TRAFFIC" || objective === "TRAFFIC") {
+        } else if (objective === "WEBSITE_TRAFFIC") {
           result = await WebsiteTrafficShoppingService.createCampaign(orgId, customerId, payload);
-        } else if (objective === "NO_GUIDANCE" || objective === "WITHOUT_GUIDANCE") {
+        } else if (objective === "NO_GUIDANCE") {
           result = await NoGuidanceShoppingService.createCampaign(orgId, customerId, payload);
-        } else {
+        } else if (objective === "SALES") {
           result = await SalesShoppingService.createCampaign(orgId, customerId, payload);
+        } else {
+          return res.status(400).json({ error: `Unsupported objective "${objective}" for Shopping campaigns.` });
         }
+        break;
+      }
+
+      case "APP": {
+        if (objective !== "APP_PROMOTION") {
+          return res.status(400).json({ error: `Unsupported objective "${objective}" for APP campaigns. Only APP_PROMOTION is supported.` });
+        }
+        const anyState = state as any;
+        const payload = {
+          source: "AI_GUIDED",
+          isAiGuided: true,
+          campaignName,
+          platform: state.platform,
+          appId: state.appId,
+          appName: state.appName || undefined,
+          businessName: state.businessName || undefined,
+          locations,
+          languages,
+          headlines: validHeadlines,
+          descriptions: validDescriptions,
+          targetCpa: state.targetCpa,
+          dailyBudget,
+          budget: dailyBudget,
+          startDate: state.startDate,
+          endDate: state.endDate,
+          euPolitical: state.euPolitical || "NO",
+          images: (state as any).images || (state as any).marketingImages || [],
+          videos: (state as any).videos || (state as any).youtubeVideos || [],
+          trackingTemplate: state.trackingTemplate || anyState.trackingTemplate || undefined,
+          finalUrlSuffix: state.finalUrlSuffix || anyState.finalUrlSuffix || undefined,
+          customParameters: anyState.customParameters || anyState.customParamsList || [],
+          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
+        };
+        result = await AppPromotionAppService.createCampaign(orgId, customerId, payload);
         break;
       }
 
@@ -4208,9 +4270,10 @@ router.post("/create-campaign", async (req, res) => {
     });
   } catch (error: any) {
     if (idempotencyKey && typeof idempotencyKey === "string" && idempotencyKey.trim()) {
-      // Mark as failed or delete so user can retry upon genuine failure
+      // Mark as failed with metadata so user can retry or understand previous failure
       idempotencyCache.set(idempotencyKey.trim(), {
         status: "FAILED",
+        error: error?.message || "Failed to create campaign",
         timestamp: Date.now()
       });
     }
