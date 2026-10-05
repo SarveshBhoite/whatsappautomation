@@ -134,6 +134,14 @@ export interface ConversionGoalItem {
   additionalNotes?: string;
 }
 
+export interface BrandExclusionItem {
+  id: string;
+  name: string;
+  brands: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface BrandProfileData {
   // Brand Identity
   brandName?: string;
@@ -159,6 +167,9 @@ export interface BrandProfileData {
   discountRules?: string;
   priceRules?: string;
   additionalNotes?: string;
+
+  // Brand Exclusions lists
+  brandExclusions?: BrandExclusionItem[];
 }
 
 export interface CompetitorItem {
@@ -725,7 +736,20 @@ export class CustomerBusinessProfileService {
             promotionalStyle: typeof rawBrand.promotionalStyle === "string" ? rawBrand.promotionalStyle.trim() : "",
             discountRules: typeof rawBrand.discountRules === "string" ? rawBrand.discountRules.trim() : "",
             priceRules: typeof rawBrand.priceRules === "string" ? rawBrand.priceRules.trim() : "",
-            additionalNotes: typeof rawBrand.additionalNotes === "string" ? rawBrand.additionalNotes.trim() : ""
+            additionalNotes: typeof rawBrand.additionalNotes === "string" ? rawBrand.additionalNotes.trim() : "",
+            brandExclusions: Array.isArray(rawBrand.brandExclusions)
+              ? rawBrand.brandExclusions
+                  .filter((be: any) => be && typeof be === "object" && be.name)
+                  .map((be: any, bIdx: number): BrandExclusionItem => ({
+                    id: be.id || `be-${bIdx}`,
+                    name: String(be.name).trim(),
+                    brands: Array.isArray(be.brands)
+                      ? be.brands.map((b: any) => String(b).trim()).filter(Boolean)
+                      : (typeof be.brands === "string" ? be.brands.split(",").map((s: string) => s.trim()).filter(Boolean) : []),
+                    createdAt: be.createdAt || new Date().toISOString(),
+                    updatedAt: be.updatedAt || new Date().toISOString()
+                  }))
+              : []
           };
         } else {
           profile.brandProfile = null;
@@ -1107,7 +1131,18 @@ export class CustomerBusinessProfileService {
         promotionalStyle: typeof b.promotionalStyle === "string" ? b.promotionalStyle.trim() : undefined,
         discountRules: typeof b.discountRules === "string" ? b.discountRules.trim() : undefined,
         priceRules: typeof b.priceRules === "string" ? b.priceRules.trim() : undefined,
-        additionalNotes: typeof b.additionalNotes === "string" ? b.additionalNotes.trim() : undefined
+        additionalNotes: typeof b.additionalNotes === "string" ? b.additionalNotes.trim() : undefined,
+        brandExclusions: Array.isArray(b.brandExclusions)
+          ? b.brandExclusions
+              .filter((be: any) => be && typeof be === "object" && be.name)
+              .map((be: any, bIdx: number): BrandExclusionItem => ({
+                id: be.id || `be-${Date.now()}-${bIdx}`,
+                name: String(be.name).trim(),
+                brands: cleanList(be.brands),
+                createdAt: be.createdAt || new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }))
+          : undefined
       };
     };
 
@@ -1491,6 +1526,155 @@ export class CustomerBusinessProfileService {
     }, Boolean(profile.isApproved));
 
     return item;
+  }
+
+  /**
+   * Lists all saved Brand Exclusion lists for a customer profile.
+   * Also searches past campaigns for historical brand exclusions to provide a complete list.
+   */
+  static async listBrandExclusions(orgId: string, customerId: string): Promise<BrandExclusionItem[]> {
+    const profile = await this.getProfile(orgId, customerId);
+    const savedLists: BrandExclusionItem[] = Array.isArray(profile?.brandProfile?.brandExclusions)
+      ? profile.brandProfile.brandExclusions
+      : [];
+
+    const existingNames = new Set(savedLists.map(l => l.name.toLowerCase().trim()));
+
+    // Also look through past campaigns created by this customer
+    try {
+      const cleanCid = (customerId || "").replace(/-/g, "").trim();
+      const pastCampaigns = await (prisma as any).googleAdCampaign.findMany({
+        where: {
+          organizationId: orgId,
+          customerId: cleanCid
+        },
+        select: {
+          id: true,
+          name: true,
+          geoTargets: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: "desc" },
+        take: 30
+      });
+
+      for (const camp of pastCampaigns) {
+        const geo = camp.geoTargets || {};
+        const campBrandExclusions = geo.brandExclusions || [];
+        if (Array.isArray(campBrandExclusions) && campBrandExclusions.length > 0) {
+          for (const item of campBrandExclusions) {
+            let listName = "";
+            let brands: string[] = [];
+
+            if (typeof item === "string" && item.trim()) {
+              listName = item.trim();
+              brands = [item.trim()];
+            } else if (item && typeof item === "object" && item.name) {
+              listName = String(item.name).trim();
+              brands = Array.isArray(item.brands) ? item.brands : [listName];
+            }
+
+            if (listName && !existingNames.has(listName.toLowerCase())) {
+              existingNames.add(listName.toLowerCase());
+              savedLists.push({
+                id: `camp-be-${camp.id.slice(0, 8)}-${savedLists.length}`,
+                name: listName,
+                brands,
+                createdAt: camp.createdAt ? new Date(camp.createdAt).toISOString() : new Date().toISOString()
+              });
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn("[CustomerBusinessProfileService] listBrandExclusions campaign history fallback warning:", e.message);
+    }
+
+    return savedLists;
+  }
+
+  /**
+   * Adds or updates a Brand Exclusion list in the customer's profile.
+   */
+  static async saveBrandExclusion(
+    orgId: string,
+    customerId: string,
+    list: { id?: string; name: string; brands: string[] }
+  ): Promise<BrandExclusionItem> {
+    const profile = await this.getProfile(orgId, customerId);
+    if (!profile) throw new Error("Customer profile not found");
+
+    const trimmedName = String(list.name || "").trim();
+    if (!trimmedName) throw new Error("Brand exclusion list name is required");
+
+    const cleanBrands = Array.isArray(list.brands)
+      ? Array.from(new Set(list.brands.map(b => String(b).trim()).filter(Boolean)))
+      : [];
+
+    const existingLists: BrandExclusionItem[] = Array.isArray(profile.brandProfile?.brandExclusions)
+      ? [...profile.brandProfile.brandExclusions]
+      : [];
+
+    const nowIso = new Date().toISOString();
+    const targetId = list.id || `be-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const newItem: BrandExclusionItem = {
+      id: targetId,
+      name: trimmedName,
+      brands: cleanBrands,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    };
+
+    const existingIdx = existingLists.findIndex(
+      l => l.id === targetId || l.name.toLowerCase().trim() === trimmedName.toLowerCase()
+    );
+
+    if (existingIdx >= 0) {
+      newItem.createdAt = existingLists[existingIdx].createdAt || nowIso;
+      existingLists[existingIdx] = newItem;
+    } else {
+      existingLists.unshift(newItem);
+    }
+
+    const updatedBrandProfile: BrandProfileData = {
+      ...(profile.brandProfile || {}),
+      brandExclusions: existingLists
+    };
+
+    await this.saveProfile(orgId, customerId, {
+      ...profile,
+      brandProfile: updatedBrandProfile
+    }, Boolean(profile.isApproved));
+
+    return newItem;
+  }
+
+  /**
+   * Deletes a Brand Exclusion list by ID or Name.
+   */
+  static async deleteBrandExclusion(orgId: string, customerId: string, idOrName: string) {
+    const profile = await this.getProfile(orgId, customerId);
+    if (!profile) throw new Error("Customer profile not found");
+
+    const existingLists: BrandExclusionItem[] = Array.isArray(profile.brandProfile?.brandExclusions)
+      ? profile.brandProfile.brandExclusions
+      : [];
+
+    const filtered = existingLists.filter(
+      l => l.id !== idOrName && l.name.toLowerCase().trim() !== idOrName.toLowerCase().trim()
+    );
+
+    const updatedBrandProfile: BrandProfileData = {
+      ...(profile.brandProfile || {}),
+      brandExclusions: filtered
+    };
+
+    await this.saveProfile(orgId, customerId, {
+      ...profile,
+      brandProfile: updatedBrandProfile
+    }, Boolean(profile.isApproved));
+
+    return { success: true, remainingCount: filtered.length };
   }
 
   /**

@@ -236,6 +236,7 @@ router.get("/user-profile", async (req, res) => {
       locationRecords: activeLocationRecords,
       conversionGoals: activeConversionGoals,
       brandProfile: savedProfile.brandProfile || null,
+      brandExclusions: savedProfile?.brandProfile?.brandExclusions || [],
       competitors: activeCompetitors,
       seoKeywords: activeSeoKeywords,
       negativeKeywords: activeNegativeKeywords,
@@ -301,6 +302,7 @@ router.get("/user-profile", async (req, res) => {
       locationRecords: activeLocationRecords,
       conversionGoals: activeConversionGoals,
       brandProfile: savedProfile?.brandProfile || null,
+      brandExclusions: savedProfile?.brandProfile?.brandExclusions || [],
       competitors: activeCompetitors,
       seoKeywords: activeSeoKeywords,
       negativeKeywords: activeNegativeKeywords,
@@ -3552,7 +3554,20 @@ router.post("/create-campaign", async (req, res) => {
 
     // Centralize Devices Normalization across all campaign types
     const rawDevices = (state as any).devices;
-    const normalizedDevices = Array.isArray(rawDevices) ? rawDevices : (rawDevices ? [rawDevices] : []);
+    const normalizedDevices = (() => {
+      if (Array.isArray(rawDevices)) {
+        return rawDevices.map((d: any) => String(d).trim().toUpperCase()).filter(Boolean);
+      }
+      if (rawDevices && typeof rawDevices === "object") {
+        const devs: string[] = [];
+        if (rawDevices.computers !== false && rawDevices.desktop !== false) devs.push("DESKTOP");
+        if (rawDevices.mobile !== false) devs.push("MOBILE");
+        if (rawDevices.tablets !== false || rawDevices.tablet !== false) devs.push("TABLET");
+        if (rawDevices.tv !== false || rawDevices.connectedTv !== false) devs.push("CONNECTED_TV");
+        return devs;
+      }
+      return ["DESKTOP", "MOBILE", "TABLET", "CONNECTED_TV"];
+    })();
 
     const validHeadlines = ((state as any).headlines || [])
       .map((h: any) => GoogleAdsBaseService.cleanAdText(typeof h === "string" ? h : h?.text || "", 30))
@@ -3636,7 +3651,15 @@ router.post("/create-campaign", async (req, res) => {
           callPhone: state.callPhoneNumber || anyState.callPhoneNumber || anyState.callPhone || undefined,
           promotions: anyState.promotions || state.promotions || [],
           prices: anyState.prices || state.prices || [],
+          messages: anyState.messages || state.messages || [],
           leadForms: anyState.leadForms || state.leadForms || [],
+          app: anyState.app || (state.appId ? { appId: state.appId, appName: state.appName, platform: state.platform } : undefined),
+          merchantCenterId: state.useMerchantInCampaign !== false ? (state.merchantCenterId || state.merchantId || anyState.merchantCenterId) : undefined,
+          merchantId: state.useMerchantInCampaign !== false ? (state.merchantCenterId || state.merchantId || anyState.merchantId) : undefined,
+          salesCountry: state.salesCountry || anyState.salesCountry,
+          feedLabel: state.feedLabel || anyState.feedLabel,
+          images: state.images && state.images.length > 0 ? state.images : [],
+          logos: state.logos && state.logos.length > 0 ? state.logos : [],
           conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
         if (objective === "NO_GUIDANCE") {
@@ -3826,15 +3849,20 @@ router.post("/create-campaign", async (req, res) => {
         const resolvedBudgetType = anyState.demandGenBudgetType || (budgetType === "TOTAL" ? "Total" : "Daily");
         const resolvedAccentBrandColor = anyState.accentBrandColor || state.accentBrandColor || (Array.isArray(anyState.brandColors) ? anyState.brandColors[1] : undefined);
         const resolvedMainBrandColor = anyState.mainBrandColor || state.mainBrandColor || (Array.isArray(anyState.brandColors) ? anyState.brandColors[0] : undefined);
+        const resolvedBrandFont = anyState.brandFont || state.brandFont || undefined;
         const payload = {
           source: "AI_GUIDED",
           isAiGuided: true,
           campaignName,
+          campaignGoal: anyState.campaignGoal || state.objective || objective || "Website Traffic",
+          objective: anyState.campaignGoal || state.objective || objective || "Website Traffic",
           finalUrl: state.website || state.finalUrl,
+          website: state.website || state.finalUrl,
           businessName: state.businessName,
           dailyBudget,
           budget: resolvedBudgetType.toLowerCase().includes("total") && totalBudget ? totalBudget : dailyBudget,
           totalBudget: totalBudget || (resolvedBudgetType.toLowerCase().includes("total") ? (state.totalBudget || state.dailyBudget) : undefined),
+          budgetType: resolvedBudgetType,
           demandGenBudgetType: resolvedBudgetType,
           callPhoneNumber: state.callPhoneNumber || anyState.callPhoneNumber || undefined,
           locations,
@@ -3849,7 +3877,7 @@ router.post("/create-campaign", async (req, res) => {
           channelTargeting: state.channelTargeting || "ALL",
           channels: state.channels || [],
           carouselCards: state.carouselCards || [],
-          callToAction: state.callToAction || "Automated",
+          callToAction: state.callToAction || anyState.callToAction || "Automated",
           headlines: validHeadlines,
           longHeadlines: state.longHeadlines && state.longHeadlines.length > 0 ? state.longHeadlines : (validHeadlines.length > 0 ? [validHeadlines[0]] : []),
           descriptions: validDescriptions,
@@ -3860,11 +3888,14 @@ router.post("/create-campaign", async (req, res) => {
           includeViewThrough: anyState.includeViewThrough !== undefined ? Boolean(anyState.includeViewThrough) : true,
           mainBrandColor: resolvedMainBrandColor,
           accentBrandColor: resolvedAccentBrandColor,
-          brandFont: anyState.brandFont || state.brandFont || undefined,
+          brandFont: resolvedBrandFont,
           brandGuidelines: anyState.brandGuidelines || (state.brandGuidelinesEnabled || (resolvedMainBrandColor && resolvedAccentBrandColor) ? {
+            mainBrandColor: resolvedMainBrandColor,
+            accentBrandColor: resolvedAccentBrandColor,
+            brandFont: resolvedBrandFont,
             mainColor: resolvedMainBrandColor,
             accentColor: resolvedAccentBrandColor,
-            font: anyState.brandFont || state.brandFont
+            font: resolvedBrandFont
           } : undefined),
           optAdaptiveLayouts: anyState.optAdaptiveLayouts !== undefined ? Boolean(anyState.optAdaptiveLayouts) : true,
           optAnimatedImages: anyState.optAnimatedImages !== undefined ? Boolean(anyState.optAnimatedImages) : true,
@@ -3885,8 +3916,14 @@ router.post("/create-campaign", async (req, res) => {
           structuredSnippets: anyState.structuredSnippets || [],
           promotions: anyState.promotions || [],
           audience: anyState.audience || undefined,
+          audienceSignal: anyState.audienceSignal || anyState.audienceSignals?.[0] || undefined,
           audienceSignals: anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || [])),
           searchThemes: anyState.searchThemes || state.searchThemes || [],
+          keywords: anyState.keywords || state.keywords || [],
+          demographicExclusions: anyState.demographicExclusions || state.demographicExclusions || undefined,
+          genderExclusions: anyState.demographicExclusions?.genders || anyState.genderExclusions || undefined,
+          merchantCenterId: state.merchantCenterId || state.merchantId || anyState.merchantCenterId || anyState.merchantId || undefined,
+          merchantId: state.merchantCenterId || state.merchantId || anyState.merchantCenterId || anyState.merchantId || undefined,
           customerAcquisitionMode: anyState.customerAcquisitionMode || (state.onlyBidNewCustomers ? "ONLY_NEW" : "EQUAL"),
           optimizedTargeting: anyState.optimizedTargeting !== undefined ? Boolean(anyState.optimizedTargeting) : true,
           ipExclusions: anyState.ipExclusions || undefined,
@@ -4232,6 +4269,7 @@ router.post("/create-campaign", async (req, res) => {
         : (state?.audienceSignalIds?.length
           ? state.audienceSignalIds
           : (Array.isArray(anyState.audienceSignals) && anyState.audienceSignals.length > 0 ? anyState.audienceSignals : undefined)),
+      devices: normalizedDevices,
       sitelinks: Array.isArray(anyState.sitelinks) && anyState.sitelinks.length > 0 ? anyState.sitelinks : undefined,
       callouts: Array.isArray(anyState.callouts) && anyState.callouts.length > 0 ? anyState.callouts : undefined,
       structuredSnippets: Array.isArray(anyState.structuredSnippets) && anyState.structuredSnippets.length > 0 ? anyState.structuredSnippets : undefined,
@@ -4239,10 +4277,11 @@ router.post("/create-campaign", async (req, res) => {
       leadForms: Array.isArray(anyState.leadForms) && anyState.leadForms.length > 0 ? anyState.leadForms : undefined,
       promotions: Array.isArray(anyState.promotions) && anyState.promotions.length > 0 ? anyState.promotions : undefined,
       prices: Array.isArray(anyState.prices) && anyState.prices.length > 0 ? anyState.prices : undefined,
-      merchantCenterId: state.merchantCenterId || state.merchantId || undefined,
-      feedLabel: state.feedLabel || undefined,
-      salesCountry: state.salesCountry || undefined,
-      customerAcquisitionMode: state.customerAcquisitionMode || undefined,
+      messages: Array.isArray(anyState.messages) && anyState.messages.length > 0 ? anyState.messages : undefined,
+      merchantCenterId: state.merchantCenterId || state.merchantId || anyState.merchantCenterId || anyState.merchantId || undefined,
+      feedLabel: state.feedLabel || anyState.feedLabel || undefined,
+      salesCountry: state.salesCountry || anyState.salesCountry || undefined,
+      customerAcquisitionMode: state.customerAcquisitionMode || anyState.customerAcquisitionMode || undefined,
       brandGuidelinesEnabled: anyState.brandGuidelinesEnabled !== undefined ? Boolean(anyState.brandGuidelinesEnabled) : undefined,
       assetGroupName: anyState.assetGroupName || undefined,
       conversionGoals: state.conversionGoals || anyState.conversionGoals || undefined,

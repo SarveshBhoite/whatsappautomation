@@ -48,6 +48,8 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       callouts = [],
       promotions = [],
       prices = [],
+      messages = [],
+      leadForms = [],
       callAsset,
       structuredSnippets = [],
       adSchedule = [],
@@ -200,7 +202,6 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
         };
 
         if (shoppingSetting) createObj.shoppingSetting = shoppingSetting;
-        if (customerAcquisitionSetting) createObj.customerAcquisitionSetting = customerAcquisitionSetting;
         if (geoTargetTypeSetting) createObj.geoTargetTypeSetting = geoTargetTypeSetting;
         if (cleanTrackingTemplate) createObj.trackingUrlTemplate = cleanTrackingTemplate;
         if (finalUrlSuffix && String(finalUrlSuffix).trim()) createObj.finalUrlSuffix = String(finalUrlSuffix).trim();
@@ -519,19 +520,19 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       });
 
       const validAudiences = Array.isArray(audienceSignals) ? audienceSignals : [];
-      validAudiences.forEach((aud: any) => {
-        const audResource = typeof aud === "string" ? aud : aud?.resourceName;
-        if (audResource && String(audResource).trim()) {
+      for (const aud of validAudiences) {
+        const resolvedAudRef = await GoogleAdsBaseService.resolveAudienceResource(organizationId, customerId, aud, headers);
+        if (resolvedAudRef) {
           mutateOperations.push({
             assetGroupSignalOperation: {
               create: {
                 assetGroup: tempAssetGroupResourceName,
-                audience: { audience: String(audResource).trim() }
+                audience: { audience: resolvedAudRef }
               }
             }
           });
         }
-      });
+      }
 
       const mutateRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:mutate`, { mutateOperations }, { headers });
       const results = mutateRes.data.mutateOperationResponses;
@@ -923,6 +924,14 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
         demographicExclusions: demographicExclusions || null,
         callouts: callouts || [],
         structuredSnippets: structuredSnippets || [],
+        promotions: promotions || [],
+        prices: prices || [],
+        messages: messages || [],
+        leadForms: leadForms || [],
+        merchantCenterId: effectiveMerchantId || null,
+        feedLabel: feedLabel || salesCountry || null,
+        customerAcquisition: customerAcquisitionSetting || (customerAcquisitionMode ? { mode: customerAcquisitionMode } : null),
+        audienceSignals: Array.isArray(audienceSignals) && audienceSignals.length > 0 ? audienceSignals : null,
         conversionGoals: {
           objective: "Sales",
           selectedConversionGoals: rawGoalsList,

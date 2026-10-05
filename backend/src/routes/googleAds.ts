@@ -6056,4 +6056,103 @@ router.delete("/shared-negative-lists/:sharedSetId/campaigns/:campaignId", async
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BRAND EXCLUSIONS (Account & Profile-level Brand Exclusions Persistence)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/brand-exclusions
+ * Fetch all saved & historical brand exclusion lists for this customer.
+ */
+router.get("/brand-exclusions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    const cleanCid = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const brandExclusions = await CustomerBusinessProfileService.listBrandExclusions(orgId, cleanCid);
+    res.status(200).json({ success: true, brandExclusions });
+  } catch (error: any) {
+    console.error("[GET /api/ads/brand-exclusions] error:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch brand exclusions" });
+  }
+});
+
+/**
+ * POST /api/ads/brand-exclusions
+ * Save or update a brand exclusion list in the customer profile.
+ * Body: { customerId: string, name: string, brands: string[], id?: string }
+ */
+router.post("/brand-exclusions", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    const cleanCid = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const { name, brands, id } = req.body;
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: "Brand exclusion list name is required." });
+    }
+
+    const saved = await CustomerBusinessProfileService.saveBrandExclusion(orgId, cleanCid, {
+      id,
+      name: String(name).trim(),
+      brands: Array.isArray(brands) ? brands : []
+    });
+
+    res.status(200).json({ success: true, brandExclusion: saved });
+  } catch (error: any) {
+    console.error("[POST /api/ads/brand-exclusions] error:", error);
+    res.status(500).json({ error: error?.message || "Failed to save brand exclusion" });
+  }
+});
+
+/**
+ * DELETE /api/ads/brand-exclusions/:id
+ * Remove a brand exclusion list from the customer profile.
+ */
+router.delete("/brand-exclusions/:id", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    const cleanCid = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, cleanCid);
+    if (!isOwned) {
+      return res.status(403).json({
+        error: "Access denied. The specified Google Ads account is not associated with this organization."
+      });
+    }
+
+    const result = await CustomerBusinessProfileService.deleteBrandExclusion(orgId, cleanCid, req.params.id);
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[DELETE /api/ads/brand-exclusions/:id] error:", error);
+    res.status(500).json({ error: error?.message || "Failed to delete brand exclusion" });
+  }
+});
+
 export default router;

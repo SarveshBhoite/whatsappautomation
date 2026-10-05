@@ -306,7 +306,6 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
         if (formattedStartDate) createOp.startDateTime = `${formattedStartDate} 00:00:00`;
         if (formattedEndDate) createOp.endDateTime = `${formattedEndDate} 23:59:59`;
         if (shoppingSetting) createOp.shoppingSetting = shoppingSetting;
-        if (customerAcquisitionSetting) createOp.customerAcquisitionSetting = customerAcquisitionSetting;
         if (geoTargetTypeSetting) createOp.geoTargetTypeSetting = geoTargetTypeSetting;
         const cleanTrack = GoogleAdsBaseService.cleanTrackingTemplate(trackingTemplate);
         if (cleanTrack) createOp.trackingUrlTemplate = cleanTrack;
@@ -621,19 +620,19 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       });
 
       const validAudiences = Array.isArray(audienceSignals) ? audienceSignals : [];
-      validAudiences.forEach((aud: any) => {
-        const audResource = typeof aud === "string" ? aud : aud?.resourceName;
-        if (audResource && String(audResource).trim()) {
+      for (const aud of validAudiences) {
+        const resolvedAudRef = await GoogleAdsBaseService.resolveAudienceResource(organizationId, customerId, aud, headers);
+        if (resolvedAudRef) {
           mutateOperations.push({
             assetGroupSignalOperation: {
               create: {
                 assetGroup: tempAssetGroupResourceName,
-                audience: { audience: String(audResource).trim() }
+                audience: { audience: resolvedAudRef }
               }
             }
           });
         }
-      });
+      }
 
       const mutateRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:mutate`, { mutateOperations }, { headers });
       const results = mutateRes.data.mutateOperationResponses;

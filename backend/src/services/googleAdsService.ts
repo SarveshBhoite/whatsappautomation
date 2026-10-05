@@ -1918,11 +1918,6 @@ export class GoogleAdsService {
               audienceSetting: { useAudienceGrouped: true },
               brandGuidelinesEnabled: params.brandGuidelinesEnabled ?? false,
               containsEuPoliticalAdvertising: euPoliticalValue,
-              ...(params.customerAcquisitionMode ? {
-                customerAcquisitionSetting: {
-                  optimizationMode: CampaignNormalizationService.normalizeCustomerAcquisitionMode(params.customerAcquisitionMode)
-                }
-              } : {}),
               ...(params.positiveGeoTargetType ? {
                 geoTargetTypeSetting: {
                   positiveGeoTargetType: params.positiveGeoTargetType,

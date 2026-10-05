@@ -335,12 +335,15 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
       promotions = [],
       prices = [],
       leadForms = [],
-      conversionGoals
+      conversionGoals,
+      brandInclusions = [],
+      brandExclusions = []
     } = payload;
 
     const finalUrl = (inputFinalUrl || websiteVisitsUrl || website || "").trim();
     const effectiveDailyBudget = Number(dailyBudget || budget || 1000);
     const amountMicros = Math.round(effectiveDailyBudget * 1_000_000);
+    const effectiveCallPhone = callAsset?.phone || callAsset?.phoneNumber || payload.callPhoneNumber || payload.callPhone;
 
     const validHeadlines: string[] = headlines.filter((h: any) => typeof h === "string" && h.trim().length > 0);
     const validDescriptions: string[] = descriptions.filter((d: any) => typeof d === "string" && d.trim().length > 0);
@@ -450,6 +453,21 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
             advertisingChannelType: "SEARCH",
             campaignBudget: budgetRef,
             containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            networkSettings: {
+              targetGoogleSearch: true,
+              targetSearchNetwork: payload.networkSearch !== undefined ? Boolean(payload.networkSearch) : true,
+              targetContentNetwork: payload.networkDisplay !== undefined ? Boolean(payload.networkDisplay) : false,
+              targetPartnerSearchNetwork: false
+            },
+            adRotationMode: payload.adRotationMode === "DO_NOT_OPTIMIZE" ? "DO_NOT_OPTIMIZE" : "OPTIMIZE",
+            ...(payload.trackingTemplate ? { trackingUrlTemplate: String(payload.trackingTemplate).trim() } : {}),
+            ...(payload.finalUrlSuffix ? { finalUrlSuffix: String(payload.finalUrlSuffix).trim() } : {}),
+            ...(Array.isArray(payload.customParameters) && payload.customParameters.length > 0 ? {
+              urlCustomParameters: payload.customParameters.map((cp: any) => ({
+                key: String(cp.key || cp.name || "").trim(),
+                value: String(cp.value !== undefined ? cp.value : "").trim()
+              })).filter((cp: any) => cp.key.length > 0)
+            } : {}),
             ...(startDate ? { startDateTime: `${String(startDate).split("T")[0]} 00:00:00` } : {}),
             ...(endDate ? { endDateTime: `${String(endDate).split("T")[0]} 23:59:59` } : {}),
             aiMaxSetting: {
@@ -537,9 +555,12 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
               status: "ENABLED",
               ad: {
                 finalUrls: [finalUrl],
+                ...(payload.mobileFinalUrl ? { finalMobileUrls: [payload.mobileFinalUrl.trim()] } : {}),
                 responsiveSearchAd: {
                   headlines: cleanedHeadlines.slice(0, 15).map((text: string) => ({ text })),
-                  descriptions: cleanedDescriptions.slice(0, 4).map((text: string) => ({ text }))
+                  descriptions: cleanedDescriptions.slice(0, 4).map((text: string) => ({ text })),
+                  ...(payload.displayPath1 ? { path1: String(payload.displayPath1).trim().slice(0, 15) } : {}),
+                  ...(payload.displayPath2 ? { path2: String(payload.displayPath2).trim().slice(0, 15) } : {})
                 }
               }
             }
@@ -558,59 +579,126 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
       );
       const criteriaResourceNames = (geoAndLangResults || []).map((r: any) => r.resourceName);
 
-      // Ad Schedule targeting (CampaignCriterion -> adSchedule)
-      const scheduleList = Array.isArray(adSchedule) ? adSchedule : [];
+      // Ad Schedule targeting (CampaignCriterion -> adSchedule via mutateCampaignAdScheduleCriteria)
+      const scheduleList = (Array.isArray(payload.adSchedule) && payload.adSchedule.length > 0)
+        ? payload.adSchedule
+        : (Array.isArray(adSchedule) ? adSchedule : []);
       if (scheduleList.length > 0) {
-        const scheduleOperations: any[] = [];
-        const scheduleCriteria = WebsiteTrafficSearchService.buildAdScheduleCriteria(scheduleList);
-        for (const sched of scheduleCriteria) {
-          scheduleOperations.push({
-            create: {
-              campaign: campaignRef,
-              adSchedule: sched
-            }
-          });
-        }
-        if (scheduleOperations.length > 0) {
-          const schedRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, { operations: scheduleOperations }, { headers });
-          (schedRes.data?.results || []).forEach((r: any) => criteriaResourceNames.push(r.resourceName));
+        try {
+          const scheduleResults = await GoogleAdsBaseService.mutateCampaignAdScheduleCriteria(
+            organizationId,
+            customerId,
+            campaignRef,
+            scheduleList,
+            headers
+          );
+          if (scheduleResults.length > 0) {
+            scheduleResults.forEach((r: any) => criteriaResourceNames.push(r.resourceName));
+            apiResult.scheduleCriteriaResults = scheduleResults;
+          }
+        } catch (schedErr: any) {
+          console.warn("[WebsiteTrafficSearchService] Ad Schedule criteria warning:", schedErr?.response?.data || schedErr.message);
         }
       }
       apiResult.criteriaResourceNames = criteriaResourceNames;
 
-      // ── 10. CREATE SEARCH EXTENSIONS (Google Ads Assets & CampaignAsset Associations) ──
+      // ── 10. CREATE SEARCH EXTENSIONS & VISUAL ASSETS (Images, Logos, Sitelinks, Callouts, Lead Forms) ──
       const campaignAssetOperations: any[] = [];
+      const createdAssetResources: string[] = [];
 
-      // A. Sitelinks (SitelinkAsset)
+      // A. Visual Image Assets (Optional for Search ads)
+      const inputImages = Array.isArray(payload.images) ? payload.images : [];
+      for (const img of inputImages) {
+        const rawUrl = typeof img === "string" ? img : img?.url || img?.data || "";
+        if (rawUrl && (rawUrl.startsWith("http") || rawUrl.startsWith("data:image/"))) {
+          try {
+            const isSquare = (typeof img === "object" && (img.fieldType === "SQUARE_MARKETING_IMAGE" || img.aspectRatio === "1:1")) || false;
+            const assetRef = await GoogleAdsBaseService.uploadImageAsset(
+              organizationId,
+              customerId,
+              rawUrl,
+              `Search Image ${Date.now()}`
+            );
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: isSquare ? "SQUARE_MARKETING_IMAGE" : "MARKETING_IMAGE",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (imgErr: any) {
+            console.warn("[WebsiteTrafficSearchService] Image asset upload skipped / non-fatal:", imgErr?.message || imgErr);
+          }
+        }
+      }
+
+      // B. Visual Logo Assets (Optional for Search ads)
+      const inputLogos = Array.isArray(payload.logos) ? payload.logos : [];
+      for (const lg of inputLogos) {
+        const rawUrl = typeof lg === "string" ? lg : lg?.url || lg?.data || "";
+        if (rawUrl && (rawUrl.startsWith("http") || rawUrl.startsWith("data:image/"))) {
+          try {
+            const assetRef = await GoogleAdsBaseService.uploadImageAsset(
+              organizationId,
+              customerId,
+              rawUrl,
+              `Search Logo ${Date.now()}`
+            );
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "LOGO",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (lgErr: any) {
+            console.warn("[WebsiteTrafficSearchService] Logo asset upload skipped / non-fatal:", lgErr?.message || lgErr);
+          }
+        }
+      }
+
+      // C. Sitelinks (SitelinkAsset)
       const inputSitelinks = Array.isArray(sitelinks) ? sitelinks : [];
       for (const sl of inputSitelinks) {
         const linkText = (sl.text || sl.linkText || "").trim();
         const slUrl = (sl.url || sl.finalUrl || "").trim();
         if (linkText && slUrl) {
-          const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
-            operations: [{
-              create: {
-                name: `Sitelink - ${linkText.slice(0, 20)} - ${Date.now()}`,
-                sitelinkAsset: {
-                  linkText,
-                  ...(sl.desc1 || sl.description1 ? { description1: (sl.desc1 || sl.description1).trim().slice(0, 35) } : {}),
-                  ...(sl.desc2 || sl.description2 ? { description2: (sl.desc2 || sl.description2).trim().slice(0, 35) } : {})
-                },
-                finalUrls: [slUrl]
-              }
-            }]
-          }, { headers });
-          const assetRef = assetRes.data?.results?.[0]?.resourceName;
-          if (assetRef) {
-            createdAssetResources.push(assetRef);
-            campaignAssetOperations.push({
-              create: {
-                campaign: campaignRef,
-                asset: assetRef,
-                fieldType: "SITELINK",
-                status: "ENABLED"
-              }
-            });
+          try {
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [{
+                create: {
+                  name: `Sitelink - ${linkText.slice(0, 20)} - ${Date.now()}`,
+                  sitelinkAsset: {
+                    linkText,
+                    ...(sl.desc1 || sl.description1 ? { description1: (sl.desc1 || sl.description1).trim().slice(0, 35) } : {}),
+                    ...(sl.desc2 || sl.description2 ? { description2: (sl.desc2 || sl.description2).trim().slice(0, 35) } : {})
+                  },
+                  finalUrls: [slUrl]
+                }
+              }]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "SITELINK",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (slErr: any) {
+            console.warn("[WebsiteTrafficSearchService] Sitelink creation skipped:", slErr?.message || slErr);
           }
         }
       }
@@ -652,49 +740,51 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
         const rawValues: string[] = Array.isArray(snip.values) ? snip.values : [];
         const values = rawValues.map(v => (typeof v === "string" ? v.trim() : "")).filter(Boolean);
         if (header && header !== "Select header type" && values.length >= 3) {
-          const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
-            operations: [{
-              create: {
-                name: `Snippet - ${header} - ${Date.now()}`,
-                structuredSnippetAsset: {
-                  header,
-                  values
+          try {
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [{
+                create: {
+                  name: `Snippet - ${header} - ${Date.now()}`,
+                  structuredSnippetAsset: {
+                    header,
+                    values
+                  }
                 }
-              }
-            }]
-          }, { headers });
-          const assetRef = assetRes.data?.results?.[0]?.resourceName;
-          if (assetRef) {
-            createdAssetResources.push(assetRef);
-            campaignAssetOperations.push({
-              create: {
-                campaign: campaignRef,
-                asset: assetRef,
-                fieldType: "STRUCTURED_SNIPPET",
-                status: "ENABLED"
-              }
-            });
+              }]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: campaignRef,
+                  asset: assetRef,
+                  fieldType: "STRUCTURED_SNIPPET",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (snErr: any) {
+            console.warn("[WebsiteTrafficSearchService] Structured Snippet creation skipped:", snErr?.message || snErr);
           }
         }
       }
 
       // D. Call Asset (CallAsset)
-      if (callAsset && callAsset.phoneNumber) {
-        const phone = String(callAsset.phoneNumber).trim();
-        const countryCode = String(callAsset.countryCode || "IN").trim();
-        if (phone) {
-          const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+      if (effectiveCallPhone && String(effectiveCallPhone).trim()) {
+        try {
+        const callRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
             operations: [{
               create: {
-                name: `Call - ${phone} - ${Date.now()}`,
+                name: `Call Asset - ${Date.now()}`,
                 callAsset: {
-                  countryCode,
-                  phoneNumber: phone
+                  countryCode: callAsset?.countryCode || payload.callCountryCode || "IN",
+                  phoneNumber: String(effectiveCallPhone).trim()
                 }
               }
             }]
           }, { headers });
-          const assetRef = assetRes.data?.results?.[0]?.resourceName;
+          const assetRef = callRes.data?.results?.[0]?.resourceName;
           if (assetRef) {
             createdAssetResources.push(assetRef);
             campaignAssetOperations.push({
@@ -706,24 +796,27 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
               }
             });
           }
+        } catch (callErr: any) {
+          console.warn("[WebsiteTrafficSearchService] Call asset creation skipped:", callErr?.message || callErr);
         }
       }
 
       // E. Promotion Assets (PromotionAsset)
       const inputPromos = Array.isArray(promotions) ? promotions : [];
       for (const promo of inputPromos) {
-        const target = (promo.promotionTarget || promo.item || "").trim();
+        const target = (promo.target || promo.promotionTarget || promo.item || "").trim();
         const promoUrl = (promo.finalUrl || promo.url || "").trim();
         if (target && promoUrl) {
           const promoBody: any = {
-            promotionTarget: target,
+            promotionTarget: target.slice(0, 30),
+            discountModifier: promo.discountModifier || "UNKNOWN",
             languageCode: promo.languageCode || "en"
           };
           if (promo.occasion && promo.occasion !== "None") {
             promoBody.occasion = promo.occasion;
           }
           if (promo.percentOff) {
-            promoBody.percentOff = Math.round(Number(promo.percentOff) * 10000);
+            promoBody.percentOff = Math.round(Number(promo.percentOff) * 100);
           } else if (promo.moneyAmountOff) {
             promoBody.moneyAmountOff = {
               currencyCode: promo.currencyCode || "INR",
@@ -731,7 +824,7 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
             };
           }
           if (promo.promotionCode) {
-            promoBody.promotionCode = String(promo.promotionCode).trim();
+            promoBody.promotionCode = String(promo.promotionCode).trim().slice(0, 20);
           }
 
           const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
@@ -907,19 +1000,36 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
       budget: effectiveDailyBudget,
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: startDate ? new Date(String(startDate).split("T")[0]) : null,
+      endDate: endDate ? new Date(String(endDate).split("T")[0]) : null,
       finalUrl,
       headlines: validHeadlines,
       descriptions: validDescriptions,
+      keywords: validKeywords,
+      languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
       geoTargets: {
         objective: "Website Traffic",
         locations,
-        languages,
+        languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
         keywords: validKeywords,
-        adSchedule,
+        adSchedule: payload.adSchedule || adSchedule,
+        displayPath1: payload.displayPath1 || null,
+        displayPath2: payload.displayPath2 || null,
+        devices: payload.devices || null,
         enableAiMax,
         enableTextCustomization,
         enableFinalUrlExpansion,
         useSearchTermMatchingAdGroup,
+        brandInclusions: payload.brandInclusions || brandInclusions,
+        brandExclusions: payload.brandExclusions || brandExclusions,
+        locationsOfInterest: payload.locationsOfInterest || [],
+        urlInclusions: payload.urlInclusions || [],
+        sitelinks: payload.sitelinks || sitelinks,
+        callouts: payload.callouts || callouts,
+        structuredSnippets: payload.structuredSnippets || structuredSnippets,
+        promotions: payload.promotions || promotions,
+        callAsset: payload.callAsset || (effectiveCallPhone ? { phoneNumber: effectiveCallPhone, countryCode: callAsset?.countryCode || "IN" } : null),
+        merchantCenterId: payload.merchantCenterId || null,
         adGroupResourceName: apiResult.adGroupResourceName,
         adGroupAdResourceName: apiResult.adGroupAdResourceName,
         campaignAssetResourceNames: apiResult.campaignAssetResourceNames

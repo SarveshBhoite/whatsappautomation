@@ -638,6 +638,70 @@ export class GoogleAdsBaseService {
   }
 
   /**
+   * Resolves an audience signal input (string name, id, or object) into a valid Google Ads
+   * Audience resource name: "customers/{customerId}/audiences/{audienceId}".
+   * If the input is not a valid audience or cannot be found, returns null so campaign creation does not fail.
+   */
+  public static async resolveAudienceResource(
+    organizationId: string,
+    customerId: string,
+    audInput: any,
+    headers?: any
+  ): Promise<string | null> {
+    if (!audInput) return null;
+    const cid = customerId.replace(/-/g, "").trim();
+    const rawVal = typeof audInput === "string" ? audInput.trim() : (audInput.resourceName || audInput.id || audInput.name || "").trim();
+    if (!rawVal) return null;
+
+    // 1. If already in correct customers/{cid}/audiences/{id} format
+    const audiencePattern = /^customers\/\d+\/audiences\/\d+$/;
+    if (audiencePattern.test(rawVal)) {
+      return rawVal;
+    }
+
+    // 2. If it's a numeric audience ID
+    if (/^\d+$/.test(rawVal)) {
+      return `customers/${cid}/audiences/${rawVal}`;
+    }
+
+    // 3. If rawVal contains /audiences/
+    if (rawVal.includes("/audiences/")) {
+      const parts = rawVal.split("/audiences/");
+      const audId = parts[1].trim();
+      if (/^\d+$/.test(audId)) {
+        return `customers/${cid}/audiences/${audId}`;
+      }
+    }
+
+    // 4. Try querying Google Ads by audience.name or user_list / custom_audience
+    try {
+      const reqHeaders = headers || (await this.getAdsHeaders(organizationId, customerId)).headers;
+      const cleanAudName = rawVal.replace(/👥|\*|[\r\n]/g, "").trim().replace(/'/g, "\\'");
+      if (!cleanAudName) return null;
+
+      const query = `
+        SELECT audience.id, audience.resource_name, audience.name, audience.status
+        FROM audience
+        WHERE audience.status = 'ENABLED' AND audience.name = '${cleanAudName}'
+        LIMIT 1
+      `;
+      const searchRes = await axios.post(
+        `${ADS_BASE}/customers/${cid}/googleAds:search`,
+        { query },
+        { headers: reqHeaders, timeout: 5000 }
+      );
+      const rows = searchRes.data?.results || [];
+      if (rows.length > 0 && rows[0]?.audience?.resourceName) {
+        return rows[0].audience.resourceName;
+      }
+    } catch (e: any) {
+      console.warn(`[GoogleAdsBaseService] resolveAudienceResource search notice for "${rawVal}":`, e?.response?.data || e.message);
+    }
+
+    return null;
+  }
+
+  /**
    * Mutate campaign criteria for Location (Location or Proximity) and Languages.
    * Supports Location include/exclude, Radius targeting (ProximityInfo), and Language constants.
    */
@@ -932,6 +996,17 @@ export class GoogleAdsBaseService {
 
       // Check if full day schedule (00:00 -> 00:00 or 00:00 -> 24:00)
       if ((start === "00:00" || start === "0:00") && (end === "00:00" || end === "0:00" || end === "24:00")) {
+        // If there are other schedules for the same day with specific hours, skip this 00:00 - 00:00 row to prevent overlap conflict
+        const hasSpecificSameDay = schedules.some(other => {
+          if (!other || other === sched) return false;
+          const oDay = String(other.day || other.dayOfWeek || "").trim().toLowerCase();
+          const oStart = String(other.start || "00:00").trim();
+          const oEnd = String(other.end || "00:00").trim();
+          return oDay === rawDay && !( (oStart === "00:00" || oStart === "0:00") && (oEnd === "00:00" || oEnd === "0:00" || oEnd === "24:00") );
+        });
+        if (hasSpecificSameDay) {
+          continue;
+        }
         sHour = 0;
         sMinStr = "ZERO";
         eHour = 24;

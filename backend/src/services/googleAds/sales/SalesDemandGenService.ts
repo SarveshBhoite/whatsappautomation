@@ -407,12 +407,28 @@ export class SalesDemandGenService extends GoogleAdsBaseService {
         languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
         channels,
         audience,
+        searchThemes: Array.isArray(payload.searchThemes) ? payload.searchThemes : [],
+        audienceSignals: Array.isArray(payload.audienceSignals) ? payload.audienceSignals : (Array.isArray(payload.audienceSignal) ? payload.audienceSignal : (payload.audience ? [payload.audience] : [])),
         brandGuidelines: {
-          mainBrandColor: payload.brandGuidelines?.mainBrandColor || null,
-          accentBrandColor: payload.brandGuidelines?.accentBrandColor || null,
-          brandFont: payload.brandGuidelines?.brandFont || null
+          mainBrandColor: payload.brandGuidelines?.mainBrandColor || payload.mainBrandColor || null,
+          accentBrandColor: payload.brandGuidelines?.accentBrandColor || payload.accentBrandColor || null,
+          brandFont: payload.brandGuidelines?.brandFont || payload.brandFont || null
         },
         deviceTargeting,
+        devices: payload.devices || { computers: true, mobile: true, tablets: true, tv: true },
+        creativeEnhancements: {
+          optAdaptiveLayouts: payload.optAdaptiveLayouts !== false,
+          optAnimatedImages: payload.optAnimatedImages !== false,
+          optGeneratedVideos: payload.optGeneratedVideos !== false,
+          optShorterVideos: Boolean(payload.optShorterVideos),
+          optResizedVideos: payload.optResizedVideos !== false,
+          optLandingPagePreviews: payload.optLandingPagePreviews !== false
+        },
+        includeViewThrough: payload.includeViewThrough !== false,
+        keywords: Array.isArray(payload.keywords) ? payload.keywords : [],
+        callToAction: payload.callToAction || "Automated",
+        demographicExclusions: payload.demographicExclusions || null,
+        merchantCenterId: payload.merchantCenterId || payload.merchantId || null,
         adSchedule,
         objective: "Sales"
       },

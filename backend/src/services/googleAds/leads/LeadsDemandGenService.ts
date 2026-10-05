@@ -1030,9 +1030,13 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
           optLandingPagePreviews: payload.optLandingPagePreviews !== false
         },
         includeViewThrough: payload.includeViewThrough !== false,
+        keywords: Array.isArray(payload.keywords) ? payload.keywords : [],
+        callToAction: payload.callToAction || "Automated",
+        demographicExclusions: payload.demographicExclusions || null,
+        merchantCenterId: payload.merchantCenterId || payload.merchantId || null,
         deviceTargeting,
         adSchedule,
-        objective: "Leads"
+        objective: payload.campaignGoal || payload.objective || "Leads"
       },
       advertisingChannelType: "DEMAND_GEN",
       amountMicros: BigInt(amountMicros),

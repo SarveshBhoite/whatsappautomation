@@ -1412,9 +1412,9 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
         channels,
         audience,
         brandGuidelines: {
-          mainBrandColor: payload.brandGuidelines?.mainBrandColor || null,
-          accentBrandColor: payload.brandGuidelines?.accentBrandColor || null,
-          brandFont: payload.brandGuidelines?.brandFont || null
+          mainBrandColor: payload.brandGuidelines?.mainBrandColor || payload.mainBrandColor || null,
+          accentBrandColor: payload.brandGuidelines?.accentBrandColor || payload.accentBrandColor || null,
+          brandFont: payload.brandGuidelines?.brandFont || payload.brandFont || null
         },
         deviceTargeting,
         devices,
@@ -1422,12 +1422,27 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
         ipExclusions,
         customerAcquisitionMode,
         optimizedTargeting,
+        keywords: Array.isArray(payload.keywords) ? payload.keywords : [],
+        searchThemes: Array.isArray(payload.searchThemes) ? payload.searchThemes : [],
+        audienceSignals: Array.isArray(payload.audienceSignals) ? payload.audienceSignals : (Array.isArray(payload.audienceSignal) ? payload.audienceSignal : (payload.audience ? [payload.audience] : [])),
+        callToAction: payload.callToAction || "Automated",
+        demographicExclusions: payload.demographicExclusions || null,
+        merchantCenterId: payload.merchantCenterId || payload.merchantId || null,
+        creativeEnhancements: {
+          optAdaptiveLayouts: payload.optAdaptiveLayouts !== false,
+          optAnimatedImages: payload.optAnimatedImages !== false,
+          optGeneratedVideos: payload.optGeneratedVideos !== false,
+          optShorterVideos: Boolean(payload.optShorterVideos),
+          optResizedVideos: payload.optResizedVideos !== false,
+          optLandingPagePreviews: payload.optLandingPagePreviews !== false
+        },
+        includeViewThrough: payload.includeViewThrough !== false,
         sitelinks,
         callouts,
         structuredSnippets,
         promotions,
         conversionGoals,
-        objective: "Website Traffic"
+        objective: payload.campaignGoal || payload.objective || "Website Traffic"
       },
       advertisingChannelType: "DEMAND_GEN",
       amountMicros: BigInt(amountMicros),

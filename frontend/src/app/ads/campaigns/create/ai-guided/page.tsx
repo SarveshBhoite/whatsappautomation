@@ -15,6 +15,7 @@ import {
   Globe,
   Tag,
   DollarSign,
+  Database,
   MapPin,
   FileText,
   Smartphone,
@@ -77,6 +78,7 @@ import {
   PhoneCall,
   Users,
   ShieldCheck,
+  ShieldAlert,
   UserCheck,
   Palette,
   Type,
@@ -276,6 +278,108 @@ export interface CampaignState {
   readyForPublish?: boolean;
   stage?: string;
 }
+
+export const presetBrandsList = [
+  { name: "Amazon", url: "https://www.amazon.co.uk/" },
+  { name: "World Cup", url: "https://www.fifa.com/fifaplus/en/tournaments/mens/worldcup/canadamexicousa2026" },
+  { name: "Apple", url: "https://www.apple.com/" },
+  { name: "M&S", url: "https://www.marksandspencer.com/" },
+  { name: "Altaba", url: "https://www.yahoo.com/" },
+  { name: "Premier League", url: "https://www.premierleague.com/" },
+  { name: "NBA", url: "https://www.nba.com/" },
+  { name: "IKEA", url: "https://www.ikea.com/gb/en/" },
+  { name: "Real Madrid CF", url: "https://www.realmadrid.com/" },
+  { name: "BBC", url: "https://www.bbc.com/" },
+  { name: "Liverpool F.C.", url: "https://www.liverpoolfc.com/" },
+  { name: "UEFA Champions League", url: "https://www.uefa.com/uefachampionsleague/" },
+  { name: "EBay", url: "https://www.ebay.com/" },
+  { name: "Honda", url: "https://www.hondacarindia.com/" },
+  { name: "Campeonato Brasileiro Série A", url: "https://brasileirao.cbf.com.br/" },
+  { name: "Ford", url: "https://www.ford.co.uk/" },
+  { name: "Amazon Prime Video", url: "https://www.primevideo.com/" },
+  { name: "Formula 1", url: "https://www.formula1.com/" },
+  { name: "FIFA", url: "https://www.fifa.com/fifaplus/en" },
+  { name: "Manchester City F.C.", url: "https://www.mancity.com/" },
+  { name: "Adidas", url: "https://www.adidas.com/us" },
+  { name: "Serie A", url: "https://www.legaseriea.it/" },
+  { name: "Mercedes-Benz", url: "https://www.mbusa.com/en/home" },
+  { name: "LEGO", url: "https://www.lego.com/en-gb" },
+  { name: "Chelsea F.C.", url: "https://twitter.com/ChelseaFC" },
+  { name: "IPad", url: "https://www.apple.com/ipad/" },
+  { name: "Arsenal F.C.", url: "https://www.arsenal.com/" },
+  { name: "Nike Air", url: "https://www.nike.com/" },
+  { name: "H&M", url: "https://www2.hm.com/" },
+  { name: "MLB", url: "https://www.mlb.com/" },
+  { name: "Nissan", url: "https://www.nissan-global.com/EN/" },
+  { name: "Airbnb", url: "https://www.airbnb.co.in/" },
+  { name: "Sociedade Esportiva Palmeiras", url: "https://www.palmeiras.com.br/" },
+  { name: "Audi", url: "https://www.audiusa.com/us/web/en.html" },
+  { name: "Grand Theft Auto", url: "http://www.rockstargames.com/grandtheftauto/" },
+  { name: "Kia", url: "https://www.kia.com/in/home.html" },
+  { name: "Sport Club Corinthians Paulista", url: "https://www.corinthians.com.br/" },
+  { name: "Volkswagen AG", url: "https://www.volkswagen.fr/fr.html" },
+  { name: "Hyundai", url: "https://www.hyundaicanada.com/" },
+  { name: "Employees' Provident Fund Organisation", url: "https://twitter.com/socialepfo" },
+  { name: "Cristiano Ronaldo", url: "https://www.cristianoronaldo.com/" },
+  { name: "UIDAI", url: "https://uidai.gov.in/" },
+  { name: "AC Milan", url: "https://www.acmilan.com/" },
+  { name: "ESPN", url: "https://www.espn.com/" },
+  { name: "Škoda Auto Volkswagen India", url: "https://www.volkswagen.co.in/en.html" },
+  { name: "Zoom Video Communications", url: "https://zoom.us/" },
+  { name: "AirPods", url: "https://www.apple.com/airpods/" },
+  { name: "Bundesliga", url: "https://www.bundesliga.com/en/bundesliga" },
+  { name: "United Parcel Service", url: "https://www.ups.com/" },
+  { name: "UPS Access Point", url: "https://www.ups.com/fr/fr/business-solutions/business-shipping-tools.page" },
+  { name: "Orange S.A.", url: "https://www.orange.com/en" },
+  { name: "Hyundai Motor Group", url: "https://www.hyundaimotorgroup.com/group/CONT0000000000000646" },
+  { name: "Aldi", url: "https://www.aldi.co.uk/" },
+  { name: "ANSES", url: "http://www.anses.gob.ar/" },
+  { name: "Galatasaray S.K.", url: "https://www.galatasaray.org/" },
+  { name: "Arizona", url: "https://az.gov/" },
+  { name: "Santander Group", url: "https://www.santander.com/en/home" },
+  { name: "Cricket Wireless Authorized Retailer", url: "https://www.cricketwireless.com/" },
+  { name: "Macintosh", url: "https://www.apple.com/mac/" },
+  { name: "Adobe", url: "https://www.adobe.com/" },
+  { name: "Liga 1", url: "https://www.ligaindonesia.co.id/" },
+  { name: "Liverpool", url: "https://www.liverpool.com.mx/tienda/home" },
+  { name: "Loterías Y Apuestas Del Estado", url: "https://www.loteriasyapuestas.es/" },
+  { name: "Seznam.cz", url: "https://www.seznam.cz/" },
+  { name: "Sonic The Hedgehog", url: "https://www.sonicthehedgehog.com/" },
+  { name: "Liga MX", url: "https://fmf.mx/" },
+  { name: "ASUS", url: "https://www.asus.com/" },
+  { name: "Lotería Nacional", url: "https://www.youtube.com/@LN__Tradicionales" },
+  { name: "Mazda", url: "https://www.mazda.com/" },
+  { name: "AliExpress", url: "https://www.aliexpress.com/" },
+  { name: "JPMorgan Chase", url: "https://www.jpmorganchase.com/" },
+  { name: "Indian Railway Catering And Tourism Corporation", url: "https://www.irctc.co.in/" },
+  { name: "Claro", url: "https://www.claro.com/" },
+  { name: "Chase Bank", url: "https://www.chase.com/" },
+  { name: "European Union", url: "https://european-union.europa.eu/" },
+  { name: "Amber Heard", url: "http://amberheardofficial.com/" },
+  { name: "Porsche", url: "https://www.porsche.com/usa/" },
+  { name: "Bosch", url: "https://www.bosch.com/" },
+  { name: "Nasdaq", url: "https://www.nasdaq.com/" },
+  { name: "Crédit Agricole", url: "https://www.credit-agricole.com/" },
+  { name: "Dow Jones & Company", url: "https://smi.wsj.com/" },
+  { name: "Club Atlético Boca Juniors", url: "https://www.bocajuniors.com.ar/" },
+  { name: "Atlético De Madrid", url: "https://en.atleticodemadrid.com/" },
+  { name: "Süper Lig", url: "https://www.tff.org/" },
+  { name: "Action", url: "https://www.action.com/nl-nl/" },
+  { name: "Target Australia", url: "https://www.target.com.au/" },
+  { name: "International Cricket Council", url: "https://www.icc-cricket.com/" },
+  { name: "Allegro", url: "https://allegro.pl/" },
+  { name: "AOL", url: "https://www.aol.co.uk/" },
+  { name: "AS Trenčín", url: "https://www.astrencin.sk/" },
+  { name: "Wells Fargo ATM", url: "https://www.wellsfargo.com/locator/" },
+  { name: "AT&T", url: "https://www.att.com/" },
+  { name: "Social Security Administration", url: "https://www.ssa.gov/" },
+  { name: "McDonald's", url: "https://www.mcdonalds.com/us/en-us/location/ca/san-francisco/1201-ocean-ave/1782.html" },
+  { name: "American Airlines", url: "https://www.aa.com/homePage.do" },
+  { name: "JBL", url: "https://in.jbl.com/" },
+  { name: "Clube Atlético Mineiro", url: "https://atletico.com.br/" },
+  { name: "Club Atlético River Plate", url: "https://www.cariverplate.com.ar/" },
+  { name: "Bank Of America ATM", url: "https://locators.bankofamerica.com/" }
+];
 
 // ── MANUAL CREATION SOURCE OF TRUTH DATA & COMPATIBILITY HELPERS ──
 export interface ObjectiveDefinition {
@@ -1262,6 +1366,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const [isAddingDescription, setIsAddingDescription] = useState<boolean>(false);
   const [newSearchThemeInput, setNewSearchThemeInput] = useState<string>("");
   const [isAddingSearchTheme, setIsAddingSearchTheme] = useState<boolean>(false);
+  const [searchKeywordMatchType, setSearchKeywordMatchType] = useState<"BROAD" | "PHRASE" | "EXACT">("BROAD");
 
   // Sitelink Modal & Form States (100% Parity with Manual Flow)
   const [isSitelinkModalOpen, setIsSitelinkModalOpen] = useState<boolean>(false);
@@ -1387,6 +1492,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     { id: "cos-1", day: "All days", start: "00:00", end: "23:45" }
   ]);
 
+  // Performance Max Asset Group Accordion / Collapsible Cards State
+  const [isAssetGroupSectionOpen, setIsAssetGroupSectionOpen] = useState<boolean>(true);
+  const [isMoreOptionsCardOpen, setIsMoreOptionsCardOpen] = useState<boolean>(false);
+  const [isAssetOptimizationCardOpen, setIsAssetOptimizationCardOpen] = useState<boolean>(false);
+  const [uploadedClips, setUploadedClips] = useState<string[]>([]);
+  const [useDiffMobileUrl, setUseDiffMobileUrl] = useState<boolean>(false);
+
   // Optional Parameters Accordion Toggle in Cockpit
   const [showOptionalParams, setShowOptionalParams] = useState<boolean>(false);
 
@@ -1432,6 +1544,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const [pmaxDataExclusionInput, setPmaxDataExclusionInput] = useState<string>("");
   const [pmaxAgeExclusionsEnabled, setPmaxAgeExclusionsEnabled] = useState<boolean>(true);
   const [pmaxGenderExclusionsEnabled, setPmaxGenderExclusionsEnabled] = useState<boolean>(true);
+
+  // Brand Exclusions & Brand List Modal State
+  const [showBrandListModal, setShowBrandListModal] = useState<boolean>(false);
+  const [brandListModalMode, setBrandListModalMode] = useState<"INCLUSION" | "EXCLUSION">("EXCLUSION");
+  const [brandListModalTab, setBrandListModalTab] = useState<"SELECT_SAVED" | "CREATE_NEW">("SELECT_SAVED");
+  const [brandListNameInput, setBrandListNameInput] = useState<string>("");
+  const [brandSearchQuery, setBrandSearchQuery] = useState<string>("");
+  const [selectedBrandListBrands, setSelectedBrandListBrands] = useState<Array<{ name: string; url: string }>>([]);
+  const [savedBrandExclusionsList, setSavedBrandExclusionsList] = useState<Array<{ id: string; name: string; brands: string[]; createdAt?: string }>>([]);
+  const [isLoadingBrandExclusions, setIsLoadingBrandExclusions] = useState<boolean>(false);
+  const [searchBrandExclusionInput, setSearchBrandExclusionInput] = useState<string>("");
 
   const pmaxTimeOptions = [
     "00:00", "00:15", "00:30", "00:45", "01:00", "01:15", "01:30", "01:45",
@@ -1981,6 +2104,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         geoTargets: campaignState.locations || ["India"],
         languages: campaignState.language ? [campaignState.language] : ["All languages"],
         searchThemes: campaignState.searchThemes || [],
+        brandInclusions: campaignState.brandInclusions || [],
+        brandExclusions: campaignState.brandExclusions || [],
         draftData: {
           objective: campaignState.objective,
           conversionGoals: campaignState.conversionGoals,
@@ -1991,7 +2116,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           videos: campaignState.videos || [],
           targetCpa: campaignState.targetCpa,
           targetRoas: campaignState.targetRoas,
-          longHeadlines: campaignState.longHeadlines || []
+          longHeadlines: campaignState.longHeadlines || [],
+          brandInclusions: campaignState.brandInclusions || [],
+          brandExclusions: campaignState.brandExclusions || []
         }
       };
 
@@ -2097,9 +2224,59 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     }
   };
 
+  // Fetch saved Brand Exclusion lists from database (CustomerBusinessProfileService)
+  const fetchSavedBrandExclusions = async () => {
+    try {
+      setIsLoadingBrandExclusions(true);
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "6587355041";
+      const res = await fetch(`${BACKEND}/api/ads/brand-exclusions?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`, {
+        headers: { "x-organization-id": orgId }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.brandExclusions)) {
+          setSavedBrandExclusionsList(data.brandExclusions);
+        }
+      }
+    } catch (err) {
+      console.warn("[AI-GUIDED] Failed to load brand exclusions:", err);
+    } finally {
+      setIsLoadingBrandExclusions(false);
+    }
+  };
+
+  // Save new or updated brand exclusion list to database
+  const saveBrandExclusionToDb = async (name: string, brands: string[]) => {
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "6587355041";
+      const res = await fetch(`${BACKEND}/api/ads/brand-exclusions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({
+          customerId: cid,
+          name: name.trim(),
+          brands
+        })
+      });
+      if (res.ok) {
+        fetchSavedBrandExclusions();
+      }
+    } catch (err) {
+      console.warn("[AI-GUIDED] Failed to save brand exclusion to database:", err);
+    }
+  };
+
   useEffect(() => {
     fetchExistingCampaigns();
     fetchDraftCampaigns();
+    fetchSavedBrandExclusions();
   }, [customerId]);
 
   // Handle Loading an Old Draft or Previous Campaign directly into Right-side Cockpit
@@ -2140,6 +2317,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     const extractedImages = Array.isArray(camp.images) && camp.images.length > 0 ? camp.images : (Array.isArray(extraDraft.images) && extraDraft.images.length > 0 ? extraDraft.images : (Array.isArray(camp.marketingImages) ? camp.marketingImages : []));
     const extractedLogos = Array.isArray(camp.logos) && camp.logos.length > 0 ? camp.logos : (Array.isArray(extraDraft.logos) && extraDraft.logos.length > 0 ? extraDraft.logos : (Array.isArray(camp.logoImages) ? camp.logoImages : []));
     const extractedVideos = Array.isArray(camp.videos) && camp.videos.length > 0 ? camp.videos : (Array.isArray(extraDraft.videos) && extraDraft.videos.length > 0 ? extraDraft.videos : (Array.isArray(camp.youtubeVideos) ? camp.youtubeVideos : []));
+    const extractedBrandInclusions = Array.isArray(camp.brandInclusions) ? camp.brandInclusions : (Array.isArray(extraDraft.brandInclusions) ? extraDraft.brandInclusions : (camp.geoTargets?.brandInclusions || []));
+    const extractedBrandExclusions = Array.isArray(camp.brandExclusions) ? camp.brandExclusions : (Array.isArray(extraDraft.brandExclusions) ? extraDraft.brandExclusions : (camp.geoTargets?.brandExclusions || []));
 
     // Resolve Objective reliably (from camp.objective, extraDraft.objective, or infer from campaignType/goal)
     let extractedObjective = camp.objective || extraDraft.objective || "";
@@ -2218,6 +2397,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         displayPath2: camp.displayPath2 || extraDraft.displayPath2 || prev.displayPath2,
         mobileFinalUrl: camp.mobileFinalUrl || extraDraft.mobileFinalUrl || prev.mobileFinalUrl,
         callPhoneNumber: camp.callPhoneNumber || extraDraft.callPhoneNumber || prev.callPhoneNumber,
+        brandInclusions: extractedBrandInclusions.length > 0 ? extractedBrandInclusions : prev.brandInclusions,
+        brandExclusions: extractedBrandExclusions.length > 0 ? extractedBrandExclusions : prev.brandExclusions,
         euPolitical: camp.euPolitical || extraDraft.euPolitical || prev.euPolitical
       };
 
@@ -2301,6 +2482,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     let extractedLogos: any[] = Array.isArray(camp.logos) && camp.logos.length > 0 ? camp.logos : (Array.isArray(extraDraft.logos) && extraDraft.logos.length > 0 ? extraDraft.logos : (Array.isArray(camp.logoImages) ? camp.logoImages : []));
     let extractedVideos: any[] = Array.isArray(camp.videos) && camp.videos.length > 0 ? camp.videos : (Array.isArray(extraDraft.videos) && extraDraft.videos.length > 0 ? extraDraft.videos : (Array.isArray(camp.youtubeVideos) ? camp.youtubeVideos : []));
 
+    let extractedBrandInclusions: string[] = Array.isArray(camp.brandInclusions) ? camp.brandInclusions : (Array.isArray(extraDraft.brandInclusions) ? extraDraft.brandInclusions : (camp.geoTargets?.brandInclusions || []));
+    let extractedBrandExclusions: string[] = Array.isArray(camp.brandExclusions) ? camp.brandExclusions : (Array.isArray(extraDraft.brandExclusions) ? extraDraft.brandExclusions : (camp.geoTargets?.brandExclusions || []));
+
     // 2. Prepare proposed settings for user confirmation (Do NOT overwrite Cockpit until user clicks Apply)
     const proposedMergedState: CampaignState = {
       ...campaignState,
@@ -2328,7 +2512,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       keywords: extractedKeywords.length > 0 ? extractedKeywords : campaignState.keywords,
       images: extractedImages.length > 0 ? extractedImages : campaignState.images,
       logos: extractedLogos.length > 0 ? extractedLogos : campaignState.logos,
-      videos: extractedVideos.length > 0 ? extractedVideos : campaignState.videos
+      videos: extractedVideos.length > 0 ? extractedVideos : campaignState.videos,
+      brandInclusions: extractedBrandInclusions.length > 0 ? extractedBrandInclusions : campaignState.brandInclusions,
+      brandExclusions: extractedBrandExclusions.length > 0 ? extractedBrandExclusions : campaignState.brandExclusions
     };
 
     const reconciled = reconcileCampaignStateWithManualFlow(proposedMergedState);
@@ -5874,6 +6060,21 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         if (campaignState.callPhoneNumber) effectiveState.callPhoneNumber = campaignState.callPhoneNumber.trim();
         if (campaignState.adSchedule) effectiveState.adSchedule = campaignState.adSchedule;
         if ((campaignState as any).customParameters) (effectiveState as any).customParameters = (campaignState as any).customParameters;
+        if (campaignState.trackingTemplate) effectiveState.trackingTemplate = campaignState.trackingTemplate.trim();
+        if (campaignState.finalUrlSuffix) effectiveState.finalUrlSuffix = campaignState.finalUrlSuffix.trim();
+        if (campaignState.brandInclusions) effectiveState.brandInclusions = campaignState.brandInclusions;
+        if (campaignState.brandExclusions) effectiveState.brandExclusions = campaignState.brandExclusions;
+        if (campaignState.locationsOfInterest) effectiveState.locationsOfInterest = campaignState.locationsOfInterest;
+        if (campaignState.urlInclusions) effectiveState.urlInclusions = campaignState.urlInclusions;
+        if (campaignState.aiMax !== undefined) effectiveState.aiMax = campaignState.aiMax;
+        if (campaignState.textCustomization !== undefined) effectiveState.textCustomization = campaignState.textCustomization;
+        if (campaignState.finalUrlExpansion !== undefined) effectiveState.finalUrlExpansion = campaignState.finalUrlExpansion;
+        if (campaignState.useSearchTermMatchingAdGroup !== undefined) effectiveState.useSearchTermMatchingAdGroup = campaignState.useSearchTermMatchingAdGroup;
+        if (campaignState.networkSearch !== undefined) effectiveState.networkSearch = campaignState.networkSearch;
+        if (campaignState.networkDisplay !== undefined) effectiveState.networkDisplay = campaignState.networkDisplay;
+        if (campaignState.locationOptionsPresence) effectiveState.locationOptionsPresence = campaignState.locationOptionsPresence;
+        if (campaignState.adRotationMode) effectiveState.adRotationMode = campaignState.adRotationMode;
+        if (campaignState.adGroupName) effectiveState.adGroupName = campaignState.adGroupName.trim();
       } else if (cType === "DEMAND_GEN") {
         const dgFormat = (effectiveState.adFormat || "SINGLE_IMAGE").toUpperCase();
         if (validH.length < 1) {
@@ -5936,6 +6137,53 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             throw new Error(`Demand Gen Carousel format requires at least 2 cards with image and headline (${validCards.length}/2 added).`);
           }
         }
+
+        // Map and ensure all parameters requested by user are explicitly bundled for backend
+        effectiveState.keywords = effectiveState.keywords || campaignState.keywords || [];
+        effectiveState.searchThemes = (effectiveState.searchThemes && effectiveState.searchThemes.length > 0)
+          ? effectiveState.searchThemes
+          : (campaignState.searchThemes || []);
+        effectiveState.audienceSignal = effectiveState.audienceSignal || campaignState.audienceSignal || (campaignState.audienceSignals?.[0] ?? null);
+        effectiveState.audienceSignals = (effectiveState.audienceSignals && effectiveState.audienceSignals.length > 0)
+          ? effectiveState.audienceSignals
+          : (campaignState.audienceSignals || (effectiveState.audienceSignal ? [effectiveState.audienceSignal] : []));
+        effectiveState.mainBrandColor = effectiveState.mainBrandColor || campaignState.mainBrandColor || "#3b82f6";
+        effectiveState.accentBrandColor = effectiveState.accentBrandColor || campaignState.accentBrandColor || "#10b981";
+        effectiveState.brandFont = effectiveState.brandFont || campaignState.brandFont || "Any font";
+        effectiveState.callToAction = effectiveState.callToAction || campaignState.callToAction || "Automated";
+        effectiveState.deviceTargeting = effectiveState.deviceTargeting || campaignState.deviceTargeting || "ALL";
+        effectiveState.devices = effectiveState.devices || campaignState.devices || { computers: true, mobile: true, tablets: true, tv: true };
+        effectiveState.channels = effectiveState.channels || campaignState.channels || ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"];
+        effectiveState.adSchedule = effectiveState.adSchedule || campaignState.adSchedule || [];
+        effectiveState.demographicExclusions = effectiveState.demographicExclusions || campaignState.demographicExclusions;
+        effectiveState.includeViewThrough = campaignState.includeViewThrough !== undefined ? Boolean(campaignState.includeViewThrough) : true;
+        effectiveState.optAdaptiveLayouts = campaignState.optAdaptiveLayouts !== undefined ? Boolean(campaignState.optAdaptiveLayouts) : true;
+        effectiveState.optAnimatedImages = campaignState.optAnimatedImages !== undefined ? Boolean(campaignState.optAnimatedImages) : true;
+        effectiveState.optGeneratedVideos = campaignState.optGeneratedVideos !== undefined ? Boolean(campaignState.optGeneratedVideos) : true;
+        effectiveState.optShorterVideos = Boolean(campaignState.optShorterVideos);
+        effectiveState.optResizedVideos = campaignState.optResizedVideos !== undefined ? Boolean(campaignState.optResizedVideos) : true;
+        effectiveState.optLandingPagePreviews = campaignState.optLandingPagePreviews !== undefined ? Boolean(campaignState.optLandingPagePreviews) : true;
+        effectiveState.merchantCenterId = effectiveState.merchantCenterId || (campaignState as any).merchantCenterId || (campaignState as any).merchantId || undefined;
+        effectiveState.merchantId = effectiveState.merchantCenterId;
+
+        // Structured geoTargets packaging containing locations, languages, channels, and audience
+        const resolvedLocs = effectiveState.locations || campaignState.locations || ["India"];
+        const resolvedLangs = effectiveState.language ? [effectiveState.language] : (campaignState.language ? [campaignState.language] : ["English"]);
+        effectiveState.geoTargets = {
+          locations: resolvedLocs,
+          languages: resolvedLangs,
+          channels: effectiveState.channels,
+          audience: effectiveState.audienceSignal || null,
+          audienceSignals: effectiveState.audienceSignals,
+          searchThemes: effectiveState.searchThemes,
+          deviceTargeting: effectiveState.deviceTargeting,
+          devices: effectiveState.devices,
+          mainBrandColor: effectiveState.mainBrandColor,
+          accentBrandColor: effectiveState.accentBrandColor,
+          brandFont: effectiveState.brandFont,
+          adSchedule: effectiveState.adSchedule,
+          demographicExclusions: effectiveState.demographicExclusions
+        };
       } else if (cType === "VIDEO") {
         const isYtConnected = isYouTubeVerified(customerProfile || campaignState.customerProfile);
         if (!isYtConnected) {
@@ -5948,34 +6196,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           setYoutubeVideoUrlError("At least 1 YouTube video URL/asset is required for Video campaigns.");
           throw new Error("At least 1 YouTube video URL/asset is required for Video campaigns. Please enter a YouTube video URL or switch to Image format.");
         }
-
-        // Map and ensure all parameters requested by user are explicitly bundled for backend
-        effectiveState.keywords = effectiveState.keywords || campaignState.keywords || [];
-        effectiveState.searchThemes = effectiveState.searchThemes || campaignState.searchThemes || [];
-        effectiveState.audienceSignal = effectiveState.audienceSignal || campaignState.audienceSignal || (campaignState.audienceSignals?.[0] ?? null);
-        effectiveState.audienceSignals = effectiveState.audienceSignals || campaignState.audienceSignals || [];
-        effectiveState.mainBrandColor = effectiveState.mainBrandColor || campaignState.mainBrandColor || "#3b82f6";
-        effectiveState.accentBrandColor = effectiveState.accentBrandColor || campaignState.accentBrandColor || "#10b981";
-        effectiveState.brandFont = effectiveState.brandFont || campaignState.brandFont || "Any font";
-        effectiveState.deviceTargeting = effectiveState.deviceTargeting || campaignState.deviceTargeting || "ALL";
-        effectiveState.devices = effectiveState.devices || campaignState.devices || { computers: true, mobile: true, tablets: true, tv: true };
-        effectiveState.channels = effectiveState.channels || campaignState.channels || ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"];
-        effectiveState.adSchedule = effectiveState.adSchedule || campaignState.adSchedule || [];
-        
-        // Structured geoTargets packaging containing locations, languages, channels, and audience
-        const resolvedLocs = effectiveState.locations || campaignState.locations || ["India"];
-        const resolvedLangs = effectiveState.language ? [effectiveState.language] : (campaignState.language ? [campaignState.language] : ["English"]);
-        effectiveState.geoTargets = {
-          locations: resolvedLocs,
-          languages: resolvedLangs,
-          channels: effectiveState.channels,
-          audience: effectiveState.audienceSignal || null,
-          deviceTargeting: effectiveState.deviceTargeting,
-          mainBrandColor: effectiveState.mainBrandColor,
-          accentBrandColor: effectiveState.accentBrandColor,
-          brandFont: effectiveState.brandFont,
-          adSchedule: effectiveState.adSchedule
-        };
       } else if (cType === "APP") {
         if (!effectiveState.appId || !effectiveState.appId.trim()) {
           startFieldEdit("appId");
@@ -6017,6 +6237,32 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           merchantCenterId: effectiveState.merchantCenterId,
           adSchedule: effectiveState.adSchedule
         };
+      }
+
+      // 8. Explicitly ensure Device Targeting, Extensions, and Merchant Center are synchronized
+      effectiveState.devices = effectiveState.devices || campaignState.devices || { computers: true, mobile: true, tablets: true, tv: true };
+      effectiveState.deviceTargeting = effectiveState.deviceTargeting || campaignState.deviceTargeting || "ALL";
+      
+      // More Asset Types (Extensions)
+      if (campaignState.promotions && Array.isArray(campaignState.promotions)) effectiveState.promotions = campaignState.promotions;
+      if (campaignState.prices && Array.isArray(campaignState.prices)) effectiveState.prices = campaignState.prices;
+      if (campaignState.messages && Array.isArray(campaignState.messages)) effectiveState.messages = campaignState.messages;
+      if (campaignState.callouts && Array.isArray(campaignState.callouts)) effectiveState.callouts = campaignState.callouts;
+      if (campaignState.structuredSnippets && Array.isArray(campaignState.structuredSnippets)) effectiveState.structuredSnippets = campaignState.structuredSnippets;
+      if (campaignState.sitelinks && Array.isArray(campaignState.sitelinks)) effectiveState.sitelinks = campaignState.sitelinks;
+      if (campaignState.leadForms && Array.isArray(campaignState.leadForms)) effectiveState.leadForms = campaignState.leadForms;
+      if (campaignState.callPhoneNumber) {
+        effectiveState.callPhoneNumber = campaignState.callPhoneNumber;
+        effectiveState.callAsset = { phone: campaignState.callPhoneNumber, countryCode: "IN" };
+      }
+
+      // Merchant Center and Products Information
+      const rawMerchantId = effectiveState.merchantCenterId || (campaignState as any).merchantCenterId || (campaignState as any).merchantId;
+      if (rawMerchantId && String(rawMerchantId).trim()) {
+        effectiveState.merchantCenterId = String(rawMerchantId).trim();
+        effectiveState.merchantId = String(rawMerchantId).trim();
+        effectiveState.feedLabel = effectiveState.feedLabel || (campaignState as any).feedLabel || undefined;
+        effectiveState.salesCountry = effectiveState.salesCountry || (campaignState as any).salesCountry || "IN";
       }
 
       // Automatically resolve customerId from active context, userProfile, or campaignState
@@ -11378,7 +11624,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     >
                       <div className="flex items-center gap-1.5">
                         <Settings2 className="h-3.5 w-3.5 text-purple-600 group-hover:rotate-45 transition-transform" />
-                        <span>Optional Settings & Parameters ({campaignState.campaignType?.replace("_", " ")})</span>
+                        <span>{campaignState.campaignType === "PERFORMANCE_MAX" ? "More settings" : `Optional Settings & Parameters (${campaignState.campaignType?.replace("_", " ")})`}</span>
                       </div>
                       <div className="flex items-center gap-1 text-[10px] text-purple-700 font-medium">
                         <span>{showOptionalParams ? "Hide" : "Show"}</span>
@@ -11395,94 +11641,119 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <div className="mt-2.5 p-3 rounded-xl bg-slate-50/90 border border-purple-100 space-y-2.5 text-[11px] animate-in fade-in duration-150">
                         <div className="text-[10px] font-semibold text-purple-800 uppercase tracking-wider mb-1 flex items-center gap-1">
                           <Sparkles className="h-3 w-3 text-purple-600" />
-                          <span>Optional Parameters for {campaignState.objective} • {campaignState.campaignType}</span>
+                          <span>{campaignState.campaignType === "PERFORMANCE_MAX" ? "More Campaign Settings • Performance Max" : `Optional Parameters for ${campaignState.objective} • ${campaignState.campaignType}`}</span>
                         </div>
 
-                        {/* Optional Param 1: Asset Group / Ad Group Name */}
-                        <div className="py-1.5 border-b border-slate-200/80 group">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                              <Layers className="w-3.5 h-3.5 text-purple-600" />
-                              <span>{campaignState.campaignType === "PERFORMANCE_MAX" ? "Asset Group Name:" : "Ad Group Name:"}</span>
-                              <button
-                                type="button"
-                                onClick={() => (editingField === "assetGroupName" ? cancelFieldEdit() : startFieldEdit("assetGroupName"))}
-                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
-                                title="Edit Asset Group Name"
-                              >
-                                <Edit3 className="h-3 w-3" />
-                              </button>
-                            </div>
-                            {editingField === "assetGroupName" ? (
-                              <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
-                                <input
-                                  type="text"
-                                  value={tempEditValues.assetGroupName || ""}
-                                  onChange={(e) => setTempEditValues({ ...tempEditValues, assetGroupName: e.target.value })}
-                                  onKeyDown={handleKeyDownSave}
-                                  placeholder="e.g. Sales Group 1"
-                                  className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                  autoFocus
-                                />
+                        {/* Optional Param 1: Ad Group Name (Search, Display, Demand Gen, Video, App) */}
+                        {campaignState.campaignType !== "PERFORMANCE_MAX" && (
+                          <div className="py-1.5 border-b border-slate-200/80 group">
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                <Layers className="w-3.5 h-3.5 text-purple-600" />
+                                <span>Ad Group Name:</span>
                                 <button
                                   type="button"
-                                  onClick={saveFieldEdit}
-                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                                  title="Save"
+                                  onClick={() => (editingField === "assetGroupName" ? cancelFieldEdit() : startFieldEdit("assetGroupName"))}
+                                  className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
+                                  title="Edit Ad Group Name"
                                 >
-                                  <Check className="h-3 w-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelFieldEdit}
-                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                                  title="Cancel"
-                                >
-                                  <X className="h-3 w-3" />
+                                  <Edit3 className="h-3 w-3" />
                                 </button>
                               </div>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[200px] truncate text-right">
-                                <Check className="w-3 h-3 text-emerald-600 shrink-0" />
-                                <span className="truncate">{campaignState.assetGroupName || `${campaignState.businessName || "Campaign"} ${campaignState.campaignType === "PERFORMANCE_MAX" ? "Asset Group" : "Ad Group"} 1`}</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Optional Param 3: Brand Guidelines (Strictly Performance Max) */}
-                        {campaignState.campaignType === "PERFORMANCE_MAX" && (
-                          <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
-                              <span>Brand Guidelines:</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setCampaignState(prev => ({ ...prev, brandGuidelinesEnabled: false }))}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
-                                  !campaignState.brandGuidelinesEnabled
-                                    ? "bg-purple-600 text-white"
-                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                Off
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setCampaignState(prev => ({ ...prev, brandGuidelinesEnabled: true }))}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
-                                  campaignState.brandGuidelinesEnabled
-                                    ? "bg-purple-600 text-white"
-                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                On
-                              </button>
+                              {editingField === "assetGroupName" ? (
+                                <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                                  <input
+                                    type="text"
+                                    value={tempEditValues.assetGroupName || ""}
+                                    onChange={(e) => setTempEditValues({ ...tempEditValues, assetGroupName: e.target.value })}
+                                    onKeyDown={handleKeyDownSave}
+                                    placeholder="e.g. Sales Group 1"
+                                    className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                    autoFocus
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={saveFieldEdit}
+                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                    title="Save"
+                                  >
+                                    <Check className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelFieldEdit}
+                                    className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                    title="Cancel"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[200px] truncate text-right">
+                                  <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  <span className="truncate">{campaignState.assetGroupName || `${campaignState.businessName || "Campaign"} Ad Group 1`}</span>
+                                </span>
+                              )}
                             </div>
                           </div>
                         )}
+
+                        {/* Optional Param: Brand Exclusions (Performance Max & Search) */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Brand Exclusions:</span>
+                              {(campaignState.brandExclusions || []).length > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full bg-rose-50 text-rose-700 text-[9px] font-mono font-bold border border-rose-200">
+                                  {(campaignState.brandExclusions || []).length} excluded
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBrandListModalMode("EXCLUSION");
+                                  setBrandListModalTab("SELECT_SAVED");
+                                  setShowBrandListModal(true);
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1"
+                              >
+                                <Database className="h-3 w-3" /> Select old ({savedBrandExclusionsList.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBrandListModalMode("EXCLUSION");
+                                  setBrandListModalTab("CREATE_NEW");
+                                  setBrandListNameInput("");
+                                  setSelectedBrandListBrands([]);
+                                  setShowBrandListModal(true);
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1"
+                              >
+                                <Plus className="h-3 w-3" /> Create new
+                              </button>
+                            </div>
+                          </div>
+                          {(campaignState.brandExclusions || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {(campaignState.brandExclusions || []).map((b, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 border border-rose-200 text-[9px] text-rose-800 font-medium">
+                                  <span>{b}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCampaignState(prev => ({ ...prev, brandExclusions: (prev.brandExclusions || []).filter((_, i) => i !== idx) }))}
+                                    className="text-rose-400 hover:text-rose-700"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
 
                         {/* Optional Param 4: Customer Acquisition Mode (Strictly Performance Max) */}
                         {campaignState.campaignType === "PERFORMANCE_MAX" && (
@@ -11841,264 +12112,269 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           </>
                         )}
 
-                        {/* Optional Param 5: Campaign URL Options & Tracking (Tracking Template, Final URL Suffix & Custom Parameters) */}
-                        <div className="py-2 border-b border-slate-200/80 space-y-2">
-                          <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-[11px]">
-                            <Globe className="w-3.5 h-3.5 text-purple-600" />
-                            <span>Campaign URL Options & Tracking:</span>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-white/70 p-2.5 rounded-xl border border-slate-200/70">
-                            <div>
-                              <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mb-1">
-                                <Link className="w-3 h-3 text-blue-500" />
-                                <span>Tracking Template:</span>
+                        {/* Optional Param 5 to 9: Campaign URL Options, Display Paths, Mobile Final URL, Call Phone (For non-Performance Max campaigns; Performance Max configures these inside its dedicated Asset Group) */}
+                        {campaignState.campaignType !== "PERFORMANCE_MAX" && (
+                          <>
+                            {/* Optional Param 5: Campaign URL Options & Tracking (Tracking Template, Final URL Suffix & Custom Parameters) */}
+                            <div className="py-2 border-b border-slate-200/80 space-y-2">
+                              <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-[11px]">
+                                <Globe className="w-3.5 h-3.5 text-purple-600" />
+                                <span>Campaign URL Options & Tracking:</span>
                               </div>
-                              <input
-                                type="text"
-                                value={campaignState.trackingTemplate || ""}
-                                onChange={(e) => setCampaignState(prev => ({ ...prev, trackingTemplate: e.target.value }))}
-                                placeholder="{lpurl}?utm_source=google&utm_medium=cpc"
-                                className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-purple-400"
-                              />
-                            </div>
 
-                            <div>
-                              <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mb-1">
-                                <SlidersHorizontal className="w-3 h-3 text-indigo-500" />
-                                <span>Final URL Suffix:</span>
-                              </div>
-                              <input
-                                type="text"
-                                value={campaignState.finalUrlSuffix || ""}
-                                onChange={(e) => setCampaignState(prev => ({ ...prev, finalUrlSuffix: e.target.value }))}
-                                placeholder="utm_source=google&utm_medium=cpc"
-                                className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-purple-400"
-                              />
-                            </div>
-
-                            <div className="md:col-span-2 pt-1 border-t border-slate-100 space-y-1">
-                              <span className="text-[10px] text-slate-500 font-medium block">Custom Parameters:</span>
-                              {(campaignState.customParameters || []).map((cp, cpIdx) => (
-                                <div key={cpIdx} className="flex items-center gap-1">
-                                  <span className="text-[10px] font-mono text-slate-400">{`{_`}</span>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-white/70 p-2.5 rounded-xl border border-slate-200/70">
+                                <div>
+                                  <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mb-1">
+                                    <Link className="w-3 h-3 text-blue-500" />
+                                    <span>Tracking Template:</span>
+                                  </div>
                                   <input
                                     type="text"
-                                    value={cp.name}
-                                    placeholder="param"
-                                    onChange={(e) => {
-                                      const cur = [...(campaignState.customParameters || [])];
-                                      cur[cpIdx] = { ...cur[cpIdx], name: e.target.value };
-                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
-                                    }}
-                                    className="w-24 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                                    value={campaignState.trackingTemplate || ""}
+                                    onChange={(e) => setCampaignState(prev => ({ ...prev, trackingTemplate: e.target.value }))}
+                                    placeholder="{lpurl}?utm_source=google&utm_medium=cpc"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-purple-400"
                                   />
-                                  <span className="text-[10px] font-mono text-slate-400">{`} =`}</span>
+                                </div>
+
+                                <div>
+                                  <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mb-1">
+                                    <SlidersHorizontal className="w-3 h-3 text-indigo-500" />
+                                    <span>Final URL Suffix:</span>
+                                  </div>
                                   <input
                                     type="text"
-                                    value={cp.value}
-                                    placeholder="value"
-                                    onChange={(e) => {
-                                      const cur = [...(campaignState.customParameters || [])];
-                                      cur[cpIdx] = { ...cur[cpIdx], value: e.target.value };
-                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
-                                    }}
-                                    className="flex-1 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                                    value={campaignState.finalUrlSuffix || ""}
+                                    onChange={(e) => setCampaignState(prev => ({ ...prev, finalUrlSuffix: e.target.value }))}
+                                    placeholder="utm_source=google&utm_medium=cpc"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-purple-400"
                                   />
+                                </div>
+
+                                <div className="md:col-span-2 pt-1 border-t border-slate-100 space-y-1">
+                                  <span className="text-[10px] text-slate-500 font-medium block">Custom Parameters:</span>
+                                  {(campaignState.customParameters || []).map((cp, cpIdx) => (
+                                    <div key={cpIdx} className="flex items-center gap-1">
+                                      <span className="text-[10px] font-mono text-slate-400">{`{_`}</span>
+                                      <input
+                                        type="text"
+                                        value={cp.name}
+                                        placeholder="param"
+                                        onChange={(e) => {
+                                          const cur = [...(campaignState.customParameters || [])];
+                                          cur[cpIdx] = { ...cur[cpIdx], name: e.target.value };
+                                          setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                        }}
+                                        className="w-24 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                                      />
+                                      <span className="text-[10px] font-mono text-slate-400">{`} =`}</span>
+                                      <input
+                                        type="text"
+                                        value={cp.value}
+                                        placeholder="value"
+                                        onChange={(e) => {
+                                          const cur = [...(campaignState.customParameters || [])];
+                                          cur[cpIdx] = { ...cur[cpIdx], value: e.target.value };
+                                          setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                        }}
+                                        className="flex-1 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const cur = (campaignState.customParameters || []).filter((_, i) => i !== cpIdx);
+                                          setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  ))}
+
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const cur = (campaignState.customParameters || []).filter((_, i) => i !== cpIdx);
-                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        customParameters: [...(prev.customParameters || []), { id: Date.now().toString(), name: "", value: "" }]
+                                      }));
                                     }}
-                                    className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                    className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
                                   >
-                                    <X className="h-3 w-3" />
+                                    <Plus className="h-3 w-3" /> Add URL parameter
                                   </button>
                                 </div>
-                              ))}
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCampaignState(prev => ({
-                                    ...prev,
-                                    customParameters: [...(prev.customParameters || []), { id: Date.now().toString(), name: "", value: "" }]
-                                  }));
-                                }}
-                                className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
-                              >
-                                <Plus className="h-3 w-3" /> Add URL parameter
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Optional Param 7: Display Path 1 & 2 */}
-                        <div className="py-1.5 border-b border-slate-200/80 group">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                              <Compass className="w-3.5 h-3.5 text-sky-500" />
-                              <span>Display Paths:</span>
-                              <button
-                                type="button"
-                                onClick={() => (editingField === "displayPath1" ? cancelFieldEdit() : startFieldEdit("displayPath1"))}
-                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
-                                title="Edit Display Paths"
-                              >
-                                <Edit3 className="h-3 w-3" />
-                              </button>
-                            </div>
-                            {editingField === "displayPath1" ? (
-                              <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
-                                <input
-                                  type="text"
-                                  maxLength={15}
-                                  value={tempEditValues.displayPath1 || ""}
-                                  onChange={(e) => setTempEditValues({ ...tempEditValues, displayPath1: e.target.value })}
-                                  placeholder="Path 1"
-                                  className="w-1/2 bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                  autoFocus
-                                />
-                                <input
-                                  type="text"
-                                  maxLength={15}
-                                  value={tempEditValues.displayPath2 || ""}
-                                  onChange={(e) => setTempEditValues({ ...tempEditValues, displayPath2: e.target.value })}
-                                  onKeyDown={handleKeyDownSave}
-                                  placeholder="Path 2"
-                                  className="w-1/2 bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={saveFieldEdit}
-                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                                  title="Save"
-                                >
-                                  <Check className="h-3 w-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelFieldEdit}
-                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                                  title="Cancel"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
                               </div>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[190px] truncate text-right">
-                                <span className="font-mono text-[10px] truncate">
-                                  {campaignState.displayPath1 || campaignState.displayPath2
-                                    ? `/${campaignState.displayPath1 || ""}${campaignState.displayPath2 ? `/${campaignState.displayPath2}` : ""}`
-                                    : "Standard URL"}
-                                </span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Optional Param 8: Mobile Final URL */}
-                        <div className="py-1.5 border-b border-slate-200/80 group">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                              <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
-                              <span>Mobile Final URL:</span>
-                              <button
-                                type="button"
-                                onClick={() => (editingField === "mobileFinalUrl" ? cancelFieldEdit() : startFieldEdit("mobileFinalUrl"))}
-                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
-                                title="Edit Mobile URL"
-                              >
-                                <Edit3 className="h-3 w-3" />
-                              </button>
                             </div>
-                            {editingField === "mobileFinalUrl" ? (
-                              <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
-                                <input
-                                  type="url"
-                                  value={tempEditValues.mobileFinalUrl || ""}
-                                  onChange={(e) => setTempEditValues({ ...tempEditValues, mobileFinalUrl: e.target.value })}
-                                  onKeyDown={handleKeyDownSave}
-                                  placeholder="https://m.example.com"
-                                  className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                  autoFocus
-                                />
-                                <button
-                                  type="button"
-                                  onClick={saveFieldEdit}
-                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                                  title="Save"
-                                >
-                                  <Check className="h-3 w-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelFieldEdit}
-                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                                  title="Cancel"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[190px] truncate text-right">
-                                <span className="truncate">{campaignState.mobileFinalUrl || "Same as Final URL"}</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
 
-                        {/* Optional Param 9: Call Extension Phone Number */}
-                        <div className="py-1.5 border-b border-slate-200/80 group">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                              <Phone className="w-3.5 h-3.5 text-green-600" />
-                              <span>Call Phone Number:</span>
-                              <button
-                                type="button"
-                                onClick={() => (editingField === "callPhoneNumber" ? cancelFieldEdit() : startFieldEdit("callPhoneNumber"))}
-                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
-                                title="Edit Phone Number"
-                              >
-                                <Edit3 className="h-3 w-3" />
-                              </button>
-                            </div>
-                            {editingField === "callPhoneNumber" ? (
-                              <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
-                                <input
-                                  type="tel"
-                                  value={tempEditValues.callPhoneNumber || ""}
-                                  onChange={(e) => setTempEditValues({ ...tempEditValues, callPhoneNumber: e.target.value })}
-                                  onKeyDown={handleKeyDownSave}
-                                  placeholder="+91 9876543210"
-                                  className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
-                                  autoFocus
-                                />
-                                <button
-                                  type="button"
-                                  onClick={saveFieldEdit}
-                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
-                                  title="Save"
-                                >
-                                  <Check className="h-3 w-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelFieldEdit}
-                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
-                                  title="Cancel"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
+                            {/* Optional Param 7: Display Path 1 & 2 */}
+                            <div className="py-1.5 border-b border-slate-200/80 group">
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                  <Compass className="w-3.5 h-3.5 text-sky-500" />
+                                  <span>Display Paths:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => (editingField === "displayPath1" ? cancelFieldEdit() : startFieldEdit("displayPath1"))}
+                                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
+                                    title="Edit Display Paths"
+                                  >
+                                    <Edit3 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                {editingField === "displayPath1" ? (
+                                  <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                                    <input
+                                      type="text"
+                                      maxLength={15}
+                                      value={tempEditValues.displayPath1 || ""}
+                                      onChange={(e) => setTempEditValues({ ...tempEditValues, displayPath1: e.target.value })}
+                                      placeholder="Path 1"
+                                      className="w-1/2 bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                      autoFocus
+                                    />
+                                    <input
+                                      type="text"
+                                      maxLength={15}
+                                      value={tempEditValues.displayPath2 || ""}
+                                      onChange={(e) => setTempEditValues({ ...tempEditValues, displayPath2: e.target.value })}
+                                      onKeyDown={handleKeyDownSave}
+                                      placeholder="Path 2"
+                                      className="w-1/2 bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={saveFieldEdit}
+                                      className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                      title="Save"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={cancelFieldEdit}
+                                      className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                      title="Cancel"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[190px] truncate text-right">
+                                    <span className="font-mono text-[10px] truncate">
+                                      {campaignState.displayPath1 || campaignState.displayPath2
+                                        ? `/${campaignState.displayPath1 || ""}${campaignState.displayPath2 ? `/${campaignState.displayPath2}` : ""}`
+                                        : "Standard URL"}
+                                    </span>
+                                  </span>
+                                )}
                               </div>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[190px] truncate text-right">
-                                <span className="font-mono text-[10px] truncate">{campaignState.callPhoneNumber || "None"}</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                            </div>
+
+                            {/* Optional Param 8: Mobile Final URL */}
+                            <div className="py-1.5 border-b border-slate-200/80 group">
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                  <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
+                                  <span>Mobile Final URL:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => (editingField === "mobileFinalUrl" ? cancelFieldEdit() : startFieldEdit("mobileFinalUrl"))}
+                                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
+                                    title="Edit Mobile URL"
+                                  >
+                                    <Edit3 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                {editingField === "mobileFinalUrl" ? (
+                                  <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                                    <input
+                                      type="url"
+                                      value={tempEditValues.mobileFinalUrl || ""}
+                                      onChange={(e) => setTempEditValues({ ...tempEditValues, mobileFinalUrl: e.target.value })}
+                                      onKeyDown={handleKeyDownSave}
+                                      placeholder="https://m.example.com"
+                                      className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                      autoFocus
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={saveFieldEdit}
+                                      className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                      title="Save"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={cancelFieldEdit}
+                                      className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                      title="Cancel"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[190px] truncate text-right">
+                                    <span className="truncate">{campaignState.mobileFinalUrl || "Same as Final URL"}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Optional Param 9: Call Extension Phone Number */}
+                            <div className="py-1.5 border-b border-slate-200/80 group">
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                                  <Phone className="w-3.5 h-3.5 text-green-600" />
+                                  <span>Call Phone Number:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => (editingField === "callPhoneNumber" ? cancelFieldEdit() : startFieldEdit("callPhoneNumber"))}
+                                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
+                                    title="Edit Phone Number"
+                                  >
+                                    <Edit3 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                {editingField === "callPhoneNumber" ? (
+                                  <div className="flex items-center gap-1 flex-1 max-w-[220px] justify-end">
+                                    <input
+                                      type="tel"
+                                      value={tempEditValues.callPhoneNumber || ""}
+                                      onChange={(e) => setTempEditValues({ ...tempEditValues, callPhoneNumber: e.target.value })}
+                                      onKeyDown={handleKeyDownSave}
+                                      placeholder="+91 9876543210"
+                                      className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] text-slate-900 focus:outline-none"
+                                      autoFocus
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={saveFieldEdit}
+                                      className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shrink-0"
+                                      title="Save"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={cancelFieldEdit}
+                                      className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors shrink-0"
+                                      title="Cancel"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs max-w-[190px] truncate text-right">
+                                    <span className="font-mono text-[10px] truncate">{campaignState.callPhoneNumber || "None"}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
 
                         {/* Optional Param 10: Device Targeting */}
                         <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
@@ -12431,6 +12707,1330 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             </div>
 
+            {/* 3. PERFORMANCE MAX: ASSET GROUP (Immediately after Optional Settings & Parameters) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "PERFORMANCE_MAX" && (
+              <div className="bg-slate-50 border border-purple-200/80 rounded-2xl p-4 space-y-4 shadow-xs">
+                {/* Header with Ad Strength & Collapsible Toggle */}
+                <div className="flex items-center justify-between border-b border-purple-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 rounded-lg bg-purple-100 text-purple-700">
+                      <Layers className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-bold text-xs text-slate-900">Asset group</h3>
+                        <span className="px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 text-[9px] font-bold uppercase">
+                          Performance Max
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        The creative building blocks of every ad across Google surfaces.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Ad Strength Badge */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-medium text-slate-500">Ad strength:</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                        (campaignState.headlines || []).length >= 3 && (campaignState.descriptions || []).length >= 2 && (campaignState.images || []).length > 0
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      }`}>
+                        {(campaignState.headlines || []).length >= 3 && (campaignState.descriptions || []).length >= 2 && (campaignState.images || []).length > 0
+                          ? "Good"
+                          : "Incomplete"}
+                      </span>
+                    </div>
+                    {/* Direct AI Generate All Assets Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleCockpitDirectAiGeneration("ALL", false)}
+                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                      title="Auto-generate all creative assets using JDS AI"
+                    >
+                      <Sparkles className="h-3 w-3 text-amber-300" />
+                      <span>✨ Auto-Generate Assets</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAssetGroupSectionOpen(!isAssetGroupSectionOpen)}
+                      className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors"
+                      title={isAssetGroupSectionOpen ? "Collapse Asset Group" : "Expand Asset Group"}
+                    >
+                      <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isAssetGroupSectionOpen ? "rotate-180" : ""}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {isAssetGroupSectionOpen && (
+                  <div className="space-y-3.5 animate-in fade-in duration-150">
+                    {/* 1. Asset Group Name & Final URL */}
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                        <span className="font-semibold text-slate-800 text-[11px] flex items-center gap-1.5">
+                          <Layers className="h-3.5 w-3.5 text-purple-600" />
+                          <span>Asset Group Info</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400">Primary Destination</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        {/* Asset Group Name */}
+                        <div>
+                          <div className="flex items-center gap-1 mb-1">
+                            <label className="text-[11px] font-semibold text-slate-700">Asset group name</label>
+                            <span className="text-rose-500 font-bold">*</span>
+                          </div>
+                          <input
+                            type="text"
+                            value={campaignState.assetGroupName || ""}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, assetGroupName: e.target.value }))}
+                            placeholder="e.g. Performance Group 1"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-purple-500 font-medium"
+                          />
+                        </div>
+
+                        {/* Final URL */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-1">
+                              <label className="text-[11px] font-semibold text-slate-700">Final URL</label>
+                              <span className="text-rose-500 font-bold">*</span>
+                            </div>
+                            {campaignState.website && (
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, finalUrl: prev.website }))}
+                                className="text-[9.5px] text-purple-600 hover:text-purple-800 font-semibold cursor-pointer"
+                              >
+                                Use website URL
+                              </button>
+                            )}
+                          </div>
+                          <input
+                            type="url"
+                            value={campaignState.finalUrl || ""}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, finalUrl: e.target.value }))}
+                            placeholder="https://www.example.com"
+                            className={`w-full bg-slate-50 border rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:bg-white ${
+                              campaignState.finalUrl && !campaignState.finalUrl.startsWith("http://") && !campaignState.finalUrl.startsWith("https://")
+                                ? "border-rose-400 focus:border-rose-500"
+                                : "border-slate-200 focus:border-purple-500"
+                            }`}
+                          />
+                          {campaignState.finalUrl && !campaignState.finalUrl.startsWith("http://") && !campaignState.finalUrl.startsWith("https://") && (
+                            <p className="text-[9.5px] text-rose-500 font-medium mt-0.5">
+                              Must start with <span className="font-mono">https://</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. Assets Section */}
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                          <span className="font-semibold text-slate-800 text-[11px]">Assets</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {(campaignState.headlines || []).length} HL • {(campaignState.descriptions || []).length} Desc • {(campaignState.images || []).length} Img
+                        </span>
+                      </div>
+
+                      {/* 2a) Calls Section */}
+                      <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1 rounded-md bg-emerald-100 text-emerald-700">
+                            <Phone className="h-3.5 w-3.5" />
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-800 text-[11px] block">Calls</span>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              {campaignState.callPhoneNumber ? campaignState.callPhoneNumber : "Account-level default call enabled"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="tel"
+                            value={campaignState.callPhoneNumber || ""}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, callPhoneNumber: e.target.value }))}
+                            placeholder="Add phone..."
+                            className="bg-white border border-slate-200 rounded px-2 py-0.5 text-[10px] text-slate-800 font-mono focus:outline-none focus:border-purple-400 w-32"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 2b) Headlines (Min 3 required) */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-slate-700 text-[11px]">
+                              Headlines ({(campaignState.headlines || []).filter(h => h.trim()).length}/3 min required)
+                            </span>
+                            <span className="text-rose-500 font-bold">*</span>
+                            {(campaignState.headlines || []).filter(h => h.trim()).length < 3 && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                Need at least 3
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleCockpitDirectAiGeneration("HEADLINES", false)}
+                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <Sparkles className="h-2.5 w-2.5" /> AI Headlines
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, headlines: [...(prev.headlines || []), ""] }))}
+                              className="text-[9.5px] text-purple-700 hover:text-purple-900 font-bold cursor-pointer hover:underline"
+                            >
+                              + Add headline
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          {(campaignState.headlines && campaignState.headlines.length > 0 ? campaignState.headlines : ["", "", ""]).map((hl, i) => {
+                            const isDuplicate = hl.trim() && (campaignState.headlines || []).filter((h, idx) => idx !== i && h.trim().toLowerCase() === hl.trim().toLowerCase()).length > 0;
+                            return (
+                              <div key={i} className="space-y-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={hl}
+                                    maxLength={30}
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.headlines || ["", "", ""])];
+                                      cur[i] = e.target.value;
+                                      setCampaignState(prev => ({ ...prev, headlines: cur }));
+                                    }}
+                                    placeholder={`Headline ${i + 1} (max 30 chars)`}
+                                    className={`flex-1 bg-slate-50 border rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:bg-white ${
+                                      isDuplicate ? "border-rose-400 bg-rose-50/30" : "border-slate-200 focus:border-purple-500"
+                                    }`}
+                                  />
+                                  {(campaignState.headlines || []).length > 3 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const cur = (campaignState.headlines || []).filter((_, idx) => idx !== i);
+                                        setCampaignState(prev => ({ ...prev, headlines: cur }));
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                      title="Remove"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex justify-between text-[9px] text-slate-400 px-1">
+                                  {isDuplicate ? (
+                                    <span className="text-rose-500 font-semibold">Duplicate headline</span>
+                                  ) : (
+                                    <span>{hl.length}/30 chars</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 2c) Long Headlines (Min 1 required) */}
+                      <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-slate-700 text-[11px]">
+                              Long headlines ({(campaignState.longHeadlines || []).filter(lh => lh.trim()).length}/1 min required)
+                            </span>
+                            <span className="text-rose-500 font-bold">*</span>
+                            {(campaignState.longHeadlines || []).filter(lh => lh.trim()).length < 1 && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                Need at least 1
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINES", false)}
+                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <Sparkles className="h-2.5 w-2.5" /> AI Long Headline
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, longHeadlines: [...(prev.longHeadlines || []), ""] }))}
+                              className="text-[9.5px] text-purple-700 hover:text-purple-900 font-bold cursor-pointer hover:underline"
+                            >
+                              + Add long headline
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          {(campaignState.longHeadlines && campaignState.longHeadlines.length > 0 ? campaignState.longHeadlines : [""]).map((lh, i) => {
+                            const isDuplicate = lh.trim() && (campaignState.longHeadlines || []).filter((l, idx) => idx !== i && l.trim().toLowerCase() === lh.trim().toLowerCase()).length > 0;
+                            return (
+                              <div key={i} className="space-y-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={lh}
+                                    maxLength={90}
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.longHeadlines || [""])];
+                                      cur[i] = e.target.value;
+                                      setCampaignState(prev => ({ ...prev, longHeadlines: cur }));
+                                    }}
+                                    placeholder={`Long headline ${i + 1} (max 90 chars)`}
+                                    className={`flex-1 bg-slate-50 border rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:bg-white ${
+                                      isDuplicate ? "border-rose-400 bg-rose-50/30" : "border-slate-200 focus:border-purple-500"
+                                    }`}
+                                  />
+                                  {(campaignState.longHeadlines || []).length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const cur = (campaignState.longHeadlines || []).filter((_, idx) => idx !== i);
+                                        setCampaignState(prev => ({ ...prev, longHeadlines: cur }));
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                      title="Remove"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex justify-between text-[9px] text-slate-400 px-1">
+                                  {isDuplicate ? (
+                                    <span className="text-rose-500 font-semibold">Duplicate long headline</span>
+                                  ) : (
+                                    <span>{lh.length}/90 chars</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 2d) Descriptions (Min 2 required) */}
+                      <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-slate-700 text-[11px]">
+                              Descriptions ({(campaignState.descriptions || []).filter(d => d.trim()).length}/2 min required)
+                            </span>
+                            <span className="text-rose-500 font-bold">*</span>
+                            {(campaignState.descriptions || []).filter(d => d.trim()).length < 2 && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                Need at least 2
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleCockpitDirectAiGeneration("DESCRIPTIONS", false)}
+                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <Sparkles className="h-2.5 w-2.5" /> AI Descriptions
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, descriptions: [...(prev.descriptions || []), ""] }))}
+                              className="text-[9.5px] text-purple-700 hover:text-purple-900 font-bold cursor-pointer hover:underline"
+                            >
+                              + Add description
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          {(campaignState.descriptions && campaignState.descriptions.length > 0 ? campaignState.descriptions : ["", ""]).map((desc, i) => {
+                            const isDuplicate = desc.trim() && (campaignState.descriptions || []).filter((d, idx) => idx !== i && d.trim().toLowerCase() === desc.trim().toLowerCase()).length > 0;
+                            return (
+                              <div key={i} className="space-y-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <textarea
+                                    value={desc}
+                                    rows={2}
+                                    maxLength={90}
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.descriptions || ["", ""])];
+                                      cur[i] = e.target.value;
+                                      setCampaignState(prev => ({ ...prev, descriptions: cur }));
+                                    }}
+                                    placeholder={`Description ${i + 1} (max 90 chars)`}
+                                    className={`flex-1 bg-slate-50 border rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:bg-white resize-none ${
+                                      isDuplicate ? "border-rose-400 bg-rose-50/30" : "border-slate-200 focus:border-purple-500"
+                                    }`}
+                                  />
+                                  {(campaignState.descriptions || []).length > 2 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const cur = (campaignState.descriptions || []).filter((_, idx) => idx !== i);
+                                        setCampaignState(prev => ({ ...prev, descriptions: cur }));
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer self-start mt-1"
+                                      title="Remove"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex justify-between text-[9px] text-slate-400 px-1">
+                                  {isDuplicate ? (
+                                    <span className="text-rose-500 font-semibold">Duplicate description</span>
+                                  ) : (
+                                    <span>{desc.length}/90 chars</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 2e) Images, Logos, Videos, Animated Clips Upload Matrix */}
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                        {/* Images (1.91:1 Landscape & 1:1 Square) */}
+                        <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-800 text-[10.5px] flex items-center gap-1">
+                              <ImageIcon className="h-3 w-3 text-blue-600" />
+                              <span>Images ({(campaignState.images || []).length})</span>
+                              <span className="text-rose-500 font-bold">*</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openMediaSourcePicker("IMAGE")}
+                              className="text-[9.5px] text-blue-600 hover:text-blue-800 font-bold cursor-pointer"
+                            >
+                              + Add / AI
+                            </button>
+                          </div>
+                          {(campaignState.images || []).length > 0 ? (
+                            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                              {(campaignState.images || []).map((img, idx) => {
+                                const imgSrc = typeof img === "string" ? img : ((img as any)?.url || (img as any)?.data || "");
+                                return (
+                                  <div key={idx} className="relative w-11 h-11 rounded-lg border border-slate-200 overflow-hidden bg-white shrink-0 group">
+                                    <img src={imgSrc} alt="Preview" className="w-full h-full object-cover" />
+                                    <button
+                                      type="button"
+                                      onClick={() => setCampaignState(prev => ({ ...prev, images: (prev.images || []).filter((_, i) => i !== idx) }))}
+                                      className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => openMediaSourcePicker("IMAGE")}
+                              className="p-2 border border-dashed border-slate-200 hover:border-blue-400 rounded-lg text-center cursor-pointer bg-white"
+                            >
+                              <span className="text-[9.5px] text-slate-400">Click to upload or generate image</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Logos (1:1 Square) */}
+                        <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-800 text-[10.5px] flex items-center gap-1">
+                              <ImageIcon className="h-3 w-3 text-purple-600" />
+                              <span>Logos ({(campaignState.logos || []).length})</span>
+                              <span className="text-rose-500 font-bold">*</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openMediaSourcePicker("LOGO")}
+                              className="text-[9.5px] text-purple-600 hover:text-purple-800 font-bold cursor-pointer"
+                            >
+                              + Add / AI
+                            </button>
+                          </div>
+                          {(campaignState.logos || []).length > 0 ? (
+                            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                              {(campaignState.logos || []).map((lg, idx) => {
+                                const logoSrc = typeof lg === "string" ? lg : ((lg as any)?.url || (lg as any)?.data || "");
+                                return (
+                                  <div key={idx} className="relative w-11 h-11 rounded-lg border border-slate-200 overflow-hidden bg-white shrink-0 group">
+                                    <img src={logoSrc} alt="Logo" className="w-full h-full object-contain" />
+                                    <button
+                                      type="button"
+                                      onClick={() => setCampaignState(prev => ({ ...prev, logos: (prev.logos || []).filter((_, i) => i !== idx) }))}
+                                      className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => openMediaSourcePicker("LOGO")}
+                              className="p-2 border border-dashed border-slate-200 hover:border-purple-400 rounded-lg text-center cursor-pointer bg-white"
+                            >
+                              <span className="text-[9.5px] text-slate-400">Click to upload or generate logo</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Videos */}
+                        <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-800 text-[10.5px] flex items-center gap-1">
+                              <Video className="h-3 w-3 text-rose-600" />
+                              <span>Videos ({(campaignState.videos || []).length})</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openMediaSourcePicker("VIDEO")}
+                              className="text-[9.5px] text-rose-600 hover:text-rose-800 font-bold cursor-pointer"
+                            >
+                              + Add video
+                            </button>
+                          </div>
+                          {(campaignState.videos || []).length > 0 ? (
+                            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                              {(campaignState.videos || []).map((vid, idx) => (
+                                <div key={idx} className="flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[9.5px] text-slate-700">
+                                  <span className="truncate max-w-[90px]">{typeof vid === "string" ? vid : "Video"}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCampaignState(prev => ({ ...prev, videos: (prev.videos || []).filter((_, i) => i !== idx) }))}
+                                    className="text-slate-400 hover:text-rose-600"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => openMediaSourcePicker("VIDEO")}
+                              className="p-2 border border-dashed border-slate-200 hover:border-rose-400 rounded-lg text-center cursor-pointer bg-white"
+                            >
+                              <span className="text-[9.5px] text-slate-400">Upload video or YouTube link</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Animated Clips */}
+                        <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-800 text-[10.5px] flex items-center gap-1">
+                              <Upload className="h-3 w-3 text-teal-600" />
+                              <span>Animated clips ({uploadedClips.length})</span>
+                            </span>
+                            <label className="text-[9.5px] text-teal-600 hover:text-teal-800 font-bold cursor-pointer">
+                              + Add clip
+                              <input
+                                type="file"
+                                accept=".gif,video/*,image/*"
+                                multiple
+                                onChange={(e) => {
+                                  if (e.target.files) {
+                                    const filesArr = Array.from(e.target.files).map(f => f.name);
+                                    const unique = filesArr.filter(n => !uploadedClips.includes(n));
+                                    if (unique.length > 0) setUploadedClips(prev => [...prev, ...unique]);
+                                    e.target.value = "";
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                          {uploadedClips.length > 0 ? (
+                            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                              {uploadedClips.map((clip, idx) => (
+                                <div key={idx} className="flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[9.5px] text-slate-700">
+                                  <span className="truncate max-w-[90px]">{clip}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setUploadedClips(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-400 hover:text-rose-600"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <label className="block p-2 border border-dashed border-slate-200 hover:border-teal-400 rounded-lg text-center cursor-pointer bg-white">
+                              <span className="text-[9.5px] text-slate-400">+ Add GIF or animated clip</span>
+                              <input
+                                type="file"
+                                accept=".gif,video/*,image/*"
+                                multiple
+                                onChange={(e) => {
+                                  if (e.target.files) {
+                                    const filesArr = Array.from(e.target.files).map(f => f.name);
+                                    const unique = filesArr.filter(n => !uploadedClips.includes(n));
+                                    if (unique.length > 0) setUploadedClips(prev => [...prev, ...unique]);
+                                    e.target.value = "";
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 2f) Business Name (Max 25 chars) */}
+                      <div className="space-y-1 pt-2 border-t border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <label className="text-[11px] font-semibold text-slate-700">Business name</label>
+                            <span className="text-rose-500 font-bold">*</span>
+                          </div>
+                          <span className="text-[9.5px] text-slate-400 font-mono">
+                            {(campaignState.businessName || "").length}/25 chars
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          maxLength={25}
+                          value={campaignState.businessName || ""}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, businessName: e.target.value }))}
+                          placeholder="Your official business name"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-purple-500 font-medium"
+                        />
+                      </div>
+
+                      {/* 2h) Call To Action Dropdown */}
+                      <div className="space-y-1 pt-2 border-t border-slate-100">
+                        <label className="text-[11px] font-semibold text-slate-700 block">Call to action</label>
+                        <select
+                          value={campaignState.callToAction || "Automated (recommended)"}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, callToAction: e.target.value }))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 font-semibold focus:outline-none focus:bg-white focus:border-purple-500"
+                        >
+                          <option value="Automated (recommended)">Automated (recommended)</option>
+                          <option value="Learn more">Learn more</option>
+                          <option value="Shop now">Shop now</option>
+                          <option value="Sign up">Sign up</option>
+                          <option value="Contact us">Contact us</option>
+                          <option value="Get quote">Get quote</option>
+                          <option value="Download">Download</option>
+                          <option value="Book now">Book now</option>
+                          <option value="Apply now">Apply now</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* 3. More Options (Collapsible Card: HTML5, Display path, Final URL for mobile, Asset group URL options) */}
+                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setIsMoreOptionsCardOpen(!isMoreOptionsCardOpen)}
+                        className="w-full p-3 flex items-center justify-between hover:bg-slate-50/80 transition-colors text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Compass className="h-4 w-4 text-purple-600" />
+                          <div>
+                            <span className="font-semibold text-slate-900 text-xs block">More options</span>
+                            <span className="text-[10px] text-slate-500">
+                              Display path • Mobile URL • HTML5 • Tracking template & URL parameters
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isMoreOptionsCardOpen ? "rotate-180" : ""}`} />
+                      </button>
+
+                      {isMoreOptionsCardOpen && (
+                        <div className="p-3.5 border-t border-slate-100 bg-slate-50/50 space-y-3.5 text-xs animate-in fade-in duration-150">
+                          {/* HTML5 Notice / Asset Upload */}
+                          <div className="p-2.5 rounded-lg bg-indigo-50/60 border border-indigo-200/80 space-y-1">
+                            <span className="font-semibold text-indigo-900 text-[11px] block">HTML5 & Interactive Creatives</span>
+                            <p className="text-[10px] text-indigo-700 leading-relaxed">
+                              Upload Google Web Designer or HTML5 zip bundles directly. JDS AI packages these into responsive assets automatically during sync.
+                            </p>
+                          </div>
+
+                          {/* Display Path */}
+                          <div className="space-y-1.5">
+                            <span className="font-semibold text-slate-800 text-[11px] block">Display path</span>
+                            <p className="text-[10px] text-slate-500">Custom path shown in your ad display URL.</p>
+                            <div className="flex items-center gap-1.5 max-w-sm">
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {campaignState.finalUrl ? (campaignState.finalUrl.replace(/^https?:\/\//, "").split("/")[0] || "example.com") : "example.com"}/
+                              </span>
+                              <input
+                                type="text"
+                                maxLength={15}
+                                value={campaignState.displayPath1 || ""}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, displayPath1: e.target.value }))}
+                                placeholder="Path 1"
+                                className="w-20 bg-white border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-800 focus:outline-none focus:border-purple-400"
+                              />
+                              <span className="text-slate-400 font-mono">/</span>
+                              <input
+                                type="text"
+                                maxLength={15}
+                                value={campaignState.displayPath2 || ""}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, displayPath2: e.target.value }))}
+                                placeholder="Path 2"
+                                className="w-20 bg-white border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-800 focus:outline-none focus:border-purple-400"
+                              />
+                            </div>
+                            {(campaignState.displayPath1 || campaignState.displayPath2) && (
+                              <div className="p-1.5 rounded bg-slate-100/80 text-[10px] text-slate-600 font-mono">
+                                Preview: {campaignState.finalUrl ? (campaignState.finalUrl.replace(/^https?:\/\//, "").split("/")[0] || "example.com") : "example.com"}
+                                {campaignState.displayPath1 ? `/${campaignState.displayPath1}` : ""}
+                                {campaignState.displayPath2 ? `/${campaignState.displayPath2}` : ""}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Final URL for mobile */}
+                          <div className="space-y-2 pt-2 border-t border-slate-200">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={useDiffMobileUrl || Boolean(campaignState.mobileFinalUrl)}
+                                onChange={(e) => {
+                                  setUseDiffMobileUrl(e.target.checked);
+                                  if (!e.target.checked) setCampaignState(prev => ({ ...prev, mobileFinalUrl: "" }));
+                                }}
+                                className="rounded text-purple-600 h-3.5 w-3.5"
+                              />
+                              <span className="text-[11px] font-semibold text-slate-800">Use a different final URL for mobile</span>
+                            </label>
+                            {(useDiffMobileUrl || Boolean(campaignState.mobileFinalUrl)) && (
+                              <input
+                                type="url"
+                                value={campaignState.mobileFinalUrl || ""}
+                                onChange={(e) => setCampaignState(prev => ({ ...prev, mobileFinalUrl: e.target.value }))}
+                                placeholder="https://m.example.com"
+                                className="w-full max-w-sm bg-white border border-slate-200 rounded px-2.5 py-1 text-xs font-mono text-slate-800 focus:outline-none focus:border-purple-400"
+                              />
+                            )}
+                          </div>
+
+                          {/* Asset Group URL Options */}
+                          <div className="space-y-2 pt-2 border-t border-slate-200">
+                            <span className="font-semibold text-slate-800 text-[11px] block">Asset group URL options</span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] text-slate-500 font-medium block mb-0.5">Tracking Template</label>
+                                <input
+                                  type="text"
+                                  value={campaignState.trackingTemplate || ""}
+                                  onChange={(e) => setCampaignState(prev => ({ ...prev, trackingTemplate: e.target.value }))}
+                                  placeholder="https://tracking.com?url={lpurl}"
+                                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:border-purple-400"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-slate-500 font-medium block mb-0.5">Final URL Suffix</label>
+                                <input
+                                  type="text"
+                                  value={campaignState.finalUrlSuffix || ""}
+                                  onChange={(e) => setCampaignState(prev => ({ ...prev, finalUrlSuffix: e.target.value }))}
+                                  placeholder="utm_source=google&utm_medium=pmax"
+                                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:border-purple-400"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Custom Parameters */}
+                            <div className="space-y-1 pt-1">
+                              <span className="text-[10px] text-slate-500 font-medium block">Custom Parameters:</span>
+                              {(campaignState.customParameters || []).map((cp, cpIdx) => (
+                                <div key={cpIdx} className="flex items-center gap-1">
+                                  <span className="text-[10px] font-mono text-slate-400">{`{_`}</span>
+                                  <input
+                                    type="text"
+                                    value={cp.name}
+                                    placeholder="param"
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.customParameters || [])];
+                                      cur[cpIdx] = { ...cur[cpIdx], name: e.target.value };
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="w-24 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none"
+                                  />
+                                  <span className="text-[10px] font-mono text-slate-400">{`} =`}</span>
+                                  <input
+                                    type="text"
+                                    value={cp.value}
+                                    placeholder="value"
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.customParameters || [])];
+                                      cur[cpIdx] = { ...cur[cpIdx], value: e.target.value };
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="flex-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const cur = (campaignState.customParameters || []).filter((_, i) => i !== cpIdx);
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    customParameters: [...(prev.customParameters || []), { id: Date.now().toString(), name: "", value: "" }]
+                                  }));
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
+                              >
+                                <Plus className="h-3 w-3" /> Add parameter
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 4. Asset Optimization (Text customization & Final URL expansion) */}
+                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setIsAssetOptimizationCardOpen(!isAssetOptimizationCardOpen)}
+                        className="w-full p-3 flex items-center justify-between hover:bg-slate-50/80 transition-colors text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Cpu className="h-4 w-4 text-purple-600" />
+                          <div>
+                            <span className="font-semibold text-slate-900 text-xs block">Asset optimization</span>
+                            <span className="text-[10px] text-slate-500">
+                              AI text customization & Final URL expansion
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isAssetOptimizationCardOpen ? "rotate-180" : ""}`} />
+                      </button>
+
+                      {isAssetOptimizationCardOpen && (
+                        <div className="p-3.5 border-t border-slate-100 bg-slate-50/50 space-y-3 text-xs animate-in fade-in duration-150">
+                          <p className="text-slate-500 text-[10.5px] leading-relaxed">
+                            Google AI enhances or generates assets using your website and provided content to maximize conversion matches.
+                          </p>
+
+                          {/* Text Customization Checkbox */}
+                          <div className="flex items-start gap-2.5 p-2 rounded-lg bg-white border border-slate-200">
+                            <input
+                              type="checkbox"
+                              id="pmaxTextCustomization"
+                              checked={campaignState.enableTextCustomization !== false}
+                              onChange={(e) => setCampaignState(prev => ({ ...prev, enableTextCustomization: e.target.checked }))}
+                              className="mt-0.5 rounded text-purple-600 h-4 w-4 cursor-pointer"
+                            />
+                            <div className="flex-1">
+                              <label htmlFor="pmaxTextCustomization" className="font-semibold text-slate-800 text-[11px] block cursor-pointer">
+                                Text Customization
+                              </label>
+                              <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
+                                Use text from your site, landing pages, and provided assets to create tailored ad copy variations.
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Final URL Expansion Checkbox */}
+                          <div className="flex items-start gap-2.5 p-2 rounded-lg bg-white border border-slate-200">
+                            <input
+                              type="checkbox"
+                              id="pmaxFinalUrlExpansion"
+                              checked={Boolean(campaignState.enableFinalUrlExpansion) && campaignState.enableTextCustomization !== false}
+                              onChange={(e) => setCampaignState(prev => ({ ...prev, enableFinalUrlExpansion: e.target.checked }))}
+                              disabled={campaignState.enableTextCustomization === false}
+                              className="mt-0.5 rounded text-purple-600 h-4 w-4 cursor-pointer disabled:opacity-50"
+                            />
+                            <div className="flex-1">
+                              <label
+                                htmlFor="pmaxFinalUrlExpansion"
+                                className={`font-semibold text-[11px] block ${
+                                  campaignState.enableTextCustomization !== false ? "text-slate-800 cursor-pointer" : "text-slate-400"
+                                }`}
+                              >
+                                Final URL Expansion
+                              </label>
+                              <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
+                                Send traffic to the most relevant landing pages on your domain when it improves conversion likelihood.
+                              </span>
+                              {campaignState.enableTextCustomization === false && (
+                                <span className="text-[9.5px] text-amber-600 block mt-1">
+                                  Requires text customization to be enabled.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 4. PERFORMANCE MAX: SEARCH THEMES (SIGNALS) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "PERFORMANCE_MAX" && (
+              <div className="bg-slate-50 border border-purple-200/80 rounded-2xl p-4 space-y-3.5 shadow-xs">
+                <div className="flex items-center justify-between border-b border-purple-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 rounded-lg bg-purple-100 text-purple-700">
+                      <Target className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-bold text-xs text-slate-900">Search Themes (Signals)</h3>
+                        <span className="px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 text-[9px] font-bold uppercase">
+                          AI Targeting Signals
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        Guide Google AI with search terms and audience signals to find high-intent buyers across all Google networks.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 text-[11px]">
+                  {/* Search Themes Input (Up to 25) */}
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-[11px]">
+                        <Search className="h-3.5 w-3.5 text-purple-600" />
+                        <span>Search Themes</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {(campaignState.searchThemes || []).length}/25 themes
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Inform Google AI what search queries relate directly to your products and business. Themes work alongside your assets to match buyer intent.
+                    </p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={newSearchThemeInput}
+                        maxLength={80}
+                        onChange={(e) => setNewSearchThemeInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newSearchThemeInput.trim()) {
+                            e.preventDefault();
+                            const val = newSearchThemeInput.trim();
+                            if ((campaignState.searchThemes || []).length < 25 && !(campaignState.searchThemes || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, searchThemes: [...(prev.searchThemes || []), val] }));
+                            }
+                            setNewSearchThemeInput("");
+                          }
+                        }}
+                        placeholder="e.g. online coaching classes, certified fitness trainer..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:bg-white focus:border-purple-400 font-medium"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newSearchThemeInput.trim()) {
+                            const val = newSearchThemeInput.trim();
+                            if ((campaignState.searchThemes || []).length < 25 && !(campaignState.searchThemes || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, searchThemes: [...(prev.searchThemes || []), val] }));
+                            }
+                            setNewSearchThemeInput("");
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[10px] cursor-pointer transition-colors shadow-2xs"
+                      >
+                        + Add
+                      </button>
+                    </div>
+
+                    {(campaignState.searchThemes || []).length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {(campaignState.searchThemes || []).map((theme, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-[10px] text-purple-900 font-medium shadow-2xs">
+                            <span>{theme}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, searchThemes: (prev.searchThemes || []).filter((_, i) => i !== idx) }))}
+                              className="text-purple-400 hover:text-rose-600 cursor-pointer"
+                              title="Remove theme"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 italic">No search themes added yet. Add up to 25 themes to steer AI targeting.</p>
+                    )}
+                  </div>
+
+                  {/* Audience Signals */}
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-[11px]">
+                        <Users className="h-3.5 w-3.5 text-indigo-600" />
+                        <span>Audience Signals</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {(campaignState.audienceSignals || []).length} audience(s)
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Add custom segments, customer lists, or in-market interest personas to help Google AI accelerate its machine learning and find conversions faster.
+                    </p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        id="pmax-audience-signal-input"
+                        placeholder="e.g. In-Market Shoppers, Tech Enthusiasts, Previous Buyers..."
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const target = e.currentTarget;
+                            const val = target.value.trim();
+                            if (val && !(campaignState.audienceSignals || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
+                            }
+                            target.value = "";
+                          }
+                        }}
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-400 font-medium"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const inputEl = document.getElementById("pmax-audience-signal-input") as HTMLInputElement | null;
+                          if (inputEl && inputEl.value.trim()) {
+                            const val = inputEl.value.trim();
+                            if (!(campaignState.audienceSignals || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
+                            }
+                            inputEl.value = "";
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px] cursor-pointer transition-colors shadow-2xs"
+                      >
+                        + Add
+                      </button>
+                    </div>
+
+                    {(campaignState.audienceSignals || []).length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {(campaignState.audienceSignals || []).map((signal, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-900 font-medium shadow-2xs">
+                            <span>👥 {typeof signal === "string" ? signal : (signal?.name || signal?.segmentName || "Custom Audience")}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, audienceSignals: (prev.audienceSignals || []).filter((_, i) => i !== idx) }))}
+                              className="text-indigo-400 hover:text-rose-600 cursor-pointer"
+                              title="Remove signal"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 italic">No audience signals added. Optional, but highly recommended for fast PMax ramp-up.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 5. PERFORMANCE MAX: GOOGLE MERCHANT CENTER & PRODUCTS */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "PERFORMANCE_MAX" && (() => {
+              const effectiveProf = customerProfile || campaignState.customerProfile;
+              const isMerchantConn = Boolean(isMerchantVerified(effectiveProf));
+              const profileMerchantId = effectiveProf?.merchantCenterId || "";
+              const activeMerchantId = (campaignState.merchantCenterId || profileMerchantId || "").trim();
+              const merchantStoreName = effectiveProf?.merchantStoreName || effectiveProf?.businessName || "Connected Merchant Store";
+              const isMidNumeric = /^\d+$/.test(activeMerchantId);
+
+              return (
+                <div id="pmax-merchant-products-card" className="bg-slate-50 border border-amber-200/90 rounded-2xl p-4 space-y-3.5 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-amber-200 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 rounded-lg bg-amber-100 text-amber-700">
+                        <ShoppingBag className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-bold text-xs text-slate-900">Google Merchant Center & Products</h3>
+                          <span className="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[9px] font-bold uppercase">
+                            Shopping Feed
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          Attach your Merchant Center product catalog to run Retail & Shopping ads alongside your PMax assets.
+                        </p>
+                      </div>
+                    </div>
+                    <span className={
+                      campaignState.useMerchantInCampaign === false
+                        ? "text-[10px] text-slate-500 font-semibold"
+                        : isMidNumeric
+                        ? "text-[10px] text-emerald-600 font-bold"
+                        : "text-[10px] text-amber-600 font-semibold"
+                    }>
+                      {campaignState.useMerchantInCampaign === false
+                        ? "Excluded for this Campaign"
+                        : isMidNumeric
+                        ? "Feed Connected ✓"
+                        : "Optional / Unlinked"}
+                    </span>
+                  </div>
+
+                  {/* Merchant Connection Status */}
+                  {!isMerchantConn && !isMidNumeric ? (
+                    <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold text-amber-900">Merchant Center Feed (Optional for PMax)</p>
+                          <p className="text-[11px] text-amber-700 leading-tight">
+                            If your business sells physical products online, link your Google Merchant Center account to feature product cards and live pricing.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handlePromptProfileNavigation(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-lg shadow-2xs flex items-center gap-1 shrink-0 cursor-pointer"
+                      >
+                        <span>Connect</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                            <span className="font-bold text-emerald-900">{merchantStoreName}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => (editingField === "pmaxMerchantCenterId" ? cancelFieldEdit() : startFieldEdit("pmaxMerchantCenterId"))}
+                              className="px-2 py-0.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-semibold rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                              title="Edit Merchant Center ID"
+                            >
+                              <Edit3 className="h-2.5 w-2.5" />
+                              <span>{editingField === "pmaxMerchantCenterId" ? "Editing..." : "Edit ID"}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePromptProfileNavigation(`/ads/profile?customerId=${customerId || "6587355041"}&tab=merchant_apps`)}
+                              className="px-2 py-0.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-semibold rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                              title="Open Profile Settings"
+                            >
+                              <span>Profile</span>
+                              <ExternalLink className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {editingField === "pmaxMerchantCenterId" ? (
+                          <div className="flex items-center gap-1 pt-1 border-t border-emerald-200/60">
+                            <input
+                              type="text"
+                              value={tempEditValues.merchantCenterId || ""}
+                              onChange={(e) => setTempEditValues({ ...tempEditValues, merchantCenterId: e.target.value.replace(/\D/g, "") })}
+                              onKeyDown={handleKeyDownSave}
+                              placeholder="e.g. 5840531233"
+                              className="w-full bg-white border border-amber-500 rounded px-2 py-1 text-[11px] font-mono text-slate-900 focus:outline-none"
+                              autoFocus
+                            />
+                            <button type="button" onClick={saveFieldEdit} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">
+                              <Check className="h-3 w-3" />
+                            </button>
+                            <button type="button" onClick={cancelFieldEdit} className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between pt-1 border-t border-emerald-200/60 text-[10px]">
+                            <span className="text-emerald-800">Merchant Center Account ID:</span>
+                            <span className="font-mono font-bold text-emerald-950">✓ {activeMerchantId || "Configured"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Feed Inclusion Option Toggle */}
+                      <div className="p-2.5 bg-white border border-slate-200/90 rounded-xl space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-[11px] font-bold text-slate-800">
+                              Attach Product Feed to this Performance Max?
+                            </p>
+                            <p className="text-[10px] text-slate-500 leading-snug">
+                              Turn off to run standard Performance Max (assets & leads only) without attaching product inventory.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => ({
+                                ...prev,
+                                useMerchantInCampaign: true,
+                                merchantCenterId: activeMerchantId || prev.merchantCenterId
+                              }));
+                            }}
+                            className={`p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
+                              campaignState.useMerchantInCampaign !== false
+                                ? "bg-emerald-50 border-emerald-400 text-emerald-950 font-bold ring-1 ring-emerald-300 shadow-2xs"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            <div>
+                              <div className="text-[11px] font-semibold">Yes, include products</div>
+                              <div className="text-[9.5px] text-slate-500 font-normal">Enable Shopping ads</div>
+                            </div>
+                            <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                              campaignState.useMerchantInCampaign !== false ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 bg-white"
+                            }`}>
+                              {campaignState.useMerchantInCampaign !== false && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCampaignState(prev => ({
+                                ...prev,
+                                useMerchantInCampaign: false
+                              }));
+                            }}
+                            className={`p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
+                              campaignState.useMerchantInCampaign === false
+                                ? "bg-amber-50 border-amber-400 text-amber-950 font-bold ring-1 ring-amber-300 shadow-2xs"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            <div>
+                              <div className="text-[11px] font-semibold">No, standard PMax</div>
+                              <div className="text-[9.5px] text-slate-500 font-normal">Exclude catalog feed</div>
+                            </div>
+                            <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                              campaignState.useMerchantInCampaign === false ? "border-amber-600 bg-amber-600 text-white" : "border-slate-300 bg-white"
+                            }`}>
+                              {campaignState.useMerchantInCampaign === false && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2.5 text-[11px]">
+                    {/* If disconnected and no active ID, show standalone numeric input */}
+                    {!isMerchantConn && !isMidNumeric && (
+                      <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1 shadow-2xs">
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold text-slate-800">Merchant Center Account ID:</span>
+                          <button
+                            type="button"
+                            onClick={() => (editingField === "pmaxMerchantCenterId" ? cancelFieldEdit() : startFieldEdit("pmaxMerchantCenterId"))}
+                            className="p-0.5 text-slate-400 hover:text-amber-600 rounded transition-colors cursor-pointer"
+                            title="Edit Merchant Center ID"
+                          >
+                            <Edit3 className="h-3 w-3" />
+                          </button>
+                        </div>
+                        {editingField === "pmaxMerchantCenterId" ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={tempEditValues.merchantCenterId || ""}
+                              onChange={(e) => setTempEditValues({ ...tempEditValues, merchantCenterId: e.target.value.replace(/\D/g, "") })}
+                              onKeyDown={handleKeyDownSave}
+                              placeholder="e.g. 5840531233"
+                              className="w-full bg-white border border-amber-500 rounded px-2 py-1 text-[11px] font-mono text-slate-900 focus:outline-none"
+                              autoFocus
+                            />
+                            <button type="button" onClick={saveFieldEdit} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">
+                              <Check className="h-3 w-3" />
+                            </button>
+                            <button type="button" onClick={cancelFieldEdit} className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="font-mono font-medium text-slate-400">
+                            None linked (PMax will run lead-gen/service ads without product feed)
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Listing Group / Product Partition */}
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-slate-800">Products Listing Group:</span>
+                        <span className="text-[10px] text-amber-700 font-bold">
+                          {campaignState.productGroupFilter || "All products (Default)"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                        <span className="text-slate-500 text-[10px]">Product Selection:</span>
+                        <select
+                          value={campaignState.productGroupFilter || "Use all products"}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, productGroupFilter: e.target.value }))}
+                          className="bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-[10px] font-semibold text-slate-800 focus:outline-none"
+                        >
+                          <option value="Use all products">Advertise all products (Default)</option>
+                          <option value="Category">Filter by Category</option>
+                          <option value="Brand">Filter by Brand</option>
+                          <option value="Item ID">Filter by Item ID</option>
+                          <option value="Condition">Filter by Condition</option>
+                          <option value="Product type">Filter by Product Type</option>
+                          <option value="Custom Label">Filter by Custom Label</option>
+                        </select>
+                      </div>
+
+                      {campaignState.productGroupFilter && campaignState.productGroupFilter !== "Use all products" && (
+                        <div className="pt-1 flex items-center justify-between">
+                          <span className="text-slate-500 text-[10px]">Filter Value:</span>
+                          <input
+                            type="text"
+                            value={campaignState.productGroupSelectBy || ""}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, productGroupSelectBy: e.target.value }))}
+                            placeholder={`Enter ${campaignState.productGroupFilter} name`}
+                            className="w-48 bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-[10px] text-slate-800 font-medium"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Guidance Banner when Objective or Campaign Type is not selected yet */}
             {!Boolean(campaignState.objective && campaignState.campaignType) && (
               <div className="bg-gradient-to-br from-indigo-50/80 via-purple-50/40 to-blue-50/80 border border-indigo-200/80 rounded-2xl p-5 text-center space-y-2.5 shadow-2xs animate-in fade-in duration-200">
@@ -12545,7 +14145,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-slate-800 text-[11px]">Brand inclusions</span>
-                      <span className="text-[10px] text-slate-400 font-mono">{(campaignState.brandInclusions || []).length} brands</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBrandListModalMode("INCLUSION");
+                            setShowBrandListModal(true);
+                          }}
+                          className="text-[10px] text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                        >
+                          <Plus className="h-2.5 w-2.5" /> Browse / New List
+                        </button>
+                        <span className="text-[10px] text-slate-400 font-mono">{(campaignState.brandInclusions || []).length} brands</span>
+                      </div>
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed">
                       Limit traffic to serve only on search queries related to specified brands.
@@ -12602,11 +14214,100 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     )}
                   </div>
 
+                  {/* 2b. Brand exclusions */}
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800 text-[11px]">Brand exclusions</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBrandListModalMode("EXCLUSION");
+                            setBrandListModalTab("SELECT_SAVED");
+                            setShowBrandListModal(true);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                        >
+                          <Database className="h-3 w-3" /> Select old lists ({savedBrandExclusionsList.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBrandListModalMode("EXCLUSION");
+                            setBrandListModalTab("CREATE_NEW");
+                            setBrandListNameInput("");
+                            setSelectedBrandListBrands([]);
+                            setShowBrandListModal(true);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs"
+                        >
+                          <Plus className="h-3 w-3" /> New brand list
+                        </button>
+                        <span className="text-[10px] text-slate-400 font-mono">{(campaignState.brandExclusions || []).length} excluded</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Your ads won't show on searches that mention excluded brands. If you include and exclude the same brand, exclusion takes precedence.
+                    </p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={searchBrandExclusionInput}
+                        onChange={(e) => setSearchBrandExclusionInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && searchBrandExclusionInput.trim()) {
+                            e.preventDefault();
+                            const val = searchBrandExclusionInput.trim();
+                            if (!(campaignState.brandExclusions || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, brandExclusions: [...(prev.brandExclusions || []), val] }));
+                              saveBrandExclusionToDb("Quick Exclusion", [val]);
+                            }
+                            setSearchBrandExclusionInput("");
+                          }
+                        }}
+                        placeholder="Add brand to exclude..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (searchBrandExclusionInput.trim()) {
+                            const val = searchBrandExclusionInput.trim();
+                            if (!(campaignState.brandExclusions || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, brandExclusions: [...(prev.brandExclusions || []), val] }));
+                              saveBrandExclusionToDb("Quick Exclusion", [val]);
+                            }
+                            setSearchBrandExclusionInput("");
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        + Exclude
+                      </button>
+                    </div>
+                    {(campaignState.brandExclusions || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {(campaignState.brandExclusions || []).map((b, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] text-rose-800 font-medium">
+                            <span>{b}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(prev => ({ ...prev, brandExclusions: (prev.brandExclusions || []).filter((_, i) => i !== idx) }))}
+                              className="text-rose-400 hover:text-rose-700"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {/* 3. Locations of interest */}
                   <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-slate-800 text-[11px]">Locations of interest</span>
-                      <span className="text-[10px] text-slate-400 font-mono">{(campaignState.audienceSignals || []).length} locations</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{(campaignState.locationsOfInterest || []).length} locations</span>
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed">
                       Reach customers searching for or interested in specific geographic areas with phrase & broad match.
@@ -12620,8 +14321,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           if (e.key === "Enter" && searchLocationOfInterestInput.trim()) {
                             e.preventDefault();
                             const val = searchLocationOfInterestInput.trim();
-                            if (!(campaignState.audienceSignals || []).includes(val)) {
-                              setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
+                            if (!(campaignState.locationsOfInterest || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, locationsOfInterest: [...(prev.locationsOfInterest || []), val] }));
                             }
                             setSearchLocationOfInterestInput("");
                           }
@@ -12634,8 +14335,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         onClick={() => {
                           if (searchLocationOfInterestInput.trim()) {
                             const val = searchLocationOfInterestInput.trim();
-                            if (!(campaignState.audienceSignals || []).includes(val)) {
-                              setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
+                            if (!(campaignState.locationsOfInterest || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, locationsOfInterest: [...(prev.locationsOfInterest || []), val] }));
                             }
                             setSearchLocationOfInterestInput("");
                           }
@@ -12645,14 +14346,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         + Add
                       </button>
                     </div>
-                    {(campaignState.audienceSignals || []).length > 0 && (
+                    {(campaignState.locationsOfInterest || []).length > 0 && (
                       <div className="flex flex-wrap gap-1 pt-1">
-                        {(campaignState.audienceSignals || []).map((loc, idx) => (
+                        {(campaignState.locationsOfInterest || []).map((loc: any, idx: number) => (
                           <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] text-slate-800 font-medium">
                             <span>📍 {loc}</span>
                             <button
                               type="button"
-                              onClick={() => setCampaignState(prev => ({ ...prev, audienceSignals: (prev.audienceSignals || []).filter((_, i) => i !== idx) }))}
+                              onClick={() => setCampaignState(prev => ({ ...prev, locationsOfInterest: (prev.locationsOfInterest || []).filter((_: any, i: number) => i !== idx) }))}
                               className="text-slate-400 hover:text-rose-600"
                             >
                               <X className="h-2.5 w-2.5" />
@@ -12667,7 +14368,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-slate-800 text-[11px]">URL inclusions</span>
-                      <span className="text-[10px] text-slate-400 font-mono">{(campaignState.dataExclusions || []).length} URLs</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{(campaignState.urlInclusions || []).length} URLs</span>
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed">
                       Specify exact landing pages from your website you want Google AI to prioritize.
@@ -12681,8 +14382,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           if (e.key === "Enter" && searchUrlInclusionsInput.trim()) {
                             e.preventDefault();
                             const val = searchUrlInclusionsInput.trim();
-                            if (!(campaignState.dataExclusions || []).includes(val)) {
-                              setCampaignState(prev => ({ ...prev, dataExclusions: [...(prev.dataExclusions || []), val] }));
+                            if (!(campaignState.urlInclusions || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, urlInclusions: [...(prev.urlInclusions || []), val] }));
                             }
                             setSearchUrlInclusionsInput("");
                           }
@@ -12695,8 +14396,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         onClick={() => {
                           if (searchUrlInclusionsInput.trim()) {
                             const val = searchUrlInclusionsInput.trim();
-                            if (!(campaignState.dataExclusions || []).includes(val)) {
-                              setCampaignState(prev => ({ ...prev, dataExclusions: [...(prev.dataExclusions || []), val] }));
+                            if (!(campaignState.urlInclusions || []).includes(val)) {
+                              setCampaignState(prev => ({ ...prev, urlInclusions: [...(prev.urlInclusions || []), val] }));
                             }
                             setSearchUrlInclusionsInput("");
                           }
@@ -12706,14 +14407,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         + Add
                       </button>
                     </div>
-                    {(campaignState.dataExclusions || []).length > 0 && (
+                    {(campaignState.urlInclusions || []).length > 0 && (
                       <div className="space-y-1 pt-1">
-                        {(campaignState.dataExclusions || []).map((url, idx) => (
+                        {(campaignState.urlInclusions || []).map((url: any, idx: number) => (
                           <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[10px]">
                             <span className="font-mono text-slate-800 truncate mr-2">{url}</span>
                             <button
                               type="button"
-                              onClick={() => setCampaignState(prev => ({ ...prev, dataExclusions: (prev.dataExclusions || []).filter((_, i) => i !== idx) }))}
+                              onClick={() => setCampaignState(prev => ({ ...prev, urlInclusions: (prev.urlInclusions || []).filter((_: any, i: number) => i !== idx) }))}
                               className="text-slate-400 hover:text-rose-600"
                             >
                               <X className="h-3 w-3" />
@@ -13650,18 +15351,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 2b-2. SEARCH & DEMAND GEN CONTROLS: MORE CAMPAIGN SETTINGS */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "SEARCH" || campaignState.campaignType === "DEMAND_GEN") && (
+            {/* 2b-2. DEMAND GEN CONTROLS: MORE CAMPAIGN SETTINGS (Search settings are handled in Optional Settings & Parameters Card 2) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "DEMAND_GEN" && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-1.5">
-                    <Sparkles className="h-4 w-4 text-blue-600" />
+                    <Sparkles className="h-4 w-4 text-purple-600" />
                     <span className="font-bold text-xs text-slate-900">
-                      {campaignState.campaignType === "SEARCH" ? "Search Campaign Settings" : "Demand Gen Advanced Settings"}
+                      Demand Gen Advanced Settings
                     </span>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
-                    {campaignState.campaignType === "SEARCH" ? "Schedule & URL Options" : "Schedule & Devices"}
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                    Schedule & Devices
                   </span>
                 </div>
 
@@ -14069,6 +15770,95 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                               </div>
                             )}
                           </div>
+                        </div>
+
+                        {/* 5. Brand Exclusions */}
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-800 text-[11px]">Brand exclusions</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBrandListModalMode("EXCLUSION");
+                                  setBrandListModalTab("SELECT_SAVED");
+                                  setShowBrandListModal(true);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                              >
+                                <Database className="h-3 w-3" /> Select old lists ({savedBrandExclusionsList.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBrandListModalMode("EXCLUSION");
+                                  setBrandListModalTab("CREATE_NEW");
+                                  setBrandListNameInput("");
+                                  setSelectedBrandListBrands([]);
+                                  setShowBrandListModal(true);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs"
+                              >
+                                <Plus className="h-3 w-3" /> New brand list
+                              </button>
+                              <span className="text-[10px] text-slate-400 font-mono">{(campaignState.brandExclusions || []).length} excluded</span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-slate-500 leading-relaxed">
+                            Exclude brands so your Performance Max ads won't show on searches that mention those brands.
+                          </p>
+                          <div className="flex gap-1.5">
+                            <input
+                              type="text"
+                              value={pmaxBrandInput}
+                              onChange={(e) => setPmaxBrandInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && pmaxBrandInput.trim()) {
+                                  e.preventDefault();
+                                  const val = pmaxBrandInput.trim();
+                                  if (!(campaignState.brandExclusions || []).includes(val)) {
+                                    setCampaignState(prev => ({ ...prev, brandExclusions: [...(prev.brandExclusions || []), val] }));
+                                    saveBrandExclusionToDb("Quick Exclusion", [val]);
+                                  }
+                                  setPmaxBrandInput("");
+                                }
+                              }}
+                              placeholder="Exclude brand name..."
+                              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:bg-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (pmaxBrandInput.trim()) {
+                                  const val = pmaxBrandInput.trim();
+                                  if (!(campaignState.brandExclusions || []).includes(val)) {
+                                    setCampaignState(prev => ({ ...prev, brandExclusions: [...(prev.brandExclusions || []), val] }));
+                                    saveBrandExclusionToDb("Quick Exclusion", [val]);
+                                  }
+                                  setPmaxBrandInput("");
+                                }
+                              }}
+                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                            >
+                              + Exclude
+                            </button>
+                          </div>
+                          {(campaignState.brandExclusions || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {(campaignState.brandExclusions || []).map((b, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] text-rose-800 font-medium">
+                                  <span>{b}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCampaignState(prev => ({ ...prev, brandExclusions: (prev.brandExclusions || []).filter((_, i) => i !== idx) }))}
+                                    className="text-rose-400 hover:text-rose-700"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                       </div>
@@ -15006,8 +16796,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               );
             })()}
 
-            {/* 3. DYNAMIC CAMPAIGN ASSETS & THUMBNAILS CARD (PMax, Search Image/Logo Assets & Media) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "SHOPPING" && campaignState.campaignType !== "APP" && (
+            {/* 3. DYNAMIC CAMPAIGN ASSETS & THUMBNAILS CARD (Search, Display, Video Image/Logo Assets & Media) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "PERFORMANCE_MAX" && campaignState.campaignType !== "SHOPPING" && campaignState.campaignType !== "APP" && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -15199,124 +16989,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   </div>
                 )}
 
-                {/* Live Performance Max Asset Requirements Checklist when type is PERFORMANCE_MAX */}
-                {campaignState.campaignType === "PERFORMANCE_MAX" && (() => {
-                  const allImgs = campaignState.images || [];
-                  const allLgs = campaignState.logos || [];
-                  let hasLand = false;
-                  let hasSq = false;
-                  let hasLg = allLgs.length > 0;
 
-                    for (const im of allImgs) {
-                      const raw = typeof im === "string" ? im : (im as any)?.url || (im as any)?.data || "";
-                      const fType = typeof im === "object" ? (im as any)?.fieldType : null;
-                      const ratio = typeof im === "object" ? (im as any)?.aspectRatio : null;
-                      const name = (typeof im === "object" && (im as any)?.name) ? (im as any).name.toLowerCase() : "";
-                      const dims = typeof im === "object" ? (im as any)?.dimensions : null;
-
-                      const isSquareDetected = fType === "SQUARE_MARKETING_IMAGE" ||
-                        ratio === "1:1" ||
-                        name.includes("1x1") ||
-                        name.includes("1:1") ||
-                        name.includes("square") ||
-                        (dims && Math.abs(dims.width - dims.height) <= 20);
-
-                      const isLandscapeDetected = fType === "MARKETING_IMAGE" ||
-                        ratio === "1.91:1" ||
-                        name.includes("1.91x1") ||
-                        name.includes("1.91:1") ||
-                        name.includes("landscape") ||
-                        (dims && dims.width >= dims.height * 1.3);
-
-                      if (isSquareDetected) hasSq = true;
-                      if (isLandscapeDetected) hasLand = true;
-                      if (fType === "LOGO") hasLg = true;
-                      else if (typeof raw === "string" && (raw.includes("ik.imagekit.io") || raw.startsWith("data:image/") || raw.startsWith("http"))) {
-                        if (!hasLand && !hasSq) {
-                          hasLand = true;
-                          hasSq = true;
-                        } else if (!hasLand) {
-                          hasLand = true;
-                        } else if (!hasSq) {
-                          hasSq = true;
-                        }
-                      }
-                    }
-
-                    if (allImgs.length >= 2 && (!hasLand || !hasSq)) {
-                      hasLand = true;
-                      hasSq = true;
-                    } else if (allImgs.length === 1 && !hasLand && !hasSq) {
-                      hasLand = true;
-                      hasSq = true;
-                    }
-
-                    const isPMaxReady = checkIsCampaignReady(campaignState);
-
-                  return (
-                    <div className="p-2.5 rounded-xl bg-white border border-purple-200/80 shadow-2xs space-y-1.5 text-[10px]">
-                      <div className="flex items-center justify-between font-bold text-slate-800">
-                        <span className="flex items-center gap-1 text-purple-700">
-                          <Sparkles className="h-3 w-3" />
-                          Performance Max Asset Readiness
-                        </span>
-                        <span className={isPMaxReady ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
-                          {isPMaxReady ? "Ready to Publish ✓" : "Required items missing"}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 text-slate-600">
-                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                          <span>Landscape (1.91:1):</span>
-                          <span className={hasLand ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {hasLand ? "✓ Uploaded" : "Missing"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                          <span>Square (1:1):</span>
-                          <span className={hasSq ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {hasSq ? "✓ Uploaded" : "Missing"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                          <span>Logo (1:1):</span>
-                          <span className={hasLg ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {hasLg ? "✓ Uploaded" : "Missing"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                          <span>Headlines:</span>
-                          <span className={(campaignState.headlines?.length || 0) >= 3 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {campaignState.headlines?.length || 0} (min 3, max 15)
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                          <span>Long Headlines:</span>
-                          <span className={(campaignState.longHeadlines?.length || 0) >= 1 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {campaignState.longHeadlines?.length || 0} (min 1, max 5)
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                          <span>Descriptions:</span>
-                          <span className={(campaignState.descriptions?.length || 0) >= 2 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                            {campaignState.descriptions?.length || 0} (min 2, max 5)
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                          <span>Search Themes (Signals):</span>
-                          <span className={(campaignState.searchThemes?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-amber-600 font-medium"}>
-                            {(campaignState.searchThemes?.length || 0) > 0 ? `${campaignState.searchThemes?.length} added` : "0 added"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                          <span>Sitelinks (Extensions):</span>
-                          <span className={(campaignState.sitelinks?.length || 0) >= 4 ? "text-emerald-600 font-bold" : (campaignState.sitelinks?.length || 0) > 0 ? "text-amber-600 font-medium" : "text-slate-400"}>
-                            {(campaignState.sitelinks?.length || 0) > 0 ? `${campaignState.sitelinks?.length} added (4 rec.)` : "0 added (4 rec.)"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
 
                 {/* Live Display Asset Requirements Checklist when type is DISPLAY */}
                 {campaignState.campaignType === "DISPLAY" && (() => {
@@ -15818,13 +17491,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     </div>
                 );
               })()}
-                {/* Live Video Requirements Checklist when type is VIDEO */}
-                {(campaignState.campaignType as string) === "VIDEO" && (
+                {/* Live Video & Demand Gen Checklist / Controls when type is VIDEO or DEMAND_GEN */}
+                {((campaignState.campaignType as string) === "VIDEO" || (campaignState.campaignType as string) === "DEMAND_GEN") && (
                   <div className="p-2.5 rounded-xl bg-white border border-rose-200 shadow-2xs space-y-2 text-[10px]">
                     <div className="flex items-center justify-between font-bold text-slate-800">
                       <span className="flex items-center gap-1 text-rose-700">
                         <Video className="h-3 w-3 text-rose-600" />
-                        Video Campaign Readiness
+                        {(campaignState.campaignType as string) === "DEMAND_GEN" ? "Demand Gen Targeting & Media Readiness" : "Video Campaign Readiness"}
                       </span>
                       <span className={Boolean(
                         isYouTubeVerified(customerProfile || campaignState.customerProfile) &&
@@ -16873,14 +18546,27 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
             {/* 4. SEARCH KEYWORDS MANAGER (Dedicated Card for Search Campaigns) */}
             {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SEARCH" && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Key className="h-4 w-4 text-blue-600" />
-                    <span className="font-bold text-xs text-slate-900">Search Keywords</span>
+              <div className="bg-slate-50 border border-blue-200/80 rounded-2xl p-4 space-y-3.5 shadow-xs">
+                {/* Header with Ad Strength & AI Keyword Generation */}
+                <div className="flex items-center justify-between border-b border-blue-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-xl bg-blue-100/80 text-blue-700 shadow-2xs">
+                      <Key className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-bold text-xs text-slate-900">Search Keywords</h3>
+                        <span className="px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold uppercase">
+                          Targeting
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        Match customer queries on Google Search with high purchase intent.
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                       (campaignState.keywords?.length || 0) >= 1
                         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                         : "bg-rose-50 text-rose-700 border-rose-200"
@@ -16890,25 +18576,79 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     <button
                       type="button"
                       onClick={() => handleCockpitDirectAiGeneration("KEYWORDS")}
-                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-all shadow-2xs group"
+                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs group"
                       title="Generate high-intent search keywords using JDS AI"
                     >
-                      <Sparkles className="h-3 w-3 text-purple-600 group-hover:rotate-12 transition-transform" />
-                      <span>✨ Generate with JDS AI</span>
+                      <Sparkles className="h-3 w-3 text-amber-300 group-hover:rotate-12 transition-transform" />
+                      <span>✨ AI Keywords</span>
                     </button>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  {/* Keyword Input with Match Type Hints */}
+                <div className="space-y-2.5">
+                  {/* Match Type Pill Selector & Quick Switcher */}
+                  <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-1.5 text-xs shadow-2xs">
+                    <span className="text-[10px] font-semibold text-slate-500 pl-1">Match Type:</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setSearchKeywordMatchType("BROAD")}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          searchKeywordMatchType === "BROAD"
+                            ? "bg-blue-600 text-white shadow-2xs"
+                            : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                        }`}
+                        title="Broad match: Matches related searches (keyword)"
+                      >
+                        Broad
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSearchKeywordMatchType("PHRASE")}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          searchKeywordMatchType === "PHRASE"
+                            ? "bg-emerald-600 text-white shadow-2xs"
+                            : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                        }`}
+                        title='Phrase match: Matches queries containing the phrase ("keyword")'
+                      >
+                        &quot;Phrase&quot;
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSearchKeywordMatchType("EXACT")}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          searchKeywordMatchType === "EXACT"
+                            ? "bg-purple-600 text-white shadow-2xs"
+                            : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                        }`}
+                        title="Exact match: Matches exact search term ([keyword])"
+                      >
+                        [Exact]
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Keyword Input with Instant Format */}
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
-                      const kw = newKeywordInput.trim();
-                      if (!kw) return;
-                      if (!(campaignState.keywords || []).includes(kw)) {
+                      let raw = newKeywordInput.trim();
+                      if (!raw) return;
+                      // Strip existing brackets/quotes to format cleanly based on selected match type
+                      if (raw.startsWith("[") && raw.endsWith("]")) raw = raw.slice(1, -1).trim();
+                      if (raw.startsWith('"') && raw.endsWith('"')) raw = raw.slice(1, -1).trim();
+                      
+                      let formatted = raw;
+                      if (searchKeywordMatchType === "PHRASE") {
+                        formatted = `"${raw}"`;
+                      } else if (searchKeywordMatchType === "EXACT") {
+                        formatted = `[${raw}]`;
+                      }
+
+                      if (!(campaignState.keywords || []).includes(formatted)) {
                         setCampaignState(prev => {
-                          const updatedKw = [...(prev.keywords || []), kw];
+                          const updatedKw = [...(prev.keywords || []), formatted];
                           const validHeadlines = (prev.headlines || []).filter(h => h && h.trim().length > 0);
                           const validDescriptions = (prev.descriptions || []).filter(d => d && d.trim().length > 0);
                           const hasBudget = prev.dailyBudget && prev.dailyBudget > 0;
@@ -16923,17 +18663,28 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     }}
                     className="flex gap-1.5"
                   >
-                    <input
-                      type="text"
-                      value={newKeywordInput}
-                      onChange={(e) => setNewKeywordInput(e.target.value)}
-                      placeholder='Add keyword, e.g. "crm software" or [lead tracking]'
-                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-[11px] text-slate-900 focus:outline-none focus:border-blue-600"
-                    />
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={newKeywordInput}
+                        onChange={(e) => setNewKeywordInput(e.target.value)}
+                        placeholder={
+                          searchKeywordMatchType === "EXACT"
+                            ? "Enter exact keyword (e.g. lead generation crm)"
+                            : searchKeywordMatchType === "PHRASE"
+                            ? "Enter phrase keyword (e.g. best crm software)"
+                            : "Enter broad keyword (e.g. sales marketing tools)"
+                        }
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-[11px] text-slate-900 focus:outline-none focus:border-blue-600 pr-14"
+                      />
+                      <span className="absolute right-2 top-1.5 text-[9px] font-mono text-slate-400 font-semibold uppercase">
+                        {searchKeywordMatchType}
+                      </span>
+                    </div>
                     <button
                       type="submit"
                       disabled={!newKeywordInput.trim()}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                     >
                       <Plus className="h-3 w-3" />
                       <span>Add</span>
@@ -16942,47 +18693,53 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
                   {/* Keywords Badges List */}
                   {campaignState.keywords && campaignState.keywords.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 bg-white border border-slate-200 rounded-xl">
-                      {campaignState.keywords.map((kw, idx) => {
-                        const isExact = kw.startsWith("[") && kw.endsWith("]");
-                        const isPhrase = kw.startsWith('"') && kw.endsWith('"');
-                        const matchTypeLabel = isExact ? "EXACT" : isPhrase ? "PHRASE" : "BROAD";
-                        return (
-                          <span
-                            key={idx}
-                            className={`px-2 py-0.5 rounded-lg border text-[10px] font-medium flex items-center gap-1 shadow-2xs ${
-                              isExact
-                                ? "bg-purple-50 text-purple-700 border-purple-200"
-                                : isPhrase
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-blue-50 text-blue-700 border-blue-200"
-                            }`}
-                          >
-                            <span className="font-semibold text-[8px] opacity-75">{matchTypeLabel}:</span>
-                            <span>{kw}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCampaignState(prev => {
-                                  const updatedKw = (prev.keywords || []).filter((_, i) => i !== idx);
-                                  const validHeadlines = (prev.headlines || []).filter(h => h && h.trim().length > 0);
-                                  const validDescriptions = (prev.descriptions || []).filter(d => d && d.trim().length > 0);
-                                  const hasBudget = prev.dailyBudget && prev.dailyBudget > 0;
-                                  return {
-                                    ...prev,
-                                    keywords: updatedKw,
-                                    readyForPublish: !!(hasBudget && prev.campaignName && updatedKw.length >= 1 && validHeadlines.length >= 3 && validDescriptions.length >= 2)
-                                  };
-                                });
-                              }}
-                              className="hover:text-rose-600 transition-colors cursor-pointer ml-0.5"
-                              title="Remove Keyword"
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-1.5 bg-white border border-slate-200 rounded-xl scrollbar-thin">
+                        {campaignState.keywords.map((kw, idx) => {
+                          const isExact = kw.startsWith("[") && kw.endsWith("]");
+                          const isPhrase = kw.startsWith('"') && kw.endsWith('"');
+                          const matchTypeLabel = isExact ? "EXACT" : isPhrase ? "PHRASE" : "BROAD";
+                          return (
+                            <span
+                              key={idx}
+                              className={`px-2 py-1 rounded-lg border text-[10px] font-medium flex items-center gap-1.5 shadow-2xs transition-all group ${
+                                isExact
+                                  ? "bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-300"
+                                  : isPhrase
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:border-emerald-300"
+                                  : "bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-300"
+                              }`}
                             >
-                              <X className="h-2.5 w-2.5" />
-                            </button>
-                          </span>
-                        );
-                      })}
+                              <span className="font-bold text-[8px] uppercase tracking-wider opacity-75">{matchTypeLabel}</span>
+                              <span className="font-semibold text-slate-800">{kw}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCampaignState(prev => {
+                                    const updatedKw = (prev.keywords || []).filter((_, i) => i !== idx);
+                                    const validHeadlines = (prev.headlines || []).filter(h => h && h.trim().length > 0);
+                                    const validDescriptions = (prev.descriptions || []).filter(d => d && d.trim().length > 0);
+                                    const hasBudget = prev.dailyBudget && prev.dailyBudget > 0;
+                                    return {
+                                      ...prev,
+                                      keywords: updatedKw,
+                                      readyForPublish: !!(hasBudget && prev.campaignName && updatedKw.length >= 1 && validHeadlines.length >= 3 && validDescriptions.length >= 2)
+                                    };
+                                  });
+                                }}
+                                className="text-slate-400 hover:text-rose-600 transition-colors cursor-pointer ml-0.5 p-0.5 rounded"
+                                title="Remove Keyword"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center justify-between px-1 text-[9px] text-slate-400">
+                        <span>Click X to remove any keyword</span>
+                        <span>{campaignState.keywords.length} keyword(s) active</span>
+                      </div>
                     </div>
                   ) : (
                     <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center space-y-2">
@@ -17001,9 +18758,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 4a. MERCHANT CENTER & PRODUCT FEED CONDITIONAL SETUP (When Merchant Center verified in Profile - Performance Max & Sales only, Shopping uses dedicated Card 2c) */}
-            {/* 4a. MERCHANT CENTER & PRODUCT FEED CONDITIONAL SETUP */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && (() => {
+            {/* 4a. MERCHANT CENTER & PRODUCT FEED CONDITIONAL SETUP (For Non-PMax/Non-Shopping campaigns; PMax and Shopping have their dedicated cards) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "PERFORMANCE_MAX" && campaignState.campaignType !== "SHOPPING" && (() => {
               const effectiveProfile = customerProfile || campaignState.customerProfile;
               const isMerchantConn = Boolean(isMerchantVerified(effectiveProfile));
               const activeMerchantId = (
@@ -17193,8 +18949,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               );
             })()}
 
-            {/* 4b. PERFORMANCE MAX & DEMAND GEN SEARCH THEMES MANAGER */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "DEMAND_GEN") && (
+            {/* 4b. DEMAND GEN SEARCH THEMES MANAGER (PMax uses dedicated Card 4 above) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "DEMAND_GEN" && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -17777,24 +19533,71 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 5. GENERATED AD COPY CARD (Headlines, Long Headlines & Descriptions with Vertical Scrollbar & Add Buttons) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                  <span>
-                    {campaignState.campaignType === "SEARCH"
-                      ? "Create ads to get more sales"
-                      : campaignState.campaignType === "SHOPPING"
-                      ? "Shopping Promotional Copy & Brand Creatives"
-                      : "Ad Copy & Creatives"}
-                  </span>
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  {campaignState.headlines?.length || 0} HL • {campaignState.campaignType === "SEARCH" || campaignState.campaignType === "SHOPPING" ? "" : `${campaignState.longHeadlines?.length || 0} Long HL • `}{campaignState.descriptions?.length || 0} Desc
-                </span>
-              </div>
+            {/* 5. GENERATED AD COPY CARD (Search, Shopping, Display, Video, App) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "PERFORMANCE_MAX" && (
+              <div className="bg-slate-50 border border-blue-200/80 rounded-2xl p-4 space-y-4 shadow-xs">
+                {/* Header with Ad Strength & AI Actions (Matching PMax Asset Group Parity) */}
+                <div className="flex items-center justify-between border-b border-blue-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-xl bg-blue-100/80 text-blue-700 shadow-2xs">
+                      <Sparkles className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-bold text-xs text-slate-900">
+                          {campaignState.campaignType === "SEARCH"
+                            ? "Responsive Search Ad"
+                            : campaignState.campaignType === "SHOPPING"
+                            ? "Shopping Promotional Copy"
+                            : "Ad Copy & Creatives"}
+                        </h3>
+                        <span className="px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold uppercase">
+                          {campaignState.campaignType}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        {campaignState.campaignType === "SEARCH"
+                          ? "Headlines, descriptions and extensions shown to people searching on Google."
+                          : "Creative building blocks optimized across surfaces."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Live Ad Strength Badge */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-medium text-slate-500">Ad strength:</span>
+                      {(() => {
+                        const hCount = (campaignState.headlines || []).filter(h => h && h.trim().length > 0).length;
+                        const dCount = (campaignState.descriptions || []).filter(d => d && d.trim().length > 0).length;
+                        const hasUrl = Boolean(campaignState.finalUrl || campaignState.website);
+                        const isExcellent = hCount >= 8 && dCount >= 3 && hasUrl;
+                        const isGood = hCount >= 3 && dCount >= 2 && hasUrl;
+
+                        return (
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                            isExcellent
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : isGood
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : "bg-amber-50 text-amber-700 border-amber-200"
+                          }`}>
+                            {isExcellent ? "Excellent" : isGood ? "Good" : "Incomplete"}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    {/* Auto-Generate Ad Copy Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleCockpitDirectAiGeneration("ALL", false)}
+                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                      title="Auto-generate headlines & descriptions using JDS AI"
+                    >
+                      <Sparkles className="h-3 w-3 text-amber-300" />
+                      <span>✨ Auto-Generate</span>
+                    </button>
+                  </div>
+                </div>
 
               {/* Search & Shopping: Final URL, Display Path, Calls Header */}
               {(campaignState.campaignType === "SEARCH" || campaignState.campaignType === "SHOPPING") && (
@@ -18077,8 +19880,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 )}
               </div>
 
-              {/* 2. LONG HEADLINES SECTION */}
-              <div className="space-y-2 pt-2 border-t border-slate-200">
+              {/* 2. LONG HEADLINES SECTION (Hidden for SEARCH campaigns - Google Search Responsive Ads use Headlines & Descriptions only) */}
+              {campaignState.campaignType !== "SEARCH" && (
+                <div className="space-y-2 pt-2 border-t border-slate-200">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wider block">
                     Long Headlines (Max 90 chars):
@@ -18087,7 +19891,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     <span className="text-[10px] font-bold text-slate-600">
                       {campaignState.longHeadlines?.length || 0} (min 1, max 5)
                     </span>
-                    {(campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "DISPLAY" || campaignState.campaignType === "DEMAND_GEN" || !campaignState.campaignType) && (
+                    {(campaignState.campaignType === "DISPLAY" || campaignState.campaignType === "DEMAND_GEN" || !campaignState.campaignType) && (
                       <button
                         type="button"
                         onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINES")}
@@ -18240,6 +20044,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   </div>
                 )}
               </div>
+              )}
 
               {/* 3. DESCRIPTIONS SECTION */}
               <div className="space-y-2 pt-2 border-t border-slate-200">
@@ -21987,6 +23792,442 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 Save Callouts
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Brand List Modal (Inclusion & Exclusion, with DB Saved Lists Display & Selection) ── */}
+      {showBrandListModal && (
+        <div className="fixed inset-0 z-[110] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+          {/* Top Bar */}
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBrandListModal(false);
+                  setBrandListNameInput("");
+                  setBrandSearchQuery("");
+                  setSelectedBrandListBrands([]);
+                }}
+                className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <h2 className="text-base font-semibold text-slate-900">
+                {brandListModalMode === "INCLUSION" ? "Brand Inclusions" : "Brand Exclusions"} — Manage Brand Lists
+              </h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-slate-500">
+                Mode: <strong className={brandListModalMode === "INCLUSION" ? "text-blue-600" : "text-rose-600"}>{brandListModalMode}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Modal Tab Switcher */}
+          <div className="bg-slate-50 border-b border-slate-200 px-6 md:px-10 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBrandListModalTab("SELECT_SAVED")}
+              className={`py-3 px-4 font-bold text-xs border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+                brandListModalTab === "SELECT_SAVED"
+                  ? "border-blue-600 text-blue-600 bg-white"
+                  : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
+              }`}
+            >
+              <span>Select from Database</span>
+              <span className="px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700 text-[10px] font-mono font-bold">
+                {savedBrandExclusionsList.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setBrandListModalTab("CREATE_NEW")}
+              className={`py-3 px-4 font-bold text-xs border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+                brandListModalTab === "CREATE_NEW"
+                  ? "border-blue-600 text-blue-600 bg-white"
+                  : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
+              }`}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Create New Brand List</span>
+            </button>
+          </div>
+
+          {/* Modal Content */}
+          <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6">
+            <p className="text-slate-500 text-xs">
+              Brand lists let you choose whether your ads show on searches that mention specific brands.
+              {brandListModalMode === "EXCLUSION"
+                ? " Exclude brands so your ads won't show on searches mentioning those brands or related terms."
+                : " Include brands so your ads only show on searches mentioning those brands."}
+            </p>
+
+            {/* TAB 1: SELECT OLD BRAND LISTS FROM DATABASE */}
+            {brandListModalTab === "SELECT_SAVED" && (
+              <div className="space-y-4 animate-in fade-in duration-150">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                        <span>Saved Brand Exclusion Lists</span>
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-mono font-bold">
+                          {savedBrandExclusionsList.length}
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500">
+                        Select previously saved brand lists from your account database to apply or edit them.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={fetchSavedBrandExclusions}
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${isLoadingBrandExclusions ? "animate-spin text-blue-600" : ""}`} />
+                        <span>Refresh</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBrandListModalTab("CREATE_NEW")}
+                        className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Create New List</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {isLoadingBrandExclusions ? (
+                    <div className="p-8 text-center text-slate-500 space-y-2">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-blue-600" />
+                      <p className="text-xs font-semibold">Loading saved brand lists from database...</p>
+                    </div>
+                  ) : savedBrandExclusionsList.length === 0 ? (
+                    <div className="p-8 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-center space-y-3">
+                      <p className="text-slate-600 font-medium">No saved brand lists found in database.</p>
+                      <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                        Create your first brand exclusion list by clicking the button below. It will automatically save to your database for future campaigns.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setBrandListModalTab("CREATE_NEW")}
+                        className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-all cursor-pointer"
+                      >
+                        + Create First Brand List
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {savedBrandExclusionsList.map((item) => {
+                        const activeTargetList = brandListModalMode === "INCLUSION" ? (campaignState.brandInclusions || []) : (campaignState.brandExclusions || []);
+                        const isAllApplied = item.brands.length > 0 && item.brands.every(b => activeTargetList.includes(b));
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+                              isAllApplied
+                                ? "bg-emerald-50/50 border-emerald-300 shadow-2xs"
+                                : "bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                            }`}
+                          >
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold text-slate-900 text-xs truncate">{item.name}</span>
+                                <span className="text-[10px] font-mono bg-white px-2.5 py-0.5 rounded-full border border-slate-200 text-slate-600 font-semibold shrink-0">
+                                  {item.brands.length} brand{item.brands.length !== 1 ? "s" : ""}
+                                </span>
+                              </div>
+
+                              {item.brands.length > 0 && (
+                                <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-1 bg-white rounded-xl border border-slate-200/70">
+                                  {item.brands.map((bName, bi) => (
+                                    <span
+                                      key={bi}
+                                      className="px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-[10px] text-slate-700 font-medium"
+                                    >
+                                      {bName}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/70">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Prepopulate and switch to Edit tab
+                                  setBrandListNameInput(item.name);
+                                  const mapped = item.brands.map(bn => {
+                                    const found = presetBrandsList.find(p => p.name.toLowerCase() === bn.toLowerCase());
+                                    return found || { name: bn, url: "" };
+                                  });
+                                  setSelectedBrandListBrands(mapped);
+                                  setBrandListModalTab("CREATE_NEW");
+                                }}
+                                className="text-[11px] text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                              >
+                                <Edit3 className="h-3 w-3" /> Edit in form
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (brandListModalMode === "INCLUSION") {
+                                    setCampaignState(prev => {
+                                      const existing = prev.brandInclusions || [];
+                                      const newOnes = item.brands.filter(b => !existing.includes(b));
+                                      return { ...prev, brandInclusions: [...existing, ...newOnes] };
+                                    });
+                                  } else {
+                                    setCampaignState(prev => {
+                                      const existing = prev.brandExclusions || [];
+                                      const newOnes = item.brands.filter(b => !existing.includes(b));
+                                      return { ...prev, brandExclusions: [...existing, ...newOnes] };
+                                    });
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all ${
+                                  isAllApplied
+                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-2xs"
+                                }`}
+                              >
+                                {isAllApplied ? "✓ Applied to Campaign" : "+ Apply to Campaign"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: CREATE / EDIT NEW BRAND LIST */}
+            {brandListModalTab === "CREATE_NEW" && (
+              <div className="space-y-6 animate-in fade-in duration-150">
+                {/* List name Card */}
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-2 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-800">
+                      Brand list name <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setBrandListModalTab("SELECT_SAVED")}
+                      className="text-[11px] text-blue-600 hover:underline cursor-pointer"
+                    >
+                      ← Back to saved lists
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={brandListNameInput}
+                    onChange={(e) => setBrandListNameInput(e.target.value)}
+                    placeholder="Enter list name (e.g. My Excluded Brands, Competitor List)"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                  />
+                  {brandListNameInput.trim() && savedBrandExclusionsList.some(b => b.name.toLowerCase() === brandListNameInput.trim().toLowerCase()) && (
+                    <p className="text-[10px] text-amber-600 font-semibold">
+                      Note: A saved brand list with this name exists in your database. Saving will update it.
+                    </p>
+                  )}
+                </div>
+
+                {/* Brands Search & Select Grid Card */}
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-slate-900 text-sm">Search and add brands</h3>
+                    <p className="text-[11px] text-slate-500">Search brands to exclude (e.g. Amazon, Nike, Apple) or type custom brand</p>
+                  </div>
+
+                  {/* Search / Custom Brand Box */}
+                  <div className="flex gap-2 max-w-xl">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                      <input
+                        type="text"
+                        value={brandSearchQuery}
+                        onChange={(e) => setBrandSearchQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && brandSearchQuery.trim()) {
+                            e.preventDefault();
+                            const val = brandSearchQuery.trim();
+                            if (!selectedBrandListBrands.some(b => b.name.toLowerCase() === val.toLowerCase())) {
+                              const found = presetBrandsList.find(p => p.name.toLowerCase() === val.toLowerCase());
+                              setSelectedBrandListBrands(prev => [...prev, found || { name: val, url: "" }]);
+                            }
+                            setBrandSearchQuery("");
+                          }
+                        }}
+                        placeholder="Search brands to exclude (e.g. Amazon, Nike, Apple)..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (brandSearchQuery.trim()) {
+                          const val = brandSearchQuery.trim();
+                          if (!selectedBrandListBrands.some(b => b.name.toLowerCase() === val.toLowerCase())) {
+                            const found = presetBrandsList.find(p => p.name.toLowerCase() === val.toLowerCase());
+                            setSelectedBrandListBrands(prev => [...prev, found || { name: val, url: "" }]);
+                          }
+                          setBrandSearchQuery("");
+                        }
+                      }}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+                    >
+                      + Add
+                    </button>
+                  </div>
+
+                  {/* Selected Brands Chips */}
+                  {selectedBrandListBrands.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-700 font-semibold text-[11px]">
+                          Selected brands ({selectedBrandListBrands.length}):
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBrandListBrands([])}
+                          className="text-[10px] text-rose-500 hover:underline cursor-pointer"
+                        >
+                          Clear all
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
+                        {selectedBrandListBrands.map((b, i) => (
+                          <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-xs text-blue-700 font-semibold">
+                            <span>{b.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBrandListBrands(prev => prev.filter((_, idx) => idx !== i))}
+                            >
+                              <X className="h-3 w-3 hover:text-rose-500" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Brands Scrollable Options Grid matching manual flow */}
+                  <div className="space-y-1.5 pt-2">
+                    <span className="text-slate-500 font-semibold text-[11px] block">Popular & Searched Brands ({presetBrandsList.length})</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-2 border border-slate-200 rounded-xl bg-slate-50">
+                      {presetBrandsList
+                        .filter(b => !brandSearchQuery.trim() || b.name.toLowerCase().includes(brandSearchQuery.toLowerCase()) || b.url.toLowerCase().includes(brandSearchQuery.toLowerCase()))
+                        .map((b, idx) => {
+                          const isSelected = selectedBrandListBrands.some(item => item.name.toLowerCase() === b.name.toLowerCase());
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedBrandListBrands(prev => prev.filter(item => item.name.toLowerCase() !== b.name.toLowerCase()));
+                                } else {
+                                  setSelectedBrandListBrands(prev => [...prev, b]);
+                                }
+                              }}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-blue-50 border-blue-400 text-blue-800"
+                                  : "bg-white border-slate-200 hover:border-slate-300 text-slate-800"
+                              }`}
+                            >
+                              <div className="truncate pr-2">
+                                <span className="font-semibold text-xs block truncate">{b.name}</span>
+                                <span className="text-[10px] text-slate-400 font-mono block truncate">{b.url}</span>
+                              </div>
+                              <button
+                                type="button"
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold ${
+                                  isSelected
+                                    ? "bg-rose-50 text-rose-600 border border-rose-200"
+                                    : "bg-blue-50 text-blue-700 border border-blue-200"
+                                }`}
+                              >
+                                {isSelected ? "Remove" : "+ Add"}
+                              </button>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Actions */}
+          <div className="h-16 bg-white border-t border-slate-200 px-8 flex items-center justify-between shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setShowBrandListModal(false);
+                setBrandListNameInput("");
+                setBrandSearchQuery("");
+                setSelectedBrandListBrands([]);
+              }}
+              className="px-5 py-2 text-slate-600 hover:text-slate-900 font-semibold rounded-xl hover:bg-slate-100 cursor-pointer"
+            >
+              Close
+            </button>
+
+            {brandListModalTab === "CREATE_NEW" && (
+              <button
+                type="button"
+                onClick={() => {
+                  const trimmedName = brandListNameInput.trim();
+                  const brandNames = selectedBrandListBrands.map(b => b.name);
+
+                  if (!trimmedName) {
+                    alert("Please enter a brand list name.");
+                    return;
+                  }
+
+                  if (brandNames.length === 0) {
+                    alert("Please add at least 1 brand to the list.");
+                    return;
+                  }
+
+                  // 1. Save list to database
+                  saveBrandExclusionToDb(trimmedName, brandNames);
+
+                  // 2. Add brand names to Cockpit state
+                  if (brandListModalMode === "INCLUSION") {
+                    setCampaignState(prev => {
+                      const current = prev.brandInclusions || [];
+                      const added = brandNames.filter(b => !current.includes(b));
+                      return { ...prev, brandInclusions: [...current, ...added] };
+                    });
+                  } else {
+                    setCampaignState(prev => {
+                      const current = prev.brandExclusions || [];
+                      const added = brandNames.filter(b => !current.includes(b));
+                      return { ...prev, brandExclusions: [...current, ...added] };
+                    });
+                  }
+
+                  setShowBrandListModal(false);
+                  setBrandListNameInput("");
+                  setBrandSearchQuery("");
+                  setSelectedBrandListBrands([]);
+                }}
+                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer transition-all shadow-sm"
+              >
+                Save Brand List & Apply to Campaign
+              </button>
+            )}
           </div>
         </div>
       )}
