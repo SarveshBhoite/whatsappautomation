@@ -44,7 +44,7 @@ const getOrgId = (): string => {
     const org = localStorage.getItem("organization_id");
     if (org) return org;
   }
-  return "";
+  return "demo-org-123";
 };
 
 interface GmailAttachment {
@@ -304,28 +304,21 @@ export default function GmailDashboard() {
   const [gmailAccounts, setGmailAccounts] = useState<any[]>([]);
   const [selectedGmailAccountId, setSelectedGmailAccountId] = useState<string>("");
 
-  const fetchGmailAccounts = async () => {
+  const fetchGmailAccounts = async (): Promise<any[]> => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmail/accounts`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.accounts && data.accounts.length > 0) {
-          setGmailAccounts(data.accounts);
-          setSelectedGmailAccountId(prev => {
-            if (prev) return prev;
-            const defaultAcc = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
-            if (defaultAcc && defaultAcc.emailAddress) {
-              setConnectedEmail(defaultAcc.emailAddress);
-            }
-            return defaultAcc?.id || "";
-          });
-        }
+        const accounts = (data.accounts || []).filter((a: any) => a.emailAddress);
+        setGmailAccounts(accounts);
+        return accounts;
       }
     } catch (err) {
       console.warn("Could not fetch Gmail accounts:", err);
     }
+    return [];
   };
 
   const handleSwitchGmailAccount = async (accountId: string) => {
@@ -334,7 +327,10 @@ export default function GmailDashboard() {
       const acc = gmailAccounts.find(a => a.id === accountId);
       if (acc && acc.emailAddress) {
         setConnectedEmail(acc.emailAddress);
+        if (acc.autoReplyEnabled !== undefined) setAutoReplyEnabled(acc.autoReplyEnabled);
+        if (acc.autoReplyTemplate) setAutoReplyTemplate(acc.autoReplyTemplate);
       }
+
       await fetch(`${BACKEND_URL}/api/gmail/set-default`, {
         method: "POST",
         headers: {
@@ -343,9 +339,23 @@ export default function GmailDashboard() {
         },
         body: JSON.stringify({ accountId })
       });
-      fetchData(selectedLabel, accountId);
+
+      // Perform a full window navigation/refresh with accountId parameter to ensure fresh state and thread loading
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.set("accountId", accountId);
+        window.location.href = url.toString();
+      } else {
+        fetchData(selectedLabel, accountId);
+      }
     } catch (err) {
       console.warn("Error switching Gmail account:", err);
+      // Fallback reload
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.set("accountId", accountId);
+        window.location.href = url.toString();
+      }
     }
   };
 
@@ -396,13 +406,14 @@ export default function GmailDashboard() {
 
   const socketRef = useRef<Socket | null>(null);
 
-  // Fetch Threads fast (non-blocking for config)
-  const fetchData = async (label = selectedLabel, accountId = selectedGmailAccountId) => {
+  // Fetch Threads fast (isolated by selected account)
+  const fetchData = async (label = selectedLabel, accountId?: string) => {
     setLoading(true);
     setErrorMsg(null);
+    const activeAccId = accountId !== undefined ? accountId : selectedGmailAccountId;
     try {
       // Get threads list for current label and selected account immediately from local DB
-      const threadsRes = await fetch(`${BACKEND_URL}/api/gmail/threads?label=${label}${accountId ? `&accountId=${accountId}` : ""}`, {
+      const threadsRes = await fetch(`${BACKEND_URL}/api/gmail/threads?label=${label}${activeAccId ? `&accountId=${activeAccId}` : ""}`, {
         headers: { "x-organization-id": getOrgId() }
       });
 
@@ -429,22 +440,22 @@ export default function GmailDashboard() {
       }).then(res => res.ok ? res.json() : null).then(configData => {
         if (configData) {
           if (configData.accounts && configData.accounts.length > 0) {
-            setGmailAccounts(configData.accounts);
-            const targetId = accountId || selectedGmailAccountId;
-            const activeAcc = targetId ? configData.accounts.find((a: any) => a.id === targetId) : null;
-            const defaultAcc = activeAcc || configData.accounts.find((a: any) => a.isDefault) || configData.accounts[0];
+            const validAccounts = configData.accounts.filter((a: any) => a.emailAddress);
+            setGmailAccounts(validAccounts);
+            const targetId = activeAccId;
+            const activeAcc = targetId ? validAccounts.find((a: any) => a.id === targetId) : null;
+            const defaultAcc = activeAcc || validAccounts.find((a: any) => a.isDefault) || validAccounts[0];
             if (defaultAcc && defaultAcc.emailAddress) {
               setConnectedEmail(defaultAcc.emailAddress);
               if (defaultAcc.autoReplyEnabled !== undefined) setAutoReplyEnabled(defaultAcc.autoReplyEnabled);
               if (defaultAcc.autoReplyTemplate) setAutoReplyTemplate(defaultAcc.autoReplyTemplate);
-              if (!accountId && !selectedGmailAccountId) setSelectedGmailAccountId(defaultAcc.id);
+              if (!targetId) setSelectedGmailAccountId(defaultAcc.id);
             }
           }
         }
       }).catch(console.error);
 
       fetchRules();
-      fetchGmailAccounts();
     } catch (err: any) {
       console.error("Failed to load Gmail data:", err);
       setErrorMsg("Failed to connect to the backend server.");
@@ -738,8 +749,16 @@ export default function GmailDashboard() {
       }));
     });
 
+    const handleAccountChange = (e: any) => {
+      if (e.detail?.platform === "gmail" && e.detail?.accountId) {
+        handleSwitchGmailAccount(e.detail.accountId);
+      }
+    };
+    window.addEventListener("account-changed", handleAccountChange);
+
     return () => {
       socket.disconnect();
+      window.removeEventListener("account-changed", handleAccountChange);
     };
   }, []);
 
@@ -821,6 +840,7 @@ export default function GmailDashboard() {
           "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
+          accountId: selectedGmailAccountId,
           autoReplyEnabled,
           autoReplyTemplate,
           emailAddress: connectedEmail
@@ -858,7 +878,7 @@ export default function GmailDashboard() {
       });
       if (res.ok) {
         setDraftReplyText("");
-        await fetchData(selectedLabel);
+        await fetchData(selectedLabel, selectedGmailAccountId);
       } else {
         setErrorMsg("Failed to transmit email reply.");
       }

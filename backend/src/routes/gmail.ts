@@ -37,24 +37,9 @@ router.get("/config", async (req: Request, res: Response) => {
 
     let config = accounts.find((a) => a.isDefault) || accounts[0] || null;
 
-    if (!config) {
-      config = await prisma.gmailConfig.create({
-        data: {
-          organizationId,
-          emailAddress: "",
-          accessToken: "",
-          refreshToken: "",
-          isDefault: true,
-          isActive: true,
-          autoReplyEnabled: false,
-          autoReplyTemplate: "You are a helpful customer support agent. Answer questions politely and offer solutions.",
-        },
-      });
-    }
-
     return res.status(200).json({
       config,
-      accounts: accounts.length > 0 ? accounts : [config],
+      accounts: accounts.filter((a) => a.emailAddress),
     });
   } catch (error: any) {
     console.error("Error fetching Gmail config:", error);
@@ -67,7 +52,7 @@ router.get("/accounts", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
     const accounts = await prisma.gmailConfig.findMany({
-      where: { organizationId },
+      where: { organizationId, emailAddress: { not: "" }, isActive: true },
       orderBy: { createdAt: "desc" },
     });
     return res.status(200).json({ success: true, accounts });
@@ -104,7 +89,27 @@ router.post("/set-default", async (req: Request, res: Response) => {
 router.post("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { autoReplyEnabled, autoReplyTemplate, emailAddress, displayName } = req.body;
+    const { accountId, autoReplyEnabled, autoReplyTemplate, emailAddress, displayName } = req.body;
+
+    let config;
+    if (accountId) {
+      config = await prisma.gmailConfig.findFirst({
+        where: { id: accountId, organizationId }
+      });
+      if (config) {
+        config = await prisma.gmailConfig.update({
+          where: { id: config.id },
+          data: {
+            autoReplyEnabled: autoReplyEnabled !== undefined ? autoReplyEnabled : config.autoReplyEnabled,
+            autoReplyTemplate: autoReplyTemplate !== undefined ? autoReplyTemplate : config.autoReplyTemplate,
+            displayName: displayName || config.displayName,
+            ...(emailAddress ? { emailAddress } : {}),
+            isActive: true,
+          }
+        });
+        return res.status(200).json({ message: "Gmail configuration updated successfully", data: config });
+      }
+    }
 
     if (!emailAddress) {
       return res.status(400).json({ error: "Email address is required" });
@@ -117,7 +122,6 @@ router.post("/config", async (req: Request, res: Response) => {
       where: { organizationId, emailAddress },
     });
 
-    let config;
     if (existing) {
       config = await prisma.gmailConfig.update({
         where: { id: existing.id },

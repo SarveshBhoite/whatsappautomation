@@ -29,17 +29,22 @@ async function main() {
     console.log(`Created User: ${user.name} (${user.email})`);
     // 3. Create WhatsApp Config
     const verifyToken = process.env.WEBHOOK_VERIFY_TOKEN || "my_secure_verify_token_123";
-    const config = await prisma.whatsAppConfig.upsert({
+    let config = await prisma.whatsAppConfig.findFirst({
         where: { organizationId: org.id },
-        update: {},
-        create: {
-            organizationId: org.id,
-            phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "100000000000000", // placeholder
-            wabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "100000000000000", // placeholder
-            accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "EAAG...", // placeholder
-            webhookVerifyToken: verifyToken,
-        },
     });
+    if (!config) {
+        config = await prisma.whatsAppConfig.create({
+            data: {
+                organizationId: org.id,
+                phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "100000000000000",
+                wabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "100000000000000",
+                accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "EAAG...",
+                webhookVerifyToken: verifyToken,
+                isDefault: true,
+                isActive: true,
+            },
+        });
+    }
     console.log(`Created WhatsAppConfig for Organization.`);
     // 4. Create Default Chatbot Flow
     const brandName = "JISNU Digital Solutions PVT LTD";

@@ -496,7 +496,13 @@ export async function sendGmailReply(
   attachment?: { fileUrl?: string; fileName?: string; mimeType?: string }
 ): Promise<any> {
   try {
-    const token = await getGmailAccessToken(orgId);
+    // Find the thread locally to get its linked gmailConfigId
+    const localThread = await prisma.gmailThread.findUnique({
+      where: { threadId },
+      select: { id: true, gmailConfigId: true }
+    });
+
+    const token = await getGmailAccessToken(orgId, false, localThread?.gmailConfigId || undefined);
 
     // Fetch the thread messages to retrieve headers
     const threadRes = await axios.get(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}`, {
@@ -625,7 +631,11 @@ export async function updateGmailThreadLabels(
   removeLabelIds: string[]
 ): Promise<any> {
   try {
-    const token = await getGmailAccessToken(orgId);
+    const localThread = await prisma.gmailThread.findUnique({
+      where: { threadId },
+      select: { gmailConfigId: true }
+    });
+    const token = await getGmailAccessToken(orgId, false, localThread?.gmailConfigId || undefined);
 
     const response = await axios.post(
       `https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}/modify`,
@@ -650,7 +660,11 @@ export async function updateGmailThreadLabels(
  */
 export async function deleteGmailThreadViaApi(orgId: string, threadId: string, permanent = false): Promise<any> {
   try {
-    const token = await getGmailAccessToken(orgId);
+    const localThread = await prisma.gmailThread.findUnique({
+      where: { threadId },
+      select: { gmailConfigId: true }
+    });
+    const token = await getGmailAccessToken(orgId, false, localThread?.gmailConfigId || undefined);
 
     if (permanent) {
       // Permanently delete thread from Gmail
