@@ -45,6 +45,8 @@ model Organization {
   apiKeys             ApiKey[]
   googleCalendarConfigs GoogleCalendarConfig[]
   appointments        Appointment[]
+  subscriptions       Subscription[]
+  paymentTransactions PaymentTransaction[]
 }
 
 model User {
@@ -1509,4 +1511,61 @@ model Appointment {
   @@index([customerPhone])
   @@map("appointments")
 }
+
+model Subscription {
+  id                 String       @id @default(uuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planCode           String       // starter, professional, enterprise
+  planName           String
+  billingCycle       String       // monthly, yearly
+  amountPaid         Float
+  currency           String       @default("INR")
+  status             String       @default("ACTIVE") // ACTIVE, EXPIRED, CANCELLED, PAST_DUE
+  startDate          DateTime     @default(now())
+  endDate            DateTime
+  featuresIncluded   String[]
+  maxUsers           Int          @default(3)
+  maxContacts        Int          @default(5000)
+  maxAiTokens        Int          @default(50000)
+  paymentMode        String       @default("ONE_TIME") // ONE_TIME, EMI
+  emiMonthsPaid      Int          @default(0)          // 2 for initial activation, up to 12
+  emiTotalMonths     Int          @default(12)
+  emiMonthlyAmount   Float        @default(3000)
+  nextEmiDueDate     DateTime?
+  razorpayPaymentId  String?
+  razorpayOrderId    String?
+  razorpaySignature  String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model PaymentTransaction {
+  id                 String       @id @default(uuid())
+  organizationId     String?
+  organization       Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  razorpayOrderId    String       @unique
+  razorpayPaymentId  String?      @unique
+  razorpaySignature  String?
+  amount             Float
+  currency           String       @default("INR")
+  status             String       // created, authorized, captured, failed, refunded
+  planCode           String
+  billingCycle       String
+  customerEmail      String
+  customerPhone      String?
+  customerName       String?
+  metadata           Json?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([customerEmail])
+  @@map("payment_transactions")
+}
+
 

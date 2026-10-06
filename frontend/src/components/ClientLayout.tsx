@@ -5,7 +5,7 @@ import AppSidebar from "@/components/AppSidebar";
 
 import { AccountProvider } from "@/context/AccountContext";
 
-const PUBLIC_ROUTES = ["/", "/login", "/admin", "/privacy", "/terms", "/reviews/submit"];
+const PUBLIC_ROUTES = ["/", "/login", "/admin", "/privacy", "/terms", "/reviews/submit", "/pricing"];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

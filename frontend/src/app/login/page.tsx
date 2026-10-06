@@ -178,9 +178,17 @@ export default function LoginPage() {
           </form>
 
           {/* Org Isolation Note */}
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-            <span>Secure Multi-Tenant Scoped Session</span>
+          <div className="pt-2 border-t border-slate-100 flex flex-col items-center justify-center gap-2 text-[11px] text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              <span>Secure Multi-Tenant Scoped Session</span>
+            </div>
+            <div>
+              Don&apos;t have an account yet?{" "}
+              <Link href="/pricing" className="text-sky-600 font-bold hover:underline">
+                View Plans &amp; Get Started →
+              </Link>
+            </div>
           </div>
         </div>
 

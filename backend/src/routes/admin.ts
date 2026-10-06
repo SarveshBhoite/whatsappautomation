@@ -2768,7 +2768,11 @@ router.get("/organizations", async (req: Request, res: Response) => {
         waConfigs: { select: { phoneNumberId: true, wabaId: true } },
         gmbConfigs: { select: { locationId: true, accountId: true } },
         gmailConfigs: { select: { emailAddress: true } },
-        linkedInConfig: { select: { memberName: true, companyName: true } }
+        linkedInConfig: { select: { memberName: true, companyName: true } },
+        subscriptions: {
+          orderBy: { createdAt: "desc" },
+          take: 1
+        }
       },
       orderBy: { createdAt: "desc" }
     });
@@ -2783,7 +2787,15 @@ router.get("/organizations", async (req: Request, res: Response) => {
 // POST: Create a new organization and default Client Admin user
 router.post("/organizations", async (req: Request, res: Response) => {
   try {
-    const { name, adminEmail, adminName, adminPassword, enabledModules } = req.body;
+    const {
+      name,
+      adminEmail,
+      adminName,
+      adminPassword,
+      enabledModules,
+      paymentMode = "ONE_TIME",
+      planName = "All-in-One Annual Growth Plan"
+    } = req.body;
 
     if (!name || !adminEmail) {
       return res.status(400).json({ error: "Organization name and admin email are required" });
@@ -2792,6 +2804,19 @@ router.post("/organizations", async (req: Request, res: Response) => {
     const defaultModules = enabledModules || [
       "whatsapp", "instagram", "gmb", "gmail", "linkedin", "youtube", "google_ads", "meta_ads", "reviews", "ai_agent", "tools"
     ];
+
+    const isEmi = paymentMode === "EMI";
+    const startDate = new Date();
+    const endDate = new Date();
+    let nextEmiDueDate: Date | null = null;
+
+    if (isEmi) {
+      endDate.setDate(endDate.getDate() + 60);
+      nextEmiDueDate = new Date();
+      nextEmiDueDate.setDate(nextEmiDueDate.getDate() + 60);
+    } else {
+      endDate.setFullYear(endDate.getFullYear() + 1);
+    }
 
     const organization = await (prisma.organization as any).create({
       data: {
@@ -2805,10 +2830,35 @@ router.post("/organizations", async (req: Request, res: Response) => {
             password: adminPassword || "admin123",
             role: "admin"
           }
+        },
+        subscriptions: {
+          create: {
+            planCode: "all_in_one",
+            planName: planName || "All-in-One Annual Growth Plan",
+            billingCycle: isEmi ? "yearly_emi" : "yearly_full",
+            amountPaid: isEmi ? 7080 : 17699, // With 18% GST standard base
+            currency: "INR",
+            status: "ACTIVE",
+            startDate,
+            endDate,
+            paymentMode: isEmi ? "EMI" : "ONE_TIME",
+            emiMonthsPaid: isEmi ? 2 : 12,
+            emiTotalMonths: 12,
+            emiMonthlyAmount: 3000,
+            nextEmiDueDate,
+            featuresIncluded: defaultModules,
+            maxUsers: 10,
+            maxContacts: 50000,
+            maxAiTokens: 0
+          }
         }
       },
       include: {
-        users: { select: { id: true, email: true, name: true, role: true, password: true } }
+        users: { select: { id: true, email: true, name: true, role: true, password: true } },
+        subscriptions: {
+          orderBy: { createdAt: "desc" },
+          take: 1
+        }
       }
     });
 
@@ -2833,7 +2883,11 @@ router.put("/organizations/:id", async (req: Request, res: Response) => {
         ...(typeof status === "string" && { status })
       },
       include: {
-        users: { select: { id: true, email: true, name: true, role: true } }
+        users: { select: { id: true, email: true, name: true, role: true } },
+        subscriptions: {
+          orderBy: { createdAt: "desc" },
+          take: 1
+        }
       }
     });
 
@@ -2841,6 +2895,88 @@ router.put("/organizations/:id", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error updating organization:", error);
     return res.status(500).json({ error: "Failed to update organization", details: error.message });
+  }
+});
+
+// PUT: Update or record EMI / Subscription details for an organization (Super Admin)
+router.put("/organizations/:id/subscription", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      status,
+      paymentMode,
+      emiMonthsPaid,
+      nextEmiDueDate,
+      amountPaid
+    } = req.body;
+
+    // Check if subscription exists
+    const existingSub = await (prisma as any).subscription.findFirst({
+      where: { organizationId: id },
+      orderBy: { createdAt: "desc" }
+    });
+
+    let updatedSub;
+
+    if (existingSub) {
+      const updateData: any = {};
+      if (status) updateData.status = status;
+      if (paymentMode) updateData.paymentMode = paymentMode;
+      if (typeof emiMonthsPaid === "number") updateData.emiMonthsPaid = emiMonthsPaid;
+      if (nextEmiDueDate !== undefined) updateData.nextEmiDueDate = nextEmiDueDate ? new Date(nextEmiDueDate) : null;
+      if (typeof amountPaid === "number") updateData.amountPaid = amountPaid;
+
+      // If all 12 EMIs paid, update end date to full year
+      if (emiMonthsPaid >= 12) {
+        const fullYearEnd = new Date(existingSub.startDate);
+        fullYearEnd.setFullYear(fullYearEnd.getFullYear() + 1);
+        updateData.endDate = fullYearEnd;
+        updateData.nextEmiDueDate = null;
+      }
+
+      updatedSub = await (prisma as any).subscription.update({
+        where: { id: existingSub.id },
+        data: updateData
+      });
+    } else {
+      // Create fresh subscription for org
+      const isEmi = paymentMode === "EMI";
+      const startDate = new Date();
+      const endDate = new Date();
+      if (isEmi) {
+        endDate.setDate(endDate.getDate() + 60);
+      } else {
+        endDate.setFullYear(endDate.getFullYear() + 1);
+      }
+
+      updatedSub = await (prisma as any).subscription.create({
+        data: {
+          organizationId: id,
+          planCode: "all_in_one",
+          planName: "All-in-One Annual Growth Plan",
+          billingCycle: isEmi ? "yearly_emi" : "yearly_full",
+          amountPaid: amountPaid || (isEmi ? 7080 : 17699),
+          currency: "INR",
+          status: status || "ACTIVE",
+          startDate,
+          endDate,
+          paymentMode: isEmi ? "EMI" : "ONE_TIME",
+          emiMonthsPaid: isEmi ? (emiMonthsPaid || 2) : 12,
+          emiTotalMonths: 12,
+          emiMonthlyAmount: 3000,
+          nextEmiDueDate: nextEmiDueDate ? new Date(nextEmiDueDate) : null,
+          featuresIncluded: ["whatsapp", "instagram", "gmb", "gmail", "linkedin", "youtube", "google_ads", "meta_ads", "reviews", "ai_agent", "tools"],
+          maxUsers: 10,
+          maxContacts: 50000,
+          maxAiTokens: 0
+        }
+      });
+    }
+
+    return res.status(200).json({ success: true, subscription: updatedSub });
+  } catch (error: any) {
+    console.error("Error updating organization subscription:", error);
+    return res.status(500).json({ error: "Failed to update subscription", details: error.message });
   }
 });
 
@@ -2870,7 +3006,9 @@ router.delete("/organizations/:id", async (req: Request, res: Response) => {
   try {
     const orgId = req.params.id as string;
 
-    // Delete related configs/users first if not cascaded
+    // Delete related configs/users/subscriptions first if not cascaded
+    await (prisma as any).subscription.deleteMany({ where: { organizationId: orgId } });
+    await (prisma as any).paymentTransaction.deleteMany({ where: { organizationId: orgId } });
     await prisma.user.deleteMany({ where: { organizationId: orgId } });
     await prisma.whatsAppConfig.deleteMany({ where: { organizationId: orgId } });
     await prisma.instagramConfig.deleteMany({ where: { organizationId: orgId } });

@@ -126,18 +126,26 @@ export default function LandingPage() {
             <a href="#calculator" className="hover:text-brand-blue transition-colors">
               ROI Impact
             </a>
+            <Link href="/pricing" className="text-brand-blue font-bold hover:underline">
+              Pricing &amp; Plans
+            </Link>
           </nav>
 
           {/* Action CTAs using Clean Shadcn Button components */}
           <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/pricing">
+              <Button variant="outline" size="sm" className="hidden sm:inline-flex font-bold text-sky-600 border-sky-300 hover:bg-sky-50">
+                View Pricing
+              </Button>
+            </Link>
             <Link href="/login">
               <Button variant="ghost" size="sm" className="font-bold text-slate-700">
                 Sign In
               </Button>
             </Link>
-            <Link href="/login">
+            <Link href="/pricing">
               <Button variant="default" size="default" className="shadow-md shadow-brand-blue/20">
-                Dashboard <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Get Started <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
             </Link>
           </div>

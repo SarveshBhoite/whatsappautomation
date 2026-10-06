@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Building2, Plus, Shield, Check, X, Copy, RefreshCw, Layers, Users, Search,
   Edit3, Trash2, Power, CheckCircle2, AlertCircle, ArrowLeft, Key, Lock, Mail,
-  ExternalLink, Sparkles
+  ExternalLink, Sparkles, CreditCard, CalendarCheck, Clock
 } from "lucide-react";
 
 interface User {
@@ -15,12 +15,28 @@ interface User {
   role: string;
 }
 
+interface SubscriptionInfo {
+  id: string;
+  planName: string;
+  billingCycle: string;
+  paymentMode?: string;
+  amountPaid: number;
+  status: string;
+  startDate: string;
+  endDate: string;
+  emiMonthsPaid?: number;
+  emiTotalMonths?: number;
+  emiMonthlyAmount?: number;
+  nextEmiDueDate?: string | null;
+}
+
 interface Organization {
   id: string;
   name: string;
   enabledModules: string[];
   status: string;
   users: User[];
+  subscriptions?: SubscriptionInfo[];
   waConfig?: { phoneNumberId: string; wabaId: string } | null;
   gmbConfig?: { locationId: string; accountId: string } | null;
   gmailConfig?: { emailAddress: string } | null;
@@ -74,6 +90,7 @@ export default function AdminPage() {
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [newAdminName, setNewAdminName] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("admin123");
+  const [newPaymentMode, setNewPaymentMode] = useState<"ONE_TIME" | "EMI">("ONE_TIME");
   const [selectedModules, setSelectedModules] = useState<string[]>(ALL_MODULE_KEYS);
   const [creating, setCreating] = useState(false);
 
@@ -82,6 +99,9 @@ export default function AdminPage() {
   const [editName, setEditName] = useState("");
   const [editStatus, setEditStatus] = useState("ACTIVE");
   const [editModules, setEditModules] = useState<string[]>([]);
+  const [editPaymentMode, setEditPaymentMode] = useState<"ONE_TIME" | "EMI">("ONE_TIME");
+  const [editEmiMonthsPaid, setEditEmiMonthsPaid] = useState<number>(2);
+  const [editNextEmiDueDate, setEditNextEmiDueDate] = useState<string>("");
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Toast State
@@ -136,6 +156,7 @@ export default function AdminPage() {
           adminName: newAdminName.trim() || "Client Admin",
           adminPassword: newAdminPassword.trim() || "admin123",
           enabledModules: selectedModules,
+          paymentMode: newPaymentMode,
         }),
       });
 
@@ -144,11 +165,12 @@ export default function AdminPage() {
         throw new Error(data.error || "Failed to create client organization");
       }
 
-      showToast(`✓ Organization "${newOrgName}" onboarded successfully!`);
+      showToast(`✓ Organization "${newOrgName}" onboarded with ${newPaymentMode === "EMI" ? "EMI Basis (₹3,000/mo)" : "1-Year Upfront (₹14,999)"}!`);
       setNewOrgName("");
       setNewAdminEmail("");
       setNewAdminName("");
       setNewAdminPassword("admin123");
+      setNewPaymentMode("ONE_TIME");
       setShowCreateModal(false);
       fetchOrganizations();
     } catch (err: any) {
@@ -163,6 +185,17 @@ export default function AdminPage() {
     setEditName(org.name);
     setEditStatus(org.status || "ACTIVE");
     setEditModules(org.enabledModules || []);
+
+    const sub = org.subscriptions?.[0];
+    if (sub) {
+      setEditPaymentMode((sub.paymentMode as any) || "ONE_TIME");
+      setEditEmiMonthsPaid(sub.emiMonthsPaid ?? (sub.paymentMode === "EMI" ? 2 : 12));
+      setEditNextEmiDueDate(sub.nextEmiDueDate ? sub.nextEmiDueDate.split("T")[0] : "");
+    } else {
+      setEditPaymentMode("ONE_TIME");
+      setEditEmiMonthsPaid(12);
+      setEditNextEmiDueDate("");
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -170,6 +203,7 @@ export default function AdminPage() {
 
     setSavingEdit(true);
     try {
+      // 1. Update organization name, status and modules
       const res = await fetch(`${BACKEND_URL}/api/admin/organizations/${editingOrg.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -185,7 +219,19 @@ export default function AdminPage() {
         throw new Error(data.error || "Failed to update organization");
       }
 
-      showToast(`✓ Saved configuration for "${editName}"`);
+      // 2. Update subscription / EMI parameters
+      await fetch(`${BACKEND_URL}/api/admin/organizations/${editingOrg.id}/subscription`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentMode: editPaymentMode,
+          emiMonthsPaid: Number(editEmiMonthsPaid),
+          nextEmiDueDate: editNextEmiDueDate ? new Date(editNextEmiDueDate).toISOString() : null,
+          status: editStatus === "ACTIVE" ? "ACTIVE" : "SUSPENDED",
+        }),
+      });
+
+      showToast(`✓ Saved configuration and subscription for "${editName}"`);
       setEditingOrg(null);
       fetchOrganizations();
     } catch (err: any) {
@@ -283,10 +329,10 @@ export default function AdminPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-xs">
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Client Organizations</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Clients</p>
               <h3 className="text-2xl font-black text-slate-900 mt-1">{organizations.length}</h3>
             </div>
             <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-sky-600 shadow-2xs">
@@ -303,6 +349,35 @@ export default function AdminPage() {
             </div>
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 shadow-2xs">
               <CheckCircle2 className="h-5 w-5" />
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-xs">
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plan Models</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                  {organizations.filter(o => o.subscriptions?.[0]?.paymentMode === "ONE_TIME").length} Upfront
+                </span>
+                <span className="text-xs font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+                  {organizations.filter(o => o.subscriptions?.[0]?.paymentMode === "EMI").length} EMI
+                </span>
+              </div>
+            </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-600 shadow-2xs">
+              <CalendarCheck className="h-5 w-5" />
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-xs">
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Paid Revenue</p>
+              <h3 className="text-2xl font-black text-slate-900 font-mono mt-1">
+                ₹{organizations.reduce((acc, o) => acc + (o.subscriptions?.[0]?.amountPaid || 0), 0).toLocaleString("en-IN")}
+              </h3>
+            </div>
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-600 shadow-2xs">
+              <CreditCard className="h-5 w-5" />
             </div>
           </div>
         </div>
@@ -523,6 +598,62 @@ export default function AdminPage() {
                     </div>
 
                   </div>
+
+                  {/* Subscription & EMI Contract Summary Banner */}
+                  {org.subscriptions && org.subscriptions.length > 0 && (
+                    <div className="p-3.5 rounded-2xl bg-sky-50/70 border border-sky-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-white border border-sky-200 text-brand-blue shadow-2xs">
+                          <CreditCard className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 font-bold text-slate-900">
+                            <span>{org.subscriptions[0].planName}</span>
+                            <span className={`px-2 py-0.2 rounded-md text-[10px] font-black uppercase tracking-wide border ${
+                              org.subscriptions[0].paymentMode === "EMI"
+                                ? "bg-amber-100 text-amber-800 border-amber-300"
+                                : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            }`}>
+                              {org.subscriptions[0].paymentMode === "EMI" ? "1-Year on EMI" : "1-Year Upfront Paid"}
+                            </span>
+                            <span className="text-slate-400 font-normal">|</span>
+                            <span className="text-emerald-700 font-mono font-bold">
+                              ₹{org.subscriptions[0].amountPaid.toLocaleString("en-IN")} paid
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-600 mt-0.5 flex flex-wrap items-center gap-3">
+                            <span>Contract: 12 Months</span>
+                            {org.subscriptions[0].paymentMode === "EMI" ? (
+                              <>
+                                <span className="font-semibold text-amber-900">
+                                  EMI Status: {org.subscriptions[0].emiMonthsPaid || 2} / 12 Months ({12 - (org.subscriptions[0].emiMonthsPaid || 2)} remaining @ ₹{org.subscriptions[0].emiMonthlyAmount || 3000}/mo)
+                                </span>
+                                {org.subscriptions[0].nextEmiDueDate && (
+                                  <span className="text-slate-500 font-mono">
+                                    Next EMI: {new Date(org.subscriptions[0].nextEmiDueDate).toLocaleDateString("en-IN")}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-emerald-700 font-semibold">
+                                Full Year Complete • Valid till {new Date(org.subscriptions[0].endDate).toLocaleDateString("en-IN")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                          org.subscriptions[0].status === "ACTIVE"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-slate-100 text-slate-600 border-slate-300"
+                        }`}>
+                          ● {org.subscriptions[0].status}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -611,6 +742,57 @@ export default function AdminPage() {
                     onChange={(e) => setNewAdminPassword(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 text-xs font-mono"
                   />
+                </div>
+              </div>
+
+              {/* Annual Contract & Payment Model */}
+              <div className="bg-sky-50/60 border border-sky-200 rounded-2xl p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <label className="block text-slate-900 text-xs font-bold flex items-center gap-1.5">
+                    <CreditCard className="h-4 w-4 text-sky-600" />
+                    Commercial Billing Agreement (1-Year Contract)
+                  </label>
+                  <span className="text-[10px] font-extrabold text-sky-700 bg-white px-2 py-0.5 rounded-full border border-sky-200 uppercase">
+                    Annual Term
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <label className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
+                    newPaymentMode === "ONE_TIME"
+                      ? "bg-white border-emerald-300 shadow-xs ring-1 ring-emerald-300"
+                      : "bg-white/60 border-slate-200 hover:bg-white"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="paymentMode"
+                      checked={newPaymentMode === "ONE_TIME"}
+                      onChange={() => setNewPaymentMode("ONE_TIME")}
+                      className="mt-0.5 text-emerald-600 focus:ring-0"
+                    />
+                    <div>
+                      <p className="font-extrabold text-slate-900 text-xs">One-Time Upfront (₹14,999)</p>
+                      <p className="text-[11px] text-slate-500">12 months prepaid • ₹17,699 incl. 18% GST</p>
+                    </div>
+                  </label>
+
+                  <label className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
+                    newPaymentMode === "EMI"
+                      ? "bg-white border-amber-300 shadow-xs ring-1 ring-amber-300"
+                      : "bg-white/60 border-slate-200 hover:bg-white"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="paymentMode"
+                      checked={newPaymentMode === "EMI"}
+                      onChange={() => setNewPaymentMode("EMI")}
+                      className="mt-0.5 text-amber-600 focus:ring-0"
+                    />
+                    <div>
+                      <p className="font-extrabold text-slate-900 text-xs">Monthly EMI (₹3,000/mo)</p>
+                      <p className="text-[11px] text-slate-500">First 2 months = ₹6,000 (₹7,080 w/ GST) • 10 EMIs remain</p>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -759,6 +941,73 @@ export default function AdminPage() {
                     <option value="SUSPENDED">SUSPENDED (Block Login &amp; Access)</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Subscription & EMI Agreement Editor */}
+              <div className="bg-sky-50/60 border border-sky-200 rounded-2xl p-4 space-y-3.5">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <CreditCard className="h-4 w-4 text-sky-600" />
+                    Subscription Plan &amp; EMI Installment Lifecycle
+                  </h4>
+                  <span className="text-[10px] font-extrabold text-sky-700 bg-white px-2 py-0.5 rounded-full border border-sky-200 uppercase">
+                    12-Month Contract
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-slate-700 text-[11px] font-bold mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={editPaymentMode}
+                      onChange={(e) => setEditPaymentMode(e.target.value as any)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs font-bold focus:outline-none focus:border-sky-500 cursor-pointer"
+                    >
+                      <option value="ONE_TIME">1-Year Upfront Paid (₹14,999)</option>
+                      <option value="EMI">Monthly EMI Plan (₹3,000/mo)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 text-[11px] font-bold mb-1">
+                      Installments Cleared
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="12"
+                        value={editEmiMonthsPaid}
+                        onChange={(e) => setEditEmiMonthsPaid(Number(e.target.value))}
+                        disabled={editPaymentMode === "ONE_TIME"}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs font-mono font-bold focus:outline-none focus:border-sky-500 disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      <span className="text-xs text-slate-500 font-bold whitespace-nowrap">/ 12 Mos</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 text-[11px] font-bold mb-1">
+                      Next EMI Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={editNextEmiDueDate}
+                      onChange={(e) => setEditNextEmiDueDate(e.target.value)}
+                      disabled={editPaymentMode === "ONE_TIME" || editEmiMonthsPaid >= 12}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs font-mono focus:outline-none focus:border-sky-500 disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {editPaymentMode === "EMI" && (
+                  <p className="text-[11px] text-amber-800 bg-amber-50/70 border border-amber-200 rounded-xl p-2.5">
+                    ● Initial 2 months compulsory upfront paid (₹6,000). Remaining:{" "}
+                    <strong>{Math.max(0, 12 - editEmiMonthsPaid)} EMIs</strong> @ ₹3,000/mo.
+                  </p>
+                )}
               </div>
 
               {/* Categorized Module Toggles */}

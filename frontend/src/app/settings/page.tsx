@@ -44,7 +44,10 @@ import {
   Trash2,
   ShieldAlert,
   Building2,
-  ChevronDown
+  ChevronDown,
+  CreditCard,
+  CalendarCheck,
+  Sparkles
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -402,7 +405,29 @@ export default function Dashboard() {
   });
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram" | "youtube">("whatsapp");
-  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google" | "youtube" | "api-keys">("whatsapp");
+  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google" | "youtube" | "api-keys" | "billing">("whatsapp");
+
+  // Client Subscription & EMI Plan State
+  const [subscriptionData, setSubscriptionData] = useState<any | null>(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
+
+  const fetchSubscriptionStatus = async () => {
+    try {
+      setLoadingSubscription(true);
+      const orgId = getOrgId();
+      const res = await fetch(`${BACKEND_URL}/api/subscription/status`, {
+        headers: { "x-organization-id": orgId },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSubscriptionData(data.subscription);
+      }
+    } catch (err) {
+      console.error("Failed to fetch subscription status:", err);
+    } finally {
+      setLoadingSubscription(false);
+    }
+  };
 
   // Instagram Permissions & App Review Compliance States
   const [showIgPermInspector, setShowIgPermInspector] = useState(false);
@@ -484,10 +509,11 @@ export default function Dashboard() {
       const tab = params.get("tab");
       if (tab === "chats_whatsapp" || tab === "chats_instagram" || tab === "flows" || tab === "settings") {
         setActiveTab(tab as any);
-      } else if (tab === "instagram" || tab === "whatsapp" || tab === "google" || tab === "youtube" || tab === "api-keys") {
+      } else if (tab === "instagram" || tab === "whatsapp" || tab === "google" || tab === "youtube" || tab === "api-keys" || tab === "billing") {
         setActiveTab("settings");
         setSettingsSubTab(tab as any);
       }
+      fetchSubscriptionStatus();
 
       const oauth = params.get("oauth");
       const platform = params.get("platform");
@@ -3635,6 +3661,20 @@ print(res.json())`;
                 >
                   <Key className="h-4 w-4" /> API Keys & Developer
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsSubTab("billing");
+                    fetchSubscriptionStatus();
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "billing"
+                      ? "bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/25"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
+                >
+                  <CreditCard className="h-4 w-4" /> Subscription &amp; Billing
+                </button>
               </div>
             </div>
 
@@ -4587,6 +4627,201 @@ print(res.json())`;
                         </table>
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+            ) : settingsSubTab === "billing" ? (
+              <div className="w-full space-y-6 animate-fadeIn pb-12">
+                {/* BILLING & SUBSCRIPTION BANNER */}
+                <div className="bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-6 text-white">
+                  <div className="space-y-2 z-10">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-sky-500/20 border border-sky-400/30 rounded-2xl text-sky-400">
+                        <CreditCard className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl md:text-2xl font-black tracking-tight">Active Subscription &amp; Billing</h3>
+                        <p className="text-xs text-sky-200">
+                          Review your organization plan, EMI schedule, and commercial entitlements.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 z-10">
+                    <Link
+                      href="/pricing"
+                      className="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-sky-500/20 transition-all cursor-pointer flex items-center gap-2"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      <span>View Plans &amp; Upgrades</span>
+                    </Link>
+                  </div>
+                </div>
+
+                {loadingSubscription ? (
+                  <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
+                    <RefreshCw className="h-6 w-6 animate-spin text-sky-600" />
+                    <p className="text-xs font-semibold">Retrieving subscription details...</p>
+                  </div>
+                ) : subscriptionData ? (
+                  <div className="space-y-6">
+                    {/* Primary Contract Card */}
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-5">
+                        <div className="space-y-1">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-sky-600">Enterprise Plan</span>
+                          <h4 className="text-2xl font-black text-slate-900">{subscriptionData.planName}</h4>
+                          <p className="text-xs text-slate-500">
+                            Contract Term: 1 Full Year (12 Months) • Status:{" "}
+                            <span className="font-bold text-emerald-600 uppercase">{subscriptionData.status}</span>
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wide border ${
+                            subscriptionData.paymentMode === "EMI"
+                              ? "bg-amber-50 text-amber-800 border-amber-300"
+                              : "bg-emerald-50 text-emerald-800 border-emerald-300"
+                          }`}>
+                            {subscriptionData.paymentMode === "EMI" ? "Monthly EMI Basis" : "1-Year Upfront Paid"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Payment Mode Stats */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Paid To Date</p>
+                          <p className="text-2xl font-black text-slate-900 font-mono">
+                            ₹{subscriptionData.amountPaid?.toLocaleString("en-IN") || "0"}
+                          </p>
+                          <p className="text-[10px] text-slate-500">Inclusive of 18% GST</p>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            {subscriptionData.paymentMode === "EMI" ? "Installment Progress" : "Contract Validity"}
+                          </p>
+                          <p className="text-2xl font-black text-sky-600 font-mono">
+                            {subscriptionData.paymentMode === "EMI"
+                              ? `${subscriptionData.emiMonthsPaid || 2} / 12 Months`
+                              : "12 / 12 Months"}
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            {subscriptionData.paymentMode === "EMI"
+                              ? `${12 - (subscriptionData.emiMonthsPaid || 2)} remaining monthly payments`
+                              : "Complete annual license"}
+                          </p>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            {subscriptionData.paymentMode === "EMI" ? "Next EMI Due Date" : "Renewal Date"}
+                          </p>
+                          <p className="text-xl font-black text-slate-900 font-mono">
+                            {subscriptionData.nextEmiDueDate
+                              ? new Date(subscriptionData.nextEmiDueDate).toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric"
+                                })
+                              : new Date(subscriptionData.endDate).toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric"
+                                })}
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            {subscriptionData.paymentMode === "EMI"
+                              ? `Monthly EMI: ₹${subscriptionData.emiMonthlyAmount || 3000}/mo + GST`
+                              : "Auto-renew or upgrade yearly"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* EMI Progress Bar (if EMI) */}
+                      {subscriptionData.paymentMode === "EMI" && (
+                        <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
+                          <div className="flex justify-between items-center text-xs font-bold text-amber-900">
+                            <span className="flex items-center gap-1.5">
+                              <CalendarCheck className="h-4 w-4 text-amber-700" />
+                              EMI Payment Lifecycle
+                            </span>
+                            <span>{Math.round(((subscriptionData.emiMonthsPaid || 2) / 12) * 100)}% Complete</span>
+                          </div>
+                          
+                          <div className="w-full bg-amber-200/80 rounded-full h-3 overflow-hidden">
+                            <div
+                              className="bg-amber-600 h-3 rounded-full transition-all duration-500"
+                              style={{ width: `${((subscriptionData.emiMonthsPaid || 2) / 12) * 100}%` }}
+                            />
+                          </div>
+
+                          <div className="flex justify-between items-center text-[11px] text-amber-800">
+                            <span>Initial activation paid (First 2 Months = ₹6,000 upfront)</span>
+                            <span>10 remaining installments @ ₹3,000/mo</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Included Capabilities List */}
+                      <div className="space-y-3 pt-3">
+                        <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Contract Entitlements &amp; BYO LLM Key Policy
+                        </h5>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                            <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold text-slate-900">Official Omnichannel Hub</p>
+                              <p className="text-[11px] text-slate-500">Official WhatsApp Cloud API, Instagram DMs, Google Business &amp; Ads.</p>
+                            </div>
+                          </div>
+
+                          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                            <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold text-slate-900">Bring Your Own LLM Keys</p>
+                              <p className="text-[11px] text-slate-500">Direct integration with OpenAI, Gemini, or Claude. Zero platform markups on tokens.</p>
+                            </div>
+                          </div>
+
+                          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                            <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold text-slate-900">Multi-Channel Expansion</p>
+                              <p className="text-[11px] text-slate-500">+₹2,000 per extra connected number or account.</p>
+                            </div>
+                          </div>
+
+                          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                            <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold text-slate-900">Unlimited Automation &amp; Contacts</p>
+                              <p className="text-[11px] text-slate-500">No artificial cap on flow triggers or contact database size.</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white border border-slate-200 rounded-3xl p-8 text-center space-y-4 shadow-sm">
+                    <CreditCard className="h-10 w-10 text-slate-400 mx-auto" />
+                    <div>
+                      <h4 className="text-base font-bold text-slate-900">No Active Commercial Subscription Found</h4>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                        Your workspace is currently operating on trial mode. Choose either a 1-Year Upfront payment (₹14,999) or EMI basis (₹3,000/mo) to unlock the full platform.
+                      </p>
+                    </div>
+                    <Link
+                      href="/pricing"
+                      className="inline-flex items-center gap-2 px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-md shadow-sky-500/20 transition-all cursor-pointer"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      <span>Select Subscription Plan</span>
+                    </Link>
                   </div>
                 )}
               </div>

@@ -48,6 +48,9 @@ export default function Footer() {
             <Link href="/#comparison" className="hover:text-blue-600 transition-colors">
               Comparison
             </Link>
+            <Link href="/pricing" className="text-blue-600 font-bold hover:underline">
+              Pricing
+            </Link>
             <Link href="/privacy" className="hover:text-blue-600 transition-colors">
               Privacy Policy
             </Link>

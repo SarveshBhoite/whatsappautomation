@@ -267,7 +267,7 @@ export interface ObjectiveDefinition {
   badge?: string;
 }
 
-export const MANUAL_OBJECTIVES: ObjectiveDefinition[] = [
+const MANUAL_OBJECTIVES: ObjectiveDefinition[] = [
   {
     id: "SALES",
     title: "Sales",

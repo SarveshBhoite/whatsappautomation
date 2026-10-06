@@ -49,12 +49,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sora.variable} ${inter.variable} h-full antialiased`}
+      className={`${sora.variable} ${inter.variable} antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">
+      <body className="min-h-screen w-full flex flex-col font-sans overflow-x-hidden">
         <Script
           src="https://connect.facebook.net/en_US/sdk.js"
           strategy="afterInteractive"
+        />
+        <Script
+          src="https://checkout.razorpay.com/v1/checkout.js"
+          strategy="lazyOnload"
         />
         <ClientLayout>{children}</ClientLayout>
       </body>

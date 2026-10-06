@@ -31,6 +31,7 @@ import metaAdsRouter from "./routes/metaAds";
 import reportsRouter from "./routes/reports";
 import whatsappEmbeddedRouter from "./routes/whatsappEmbedded";
 import instagramCommentToDmRouter from "./routes/instagramCommentToDm";
+import subscriptionRouter from "./routes/subscription";
 // Enable JSON serialization of BigInt values from Prisma queries
 (BigInt.prototype as any).toJSON = function () {
   const intVal = Number(this);
@@ -132,6 +133,7 @@ app.use("/api/google-calendar", googleCalendarRouter);
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api/api-keys", apiKeysRouter);
 app.use("/api/v1", externalApiV1Router);
+app.use("/api/subscription", subscriptionRouter);
 app.use("/v1", externalApiV1Router);
 
 // Start 15-second background drip scheduler interval
