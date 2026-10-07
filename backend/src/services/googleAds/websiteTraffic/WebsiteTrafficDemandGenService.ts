@@ -1162,14 +1162,21 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
         const allVideos = [...(videos || []), ...(youtubeVideos || [])];
         let resolvedVideoAsset: string | null = null;
         for (const v of allVideos) {
-          const raw = typeof v === "string" ? v : v?.asset || v?.videoId || v?.id || "";
+          const raw = typeof v === "string" ? v : v?.asset || v?.videoId || v?.url || v?.id || "";
           if (raw.startsWith("customers/") && raw.includes("/assets/")) {
             resolvedVideoAsset = raw;
             break;
           }
+          if (raw) {
+            const uploaded = await GoogleAdsBaseService.uploadYouTubeVideoAsset(organizationId, customerId, raw);
+            if (uploaded) {
+              resolvedVideoAsset = uploaded;
+              break;
+            }
+          }
         }
 
-        if (!resolvedVideoAsset && !isAiGuided) {
+        if (!resolvedVideoAsset) {
           try {
             const vRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:searchStream`, {
               query: "SELECT asset.resource_name FROM asset WHERE asset.type = 'YOUTUBE_VIDEO' LIMIT 1"
@@ -1179,7 +1186,7 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
         }
 
         if (!resolvedVideoAsset) {
-          throw new Error("A valid YouTube video asset is required for Video Demand Gen ads.");
+          throw new Error("A valid YouTube video asset is required for Video Demand Gen ads. Please provide a valid YouTube video URL or ID.");
         }
         if (!resolvedLogoAsset) {
           throw new Error("A logo image asset is required for Video Demand Gen ads.");
@@ -1437,6 +1444,12 @@ export class WebsiteTrafficDemandGenService extends GoogleAdsBaseService {
           optLandingPagePreviews: payload.optLandingPagePreviews !== false
         },
         includeViewThrough: payload.includeViewThrough !== false,
+        demandGenBudgetType: String(payload.demandGenBudgetType || payload.budgetType || "Daily"),
+        callPhoneNumber: payload.callPhoneNumber || null,
+        adName: payload.adName || null,
+        brandExclusions: payload.brandExclusions || null,
+        brandInclusions: payload.brandInclusions || null,
+        valueRules: payload.valueRules || null,
         sitelinks,
         callouts,
         structuredSnippets,

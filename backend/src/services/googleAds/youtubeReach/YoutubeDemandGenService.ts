@@ -1115,14 +1115,21 @@ export class YoutubeDemandGenService extends GoogleAdsBaseService {
         const allVideos = [...(videos || []), ...(youtubeVideos || [])];
         let resolvedVideoAsset: string | null = null;
         for (const v of allVideos) {
-          const raw = typeof v === "string" ? v : v?.asset || v?.videoId || v?.id || "";
+          const raw = typeof v === "string" ? v : v?.asset || v?.videoId || v?.url || v?.id || "";
           if (raw.startsWith("customers/") && raw.includes("/assets/")) {
             resolvedVideoAsset = raw;
             break;
           }
+          if (raw) {
+            const uploaded = await GoogleAdsBaseService.uploadYouTubeVideoAsset(organizationId, customerId, raw);
+            if (uploaded) {
+              resolvedVideoAsset = uploaded;
+              break;
+            }
+          }
         }
 
-        if (!resolvedVideoAsset && !isAiGuided) {
+        if (!resolvedVideoAsset) {
           try {
             const vRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:searchStream`, {
               query: "SELECT asset.resource_name FROM asset WHERE asset.type = 'YOUTUBE_VIDEO' LIMIT 1"
@@ -1132,7 +1139,7 @@ export class YoutubeDemandGenService extends GoogleAdsBaseService {
         }
 
         if (!resolvedVideoAsset) {
-          throw new Error("A valid YouTube video asset is required for Video Demand Gen ads.");
+          throw new Error("A valid YouTube video asset is required for Video Demand Gen ads. Please provide a valid YouTube video URL or ID.");
         }
 
         const safeLongHeadlines = (validLongHeadlines.length > 0 ? validLongHeadlines : [validHeadlines[0]])
@@ -1364,14 +1371,33 @@ export class YoutubeDemandGenService extends GoogleAdsBaseService {
         devices,
         adSchedule,
         ipExclusions,
-        customerAcquisitionMode,
-        optimizedTargeting,
+        demandGenBudgetType: String(payload.demandGenBudgetType || payload.budgetType || "Daily"),
+        callPhoneNumber: payload.callPhoneNumber || null,
+        adName: payload.adName || null,
+        keywords: Array.isArray(payload.keywords) ? payload.keywords : [],
+        searchThemes: Array.isArray(payload.searchThemes) ? payload.searchThemes : [],
+        audienceSignals: Array.isArray(payload.audienceSignals) ? payload.audienceSignals : (Array.isArray(payload.audienceSignal) ? payload.audienceSignal : (payload.audience ? [payload.audience] : [])),
+        callToAction: payload.callToAction || "Automated",
+        demographicExclusions: payload.demographicExclusions || null,
+        merchantCenterId: payload.merchantCenterId || payload.merchantId || null,
+        brandExclusions: payload.brandExclusions || null,
+        brandInclusions: payload.brandInclusions || null,
+        valueRules: payload.valueRules || null,
+        creativeEnhancements: {
+          optAdaptiveLayouts: payload.optAdaptiveLayouts !== false,
+          optAnimatedImages: payload.optAnimatedImages !== false,
+          optGeneratedVideos: payload.optGeneratedVideos !== false,
+          optShorterVideos: Boolean(payload.optShorterVideos),
+          optResizedVideos: payload.optResizedVideos !== false,
+          optLandingPagePreviews: payload.optLandingPagePreviews !== false
+        },
+        includeViewThrough: payload.includeViewThrough !== false,
         sitelinks,
         callouts,
         structuredSnippets,
         promotions,
         conversionGoals,
-        objective: "YouTube"
+        objective: payload.campaignGoal || payload.objective || "YouTube"
       },
       advertisingChannelType: "DEMAND_GEN",
       amountMicros: BigInt(amountMicros),

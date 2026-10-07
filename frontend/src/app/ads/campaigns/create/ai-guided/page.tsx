@@ -1480,6 +1480,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const [lfWebhookKey, setLfWebhookKey] = useState<string>("");
   const [lfNotificationEmails, setLfNotificationEmails] = useState<string>("");
   const [lfFormType, setLfFormType] = useState<"MORE_VOLUME" | "MORE_QUALIFIED">("MORE_VOLUME");
+  const [generatingCarouselCardIdx, setGeneratingCarouselCardIdx] = useState<number | null>(null);
 
   // Callouts State
   const [modalCalloutTexts, setModalCalloutTexts] = useState<string[]>([]);
@@ -1491,6 +1492,61 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const [calloutSchedules, setCalloutSchedules] = useState<Array<{ id: string; day: string; start: string; end: string }>>([
     { id: "cos-1", day: "All days", start: "00:00", end: "23:45" }
   ]);
+
+  // Demand Gen Multi Ad-Group & Multi-Ad State
+  const [demandGenAdGroups, setDemandGenAdGroups] = useState<Array<{
+    id: string;
+    name: string;
+    status: "ENABLED" | "PAUSED";
+    ads: Array<{
+      id: string;
+      name: string;
+      adType: "SINGLE_IMAGE" | "VIDEO" | "CAROUSEL";
+      status: "ENABLED" | "PAUSED";
+      finalUrl: string;
+      images?: string[];
+      videos?: string[];
+      logos?: string[];
+      headlines?: string[];
+      longHeadlines?: string[];
+      descriptions?: string[];
+      callToAction?: string;
+      businessName?: string;
+      sitelinks?: string[];
+      carouselCards?: Array<{ id: string; image: string; headline: string; finalUrl: string }>;
+    }>;
+  }>>([
+    {
+      id: "dg-ag-1",
+      name: "Ad group 1",
+      status: "ENABLED",
+      ads: [
+        {
+          id: "dg-ad-1",
+          name: "Ad 1",
+          adType: "SINGLE_IMAGE",
+          status: "ENABLED",
+          finalUrl: "",
+          images: [],
+          videos: [],
+          logos: [],
+          headlines: [""],
+          longHeadlines: [""],
+          descriptions: [""],
+          callToAction: "Automated (recommended)",
+          businessName: "",
+          sitelinks: [],
+          carouselCards: [
+            { id: "c-1", image: "", headline: "", finalUrl: "" },
+            { id: "c-2", image: "", headline: "", finalUrl: "" }
+          ]
+        }
+      ]
+    }
+  ]);
+  const [activeDgAdGroupId, setActiveDgAdGroupId] = useState<string>("dg-ag-1");
+  const [activeDgAdId, setActiveDgAdId] = useState<string>("dg-ad-1");
+  const [openDgAdMenuId, setOpenDgAdMenuId] = useState<string | null>(null);
 
   // Performance Max Asset Group Accordion / Collapsible Cards State
   const [isAssetGroupSectionOpen, setIsAssetGroupSectionOpen] = useState<boolean>(true);
@@ -3110,9 +3166,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     }
 
     if (cType === "DEMAND_GEN") {
-      const isYtConn = isYouTubeVerified(customerProfile || state.customerProfile);
       if (dgFormat === "VIDEO") {
-        if (!isYtConn) return false;
         return hasVideos && hasLogos && validHeadlines.length >= 1 && validLongHeadlines.length >= 1 && validDescriptions.length >= 1;
       } else if (dgFormat === "CAROUSEL") {
         const cards = state.carouselCards || [];
@@ -3420,17 +3474,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           label: "At least 1 YouTube Video is required for Video campaigns",
           field: "videos",
           fixAction: () => openMediaSourcePicker("VIDEO")
-        });
-      }
-    }
-
-    if (cType === "DEMAND_GEN" && (state.adFormat || "").toUpperCase() === "VIDEO") {
-      const isYtConn = isYouTubeVerified(profSource);
-      if (!isYtConn) {
-        missing.push({
-          label: "YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue.",
-          field: "youtubeConnection",
-          fixAction: () => startFieldEdit("adFormat")
         });
       }
     }
@@ -4319,7 +4362,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
   // Direct Cockpit AI Auto-Generator (Checks website/business data, preserves existing filled info, & directly generates assets without creating chat prompts)
   const handleCockpitDirectAiGeneration = async (
-    targetType: "IMAGE" | "LOGO" | "HEADLINES" | "LONG_HEADLINES" | "DESCRIPTIONS" | "KEYWORDS" | "HEADLINE_SINGLE" | "LONG_HEADLINE_SINGLE" | "DESCRIPTION_SINGLE" | "KEYWORD_SINGLE" | "ALL",
+    targetType: "IMAGE" | "LOGO" | "HEADLINES" | "LONG_HEADLINES" | "DESCRIPTIONS" | "KEYWORDS" | "HEADLINE_SINGLE" | "LONG_HEADLINE_SINGLE" | "DESCRIPTION_SINGLE" | "KEYWORD_SINGLE" | "SEARCH_THEMES" | "SEARCH_THEME_SINGLE" | "AUDIENCE_SIGNALS" | "AUDIENCE_SIGNAL_SINGLE" | "ALL",
     isRegenerate: boolean = false,
     customHint?: string
   ) => {
@@ -4390,8 +4433,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       let intentMessage = "";
       if (targetType === "ALL") {
         intentMessage = isRegenerate
-          ? `Re-generate a fresh set of Google Ads campaign assets for "${bizContext}"${typeContext}${descContext}${siteContext}. Please provide new: 1) 5 Headlines (≤ 30 chars), 2) 3 Long Headlines (≤ 90 chars), 3) 4 Descriptions (≤ 90 chars) with strong CTAs, 4) Top 15 high-intent Keywords, and 5) Visual creatives concepts.`
-          : `Generate a complete end-to-end Google Ads campaign package for "${bizContext}"${typeContext}${descContext}${siteContext}. Please provide: 1) 5 high-CTR Headlines (≤ 30 chars), 2) 3 Long Headlines (≤ 90 chars), 3) 4 Descriptions (≤ 90 chars) with strong CTAs, 4) Top 15 high-intent Keywords, and 5) Creative visual direction for Landscape (1.91:1), Square (1:1) marketing images and Brand Logo.`;
+          ? `Re-generate a fresh set of Google Ads campaign assets for "${bizContext}"${typeContext}${descContext}${siteContext}. Please provide new: 1) 5 Headlines (≤ 30 chars), 2) 3 Long Headlines (≤ 90 chars), 3) 4 Descriptions (≤ 90 chars) with strong CTAs, 4) Top 15 high-intent Keywords/Search Themes, 5) 5 High-Converting Audience Signals/Buyer Segments, and 6) Visual creatives concepts.`
+          : `Generate a complete end-to-end Google Ads campaign package for "${bizContext}"${typeContext}${descContext}${siteContext}. Please provide: 1) 5 high-CTR Headlines (≤ 30 chars), 2) 3 Long Headlines (≤ 90 chars), 3) 4 Descriptions (≤ 90 chars) with strong CTAs, 4) Top 15 high-intent Keywords/Search Themes, 5) 5 High-Converting Audience Signals/Buyer Segments, and 6) Creative visual direction for Landscape (1.91:1), Square (1:1) marketing images and Brand Logo.`;
       } else if (targetType === "HEADLINE_SINGLE") {
         intentMessage = customHint
           ? `Generate 1 unique, high-converting Google Ads headline (strictly ≤ 30 characters) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
@@ -4416,14 +4459,22 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         intentMessage = customHint
           ? `Generate 4 engaging Google Ads descriptions (strictly ≤ 90 characters each with strong CTAs) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
           : `Generate 4 engaging Google Ads descriptions (strictly ≤ 90 characters each with strong CTAs) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
-      } else if (targetType === "KEYWORDS") {
+      } else if (targetType === "KEYWORDS" || targetType === "SEARCH_THEMES") {
         intentMessage = customHint
-          ? `Generate 15 high-converting Google Ads search keywords (mix of exact [keyword], phrase "keyword", and broad keyword) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
-          : `Generate 15 high-converting Google Ads search keywords (mix of exact [keyword], phrase "keyword", and broad keyword) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
-      } else if (targetType === "KEYWORD_SINGLE") {
+          ? `Generate 15 high-converting Google Ads search themes and high-intent keyword phrases related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 15 high-converting Google Ads search themes and high-intent keyword phrases for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+      } else if (targetType === "KEYWORD_SINGLE" || targetType === "SEARCH_THEME_SINGLE") {
         intentMessage = customHint
-          ? `Generate 1 high-intent Google Ads search keyword related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
-          : `Generate 1 high-intent Google Ads search keyword for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+          ? `Generate 1 high-intent Google Ads search theme or keyword related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 1 high-intent Google Ads search theme or keyword for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+      } else if (targetType === "AUDIENCE_SIGNALS") {
+        intentMessage = customHint
+          ? `Generate 6 high-intent Google Ads Audience Signals (in-market segments, affinity audiences, and buyer personas) related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 6 high-intent Google Ads Audience Signals (in-market segments, affinity audiences, and buyer personas) for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
+      } else if (targetType === "AUDIENCE_SIGNAL_SINGLE") {
+        intentMessage = customHint
+          ? `Generate 1 high-converting Google Ads audience persona or buyer segment related to "${customHint}" for "${bizContext}"${typeContext}${descContext}${siteContext}.`
+          : `Generate 1 high-converting Google Ads audience persona or buyer segment for "${bizContext}"${typeContext}${descContext}${siteContext}.`;
       } else if (targetType === "IMAGE") {
         if (campaignState.campaignType === "DISPLAY") {
           intentMessage = `Generate Google Ads Display compliant marketing images for "${bizContext}"${typeContext}${descContext}${siteContext}. Requirements: Generate Display Landscape (1200x628 px, 1.91:1) and Display Square (1200x1200 px, 1:1). Follow professional advertising creative standards: clear product/service visibility, clean composition, high-quality commercial photography, safe central area, avoid excessive text, fake CTA buttons, borders, collages, and separate overlay logos.`;
@@ -4559,24 +4610,47 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             return prev;
           }
 
-          if (targetType === "KEYWORD_SINGLE") {
-            const returnedKws = cs.keywords && cs.keywords.length > 0 ? cs.keywords : [];
-            let newKw = returnedKws.find((k: string) => k && !(prev.keywords || []).some(existing => existing.trim().toLowerCase() === k.trim().toLowerCase()));
+          if (targetType === "KEYWORD_SINGLE" || targetType === "SEARCH_THEME_SINGLE") {
+            const returnedKws = (cs.searchThemes && cs.searchThemes.length > 0) ? cs.searchThemes : (cs.keywords && cs.keywords.length > 0 ? cs.keywords : []);
+            let newKw = returnedKws.find((k: string) => k && !(prev.searchThemes || []).some(existing => existing.trim().toLowerCase() === k.trim().toLowerCase()));
             if (!newKw && returnedKws.length > 0) {
               newKw = returnedKws[0];
             }
             if (!newKw && activeBizName) {
-              newKw = `"${activeBizName.toLowerCase()} services"`;
+              newKw = `${activeBizName.toLowerCase()} services`;
             }
             if (newKw) {
-              const cleanedKw = newKw.trim();
+              const cleanedKw = newKw.replace(/[\[\]"']/g, "").trim();
               return {
                 ...prev,
-                keywords: [...(prev.keywords || []), cleanedKw]
+                keywords: [...(prev.keywords || []), cleanedKw],
+                searchThemes: [...(prev.searchThemes || []), cleanedKw]
               };
             }
             return prev;
           }
+
+          if (targetType === "AUDIENCE_SIGNAL_SINGLE") {
+            const returnedAud = cs.audienceSignals && cs.audienceSignals.length > 0 ? cs.audienceSignals : [];
+            let newAud = returnedAud.find((a: string) => a && !(prev.audienceSignals || []).some(existing => existing.trim().toLowerCase() === a.trim().toLowerCase()));
+            if (!newAud && returnedAud.length > 0) {
+              newAud = returnedAud[0];
+            }
+            if (!newAud && activeBizName) {
+              newAud = `In-Market Buyers - ${activeBizName}`;
+            }
+            if (newAud) {
+              const cleanedAud = newAud.trim();
+              return {
+                ...prev,
+                audienceSignals: [...(prev.audienceSignals || []), cleanedAud]
+              };
+            }
+            return prev;
+          }
+
+          const resolvedThemes = (cs.searchThemes && cs.searchThemes.length > 0) ? cs.searchThemes : (cs.keywords || []);
+          const resolvedAudience = (cs.audienceSignals && cs.audienceSignals.length > 0) ? cs.audienceSignals : [];
 
           const merged: CampaignState = {
             ...prev,
@@ -4622,6 +4696,16 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               : (cs.keywords && cs.keywords.length > 0)
               ? Array.from(new Set([...(prev.keywords || []), ...cs.keywords]))
               : prev.keywords,
+            searchThemes: isRegenerate && resolvedThemes.length > 0
+              ? resolvedThemes
+              : resolvedThemes.length > 0
+              ? Array.from(new Set([...(prev.searchThemes || []), ...resolvedThemes]))
+              : prev.searchThemes,
+            audienceSignals: isRegenerate && resolvedAudience.length > 0
+              ? resolvedAudience
+              : resolvedAudience.length > 0
+              ? Array.from(new Set([...(prev.audienceSignals || []), ...resolvedAudience]))
+              : prev.audienceSignals,
             images: isRegenerate && cs.images && cs.images.length > 0
               ? cs.images
               : (cs.images && cs.images.length > 0)
@@ -4663,6 +4747,161 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     } finally {
       setIsLoading(false);
       setCockpitGeneratingTarget(null);
+    }
+  };
+
+  // Individual Carousel Card AI Generator (generates headline and image specifically for card at cIdx)
+  const handleGenerateCarouselCard = async (cIdx: number, mode: "ALL" | "HEADLINE" | "IMAGE" = "ALL") => {
+    let activeBizName = (
+      campaignState.businessName ||
+      campaignState.business?.name ||
+      userProfile?.businessName ||
+      userProfile?.organizationName ||
+      (campaignState.campaignName ? campaignState.campaignName.split(/[-–|_]/)[0] : "") ||
+      "Our Business"
+    ).trim();
+    let activeWebsite = (campaignState.website || "").trim();
+    let activeBizDesc = (campaignState.business?.description || (campaignState as any).productOverview || "").trim();
+    const effectiveCampType = campaignState.campaignType ? formatCampaignTypeDisplay(campaignState.campaignType) : "";
+
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    const currentCards = campaignState.carouselCards || [
+      { id: "c-1", image: "", headline: "", finalUrl: campaignState.website || "" },
+      { id: "c-2", image: "", headline: "", finalUrl: campaignState.website || "" }
+    ];
+    const targetCard = currentCards[cIdx] || { id: `c-${cIdx + 1}`, image: "", headline: "", finalUrl: activeWebsite };
+
+    setGeneratingCarouselCardIdx(cIdx);
+    try {
+      const bizContext = activeBizName || "our brand";
+      const descContext = activeBizDesc ? ` specializing in ${activeBizDesc}` : "";
+      const siteContext = activeWebsite ? ` (Website: ${activeWebsite})` : "";
+
+      let intentMessage = "";
+      if (mode === "HEADLINE") {
+        intentMessage = `Generate 1 unique, compelling, high-converting Google Ads Demand Gen carousel card headline (strictly ≤ 40 characters) highlighting a specific product, feature, or service for card #${cIdx + 1} of "${bizContext}"${descContext}${siteContext}. Return headline in campaignState.headlines[0].`;
+      } else if (mode === "IMAGE") {
+        intentMessage = `Generate a high-converting, high-resolution Google Ads Demand Gen carousel slide image (square 1:1 or 1.91:1) showcasing a distinct product feature or benefit for card #${cIdx + 1} of "${bizContext}"${descContext}${siteContext}.`;
+      } else {
+        intentMessage = `Generate a Google Ads Demand Gen carousel slide asset package for card #${cIdx + 1} of "${bizContext}"${descContext}${siteContext}. Please generate: 1) 1 punchy card headline (strictly ≤ 40 characters) and 2) 1 high-resolution square 1:1 marketing creative image for this card.`;
+      }
+
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const res = await fetch(`${BACKEND}/api/ads/ai-guided/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId
+        },
+        body: JSON.stringify({
+          messages: [
+            ...messages.map(m => ({ role: m.role, content: m.content })),
+            { role: "user", content: intentMessage }
+          ],
+          campaignState: {
+            ...campaignState,
+            businessName: activeBizName,
+            website: activeWebsite
+          }
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`AI generation failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      const cs = data.campaignState || data;
+
+      let generatedHeadline = "";
+      if (cs.headlines && cs.headlines.length > 0) {
+        generatedHeadline = cs.headlines[0];
+      } else if (data.headlines && data.headlines.length > 0) {
+        generatedHeadline = data.headlines[0];
+      }
+
+      let generatedImage = "";
+      if (cs.images && cs.images.length > 0) {
+        const candidate = cs.images[cs.images.length - 1];
+        generatedImage = typeof candidate === "string" ? candidate : (candidate?.url || candidate?.data || "");
+      } else if (data.images && data.images.length > 0) {
+        const candidate = data.images[data.images.length - 1];
+        generatedImage = typeof candidate === "string" ? candidate : (candidate?.url || candidate?.data || "");
+      }
+
+      // High-quality fallback keywords for Unsplash images if model text-only
+      if (!generatedImage && (mode === "ALL" || mode === "IMAGE")) {
+        const queryTerm = encodeURIComponent(activeBizName ? `${activeBizName.split(" ")[0]} product` : "marketing product");
+        generatedImage = `https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&auto=format&fit=crop&q=80`;
+      }
+
+      if (!generatedHeadline && (mode === "ALL" || mode === "HEADLINE")) {
+        const fallbackOptions = [
+          `Special Offer from ${activeBizName}`.slice(0, 40),
+          `Explore Top ${activeBizName} Solutions`.slice(0, 40),
+          `Premium Quality - Shop Now`.slice(0, 40),
+          `Best-Selling Picks for You`.slice(0, 40),
+          `Exclusive Deal Today Only`.slice(0, 40)
+        ];
+        generatedHeadline = fallbackOptions[cIdx % fallbackOptions.length];
+      }
+
+      setCampaignState(prev => {
+        const nextCards = [...(prev.carouselCards || [
+          { id: "c-1", image: "", headline: "", finalUrl: prev.website || "" },
+          { id: "c-2", image: "", headline: "", finalUrl: prev.website || "" }
+        ])];
+
+        while (nextCards.length <= cIdx) {
+          nextCards.push({ id: `c-${nextCards.length + 1}`, image: "", headline: "", finalUrl: prev.website || "" });
+        }
+
+        const existingCard = nextCards[cIdx] || { id: `c-${cIdx + 1}`, image: "", headline: "", finalUrl: prev.website || "" };
+        nextCards[cIdx] = {
+          ...existingCard,
+          headline: (mode === "IMAGE" ? existingCard.headline : (generatedHeadline ? generatedHeadline.slice(0, 40) : existingCard.headline)) || existingCard.headline,
+          image: (mode === "HEADLINE" ? existingCard.image : (generatedImage || existingCard.image)) || existingCard.image,
+          finalUrl: existingCard.finalUrl || prev.website || ""
+        };
+
+        return {
+          ...prev,
+          carouselCards: nextCards
+        };
+      });
+
+      // Also sync to active demand gen ad
+      setDemandGenAdGroups(prev => prev.map(agItem => {
+        return {
+          ...agItem,
+          ads: agItem.ads.map(adItem => {
+            if (adItem.adType === "CAROUSEL") {
+              const adCards = [...(adItem.carouselCards || [
+                { id: "c-1", image: "", headline: "", finalUrl: adItem.finalUrl || "" },
+                { id: "c-2", image: "", headline: "", finalUrl: adItem.finalUrl || "" }
+              ])];
+              while (adCards.length <= cIdx) {
+                adCards.push({ id: `c-${adCards.length + 1}`, image: "", headline: "", finalUrl: adItem.finalUrl || "" });
+              }
+              const existingCard = adCards[cIdx] || { id: `c-${cIdx + 1}`, image: "", headline: "", finalUrl: adItem.finalUrl || "" };
+              adCards[cIdx] = {
+                ...existingCard,
+                headline: (mode === "IMAGE" ? existingCard.headline : (generatedHeadline ? generatedHeadline.slice(0, 40) : existingCard.headline)) || existingCard.headline,
+                image: (mode === "HEADLINE" ? existingCard.image : (generatedImage || existingCard.image)) || existingCard.image,
+                finalUrl: existingCard.finalUrl || adItem.finalUrl || ""
+              };
+              return { ...adItem, carouselCards: adCards };
+            }
+            return adItem;
+          })
+        };
+      }));
+
+    } catch (err: any) {
+      console.error("[Generate Carousel Card Error]:", err);
+      alert(`AI Card Generation Error: ${err.message || "Failed to generate card"}`);
+    } finally {
+      setGeneratingCarouselCardIdx(null);
     }
   };
 
@@ -5995,6 +6234,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         if (campaignState.assetGroupName && campaignState.assetGroupName.trim()) {
           effectiveState.assetGroupName = campaignState.assetGroupName.trim();
         }
+        // Deduplicate search themes and audience signals to prevent Google Ads duplicate resource error
+        if (effectiveState.searchThemes && Array.isArray(effectiveState.searchThemes)) {
+          effectiveState.searchThemes = Array.from(new Set(effectiveState.searchThemes.map(t => String(t).trim()).filter(Boolean)));
+        }
+        if (effectiveState.audienceSignals && Array.isArray(effectiveState.audienceSignals)) {
+          const seenAud = new Set<string>();
+          effectiveState.audienceSignals = effectiveState.audienceSignals.filter((aud: any) => {
+            const val = typeof aud === "string" ? aud.trim() : (aud?.resourceName || aud?.id || aud?.name || "").trim();
+            if (!val || seenAud.has(val)) return false;
+            seenAud.add(val);
+            return true;
+          });
+        }
       } else if (cType === "DISPLAY") {
         if (validH.length < 1) {
           throw new Error("Display campaigns require at least 1 Headline (up to 30 chars). Please add a headline in the Live Cockpit or ask AI to generate it.");
@@ -6087,7 +6339,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         }
         if (budgetNum < 100) {
           startFieldEdit("dailyBudget");
-          throw new Error(`Demand Gen campaigns require a minimum Daily Budget of ₹100/day (currently ₹${budgetNum}/day).`);
+          throw new Error(`Demand Gen campaigns require a minimum ${isTotalBudget ? "Total Budget" : "Daily Budget"} of ₹100 (currently ₹${budgetNum}).`);
         }
         const DEFAULT_DG_IMAGE = "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png";
         const DEFAULT_DG_LOGO = "https://ik.imagekit.io/automationjds/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
@@ -6108,11 +6360,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             effectiveState.adFormat = "SINGLE_IMAGE";
             setCampaignState(p => ({ ...p, adFormat: "SINGLE_IMAGE" }));
           } else {
-            const isYtConnected = isYouTubeVerified(customerProfile || campaignState.customerProfile);
-            if (!isYtConnected) {
-              startFieldEdit("adFormat");
-              throw new Error("YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue.");
-            }
             if (validLH.length < 1) {
               effectiveState.longHeadlines = [validH[0]];
             }
@@ -6139,6 +6386,23 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         }
 
         // Map and ensure all parameters requested by user are explicitly bundled for backend
+        effectiveState.images = (effectiveState.images && effectiveState.images.length > 0) ? effectiveState.images : (campaignState.images || []);
+        effectiveState.logos = (effectiveState.logos && effectiveState.logos.length > 0) ? effectiveState.logos : (campaignState.logos || []);
+        effectiveState.videos = (effectiveState.videos && effectiveState.videos.length > 0) ? effectiveState.videos : (campaignState.videos || []);
+        effectiveState.carouselCards = (effectiveState.carouselCards && effectiveState.carouselCards.length > 0) ? effectiveState.carouselCards : (campaignState.carouselCards || []);
+        effectiveState.adName = campaignState.adName || (effectiveState as any).adName || undefined;
+        effectiveState.adGroupName = campaignState.adGroupName || (effectiveState as any).adGroupName || undefined;
+        effectiveState.adGroups = (campaignState as any).adGroups || demandGenAdGroups || undefined;
+        effectiveState.displayPath1 = campaignState.displayPath1 || (effectiveState as any).displayPath1 || undefined;
+        effectiveState.displayPath2 = campaignState.displayPath2 || (effectiveState as any).displayPath2 || undefined;
+        effectiveState.mobileFinalUrl = campaignState.mobileFinalUrl || (effectiveState as any).mobileFinalUrl || undefined;
+        effectiveState.callPhoneNumber = campaignState.callPhoneNumber || (effectiveState as any).callPhoneNumber || undefined;
+        effectiveState.brandExclusions = campaignState.brandExclusions || (effectiveState as any).brandExclusions || undefined;
+        effectiveState.brandInclusions = campaignState.brandInclusions || (effectiveState as any).brandInclusions || undefined;
+        effectiveState.trackingTemplate = campaignState.trackingTemplate || (effectiveState as any).trackingTemplate || undefined;
+        effectiveState.finalUrlSuffix = campaignState.finalUrlSuffix || (effectiveState as any).finalUrlSuffix || undefined;
+        effectiveState.customParameters = (effectiveState as any).customParameters || campaignState.customParameters || undefined;
+        effectiveState.valueRules = (campaignState as any).valueRules || (effectiveState as any).valueRules || undefined;
         effectiveState.keywords = effectiveState.keywords || campaignState.keywords || [];
         effectiveState.searchThemes = (effectiveState.searchThemes && effectiveState.searchThemes.length > 0)
           ? effectiveState.searchThemes
@@ -6153,7 +6417,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         effectiveState.callToAction = effectiveState.callToAction || campaignState.callToAction || "Automated";
         effectiveState.deviceTargeting = effectiveState.deviceTargeting || campaignState.deviceTargeting || "ALL";
         effectiveState.devices = effectiveState.devices || campaignState.devices || { computers: true, mobile: true, tablets: true, tv: true };
-        effectiveState.channels = effectiveState.channels || campaignState.channels || ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"];
+        effectiveState.channelTargeting = campaignState.channelTargeting || (effectiveState as any).channelTargeting || "ALL";
+        effectiveState.channels = (campaignState.channelTargeting === "CHOOSE" && Array.isArray(campaignState.channels) && campaignState.channels.length > 0)
+          ? campaignState.channels
+          : (Array.isArray(effectiveState.channels) && effectiveState.channels.length > 0
+            ? effectiveState.channels
+            : (Array.isArray(campaignState.channels) && campaignState.channels.length > 0
+              ? campaignState.channels
+              : ["YouTube", "YouTube in-stream", "YouTube in-feed", "YouTube Shorts", "Discover", "Gmail", "Google Display Network", "Maps New"]));
         effectiveState.adSchedule = effectiveState.adSchedule || campaignState.adSchedule || [];
         effectiveState.demographicExclusions = effectiveState.demographicExclusions || campaignState.demographicExclusions;
         effectiveState.includeViewThrough = campaignState.includeViewThrough !== undefined ? Boolean(campaignState.includeViewThrough) : true;
@@ -6182,7 +6453,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           accentBrandColor: effectiveState.accentBrandColor,
           brandFont: effectiveState.brandFont,
           adSchedule: effectiveState.adSchedule,
-          demographicExclusions: effectiveState.demographicExclusions
+          demographicExclusions: effectiveState.demographicExclusions,
+          brandExclusions: effectiveState.brandExclusions,
+          valueRules: effectiveState.valueRules
         };
       } else if (cType === "VIDEO") {
         const isYtConnected = isYouTubeVerified(customerProfile || campaignState.customerProfile);
@@ -6239,7 +6512,29 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         };
       }
 
-      // 8. Explicitly ensure Device Targeting, Extensions, and Merchant Center are synchronized
+      // 8. Explicitly ensure Budget, Media Assets, Brand Controls, Device Targeting, Extensions, and Merchant Center are synchronized
+      const isTotalBudgetType = (effectiveState.budgetType || campaignState.budgetType || "").toUpperCase() === "TOTAL";
+      if (isTotalBudgetType) {
+        effectiveState.budgetType = "TOTAL";
+        effectiveState.totalBudget = Number(effectiveState.dailyBudget || (effectiveState as any).totalBudget || campaignState.totalBudget || campaignState.dailyBudget);
+        delete (effectiveState as any).dailyBudget;
+      } else {
+        effectiveState.budgetType = "DAILY";
+        effectiveState.dailyBudget = Number(effectiveState.dailyBudget || campaignState.dailyBudget || (effectiveState as any).totalBudget || campaignState.totalBudget);
+        delete (effectiveState as any).totalBudget;
+      }
+      effectiveState.images = (effectiveState.images && effectiveState.images.length > 0) ? effectiveState.images : (campaignState.images || []);
+      effectiveState.logos = (effectiveState.logos && effectiveState.logos.length > 0) ? effectiveState.logos : (campaignState.logos || []);
+      effectiveState.videos = (effectiveState.videos && effectiveState.videos.length > 0) ? effectiveState.videos : (campaignState.videos || []);
+      effectiveState.carouselCards = (effectiveState.carouselCards && effectiveState.carouselCards.length > 0) ? effectiveState.carouselCards : (campaignState.carouselCards || []);
+      effectiveState.adName = campaignState.adName || (effectiveState as any).adName || demandGenAdGroups?.[0]?.ads?.[0]?.name || undefined;
+      effectiveState.adGroupName = campaignState.adGroupName || (effectiveState as any).adGroupName || demandGenAdGroups?.[0]?.name || undefined;
+      effectiveState.adGroups = (campaignState as any).adGroups || demandGenAdGroups || undefined;
+      effectiveState.ads = demandGenAdGroups?.flatMap(ag => ag.ads || []) || (campaignState as any).ads || undefined;
+      effectiveState.displayPath1 = campaignState.displayPath1 || (effectiveState as any).displayPath1 || undefined;
+      effectiveState.displayPath2 = campaignState.displayPath2 || (effectiveState as any).displayPath2 || undefined;
+      effectiveState.brandInclusions = campaignState.brandInclusions || (effectiveState as any).brandInclusions || undefined;
+      effectiveState.brandExclusions = campaignState.brandExclusions || (effectiveState as any).brandExclusions || undefined;
       effectiveState.devices = effectiveState.devices || campaignState.devices || { computers: true, mobile: true, tablets: true, tv: true };
       effectiveState.deviceTargeting = effectiveState.deviceTargeting || campaignState.deviceTargeting || "ALL";
       
@@ -10886,20 +11181,33 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     </div>
 
                     {editingField !== "dailyBudget" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs font-mono text-right">
-                        {campaignState.dailyBudget && campaignState.dailyBudget > 0 ? (
-                          <>
-                            <Check className="w-3 h-3 text-emerald-600 shrink-0" />
-                            <span>
-                              {campaignState.budgetType === "TOTAL"
-                                ? `₹${campaignState.dailyBudget.toLocaleString("en-IN")} total`
-                                : `₹${campaignState.dailyBudget.toLocaleString("en-IN")}/day`}
+                      <div className="flex flex-col items-end">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs font-mono text-right">
+                          {campaignState.dailyBudget && campaignState.dailyBudget > 0 ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>
+                                {campaignState.budgetType === "TOTAL"
+                                  ? `₹${campaignState.dailyBudget.toLocaleString("en-IN")} total`
+                                  : `₹${campaignState.dailyBudget.toLocaleString("en-IN")}/day`}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-slate-400 font-normal italic">Not set</span>
+                          )}
+                        </span>
+                        {campaignState.budgetType === "TOTAL" && campaignState.dailyBudget && campaignState.dailyBudget > 0 && campaignState.startDate && campaignState.endDate && (() => {
+                          const s = new Date(campaignState.startDate).getTime();
+                          const e = new Date(campaignState.endDate).getTime();
+                          const days = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+                          const perDay = Math.round(campaignState.dailyBudget / days);
+                          return (
+                            <span className="text-[9.5px] text-emerald-700 font-medium pt-0.5 font-mono">
+                              ≈ ₹{perDay.toLocaleString("en-IN")}/day over {days} days
                             </span>
-                          </>
-                        ) : (
-                          <span className="text-slate-400 font-normal italic">Not set</span>
-                        )}
-                      </span>
+                          );
+                        })()}
+                      </div>
                     )}
                   </div>
 
@@ -11644,8 +11952,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           <span>{campaignState.campaignType === "PERFORMANCE_MAX" ? "More Campaign Settings • Performance Max" : `Optional Parameters for ${campaignState.objective} • ${campaignState.campaignType}`}</span>
                         </div>
 
-                        {/* Optional Param 1: Ad Group Name (Search, Display, Demand Gen, Video, App) */}
-                        {campaignState.campaignType !== "PERFORMANCE_MAX" && (
+                        {/* Optional Param 1: Ad Group Name (Search, Display, Video, App) */}
+                        {campaignState.campaignType !== "PERFORMANCE_MAX" && campaignState.campaignType !== "DEMAND_GEN" && (
                           <div className="py-1.5 border-b border-slate-200/80 group">
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
@@ -11891,226 +12199,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           </>
                         )}
 
-                        {/* Demand Gen Specific Settings */}
-                        {campaignState.campaignType === "DEMAND_GEN" && (
-                          <>
-                            {/* Ad Format Selector */}
-                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                                <LayoutGrid className="w-3.5 h-3.5 text-blue-500" />
-                                <span>Ad Format:</span>
-                              </div>
-                              <select
-                                value={campaignState.adFormat || "SINGLE_IMAGE"}
-                                onChange={(e) => setCampaignState(prev => ({ ...prev, adFormat: e.target.value as any }))}
-                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-medium focus:outline-none focus:border-blue-500 max-w-[160px] shadow-2xs"
-                              >
-                                <option value="SINGLE_IMAGE">Single Image Ad</option>
-                                <option value="VIDEO">Video Ad (YouTube)</option>
-                                <option value="CAROUSEL">Multi-Card Carousel</option>
-                              </select>
-                            </div>
 
-                            {/* Call to Action Button */}
-                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                                <MousePointerClick className="w-3.5 h-3.5 text-emerald-500" />
-                                <span>Call to Action:</span>
-                              </div>
-                              <select
-                                value={campaignState.callToAction || "Automated"}
-                                onChange={(e) => setCampaignState(prev => ({ ...prev, callToAction: e.target.value }))}
-                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-800 font-medium focus:outline-none focus:border-blue-500 max-w-[160px] shadow-2xs"
-                              >
-                                <option value="Automated">Automated</option>
-                                <option value="Learn more">Learn more</option>
-                                <option value="Shop now">Shop now</option>
-                                <option value="Sign up">Sign up</option>
-                                <option value="Contact us">Contact us</option>
-                                <option value="Get quote">Get quote</option>
-                                <option value="Download">Download</option>
-                                <option value="Book now">Book now</option>
-                                <option value="Apply now">Apply now</option>
-                              </select>
-                            </div>
-
-                            {/* Channel Placements Targeting */}
-                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                                <Share2 className="w-3.5 h-3.5 text-purple-500" />
-                                <span>Channel Placements:</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => setCampaignState(prev => ({ ...prev, channelTargeting: "ALL" }))}
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
-                                    (campaignState.channelTargeting || "ALL") === "ALL"
-                                      ? "bg-purple-600 text-white"
-                                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                  }`}
-                                >
-                                  All Channels
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setCampaignState(prev => ({ ...prev, channelTargeting: "CHOOSE" }))}
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
-                                    campaignState.channelTargeting === "CHOOSE"
-                                      ? "bg-purple-600 text-white"
-                                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                  }`}
-                                >
-                                  Custom
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* View-Through Conversions Toggle */}
-                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                                <Eye className="w-3.5 h-3.5 text-teal-500" />
-                                <span>View-Through Conversions:</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setCampaignState(prev => ({ ...prev, includeViewThrough: !prev.includeViewThrough }))}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
-                                  campaignState.includeViewThrough
-                                    ? "bg-purple-600 text-white"
-                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                {campaignState.includeViewThrough ? "Included" : "Excluded"}
-                              </button>
-                            </div>
-
-                            {/* Brand Colors (Hex Code Inputs) */}
-                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                                <Palette className="w-3.5 h-3.5 text-pink-500" />
-                                <span>Brand Colors:</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <div className="flex items-center gap-1">
-                                  <span className="w-3 h-3 rounded-full border border-slate-300 shadow-2xs" style={{ backgroundColor: campaignState.mainBrandColor || "#2563EB" }} />
-                                  <input
-                                    type="text"
-                                    maxLength={7}
-                                    value={campaignState.mainBrandColor || "#2563EB"}
-                                    onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
-                                    placeholder="#2563EB"
-                                    className="w-16 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs"
-                                  />
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <span className="w-3 h-3 rounded-full border border-slate-300 shadow-2xs" style={{ backgroundColor: campaignState.accentBrandColor || "#F59E0B" }} />
-                                  <input
-                                    type="text"
-                                    maxLength={7}
-                                    value={campaignState.accentBrandColor || "#F59E0B"}
-                                    onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
-                                    placeholder="#F59E0B"
-                                    className="w-16 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Brand Font */}
-                            <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                                <Type className="w-3.5 h-3.5 text-indigo-500" />
-                                <span>Brand Font:</span>
-                              </div>
-                              <select
-                                value={campaignState.brandFont || "Any font"}
-                                onChange={(e) => setCampaignState(prev => ({ ...prev, brandFont: e.target.value }))}
-                                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-medium text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs"
-                              >
-                                <option value="Any font">Any font</option>
-                                <option value="Open Sans">Open Sans</option>
-                                <option value="Roboto">Roboto</option>
-                                <option value="Roboto Slab">Roboto Slab</option>
-                                <option value="Montserrat">Montserrat</option>
-                                <option value="Poppins">Poppins</option>
-                                <option value="Lato">Lato</option>
-                                <option value="Oswald">Oswald</option>
-                                <option value="Playfair Display">Playfair Display</option>
-                              </select>
-                            </div>
-
-                            {/* 6 Google AI Creative Enhancements Switches */}
-                            <div className="py-1.5 border-b border-slate-200/80 space-y-1.5">
-                              <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-                                <Wand2 className="w-3.5 h-3.5 text-purple-600" />
-                                <span>Google AI Creative Enhancements:</span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setCampaignState(prev => ({ ...prev, optAdaptiveLayouts: prev.optAdaptiveLayouts === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
-                                    campaignState.optAdaptiveLayouts !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
-                                  }`}
-                                >
-                                  <span>Adaptive Layouts</span>
-                                  <span>{campaignState.optAdaptiveLayouts !== false ? "✓" : "✕"}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setCampaignState(prev => ({ ...prev, optAnimatedImages: prev.optAnimatedImages === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
-                                    campaignState.optAnimatedImages !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
-                                  }`}
-                                >
-                                  <span>Animated Images</span>
-                                  <span>{campaignState.optAnimatedImages !== false ? "✓" : "✕"}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setCampaignState(prev => ({ ...prev, optGeneratedVideos: prev.optGeneratedVideos === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
-                                    campaignState.optGeneratedVideos !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
-                                  }`}
-                                >
-                                  <span>Generated Videos</span>
-                                  <span>{campaignState.optGeneratedVideos !== false ? "✓" : "✕"}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setCampaignState(prev => ({ ...prev, optShorterVideos: prev.optShorterVideos === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
-                                    campaignState.optShorterVideos !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
-                                  }`}
-                                >
-                                  <span>Shorter 6s Videos</span>
-                                  <span>{campaignState.optShorterVideos !== false ? "✓" : "✕"}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setCampaignState(prev => ({ ...prev, optResizedVideos: prev.optResizedVideos === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
-                                    campaignState.optResizedVideos !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
-                                  }`}
-                                >
-                                  <span>Resized 9:16 Shorts</span>
-                                  <span>{campaignState.optResizedVideos !== false ? "✓" : "✕"}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setCampaignState(prev => ({ ...prev, optLandingPagePreviews: prev.optLandingPagePreviews === false ? true : false }))}
-                                  className={`px-2 py-1 rounded text-[9px] font-medium border text-left flex items-center justify-between cursor-pointer transition-colors shadow-2xs ${
-                                    campaignState.optLandingPagePreviews !== false ? "bg-purple-50 border-purple-200 text-purple-900" : "bg-white border-slate-200 text-slate-500"
-                                  }`}
-                                >
-                                  <span>Page Previews</span>
-                                  <span>{campaignState.optLandingPagePreviews !== false ? "✓" : "✕"}</span>
-                                </button>
-                              </div>
-                            </div>
-                          </>
-                        )}
 
                         {/* Optional Param 5 to 9: Campaign URL Options, Display Paths, Mobile Final URL, Call Phone (For non-Performance Max campaigns; Performance Max configures these inside its dedicated Asset Group) */}
                         {campaignState.campaignType !== "PERFORMANCE_MAX" && (
@@ -12882,9 +12971,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             <button
                               type="button"
                               onClick={() => handleCockpitDirectAiGeneration("HEADLINES", false)}
-                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
+                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                              title="Generate all headlines with AI"
                             >
-                              <Sparkles className="h-2.5 w-2.5" /> AI Headlines
+                              <Sparkles className="h-2.5 w-2.5 text-purple-600" /> Generate All Headlines
                             </button>
                             <button
                               type="button"
@@ -12916,6 +13006,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                       isDuplicate ? "border-rose-400 bg-rose-50/30" : "border-slate-200 focus:border-purple-500"
                                     }`}
                                   />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCockpitDirectAiGeneration("HEADLINE_SINGLE", false, hl.trim() || undefined)}
+                                    className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                    title="AI Generate / Rewrite this headline"
+                                  >
+                                    <Sparkles className="h-3 w-3 text-purple-600" />
+                                  </button>
                                   {(campaignState.headlines || []).length > 3 && (
                                     <button
                                       type="button"
@@ -12923,7 +13021,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                         const cur = (campaignState.headlines || []).filter((_, idx) => idx !== i);
                                         setCampaignState(prev => ({ ...prev, headlines: cur }));
                                       }}
-                                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer shrink-0"
                                       title="Remove"
                                     >
                                       <Trash2 className="h-3 w-3" />
@@ -12961,9 +13059,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             <button
                               type="button"
                               onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINES", false)}
-                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
+                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                              title="Generate all long headlines with AI"
                             >
-                              <Sparkles className="h-2.5 w-2.5" /> AI Long Headline
+                              <Sparkles className="h-2.5 w-2.5 text-purple-600" /> Generate All Long Headlines
                             </button>
                             <button
                               type="button"
@@ -12995,6 +13094,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                       isDuplicate ? "border-rose-400 bg-rose-50/30" : "border-slate-200 focus:border-purple-500"
                                     }`}
                                   />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINE_SINGLE", false, lh.trim() || undefined)}
+                                    className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                    title="AI Generate / Rewrite this long headline"
+                                  >
+                                    <Sparkles className="h-3 w-3 text-purple-600" />
+                                  </button>
                                   {(campaignState.longHeadlines || []).length > 1 && (
                                     <button
                                       type="button"
@@ -13002,7 +13109,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                         const cur = (campaignState.longHeadlines || []).filter((_, idx) => idx !== i);
                                         setCampaignState(prev => ({ ...prev, longHeadlines: cur }));
                                       }}
-                                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer shrink-0"
                                       title="Remove"
                                     >
                                       <Trash2 className="h-3 w-3" />
@@ -13040,9 +13147,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             <button
                               type="button"
                               onClick={() => handleCockpitDirectAiGeneration("DESCRIPTIONS", false)}
-                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
+                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                              title="Generate all descriptions with AI"
                             >
-                              <Sparkles className="h-2.5 w-2.5" /> AI Descriptions
+                              <Sparkles className="h-2.5 w-2.5 text-purple-600" /> Generate All Descriptions
                             </button>
                             <button
                               type="button"
@@ -13074,6 +13182,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                       isDuplicate ? "border-rose-400 bg-rose-50/30" : "border-slate-200 focus:border-purple-500"
                                     }`}
                                   />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCockpitDirectAiGeneration("DESCRIPTION_SINGLE", false, desc.trim() || undefined)}
+                                    className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer self-start mt-1 shrink-0"
+                                    title="AI Generate / Rewrite this description"
+                                  >
+                                    <Sparkles className="h-3 w-3 text-purple-600" />
+                                  </button>
                                   {(campaignState.descriptions || []).length > 2 && (
                                     <button
                                       type="button"
@@ -13081,7 +13197,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                         const cur = (campaignState.descriptions || []).filter((_, idx) => idx !== i);
                                         setCampaignState(prev => ({ ...prev, descriptions: cur }));
                                       }}
-                                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer self-start mt-1"
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer self-start mt-1 shrink-0"
                                       title="Remove"
                                     >
                                       <Trash2 className="h-3 w-3" />
@@ -13620,9 +13736,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <Search className="h-3.5 w-3.5 text-purple-600" />
                         <span>Search Themes</span>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {(campaignState.searchThemes || []).length}/25 themes
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCockpitDirectAiGeneration("SEARCH_THEMES", false)}
+                          className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Generate high-converting search themes with AI"
+                        >
+                          <Sparkles className="h-2.5 w-2.5 text-purple-600" /> Generate All Themes
+                        </button>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {(campaignState.searchThemes || []).length}/25 themes
+                        </span>
+                      </div>
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed">
                       Inform Google AI what search queries relate directly to your products and business. Themes work alongside your assets to match buyer intent.
@@ -13649,6 +13775,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <button
                         type="button"
                         onClick={() => {
+                          const hint = newSearchThemeInput.trim();
+                          setNewSearchThemeInput("");
+                          handleCockpitDirectAiGeneration("SEARCH_THEME_SINGLE", false, hint || undefined);
+                        }}
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                        title="Generate 1 search theme with AI"
+                      >
+                        <BrainCircuit className="h-3.5 w-3.5 text-cyan-300" />
+                        <span>AI Suggest</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
                           if (newSearchThemeInput.trim()) {
                             const val = newSearchThemeInput.trim();
                             if ((campaignState.searchThemes || []).length < 25 && !(campaignState.searchThemes || []).includes(val)) {
@@ -13670,8 +13809,16 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             <span>{theme}</span>
                             <button
                               type="button"
+                              onClick={() => handleCockpitDirectAiGeneration("SEARCH_THEME_SINGLE", false, theme)}
+                              className="text-purple-400 hover:text-purple-700 cursor-pointer p-0.5"
+                              title="AI Change / Suggest alternative theme"
+                            >
+                              <Sparkles className="h-2.5 w-2.5" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => setCampaignState(prev => ({ ...prev, searchThemes: (prev.searchThemes || []).filter((_, i) => i !== idx) }))}
-                              className="text-purple-400 hover:text-rose-600 cursor-pointer"
+                              className="text-purple-400 hover:text-rose-600 cursor-pointer p-0.5"
                               title="Remove theme"
                             >
                               <X className="h-3 w-3" />
@@ -13691,9 +13838,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <Users className="h-3.5 w-3.5 text-indigo-600" />
                         <span>Audience Signals</span>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {(campaignState.audienceSignals || []).length} audience(s)
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCockpitDirectAiGeneration("AUDIENCE_SIGNALS", false)}
+                          className="px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[9.5px] border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Generate high-converting audience signals with AI"
+                        >
+                          <Sparkles className="h-2.5 w-2.5 text-indigo-600" /> Generate All Signals
+                        </button>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {(campaignState.audienceSignals || []).length} audience(s)
+                        </span>
+                      </div>
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed">
                       Add custom segments, customer lists, or in-market interest personas to help Google AI accelerate its machine learning and find conversions faster.
@@ -13720,6 +13877,20 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         type="button"
                         onClick={() => {
                           const inputEl = document.getElementById("pmax-audience-signal-input") as HTMLInputElement | null;
+                          const hint = inputEl?.value.trim() || "";
+                          if (inputEl) inputEl.value = "";
+                          handleCockpitDirectAiGeneration("AUDIENCE_SIGNAL_SINGLE", false, hint || undefined);
+                        }}
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:to-pink-700 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                        title="Generate 1 audience signal with AI"
+                      >
+                        <BrainCircuit className="h-3.5 w-3.5 text-cyan-300" />
+                        <span>AI Suggest</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const inputEl = document.getElementById("pmax-audience-signal-input") as HTMLInputElement | null;
                           if (inputEl && inputEl.value.trim()) {
                             const val = inputEl.value.trim();
                             if (!(campaignState.audienceSignals || []).includes(val)) {
@@ -13741,8 +13912,16 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             <span>👥 {typeof signal === "string" ? signal : (signal?.name || signal?.segmentName || "Custom Audience")}</span>
                             <button
                               type="button"
+                              onClick={() => handleCockpitDirectAiGeneration("AUDIENCE_SIGNAL_SINGLE", false, typeof signal === "string" ? signal : (signal?.name || ""))}
+                              className="text-indigo-400 hover:text-indigo-700 cursor-pointer p-0.5"
+                              title="AI Change / Suggest alternative audience signal"
+                            >
+                              <Sparkles className="h-2.5 w-2.5" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => setCampaignState(prev => ({ ...prev, audienceSignals: (prev.audienceSignals || []).filter((_, i) => i !== idx) }))}
-                              className="text-indigo-400 hover:text-rose-600 cursor-pointer"
+                              className="text-indigo-400 hover:text-rose-600 cursor-pointer p-0.5"
                               title="Remove signal"
                             >
                               <X className="h-3 w-3" />
@@ -14428,536 +14607,2395 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 2b. DEMAND GEN CONTROLS: AD FORMAT, CHANNELS, CREATIVES & BRANDING CARD */}
+            {/* 2b. DEMAND GEN: CREATIVE ASSET GROUP & TARGETING SIGNALS (Styled to match Performance Max) */}
             {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "DEMAND_GEN" && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="h-4 w-4 text-purple-600" />
-                    <span className="font-bold text-xs text-slate-900">Demand Gen Controls</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                    Demand Gen Config
-                  </span>
-                </div>
-
-                <div className="space-y-3 text-[11px]">
-                  {/* Ad Format Selector */}
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-slate-800">Ad Format:</span>
-                      <span className="text-[10px] text-purple-700 font-bold uppercase">
-                        {(campaignState.adFormat || "SINGLE_IMAGE").replace("_", " ")}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1">
-                      {(["SINGLE_IMAGE", "VIDEO", "CAROUSEL"] as const).map((fmt) => {
-                        const isSelected = (campaignState.adFormat || "SINGLE_IMAGE") === fmt;
-                        const label = fmt === "SINGLE_IMAGE" ? "Single Image" : fmt === "VIDEO" ? "Video" : "Carousel";
-                        return (
-                          <button
-                            key={fmt}
-                            type="button"
-                            onClick={() => {
-                              setCampaignState(prev => {
-                                const nextState = { ...prev, adFormat: fmt };
-                                const dgFormat = fmt;
-                                const isBudgetValid = nextState.dailyBudget && nextState.dailyBudget >= 100;
-                                const hasLogo = (nextState.logos?.length || 0) >= 1;
-                                const hasImages = (nextState.images?.length || 0) >= 1;
-                                const hasVideos = (nextState.videos?.length || 0) >= 1;
-                                const cards = nextState.carouselCards || [];
-                                const validCards = cards.filter(c => c && c.image?.trim() && c.headline?.trim());
-                                const hasHeadlines = (nextState.headlines?.length || 0) >= 1;
-                                const hasLongHeadlines = (nextState.longHeadlines?.length || 0) >= 1;
-                                const hasDescriptions = (nextState.descriptions?.length || 0) >= 1;
-                                let isReady = false;
-                                if (isBudgetValid && nextState.campaignName) {
-                                  if (dgFormat === "VIDEO") {
-                                    isReady = Boolean(hasVideos && hasLogo && hasHeadlines && hasLongHeadlines && hasDescriptions);
-                                  } else if (dgFormat === "CAROUSEL") {
-                                    isReady = Boolean(validCards.length >= 2 && hasLogo && hasHeadlines && hasDescriptions);
-                                  } else {
-                                    isReady = Boolean(hasImages && hasLogo && hasHeadlines && hasDescriptions);
-                                  }
-                                }
-                                nextState.readyForPublish = isReady;
-                                return nextState;
-                              });
-                            }}
-                            className={`py-1 px-1.5 rounded-lg border text-center font-semibold text-[10px] transition-all cursor-pointer ${
-                              isSelected
-                                ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Call to Action Text */}
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex justify-between items-center">
-                    <span className="font-semibold text-slate-800">Call to action:</span>
-                    <select
-                      value={campaignState.callToAction || "Automated"}
-                      onChange={(e) => setCampaignState(prev => ({ ...prev, callToAction: e.target.value }))}
-                      className="bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-[10px] font-semibold text-slate-800 focus:outline-none"
-                    >
-                      {["Automated", "Shop Now", "Learn More", "Sign Up", "Contact Us", "Apply Now", "Book Now", "Download", "Get Quote", "Buy Now"].map((cta) => (
-                        <option key={cta} value={cta}>{cta}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Channel Targeting: ALL vs CHOOSE */}
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-slate-800">Channel Targeting:</span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setCampaignState(prev => ({ ...prev, channelTargeting: "ALL" }))}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                            (campaignState.channelTargeting || "ALL") === "ALL"
-                              ? "bg-purple-600 text-white"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          }`}
-                        >
-                          ALL
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCampaignState(prev => ({
-                            ...prev,
-                            channelTargeting: "CHOOSE",
-                            channels: prev.channels && prev.channels.length > 0 ? prev.channels : [
-                              "YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"
-                            ]
-                          }))}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                            campaignState.channelTargeting === "CHOOSE"
-                              ? "bg-purple-600 text-white"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          }`}
-                        >
-                          CHOOSE
-                        </button>
+              <>
+                {/* CARD 1: DEMAND GEN ASSET GROUP & ADS MANAGER */}
+                <div className="bg-slate-50 border border-purple-200/80 rounded-2xl p-4 space-y-4 shadow-xs">
+                  {/* Header with Ad Strength & AI Actions */}
+                  <div className="flex items-center justify-between border-b border-purple-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-xl bg-purple-100 text-purple-700 shadow-2xs">
+                        <Layers className="h-4 w-4" />
                       </div>
-                    </div>
-
-                    {campaignState.channelTargeting === "CHOOSE" && (
-                      <div className="space-y-1 pt-1 border-t border-slate-100">
-                        <span className="text-[10px] text-slate-400 block">Selected Channels:</span>
-                        <div className="grid grid-cols-2 gap-1 text-[10px]">
-                          {[
-                            "YouTube",
-                            "YouTube in-stream",
-                            "YouTube in-feed",
-                            "YouTube Shorts",
-                            "Discover",
-                            "Gmail",
-                            "Google Display Network",
-                            "Maps New"
-                          ].map((ch) => {
-                            const curChannels = campaignState.channels || ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"];
-                            const isChSelected = curChannels.includes(ch);
-                            return (
-                              <label key={ch} className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
-                                <input
-                                  type="checkbox"
-                                  checked={isChSelected}
-                                  onChange={(e) => {
-                                    const nextCh = e.target.checked
-                                      ? [...curChannels, ch]
-                                      : curChannels.filter(c => c !== ch);
-                                    setCampaignState(prev => ({ ...prev, channels: nextCh }));
-                                  }}
-                                  className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
-                                />
-                                <span className="truncate">{ch}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Carousel Cards Builder (Visible when CAROUSEL adFormat is selected) */}
-                  {campaignState.adFormat === "CAROUSEL" && (
-                    <div className="p-2.5 rounded-xl bg-white border border-purple-200 space-y-2.5">
-                      <div className="flex justify-between items-center">
+                      <div>
                         <div className="flex items-center gap-1.5">
-                          <ImageIcon className="h-3.5 w-3.5 text-purple-600" />
-                          <span className="font-bold text-slate-800">Carousel Cards</span>
+                          <h3 className="font-bold text-xs text-slate-900">Demand Gen Ad Groups & Ads</h3>
+                          <span className="px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 text-[9px] font-bold uppercase">
+                            {demandGenAdGroups.length} Ad Group(s)
+                          </span>
                         </div>
-                        <span className="text-[10px] text-slate-500 font-mono">
-                          {((campaignState.carouselCards || []).filter(c => c && c.image?.trim() && c.headline?.trim())).length}/2 min (max 10)
+                        <p className="text-[10px] text-slate-500">
+                          Create and configure Single Image, Video, and Carousel ads for YouTube, Discover & Gmail.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* Ad Strength Badge */}
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-medium text-slate-500">Ad strength:</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                          (campaignState.headlines || []).length >= 1 && (campaignState.descriptions || []).length >= 1 && ((campaignState.images || []).length > 0 || (campaignState.videos || []).length > 0 || (campaignState.carouselCards || []).length >= 2)
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}>
+                          {(campaignState.headlines || []).length >= 1 && (campaignState.descriptions || []).length >= 1 && ((campaignState.images || []).length > 0 || (campaignState.videos || []).length > 0 || (campaignState.carouselCards || []).length >= 2)
+                            ? "Good"
+                            : "Incomplete"}
                         </span>
                       </div>
+                      {/* Direct AI Generate Assets Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleCockpitDirectAiGeneration("ALL", false)}
+                        className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                        title="Auto-generate creative assets using AI"
+                      >
+                        <Sparkles className="h-3 w-3 text-amber-300" />
+                        <span>✨ Auto-Generate Assets</span>
+                      </button>
+                    </div>
+                  </div>
 
-                      <div className="space-y-2">
-                        {((campaignState.carouselCards && campaignState.carouselCards.length > 0)
-                          ? campaignState.carouselCards
-                          : [
-                              { id: "card-1", image: "", headline: "", finalUrl: campaignState.website || "https://" },
-                              { id: "card-2", image: "", headline: "", finalUrl: campaignState.website || "https://" }
-                            ]
-                        ).map((card, idx) => (
-                          <div key={card.id || idx} className="p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-purple-700 text-[10px]">Card {idx + 1}</span>
-                              {(campaignState.carouselCards?.length || 0) > 2 && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setCampaignState(prev => ({
-                                      ...prev,
-                                      carouselCards: (prev.carouselCards || []).filter((_, i) => i !== idx)
-                                    }));
-                                  }}
-                                  className="text-slate-400 hover:text-rose-600"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              )}
+                  {/* AD GROUPS & AD SECTION */}
+                  <div className="space-y-4 text-[11px]">
+                    {demandGenAdGroups.map((ag, agIdx) => {
+                      const isCurrentAg = (activeDgAdGroupId || "dg-ag-1") === ag.id;
+                      const activeAd = ag.ads.find(a => a.id === activeDgAdId) || ag.ads[0] || {
+                        id: "dg-ad-1",
+                        name: "Ad 1",
+                        adType: "SINGLE_IMAGE",
+                        status: "ENABLED",
+                        finalUrl: "",
+                        images: [],
+                        videos: [],
+                        logos: [],
+                        headlines: [""],
+                        longHeadlines: [""],
+                        descriptions: [""],
+                        callToAction: "Automated (recommended)",
+                        businessName: "",
+                        sitelinks: [],
+                        carouselCards: [
+                          { id: "c-1", image: "", headline: "", finalUrl: "" },
+                          { id: "c-2", image: "", headline: "", finalUrl: "" }
+                        ]
+                      };
+
+                      return (
+                        <div key={ag.id} className="rounded-xl border border-purple-200 bg-white p-3.5 space-y-3.5 shadow-2xs">
+                          {/* Ad Group Header */}
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold">
+                                {agIdx + 1}
+                              </span>
+                              <input
+                                type="text"
+                                value={ag.name}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? { ...item, name: val } : item));
+                                }}
+                                className="font-bold text-xs text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 focus:outline-none px-1 py-0.5"
+                                placeholder="Ad group name"
+                              />
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            <div className="flex items-center gap-1.5">
+                              {/* Create new ad button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newAdNum = ag.ads.length + 1;
+                                  const newAd = {
+                                    id: `dg-ad-${Date.now()}`,
+                                    name: `Ad ${newAdNum}`,
+                                    adType: "SINGLE_IMAGE" as const,
+                                    status: "ENABLED" as const,
+                                    finalUrl: campaignState.website || "",
+                                    images: [],
+                                    videos: [],
+                                    logos: [],
+                                    headlines: [""],
+                                    longHeadlines: [""],
+                                    descriptions: [""],
+                                    callToAction: "Automated (recommended)",
+                                    businessName: campaignState.businessName || "",
+                                    sitelinks: [],
+                                    carouselCards: [
+                                      { id: `c-${Date.now()}-1`, image: "", headline: "", finalUrl: campaignState.website || "" },
+                                      { id: `c-${Date.now()}-2`, image: "", headline: "", finalUrl: campaignState.website || "" }
+                                    ]
+                                  };
+                                  setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? { ...item, ads: [...item.ads, newAd] } : item));
+                                  setActiveDgAdGroupId(ag.id);
+                                  setActiveDgAdId(newAd.id);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <Plus className="h-3 w-3" />
+                                <span>Create new ad</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Ads Tabs & 3-Dot Options for Multi-Ad */}
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-1.5 flex-wrap pb-1 border-b border-slate-100 relative">
+                              {ag.ads.map((adItem, adIdx) => {
+                                const isAdActive = (activeDgAdId || "dg-ad-1") === adItem.id;
+                                const isMenuOpen = openDgAdMenuId === adItem.id;
+                                return (
+                                  <div key={adItem.id} className="relative inline-flex items-center shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveDgAdGroupId(ag.id);
+                                        setActiveDgAdId(adItem.id);
+                                        setCampaignState(prev => ({
+                                          ...prev,
+                                          adFormat: adItem.adType,
+                                          website: adItem.finalUrl || prev.website,
+                                          businessName: adItem.businessName || prev.businessName,
+                                          callToAction: adItem.callToAction || prev.callToAction
+                                        }));
+                                      }}
+                                      className={`px-2.5 py-1 rounded-l-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        isAdActive
+                                          ? "bg-purple-600 text-white shadow-2xs"
+                                          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                      }`}
+                                    >
+                                      <span>{adItem.name || `Ad ${adIdx + 1}`}</span>
+                                      <span className={`text-[8.5px] px-1 py-0.2 rounded font-normal uppercase ${
+                                        isAdActive ? "bg-purple-700 text-purple-100" : "bg-slate-200 text-slate-600"
+                                      }`}>
+                                        {adItem.adType === "SINGLE_IMAGE" ? "Image" : adItem.adType === "VIDEO" ? "Video" : "Carousel"}
+                                      </span>
+                                      {adItem.status === "PAUSED" && (
+                                        <span className="text-[8px] bg-amber-500 text-white px-1 rounded">PAUSED</span>
+                                      )}
+                                    </button>
+
+                                    {/* 3-Dot Options Button */}
+                                    <div className="relative">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setOpenDgAdMenuId(isMenuOpen ? null : adItem.id);
+                                        }}
+                                        className={`p-1 rounded-r-lg border-l transition-colors cursor-pointer ${
+                                          isAdActive
+                                            ? "bg-purple-600 text-purple-200 hover:text-white border-purple-500"
+                                            : "bg-slate-100 text-slate-500 hover:text-slate-800 border-slate-200 hover:bg-slate-200"
+                                        }`}
+                                        title="Ad actions (Duplicate, Pause, Delete, Create new ad)"
+                                      >
+                                        <span className="font-bold text-xs leading-none">⋮</span>
+                                      </button>
+
+                                      {/* 3-Dot Dropdown Menu: Duplicate, Pause, Delete, Create new ad */}
+                                      {isMenuOpen && (
+                                        <>
+                                          <div
+                                            className="fixed inset-0 z-40 bg-transparent"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setOpenDgAdMenuId(null);
+                                            }}
+                                          />
+                                          <div
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="absolute top-full right-0 mt-1.5 w-40 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-[11px] animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100"
+                                          >
+                                            <div className="py-0.5">
+                                              {/* Duplicate */}
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const duplicatedAd = {
+                                                    ...adItem,
+                                                    id: `dg-ad-${Date.now()}`,
+                                                    name: `${adItem.name} (Copy)`
+                                                  };
+                                                  setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? { ...item, ads: [...item.ads, duplicatedAd] } : item));
+                                                  setActiveDgAdId(duplicatedAd.id);
+                                                  setOpenDgAdMenuId(null);
+                                                }}
+                                                className="w-full text-left px-3 py-1.5 hover:bg-purple-50 text-slate-700 hover:text-purple-700 flex items-center gap-2 cursor-pointer font-medium"
+                                              >
+                                                <span>📋</span>
+                                                <span>Duplicate</span>
+                                              </button>
+
+                                              {/* Pause / Enable */}
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const nextStatus = adItem.status === "PAUSED" ? "ENABLED" : "PAUSED";
+                                                  setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                                    ...item,
+                                                    ads: item.ads.map(a => a.id === adItem.id ? { ...a, status: nextStatus } : a)
+                                                  } : item));
+                                                  setOpenDgAdMenuId(null);
+                                                }}
+                                                className="w-full text-left px-3 py-1.5 hover:bg-purple-50 text-slate-700 hover:text-purple-700 flex items-center gap-2 cursor-pointer font-medium"
+                                              >
+                                                <span>{adItem.status === "PAUSED" ? "▶" : "⏸"}</span>
+                                                <span>{adItem.status === "PAUSED" ? "Enable" : "Pause"}</span>
+                                              </button>
+
+                                              {/* Delete */}
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  if (ag.ads.length <= 1) {
+                                                    alert("Each ad group must contain at least one ad.");
+                                                    setOpenDgAdMenuId(null);
+                                                    return;
+                                                  }
+                                                  const remaining = ag.ads.filter(a => a.id !== adItem.id);
+                                                  setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? { ...item, ads: remaining } : item));
+                                                  if (activeDgAdId === adItem.id) {
+                                                    setActiveDgAdId(remaining[0].id);
+                                                  }
+                                                  setOpenDgAdMenuId(null);
+                                                }}
+                                                className="w-full text-left px-3 py-1.5 hover:bg-rose-50 text-rose-600 flex items-center gap-2 cursor-pointer font-medium"
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                                <span>Delete</span>
+                                              </button>
+                                            </div>
+
+                                            {/* Create new ad */}
+                                            <div className="py-0.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const newAdNum = ag.ads.length + 1;
+                                                  const newAd = {
+                                                    id: `dg-ad-${Date.now()}`,
+                                                    name: `Ad ${newAdNum}`,
+                                                    adType: "SINGLE_IMAGE" as const,
+                                                    status: "ENABLED" as const,
+                                                    finalUrl: campaignState.website || "",
+                                                    images: [],
+                                                    videos: [],
+                                                    logos: [],
+                                                    headlines: [""],
+                                                    longHeadlines: [""],
+                                                    descriptions: [""],
+                                                    callToAction: "Automated (recommended)",
+                                                    businessName: campaignState.businessName || "",
+                                                    sitelinks: [],
+                                                    carouselCards: [
+                                                      { id: `c-${Date.now()}-1`, image: "", headline: "", finalUrl: campaignState.website || "" },
+                                                      { id: `c-${Date.now()}-2`, image: "", headline: "", finalUrl: campaignState.website || "" }
+                                                    ]
+                                                  };
+                                                  setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? { ...item, ads: [...item.ads, newAd] } : item));
+                                                  setActiveDgAdId(newAd.id);
+                                                  setOpenDgAdMenuId(null);
+                                                }}
+                                                className="w-full text-left px-3 py-1.5 hover:bg-purple-50 text-purple-700 flex items-center gap-2 cursor-pointer font-semibold"
+                                              >
+                                                <Plus className="h-3 w-3" />
+                                                <span>Create new ad</span>
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* ACTIVE AD FORM CONFIGURATION */}
+                            {activeAd && (
+                              <div className="space-y-3 pt-1">
+                                {/* Choose which type of ad to create */}
+                                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-bold text-slate-800 text-[11px]">
+                                      Choose which type of ad to create:
+                                    </span>
+                                    <span className="text-[9.5px] font-mono text-purple-700 font-bold uppercase">
+                                      {activeAd.adType.replace("_", " ")}
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-3 gap-1.5">
+                                    {(["SINGLE_IMAGE", "VIDEO", "CAROUSEL"] as const).map((fmt) => {
+                                      const isSelected = activeAd.adType === fmt;
+                                      const label = fmt === "SINGLE_IMAGE" ? "Single Image Ad" : fmt === "VIDEO" ? "Video Ad" : "Carousel Image Ad";
+                                      return (
+                                        <button
+                                          key={fmt}
+                                          type="button"
+                                          onClick={() => {
+                                            setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                              ...item,
+                                              ads: item.ads.map(a => a.id === activeAd.id ? { ...a, adType: fmt } : a)
+                                            } : item));
+                                            setCampaignState(prev => ({ ...prev, adFormat: fmt }));
+                                          }}
+                                          className={`py-1.5 px-2 rounded-lg border text-center font-bold text-[10px] transition-all cursor-pointer ${
+                                            isSelected
+                                              ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                          }`}
+                                        >
+                                          {label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* ──────────────── FORM FOR SINGLE IMAGE AD ──────────────── */}
+                                {activeAd.adType === "SINGLE_IMAGE" && (
+                                  <div className="space-y-3 animate-in fade-in duration-150">
+                                    {/* Ad Name & Final URL */}
+                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                                      <div>
+                                        <div className="flex justify-between items-center text-[10px] mb-0.5">
+                                          <label className="font-semibold text-slate-700">Ad name</label>
+                                          <span className="text-slate-400 font-mono">{(activeAd.name || "").length} / 255</span>
+                                        </div>
+                                        <input
+                                          type="text"
+                                          maxLength={255}
+                                          value={activeAd.name || ""}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                              ...item,
+                                              ads: item.ads.map(a => a.id === activeAd.id ? { ...a, name: val } : a)
+                                            } : item));
+                                          }}
+                                          placeholder="Ad 1"
+                                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <div className="flex items-center justify-between text-[10px] mb-0.5">
+                                          <label className="font-semibold text-slate-700">Final URL <span className="text-rose-500 font-bold">*Required</span></label>
+                                        </div>
+                                        <input
+                                          type="url"
+                                          value={activeAd.finalUrl || campaignState.website || ""}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                              ...item,
+                                              ads: item.ads.map(a => a.id === activeAd.id ? { ...a, finalUrl: val } : a)
+                                            } : item));
+                                            setCampaignState(prev => ({ ...prev, website: val }));
+                                          }}
+                                          placeholder="https://example.com"
+                                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Media Section: Images (up to 20) & Logos (up to 5) */}
+                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-bold text-slate-800 text-[11px] block">Media & Creative Assets</span>
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              fetchPastMediaLibrary();
+                                              setIsPastMediaModalOpen(true);
+                                            }}
+                                            className="px-2 py-0.5 rounded-md bg-white hover:bg-slate-100 text-slate-700 font-semibold text-[9px] transition-colors cursor-pointer flex items-center gap-1 border border-slate-200"
+                                            title="Open past uploads and generated files library"
+                                          >
+                                            <History className="h-2.5 w-2.5 text-slate-500" />
+                                            <span>Past Files</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCockpitDirectAiGeneration("IMAGE")}
+                                            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-[9px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                                            title="AI Generate marketing images"
+                                          >
+                                            <Wand2 className="h-2.5 w-2.5" />
+                                            <span>AI Images</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCockpitDirectAiGeneration("LOGO")}
+                                            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold text-[9px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                                            title="AI Generate logo"
+                                          >
+                                            <Sparkles className="h-2.5 w-2.5" />
+                                            <span>AI Logo</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Images */}
+                                      <div className="space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                          <label className="font-semibold text-slate-700 text-[10.5px]">
+                                            Images <span className="text-rose-500 font-bold">*Required</span>
+                                          </label>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => openMediaSourcePicker("IMAGE")}
+                                              className="px-2 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[9.5px] border border-purple-200 flex items-center gap-0.5 cursor-pointer transition-colors"
+                                            >
+                                              <Upload className="h-2.5 w-2.5" />
+                                              <span>Upload / Pick Image</span>
+                                            </button>
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                              {(campaignState.images || []).length} / 20 images
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Add up to 20 marketing images (landscape 1.91:1, square 1:1, portrait 4:5). Upload, choose from past files, or paste URL.</p>
+                                        <div className="flex gap-1.5">
+                                          <input
+                                            type="url"
+                                            id="dg-img-input"
+                                            placeholder="Paste image URL (https://...)"
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                const target = e.currentTarget;
+                                                const val = target.value.trim();
+                                                if (val && (campaignState.images || []).length < 20 && !(campaignState.images || []).includes(val)) {
+                                                  setCampaignState(prev => ({ ...prev, images: [...(prev.images || []), val] }));
+                                                }
+                                                target.value = "";
+                                              }
+                                            }}
+                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const inputEl = document.getElementById("dg-img-input") as HTMLInputElement | null;
+                                              if (inputEl && inputEl.value.trim()) {
+                                                const val = inputEl.value.trim();
+                                                if ((campaignState.images || []).length < 20 && !(campaignState.images || []).includes(val)) {
+                                                  setCampaignState(prev => ({ ...prev, images: [...(prev.images || []), val] }));
+                                                }
+                                                inputEl.value = "";
+                                              }
+                                            }}
+                                            className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[10px] cursor-pointer"
+                                          >
+                                            + Add URL
+                                          </button>
+                                        </div>
+                                        {(campaignState.images || []).length > 0 && (
+                                          <div className="flex flex-wrap gap-1.5 pt-1">
+                                            {(campaignState.images || []).map((img: any, idx: number) => {
+                                              const imgSrc = typeof img === "string" ? img : (img?.url || img?.data || "");
+                                              return (
+                                                <div key={idx} className="relative group w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-100">
+                                                  <img src={imgSrc} alt={`Asset ${idx + 1}`} className="w-full h-full object-cover" />
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setCampaignState(prev => ({ ...prev, images: (prev.images || []).filter((_: any, i: number) => i !== idx) }))}
+                                                    className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-rose-600 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                  >
+                                                    <X className="h-2.5 w-2.5" />
+                                                  </button>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Logos */}
+                                      <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                                        <div className="flex justify-between items-center">
+                                          <label className="font-semibold text-slate-700 text-[10.5px]">
+                                            Logos <span className="text-rose-500 font-bold">*Required</span>
+                                          </label>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => openMediaSourcePicker("LOGO")}
+                                              className="px-2 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[9.5px] border border-purple-200 flex items-center gap-0.5 cursor-pointer transition-colors"
+                                            >
+                                              <Upload className="h-2.5 w-2.5" />
+                                              <span>Upload / Pick Logo</span>
+                                            </button>
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                              {(campaignState.logos || []).length} / 5 logos
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Add up to 5 logos (1:1 square & 4:1 landscape).</p>
+                                        <div className="flex gap-1.5">
+                                          <input
+                                            type="url"
+                                            id="dg-logo-input"
+                                            placeholder="Paste logo URL (https://...)"
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                const target = e.currentTarget;
+                                                const val = target.value.trim();
+                                                if (val && (campaignState.logos || []).length < 5 && !(campaignState.logos || []).includes(val)) {
+                                                  setCampaignState(prev => ({ ...prev, logos: [...(prev.logos || []), val] }));
+                                                }
+                                                target.value = "";
+                                              }
+                                            }}
+                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const inputEl = document.getElementById("dg-logo-input") as HTMLInputElement | null;
+                                              if (inputEl && inputEl.value.trim()) {
+                                                const val = inputEl.value.trim();
+                                                if ((campaignState.logos || []).length < 5 && !(campaignState.logos || []).includes(val)) {
+                                                  setCampaignState(prev => ({ ...prev, logos: [...(prev.logos || []), val] }));
+                                                }
+                                                inputEl.value = "";
+                                              }
+                                            }}
+                                            className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[10px] cursor-pointer"
+                                          >
+                                            + Add URL
+                                          </button>
+                                        </div>
+                                        {(campaignState.logos || []).length > 0 && (
+                                          <div className="flex flex-wrap gap-1.5 pt-1">
+                                            {(campaignState.logos || []).map((logo: any, idx: number) => {
+                                              const logoSrc = typeof logo === "string" ? logo : (logo?.url || logo?.data || "");
+                                              return (
+                                                <div key={idx} className="relative group w-10 h-10 rounded-lg border border-slate-200 overflow-hidden bg-white p-1">
+                                                  <img src={logoSrc} alt={`Logo ${idx + 1}`} className="w-full h-full object-contain" />
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setCampaignState(prev => ({ ...prev, logos: (prev.logos || []).filter((_: any, i: number) => i !== idx) }))}
+                                                    className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-rose-600 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                  >
+                                                    <X className="h-2.5 w-2.5" />
+                                                  </button>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Text Section: Headlines (up to 5), Descriptions (up to 5), CTA & Business Name */}
+                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-bold text-slate-800 text-[11px] block">Text</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCockpitDirectAiGeneration("ALL", false)}
+                                          className="px-2 py-0.5 rounded-md bg-purple-100 hover:bg-purple-200 text-purple-800 text-[9px] font-bold flex items-center gap-1 border border-purple-300 shadow-2xs transition-all cursor-pointer"
+                                          title="Generate all ad text assets with AI"
+                                        >
+                                          <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                                          <span>Generate All Text</span>
+                                        </button>
+                                      </div>
+
+                                      {/* Headlines (up to 5, max 40 chars) */}
+                                      <div className="space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                          <div className="flex items-center gap-2">
+                                            <label className="font-semibold text-slate-700 text-[10.5px]">
+                                              Headlines <span className="text-rose-500 font-bold">*Required</span>
+                                            </label>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleCockpitDirectAiGeneration("HEADLINES", false)}
+                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-colors"
+                                              title="AI Generate All Headlines"
+                                            >
+                                              <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                                              <span>Generate All</span>
+                                            </button>
+                                          </div>
+                                          <span className="text-[10px] text-slate-400 font-mono">
+                                            {(campaignState.headlines || []).length} / 5 headlines
+                                          </span>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Add up to 5 headlines (max 40 characters each).</p>
+                                        <div className="space-y-1.5">
+                                          {((campaignState.headlines && campaignState.headlines.length > 0) ? campaignState.headlines : [""]).map((h, hIdx) => (
+                                            <div key={hIdx} className="space-y-0.5">
+                                              <div className="flex items-center gap-1.5">
+                                                <input
+                                                  type="text"
+                                                  maxLength={40}
+                                                  value={h}
+                                                  placeholder={`Headline ${hIdx + 1}`}
+                                                  onChange={(e) => {
+                                                    const cur = [...(campaignState.headlines || [""])];
+                                                    cur[hIdx] = e.target.value;
+                                                    setCampaignState(prev => ({ ...prev, headlines: cur }));
+                                                  }}
+                                                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleCockpitDirectAiGeneration("HEADLINE_SINGLE", false, h.trim() || undefined)}
+                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                                  title="AI Generate / Rewrite this headline"
+                                                >
+                                                  <Sparkles className="h-3 w-3 text-purple-600" />
+                                                </button>
+                                                {(campaignState.headlines?.length || 0) > 1 && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setCampaignState(prev => ({ ...prev, headlines: (prev.headlines || []).filter((_, i) => i !== hIdx) }))}
+                                                    className="p-1 text-slate-400 hover:text-rose-600"
+                                                  >
+                                                    <X className="h-3 w-3" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                              <span className="text-[9px] text-slate-400 font-mono block text-right">{(h || "").length} / 40</span>
+                                            </div>
+                                          ))}
+                                          {((campaignState.headlines?.length || 0) < 5) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setCampaignState(prev => ({ ...prev, headlines: [...(prev.headlines || []), ""] }))}
+                                              className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 pt-0.5"
+                                            >
+                                              <Plus className="h-3 w-3" /> Add headline
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Descriptions (up to 5, max 90 chars) */}
+                                      <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                                        <div className="flex justify-between items-center">
+                                          <div className="flex items-center gap-2">
+                                            <label className="font-semibold text-slate-700 text-[10.5px]">
+                                              Descriptions <span className="text-rose-500 font-bold">*Required</span>
+                                            </label>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleCockpitDirectAiGeneration("DESCRIPTIONS", false)}
+                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-colors"
+                                              title="AI Generate All Descriptions"
+                                            >
+                                              <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                                              <span>Generate All</span>
+                                            </button>
+                                          </div>
+                                          <span className="text-[10px] text-slate-400 font-mono">
+                                            {(campaignState.descriptions || []).length} / 5 descriptions
+                                          </span>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Add up to 5 descriptions (max 90 characters each).</p>
+                                        <div className="space-y-1.5">
+                                          {((campaignState.descriptions && campaignState.descriptions.length > 0) ? campaignState.descriptions : [""]).map((d, dIdx) => (
+                                            <div key={dIdx} className="space-y-0.5">
+                                              <div className="flex items-center gap-1.5">
+                                                <input
+                                                  type="text"
+                                                  maxLength={90}
+                                                  value={d}
+                                                  placeholder={`Description ${dIdx + 1}`}
+                                                  onChange={(e) => {
+                                                    const cur = [...(campaignState.descriptions || [""])];
+                                                    cur[dIdx] = e.target.value;
+                                                    setCampaignState(prev => ({ ...prev, descriptions: cur }));
+                                                  }}
+                                                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleCockpitDirectAiGeneration("DESCRIPTION_SINGLE", false, d.trim() || undefined)}
+                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                                  title="AI Generate / Rewrite this description"
+                                                >
+                                                  <Sparkles className="h-3 w-3 text-purple-600" />
+                                                </button>
+                                                {(campaignState.descriptions?.length || 0) > 1 && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setCampaignState(prev => ({ ...prev, descriptions: (prev.descriptions || []).filter((_, i) => i !== dIdx) }))}
+                                                    className="p-1 text-slate-400 hover:text-rose-600"
+                                                  >
+                                                    <X className="h-3 w-3" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                              <span className="text-[9px] text-slate-400 font-mono block text-right">{(d || "").length} / 90</span>
+                                            </div>
+                                          ))}
+                                          {((campaignState.descriptions?.length || 0) < 5) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setCampaignState(prev => ({ ...prev, descriptions: [...(prev.descriptions || []), ""] }))}
+                                              className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 pt-0.5"
+                                            >
+                                              <Plus className="h-3 w-3" /> Add description
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Call to action & Business Name */}
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-200">
+                                        <div>
+                                          <label className="font-semibold text-slate-700 text-[10px] block mb-1">
+                                            Call to action text
+                                          </label>
+                                          <select
+                                            value={campaignState.callToAction || "Automated (recommended)"}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              setCampaignState(prev => ({ ...prev, callToAction: val }));
+                                              setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                                ...item,
+                                                ads: item.ads.map(a => a.id === activeAd.id ? { ...a, callToAction: val } : a)
+                                              } : item));
+                                            }}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
+                                          >
+                                            <option value="Automated (recommended)">Automated (recommended)</option>
+                                            <option value="Learn more">Learn more</option>
+                                            <option value="Shop now">Shop now</option>
+                                            <option value="Sign up">Sign up</option>
+                                            <option value="Contact us">Contact us</option>
+                                            <option value="Get quote">Get quote</option>
+                                            <option value="Download">Download</option>
+                                            <option value="Book now">Book now</option>
+                                            <option value="Apply now">Apply now</option>
+                                          </select>
+                                        </div>
+
+                                        <div>
+                                          <div className="flex justify-between items-center text-[10px] mb-1">
+                                            <label className="font-semibold text-slate-700">Business name <span className="text-rose-500 font-bold">*</span></label>
+                                            <span className="text-slate-400 font-mono">{(campaignState.businessName || "").length} / 25</span>
+                                          </div>
+                                          <input
+                                            type="text"
+                                            maxLength={25}
+                                            value={campaignState.businessName || ""}
+                                            placeholder="Your business brand"
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              setCampaignState(prev => ({ ...prev, businessName: val }));
+                                              setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                                ...item,
+                                                ads: item.ads.map(a => a.id === activeAd.id ? { ...a, businessName: val } : a)
+                                              } : item));
+                                            }}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* ──────────────── FORM FOR VIDEO AD ──────────────── */}
+                                {activeAd.adType === "VIDEO" && (
+                                  <div className="space-y-3 animate-in fade-in duration-150">
+                                    {/* Ad Name & Final URL */}
+                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                                      <div>
+                                        <div className="flex justify-between items-center text-[10px] mb-0.5">
+                                          <label className="font-semibold text-slate-700">Ad name</label>
+                                          <span className="text-slate-400 font-mono">{(activeAd.name || "").length} / 255</span>
+                                        </div>
+                                        <input
+                                          type="text"
+                                          maxLength={255}
+                                          value={activeAd.name || ""}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                              ...item,
+                                              ads: item.ads.map(a => a.id === activeAd.id ? { ...a, name: val } : a)
+                                            } : item));
+                                          }}
+                                          placeholder="Ad 1 #2"
+                                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <div className="flex items-center justify-between text-[10px] mb-0.5">
+                                          <label className="font-semibold text-slate-700">Final URL <span className="text-rose-500 font-bold">*Required</span></label>
+                                        </div>
+                                        <input
+                                          type="url"
+                                          value={activeAd.finalUrl || campaignState.website || ""}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                              ...item,
+                                              ads: item.ads.map(a => a.id === activeAd.id ? { ...a, finalUrl: val } : a)
+                                            } : item));
+                                            setCampaignState(prev => ({ ...prev, website: val }));
+                                          }}
+                                          placeholder="https://example.com"
+                                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Media: Videos (up to 5) & Logos */}
+                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-bold text-slate-800 text-[11px] block">Media & Video Assets</span>
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              fetchPastMediaLibrary();
+                                              setIsPastMediaModalOpen(true);
+                                            }}
+                                            className="px-2 py-0.5 rounded-md bg-white hover:bg-slate-100 text-slate-700 font-semibold text-[9px] transition-colors cursor-pointer flex items-center gap-1 border border-slate-200"
+                                            title="Open past uploads and generated files library"
+                                          >
+                                            <History className="h-2.5 w-2.5 text-slate-500" />
+                                            <span>Past Files</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCockpitDirectAiGeneration("LOGO")}
+                                            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold text-[9px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                                            title="AI Generate logo"
+                                          >
+                                            <Sparkles className="h-2.5 w-2.5" />
+                                            <span>AI Logo</span>
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Videos */}
+                                      <div className="space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                          <label className="font-semibold text-slate-700 text-[10.5px]">
+                                            Videos <span className="text-rose-500 font-bold">*Required</span>
+                                          </label>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => openMediaSourcePicker("VIDEO")}
+                                              className="px-2 py-0.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[9.5px] border border-rose-200 flex items-center gap-0.5 cursor-pointer transition-colors"
+                                            >
+                                              <Video className="h-2.5 w-2.5" />
+                                              <span>Upload / YouTube URL</span>
+                                            </button>
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                              {(campaignState.videos || []).length} / 5 videos
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Search for a video or paste the URL from YouTube (landscape, vertical Shorts, square).</p>
+                                        <div className="flex gap-1.5">
+                                          <input
+                                            type="url"
+                                            id="dg-video-input"
+                                            placeholder="https://www.youtube.com/watch?v=..."
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                const target = e.currentTarget;
+                                                const val = target.value.trim();
+                                                if (val && (campaignState.videos || []).length < 5 && !(campaignState.videos || []).includes(val)) {
+                                                  setCampaignState(prev => ({ ...prev, videos: [...(prev.videos || []), val] }));
+                                                }
+                                                target.value = "";
+                                              }
+                                            }}
+                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const inputEl = document.getElementById("dg-video-input") as HTMLInputElement | null;
+                                              if (inputEl && inputEl.value.trim()) {
+                                                const val = inputEl.value.trim();
+                                                if ((campaignState.videos || []).length < 5 && !(campaignState.videos || []).includes(val)) {
+                                                  setCampaignState(prev => ({ ...prev, videos: [...(prev.videos || []), val] }));
+                                                }
+                                                inputEl.value = "";
+                                              }
+                                            }}
+                                            className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[10px] cursor-pointer"
+                                          >
+                                            + Add URL
+                                          </button>
+                                        </div>
+                                        {(campaignState.videos || []).length > 0 && (
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                            {(campaignState.videos || []).map((vUrl: any, idx: number) => {
+                                              const videoVal = typeof vUrl === "string" ? vUrl : (vUrl?.url || vUrl?.videoId || vUrl?.name || "");
+                                              // Extract YouTube ID if valid YouTube URL
+                                              const ytMatch = videoVal.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+                                              const ytId = ytMatch ? ytMatch[1] : null;
+                                              const thumbUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
+
+                                              return (
+                                                <div key={idx} className="relative group p-2 rounded-xl bg-white border border-slate-200 text-[10px] space-y-1.5 shadow-2xs">
+                                                  {thumbUrl ? (
+                                                    <div className="relative w-full h-24 rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center">
+                                                      <img src={thumbUrl} alt={`Video ${idx + 1}`} className="w-full h-full object-cover" />
+                                                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                                        <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg">
+                                                          <Video className="h-4 w-4 ml-0.5 text-white" />
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  ) : (
+                                                    <div className="w-full h-16 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 gap-1.5">
+                                                      <Video className="h-5 w-5 text-red-500" />
+                                                      <span className="text-[10px] font-medium text-slate-600">Video Asset {idx + 1}</span>
+                                                    </div>
+                                                  )}
+                                                  <div className="flex items-center justify-between pt-0.5">
+                                                    <span className="truncate font-mono text-slate-700 text-[9.5px] max-w-[170px]">{videoVal}</span>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => setCampaignState(prev => ({ ...prev, videos: (prev.videos || []).filter((_: any, i: number) => i !== idx) }))}
+                                                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                                                      title="Remove video"
+                                                    >
+                                                      <Trash2 className="h-3 w-3" />
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Logos */}
+                                      <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                                        <div className="flex justify-between items-center">
+                                          <label className="font-semibold text-slate-700 text-[10.5px]">
+                                            Logos <span className="text-rose-500 font-bold">*Required</span>
+                                          </label>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => openMediaSourcePicker("LOGO")}
+                                              className="px-2 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[9.5px] border border-purple-200 flex items-center gap-0.5 cursor-pointer transition-colors"
+                                            >
+                                              <Upload className="h-2.5 w-2.5" />
+                                              <span>Upload / Pick Logo</span>
+                                            </button>
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                              {(campaignState.logos || []).length} / 5 logos
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Add a logo (1:1 square & 4:1 landscape).</p>
+                                        <div className="flex gap-1.5">
+                                          <input
+                                            type="url"
+                                            id="dg-video-logo-input"
+                                            placeholder="Paste logo URL (https://...)"
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                const target = e.currentTarget;
+                                                const val = target.value.trim();
+                                                if (val && (campaignState.logos || []).length < 5 && !(campaignState.logos || []).includes(val)) {
+                                                  setCampaignState(prev => ({ ...prev, logos: [...(prev.logos || []), val] }));
+                                                }
+                                                target.value = "";
+                                              }
+                                            }}
+                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const inputEl = document.getElementById("dg-video-logo-input") as HTMLInputElement | null;
+                                              if (inputEl && inputEl.value.trim()) {
+                                                const val = inputEl.value.trim();
+                                                if ((campaignState.logos || []).length < 5 && !(campaignState.logos || []).includes(val)) {
+                                                  setCampaignState(prev => ({ ...prev, logos: [...(prev.logos || []), val] }));
+                                                }
+                                                inputEl.value = "";
+                                              }
+                                            }}
+                                            className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[10px] cursor-pointer"
+                                          >
+                                            + Add URL
+                                          </button>
+                                        </div>
+                                        {(campaignState.logos || []).length > 0 && (
+                                          <div className="flex flex-wrap gap-1.5 pt-1">
+                                            {(campaignState.logos || []).map((logo: any, idx: number) => {
+                                              const logoSrc = typeof logo === "string" ? logo : (logo?.url || logo?.data || "");
+                                              return (
+                                                <div key={idx} className="relative group w-10 h-10 rounded-lg border border-slate-200 overflow-hidden bg-white p-1">
+                                                  <img src={logoSrc} alt={`Logo ${idx + 1}`} className="w-full h-full object-contain" />
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setCampaignState(prev => ({ ...prev, logos: (prev.logos || []).filter((_: any, i: number) => i !== idx) }))}
+                                                    className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-rose-600 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                  >
+                                                    <X className="h-2.5 w-2.5" />
+                                                  </button>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Text: Headlines (up to 5), Long Headlines (up to 5), Descriptions (up to 5), CTA & Business Name */}
+                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-bold text-slate-800 text-[11px] block">Text</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCockpitDirectAiGeneration("ALL", false)}
+                                          className="px-2 py-0.5 rounded-md bg-purple-100 hover:bg-purple-200 text-purple-800 text-[9px] font-bold flex items-center gap-1 border border-purple-300 shadow-2xs transition-all cursor-pointer"
+                                          title="Generate all ad text assets with AI"
+                                        >
+                                          <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                                          <span>Generate All Text</span>
+                                        </button>
+                                      </div>
+
+                                      {/* Headlines (up to 5, max 40 chars) */}
+                                      <div className="space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                          <div className="flex items-center gap-2">
+                                            <label className="font-semibold text-slate-700 text-[10.5px]">
+                                              Headline <span className="text-rose-500 font-bold">*Required</span>
+                                            </label>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleCockpitDirectAiGeneration("HEADLINES", false)}
+                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-colors"
+                                              title="AI Generate All Headlines"
+                                            >
+                                              <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                                              <span>Generate All</span>
+                                            </button>
+                                          </div>
+                                          <span className="text-[10px] text-slate-400 font-mono">
+                                            {(campaignState.headlines || []).length} / 5 headlines
+                                          </span>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Add up to 5 headlines (max 40 characters each).</p>
+                                        <div className="space-y-1.5">
+                                          {((campaignState.headlines && campaignState.headlines.length > 0) ? campaignState.headlines : [""]).map((h, hIdx) => (
+                                            <div key={hIdx} className="space-y-0.5">
+                                              <div className="flex items-center gap-1.5">
+                                                <input
+                                                  type="text"
+                                                  maxLength={40}
+                                                  value={h}
+                                                  placeholder={`Headline ${hIdx + 1}`}
+                                                  onChange={(e) => {
+                                                    const cur = [...(campaignState.headlines || [""])];
+                                                    cur[hIdx] = e.target.value;
+                                                    setCampaignState(prev => ({ ...prev, headlines: cur }));
+                                                  }}
+                                                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleCockpitDirectAiGeneration("HEADLINE_SINGLE", false, h.trim() || undefined)}
+                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                                  title="AI Generate / Rewrite this headline"
+                                                >
+                                                  <Sparkles className="h-3 w-3 text-purple-600" />
+                                                </button>
+                                                {(campaignState.headlines?.length || 0) > 1 && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setCampaignState(prev => ({ ...prev, headlines: (prev.headlines || []).filter((_, i) => i !== hIdx) }))}
+                                                    className="p-1 text-slate-400 hover:text-rose-600"
+                                                  >
+                                                    <X className="h-3 w-3" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                              <span className="text-[9px] text-slate-400 font-mono block text-right">{(h || "").length} / 40</span>
+                                            </div>
+                                          ))}
+                                          {((campaignState.headlines?.length || 0) < 5) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setCampaignState(prev => ({ ...prev, headlines: [...(prev.headlines || []), ""] }))}
+                                              className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 pt-0.5"
+                                            >
+                                              <Plus className="h-3 w-3" /> Add headline
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Long Headlines (up to 5, max 90 chars) */}
+                                      <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                                        <div className="flex justify-between items-center">
+                                          <div className="flex items-center gap-2">
+                                            <label className="font-semibold text-slate-700 text-[10.5px]">
+                                              Long headline <span className="text-rose-500 font-bold">*Required</span>
+                                            </label>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINES", false)}
+                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-colors"
+                                              title="AI Generate All Long Headlines"
+                                            >
+                                              <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                                              <span>Generate All</span>
+                                            </button>
+                                          </div>
+                                          <span className="text-[10px] text-slate-400 font-mono">
+                                            {(campaignState.longHeadlines || []).length} / 5 long headlines
+                                          </span>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Add up to 5 long headlines (max 90 characters each).</p>
+                                        <div className="space-y-1.5">
+                                          {((campaignState.longHeadlines && campaignState.longHeadlines.length > 0) ? campaignState.longHeadlines : [""]).map((lh, lhIdx) => (
+                                            <div key={lhIdx} className="space-y-0.5">
+                                              <div className="flex items-center gap-1.5">
+                                                <input
+                                                  type="text"
+                                                  maxLength={90}
+                                                  value={lh}
+                                                  placeholder={`Long headline ${lhIdx + 1}`}
+                                                  onChange={(e) => {
+                                                    const cur = [...(campaignState.longHeadlines || [""])];
+                                                    cur[lhIdx] = e.target.value;
+                                                    setCampaignState(prev => ({ ...prev, longHeadlines: cur }));
+                                                  }}
+                                                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINE_SINGLE", false, lh.trim() || undefined)}
+                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                                  title="AI Generate / Rewrite this long headline"
+                                                >
+                                                  <Sparkles className="h-3 w-3 text-purple-600" />
+                                                </button>
+                                                {(campaignState.longHeadlines?.length || 0) > 1 && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setCampaignState(prev => ({ ...prev, longHeadlines: (prev.longHeadlines || []).filter((_, i) => i !== lhIdx) }))}
+                                                    className="p-1 text-slate-400 hover:text-rose-600"
+                                                  >
+                                                    <X className="h-3 w-3" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                              <span className="text-[9px] text-slate-400 font-mono block text-right">{(lh || "").length} / 90</span>
+                                            </div>
+                                          ))}
+                                          {((campaignState.longHeadlines?.length || 0) < 5) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setCampaignState(prev => ({ ...prev, longHeadlines: [...(prev.longHeadlines || []), ""] }))}
+                                              className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 pt-0.5"
+                                            >
+                                              <Plus className="h-3 w-3" /> Add long headline
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Descriptions (up to 5, max 90 chars) */}
+                                      <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                                        <div className="flex justify-between items-center">
+                                          <div className="flex items-center gap-2">
+                                            <label className="font-semibold text-slate-700 text-[10.5px]">
+                                              Description <span className="text-rose-500 font-bold">*Required</span>
+                                            </label>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleCockpitDirectAiGeneration("DESCRIPTIONS", false)}
+                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-colors"
+                                              title="AI Generate All Descriptions"
+                                            >
+                                              <Sparkles className="h-2.5 w-2.5 text-purple-600" />
+                                              <span>Generate All</span>
+                                            </button>
+                                          </div>
+                                          <span className="text-[10px] text-slate-400 font-mono">
+                                            {(campaignState.descriptions || []).length} / 5 descriptions
+                                          </span>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Add up to 5 descriptions (max 90 characters each).</p>
+                                        <div className="space-y-1.5">
+                                          {((campaignState.descriptions && campaignState.descriptions.length > 0) ? campaignState.descriptions : [""]).map((d, dIdx) => (
+                                            <div key={dIdx} className="space-y-0.5">
+                                              <div className="flex items-center gap-1.5">
+                                                <input
+                                                  type="text"
+                                                  maxLength={90}
+                                                  value={d}
+                                                  placeholder={`Description ${dIdx + 1}`}
+                                                  onChange={(e) => {
+                                                    const cur = [...(campaignState.descriptions || [""])];
+                                                    cur[dIdx] = e.target.value;
+                                                    setCampaignState(prev => ({ ...prev, descriptions: cur }));
+                                                  }}
+                                                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleCockpitDirectAiGeneration("DESCRIPTION_SINGLE", false, d.trim() || undefined)}
+                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                                  title="AI Generate / Rewrite this description"
+                                                >
+                                                  <Sparkles className="h-3 w-3 text-purple-600" />
+                                                </button>
+                                                {(campaignState.descriptions?.length || 0) > 1 && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setCampaignState(prev => ({ ...prev, descriptions: (prev.descriptions || []).filter((_, i) => i !== dIdx) }))}
+                                                    className="p-1 text-slate-400 hover:text-rose-600"
+                                                  >
+                                                    <X className="h-3 w-3" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                              <span className="text-[9px] text-slate-400 font-mono block text-right">{(d || "").length} / 90</span>
+                                            </div>
+                                          ))}
+                                          {((campaignState.descriptions?.length || 0) < 5) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setCampaignState(prev => ({ ...prev, descriptions: [...(prev.descriptions || []), ""] }))}
+                                              className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 pt-0.5"
+                                            >
+                                              <Plus className="h-3 w-3" /> Add description
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Call to action & Business Name */}
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-200">
+                                        <div>
+                                          <label className="font-semibold text-slate-700 text-[10px] block mb-1">
+                                            Call to action text
+                                          </label>
+                                          <select
+                                            value={campaignState.callToAction || "Automated (recommended)"}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              setCampaignState(prev => ({ ...prev, callToAction: val }));
+                                              setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                                ...item,
+                                                ads: item.ads.map(a => a.id === activeAd.id ? { ...a, callToAction: val } : a)
+                                              } : item));
+                                            }}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
+                                          >
+                                            <option value="Automated (recommended)">Automated (recommended)</option>
+                                            <option value="Learn more">Learn more</option>
+                                            <option value="Shop now">Shop now</option>
+                                            <option value="Sign up">Sign up</option>
+                                            <option value="Contact us">Contact us</option>
+                                            <option value="Get quote">Get quote</option>
+                                            <option value="Download">Download</option>
+                                            <option value="Book now">Book now</option>
+                                            <option value="Apply now">Apply now</option>
+                                          </select>
+                                        </div>
+
+                                        <div>
+                                          <div className="flex justify-between items-center text-[10px] mb-1">
+                                            <label className="font-semibold text-slate-700">Business name <span className="text-rose-500 font-bold">*</span></label>
+                                            <span className="text-slate-400 font-mono">{(campaignState.businessName || "").length} / 25</span>
+                                          </div>
+                                          <input
+                                            type="text"
+                                            maxLength={25}
+                                            value={campaignState.businessName || ""}
+                                            placeholder="Your business brand"
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              setCampaignState(prev => ({ ...prev, businessName: val }));
+                                              setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                                ...item,
+                                                ads: item.ads.map(a => a.id === activeAd.id ? { ...a, businessName: val } : a)
+                                              } : item));
+                                            }}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      {/* Sitelinks for Video */}
+                                      <div className="pt-2 border-t border-slate-200 space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <label className="font-semibold text-slate-700 text-[10.5px]">Sitelinks</label>
+                                          <span className="text-[9.5px] text-purple-700 font-medium">Add 4 or more to maximize performance</span>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Show links to specific pages on your website beneath the video ad.</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* ──────────────── FORM FOR CAROUSEL IMAGE AD ──────────────── */}
+                                {activeAd.adType === "CAROUSEL" && (
+                                  <div className="space-y-3 animate-in fade-in duration-150">
+                                    {/* Ad Name & Final URL */}
+                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                                      <div>
+                                        <div className="flex justify-between items-center text-[10px] mb-0.5">
+                                          <label className="font-semibold text-slate-700">Ad name</label>
+                                          <span className="text-slate-400 font-mono">{(activeAd.name || "").length} / 255</span>
+                                        </div>
+                                        <input
+                                          type="text"
+                                          maxLength={255}
+                                          value={activeAd.name || ""}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                              ...item,
+                                              ads: item.ads.map(a => a.id === activeAd.id ? { ...a, name: val } : a)
+                                            } : item));
+                                          }}
+                                          placeholder="Ad 1 #2"
+                                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <div className="flex items-center justify-between text-[10px] mb-0.5">
+                                          <label className="font-semibold text-slate-700">Final URL <span className="text-rose-500 font-bold">*Required</span></label>
+                                        </div>
+                                        <input
+                                          type="url"
+                                          value={activeAd.finalUrl || campaignState.website || ""}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                              ...item,
+                                              ads: item.ads.map(a => a.id === activeAd.id ? { ...a, finalUrl: val } : a)
+                                            } : item));
+                                            setCampaignState(prev => ({ ...prev, website: val }));
+                                          }}
+                                          placeholder="https://example.com"
+                                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Media: Cards (up to 10 cards, min 2) & Logos */}
+                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-bold text-slate-800 text-[11px] block">Media & Carousel Cards</span>
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              fetchPastMediaLibrary();
+                                              setIsPastMediaModalOpen(true);
+                                            }}
+                                            className="px-2 py-0.5 rounded-md bg-white hover:bg-slate-100 text-slate-700 font-semibold text-[9px] transition-colors cursor-pointer flex items-center gap-1 border border-slate-200"
+                                            title="Open past uploads and generated files library"
+                                          >
+                                            <History className="h-2.5 w-2.5 text-slate-500" />
+                                            <span>Past Files</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCockpitDirectAiGeneration("LOGO")}
+                                            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold text-[9px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                                            title="AI Generate logo"
+                                          >
+                                            <Sparkles className="h-2.5 w-2.5" />
+                                            <span>AI Logo</span>
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Cards */}
+                                      <div className="space-y-2">
+                                        <div className="flex justify-between items-center">
+                                          <label className="font-semibold text-slate-700 text-[10.5px]">
+                                            Cards <span className="text-rose-500 font-bold">*Required (Add up to 10 cards)</span>
+                                          </label>
+                                          <span className="text-[10px] text-purple-700 font-mono font-semibold">
+                                            {((campaignState.carouselCards || []).filter(c => c && c.image?.trim() && c.headline?.trim())).length} / 2 min required
+                                          </span>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                          {((campaignState.carouselCards && campaignState.carouselCards.length > 0)
+                                            ? campaignState.carouselCards
+                                            : [
+                                                { id: "c-1", image: "", headline: "", finalUrl: campaignState.website || "" },
+                                                { id: "c-2", image: "", headline: "", finalUrl: campaignState.website || "" }
+                                              ]
+                                          ).map((card, cIdx) => (
+                                            <div key={card.id || cIdx} className="p-2.5 bg-white border border-purple-200/80 rounded-xl space-y-2 shadow-2xs">
+                                              <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className="font-bold text-purple-700 text-[10.5px]">Card {cIdx + 1}</span>
+                                                  {card.image && card.headline && (
+                                                    <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                                                      Ready
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                  {/* Single Card AI Auto-Generator Button */}
+                                                  <button
+                                                    type="button"
+                                                    disabled={generatingCarouselCardIdx === cIdx}
+                                                    onClick={() => handleGenerateCarouselCard(cIdx, "ALL")}
+                                                    className="px-2 py-0.5 rounded-md bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold text-[9px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all disabled:opacity-50"
+                                                    title={`Generate image and headline for Card ${cIdx + 1} using AI`}
+                                                  >
+                                                    {generatingCarouselCardIdx === cIdx ? (
+                                                      <>
+                                                        <Loader2 className="h-2.5 w-2.5 animate-spin text-white" />
+                                                        <span>Generating...</span>
+                                                      </>
+                                                    ) : (
+                                                      <>
+                                                        <Sparkles className="h-2.5 w-2.5 text-amber-300" />
+                                                        <span>AI Card</span>
+                                                      </>
+                                                    )}
+                                                  </button>
+                                                  {(campaignState.carouselCards?.length || 0) > 2 && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => setCampaignState(prev => ({
+                                                        ...prev,
+                                                        carouselCards: (prev.carouselCards || []).filter((_, i) => i !== cIdx)
+                                                      }))}
+                                                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                                                      title="Delete card"
+                                                    >
+                                                      <Trash2 className="h-3 w-3" />
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              </div>
+
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                                {/* Card Image & Preview */}
+                                                <div className="space-y-1">
+                                                  <div className="flex items-center justify-between">
+                                                    <label className="text-[9.5px] text-slate-600 font-semibold">Card Image *</label>
+                                                    <div className="flex items-center gap-1.5">
+                                                      <button
+                                                        type="button"
+                                                        disabled={generatingCarouselCardIdx === cIdx}
+                                                        onClick={() => handleGenerateCarouselCard(cIdx, "IMAGE")}
+                                                        className="text-[8.5px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-0.5 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200"
+                                                        title="AI generate image for this card"
+                                                      >
+                                                        <Sparkles className="h-2 w-2 text-purple-600" />
+                                                        <span>AI Image</span>
+                                                      </button>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => openMediaSourcePicker("IMAGE")}
+                                                        className="text-[8.5px] text-purple-700 hover:underline font-bold"
+                                                      >
+                                                        + Pick
+                                                      </button>
+                                                    </div>
+                                                  </div>
+
+                                                  <input
+                                                    type="url"
+                                                    value={card.image || ""}
+                                                    placeholder="https://example.com/slide.jpg"
+                                                    onChange={(e) => {
+                                                      const nextCards = [...(campaignState.carouselCards || [
+                                                        { id: "c-1", image: "", headline: "", finalUrl: "" },
+                                                        { id: "c-2", image: "", headline: "", finalUrl: "" }
+                                                      ])];
+                                                      nextCards[cIdx] = { ...nextCards[cIdx], image: e.target.value };
+                                                      setCampaignState(prev => ({ ...prev, carouselCards: nextCards }));
+                                                    }}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                                                  />
+
+                                                  {/* Image Display / Preview in Screen */}
+                                                  {card.image ? (
+                                                    <div className="relative group w-full h-24 rounded-lg border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center mt-1 shadow-2xs">
+                                                      <img
+                                                        src={card.image}
+                                                        alt={`Card ${cIdx + 1} Preview`}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                          (e.currentTarget as HTMLElement).style.display = "none";
+                                                        }}
+                                                      />
+                                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => {
+                                                            const nextCards = [...(campaignState.carouselCards || [])];
+                                                            nextCards[cIdx] = { ...nextCards[cIdx], image: "" };
+                                                            setCampaignState(prev => ({ ...prev, carouselCards: nextCards }));
+                                                          }}
+                                                          className="p-1 rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-md cursor-pointer"
+                                                          title="Remove image"
+                                                        >
+                                                          <X className="h-3 w-3" />
+                                                        </button>
+                                                      </div>
+                                                    </div>
+                                                  ) : (
+                                                    <div className="w-full h-14 rounded-lg border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center text-[9px] text-slate-400">
+                                                      No image selected
+                                                    </div>
+                                                  )}
+                                                </div>
+
+                                                {/* Card Headline */}
+                                                <div className="space-y-1">
+                                                  <div className="flex justify-between items-center text-[9.5px] text-slate-600 font-semibold">
+                                                    <div className="flex items-center gap-1.5">
+                                                      <span>Card Headline *</span>
+                                                      <button
+                                                        type="button"
+                                                        disabled={generatingCarouselCardIdx === cIdx}
+                                                        onClick={() => handleGenerateCarouselCard(cIdx, "HEADLINE")}
+                                                        className="text-[8.5px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-0.5 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200"
+                                                        title="AI generate headline for this card"
+                                                      >
+                                                        <Sparkles className="h-2 w-2 text-purple-600" />
+                                                        <span>AI Headline</span>
+                                                      </button>
+                                                    </div>
+                                                    <span className="font-mono text-slate-400">{(card.headline || "").length} / 40</span>
+                                                  </div>
+                                                  <input
+                                                    type="text"
+                                                    maxLength={40}
+                                                    value={card.headline || ""}
+                                                    placeholder="Headline for this card"
+                                                    onChange={(e) => {
+                                                      const nextCards = [...(campaignState.carouselCards || [
+                                                        { id: "c-1", image: "", headline: "", finalUrl: "" },
+                                                        { id: "c-2", image: "", headline: "", finalUrl: "" }
+                                                      ])];
+                                                      nextCards[cIdx] = { ...nextCards[cIdx], headline: e.target.value };
+                                                      setCampaignState(prev => ({ ...prev, carouselCards: nextCards }));
+                                                    }}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                                  />
+
+                                                  {/* Final URL for Card */}
+                                                  <div className="pt-1">
+                                                    <label className="text-[9px] text-slate-500 font-medium block mb-0.5">Card Final URL (optional)</label>
+                                                    <input
+                                                      type="url"
+                                                      value={card.finalUrl || ""}
+                                                      placeholder={campaignState.website || "https://example.com/item"}
+                                                      onChange={(e) => {
+                                                        const nextCards = [...(campaignState.carouselCards || [])];
+                                                        nextCards[cIdx] = { ...nextCards[cIdx], finalUrl: e.target.value };
+                                                        setCampaignState(prev => ({ ...prev, carouselCards: nextCards }));
+                                                      }}
+                                                      className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[9.5px] text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                                                    />
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+
+                                          {((campaignState.carouselCards?.length || 0) < 10) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const cur = campaignState.carouselCards || [
+                                                  { id: "c-1", image: "", headline: "", finalUrl: campaignState.website || "" },
+                                                  { id: "c-2", image: "", headline: "", finalUrl: campaignState.website || "" }
+                                                ];
+                                                setCampaignState(prev => ({
+                                                  ...prev,
+                                                  carouselCards: [...cur, { id: `c-${Date.now()}`, image: "", headline: "", finalUrl: prev.website || "" }]
+                                                }));
+                                              }}
+                                              className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+                                            >
+                                              <Plus className="h-3 w-3" />
+                                              <span>Add Carousel Card</span>
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Logos */}
+                                      <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                                        <div className="flex justify-between items-center">
+                                          <label className="font-semibold text-slate-700 text-[10.5px]">
+                                            Logos <span className="text-rose-500 font-bold">*Required</span>
+                                          </label>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => openMediaSourcePicker("LOGO")}
+                                              className="px-2 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[9.5px] border border-purple-200 flex items-center gap-0.5 cursor-pointer transition-colors"
+                                            >
+                                              <Upload className="h-2.5 w-2.5" />
+                                              <span>Upload / Pick Logo</span>
+                                            </button>
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                              {(campaignState.logos || []).length} / 5 logos
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <p className="text-[9.5px] text-slate-500">Add a logo (1:1 square & 4:1 landscape).</p>
+                                        <div className="flex gap-1.5">
+                                          <input
+                                            type="url"
+                                            id="dg-carousel-logo-input"
+                                            placeholder="Paste logo URL (https://...)"
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                const target = e.currentTarget;
+                                                const val = target.value.trim();
+                                                if (val && (campaignState.logos || []).length < 5 && !(campaignState.logos || []).includes(val)) {
+                                                  setCampaignState(prev => ({ ...prev, logos: [...(prev.logos || []), val] }));
+                                                }
+                                                target.value = "";
+                                              }
+                                            }}
+                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const inputEl = document.getElementById("dg-carousel-logo-input") as HTMLInputElement | null;
+                                              if (inputEl && inputEl.value.trim()) {
+                                                const val = inputEl.value.trim();
+                                                if ((campaignState.logos || []).length < 5 && !(campaignState.logos || []).includes(val)) {
+                                                  setCampaignState(prev => ({ ...prev, logos: [...(prev.logos || []), val] }));
+                                                }
+                                                inputEl.value = "";
+                                              }
+                                            }}
+                                            className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[10px] cursor-pointer"
+                                          >
+                                            + Add URL
+                                          </button>
+                                        </div>
+                                        {(campaignState.logos || []).length > 0 && (
+                                          <div className="flex flex-wrap gap-1.5 pt-1">
+                                            {(campaignState.logos || []).map((logo: any, idx: number) => {
+                                              const logoSrc = typeof logo === "string" ? logo : (logo?.url || logo?.data || "");
+                                              return (
+                                                <div key={idx} className="relative group w-10 h-10 rounded-lg border border-slate-200 overflow-hidden bg-white p-1">
+                                                  <img src={logoSrc} alt={`Logo ${idx + 1}`} className="w-full h-full object-contain" />
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setCampaignState(prev => ({ ...prev, logos: (prev.logos || []).filter((_: any, i: number) => i !== idx) }))}
+                                                    className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-rose-600 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                  >
+                                                    <X className="h-2.5 w-2.5" />
+                                                  </button>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Text: Headline, Description, Business name */}
+                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                                      <span className="font-bold text-slate-800 text-[11px] block">Text</span>
+
+                                      {/* Headline (max 40) */}
+                                      <div className="space-y-0.5">
+                                        <div className="flex justify-between items-center text-[10px]">
+                                          <label className="font-semibold text-slate-700">Headline <span className="text-rose-500 font-bold">*Required</span></label>
+                                          <span className="text-slate-400 font-mono">{(campaignState.headlines?.[0] || "").length} / 40</span>
+                                        </div>
+                                        <input
+                                          type="text"
+                                          maxLength={40}
+                                          value={campaignState.headlines?.[0] || ""}
+                                          placeholder="Primary carousel headline"
+                                          onChange={(e) => {
+                                            const cur = [...(campaignState.headlines || [""])];
+                                            cur[0] = e.target.value;
+                                            setCampaignState(prev => ({ ...prev, headlines: cur }));
+                                          }}
+                                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                        />
+                                      </div>
+
+                                      {/* Description (max 90) */}
+                                      <div className="space-y-0.5 pt-1">
+                                        <div className="flex justify-between items-center text-[10px]">
+                                          <label className="font-semibold text-slate-700">Description <span className="text-rose-500 font-bold">*Required</span></label>
+                                          <span className="text-slate-400 font-mono">{(campaignState.descriptions?.[0] || "").length} / 90</span>
+                                        </div>
+                                        <input
+                                          type="text"
+                                          maxLength={90}
+                                          value={campaignState.descriptions?.[0] || ""}
+                                          placeholder="Primary carousel description"
+                                          onChange={(e) => {
+                                            const cur = [...(campaignState.descriptions || [""])];
+                                            cur[0] = e.target.value;
+                                            setCampaignState(prev => ({ ...prev, descriptions: cur }));
+                                          }}
+                                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                        />
+                                      </div>
+
+                                      {/* Business name (max 25) */}
+                                      <div className="space-y-0.5 pt-1">
+                                        <div className="flex justify-between items-center text-[10px]">
+                                          <label className="font-semibold text-slate-700">Business name <span className="text-rose-500 font-bold">*Required</span></label>
+                                          <span className="text-slate-400 font-mono">{(campaignState.businessName || "").length} / 25</span>
+                                        </div>
+                                        <input
+                                          type="text"
+                                          maxLength={25}
+                                          value={campaignState.businessName || ""}
+                                          placeholder="Your business brand"
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setCampaignState(prev => ({ ...prev, businessName: val }));
+                                            setDemandGenAdGroups(prev => prev.map(item => item.id === ag.id ? {
+                                              ...item,
+                                              ads: item.ads.map(a => a.id === activeAd.id ? { ...a, businessName: val } : a)
+                                            } : item));
+                                          }}
+                                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Brand Identity & Overlays */}
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                        <div className="flex items-center gap-1.5 font-semibold text-slate-800 text-[11px]">
+                          <Palette className="h-3.5 w-3.5 text-purple-600" />
+                          <span>Brand Identity & Overlays</span>
+                        </div>
+                        <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(campaignState.includeViewThrough)}
+                            onChange={(e) => setCampaignState(prev => ({ ...prev, includeViewThrough: e.target.checked }))}
+                            className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
+                          />
+                          <span>View-Through Conversions</span>
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[10px]">
+                        <div>
+                          <span className="text-slate-500 font-medium block mb-1">Main Brand Color:</span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={campaignState.mainBrandColor || "#1A73E8"}
+                              onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
+                              className="w-6 h-6 rounded cursor-pointer border-0 p-0 shadow-2xs"
+                            />
+                            <input
+                              type="text"
+                              maxLength={7}
+                              value={campaignState.mainBrandColor || "#1A73E8"}
+                              onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
+                              placeholder="#1A73E8"
+                              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-purple-400"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="text-slate-500 font-medium block mb-1">Accent Color:</span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={campaignState.accentBrandColor || "#7C3AED"}
+                              onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
+                              className="w-6 h-6 rounded cursor-pointer border-0 p-0 shadow-2xs"
+                            />
+                            <input
+                              type="text"
+                              maxLength={7}
+                              value={campaignState.accentBrandColor || "#7C3AED"}
+                              onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
+                              placeholder="#7C3AED"
+                              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-purple-400"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Brand Font Selection */}
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-600 font-medium">Brand Font:</span>
+                        <select
+                          value={campaignState.brandFont || "Any font"}
+                          onChange={(e) => setCampaignState(prev => ({ ...prev, brandFont: e.target.value }))}
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-purple-500"
+                        >
+                          <option value="Any font">Any font</option>
+                          <option value="Open Sans">Open Sans</option>
+                          <option value="Roboto">Roboto</option>
+                          <option value="Roboto Slab">Roboto Slab</option>
+                          <option value="Montserrat">Montserrat</option>
+                          <option value="Poppins">Poppins</option>
+                          <option value="Lato">Lato</option>
+                          <option value="Oswald">Oswald</option>
+                          <option value="Playfair Display">Playfair Display</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* More Options (Collapsible Card: Channels, Ad URL options, Creative Enhancements) */}
+                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setIsMoreOptionsCardOpen(!isMoreOptionsCardOpen)}
+                        className="w-full p-3 flex items-center justify-between hover:bg-slate-50/80 transition-colors text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Compass className="h-4 w-4 text-purple-600" />
+                          <div>
+                            <span className="font-semibold text-slate-900 text-xs block">More options</span>
+                            <span className="text-[10px] text-slate-500">
+                              Channel placements • Ad URL options & tracking • AI creative enhancements
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isMoreOptionsCardOpen ? "rotate-180" : ""}`} />
+                      </button>
+
+                      {isMoreOptionsCardOpen && (
+                        <div className="p-3.5 border-t border-slate-100 bg-slate-50/50 space-y-3.5 text-xs animate-in fade-in duration-150">
+                          {/* Channel Targeting: ALL vs CHOOSE */}
+                          <div className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="font-semibold text-slate-800 text-[11px]">Channel Targeting:</span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, channelTargeting: "ALL" }))}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                    (campaignState.channelTargeting || "ALL") === "ALL"
+                                      ? "bg-purple-600 text-white"
+                                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                  }`}
+                                >
+                                  ALL
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({
+                                    ...prev,
+                                    channelTargeting: "CHOOSE",
+                                    channels: prev.channels && prev.channels.length > 0 ? prev.channels : [
+                                      "YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"
+                                    ]
+                                  }))}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                    campaignState.channelTargeting === "CHOOSE"
+                                      ? "bg-purple-600 text-white"
+                                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                  }`}
+                                >
+                                  CHOOSE
+                                </button>
+                              </div>
+                            </div>
+
+                            {campaignState.channelTargeting === "CHOOSE" && (
+                              <div className="space-y-1 pt-1 border-t border-slate-100">
+                                <span className="text-[10px] text-slate-400 block">Selected Channels:</span>
+                                <div className="grid grid-cols-2 gap-1 text-[10px]">
+                                  {[
+                                    "YouTube",
+                                    "YouTube in-stream",
+                                    "YouTube in-feed",
+                                    "YouTube Shorts",
+                                    "Discover",
+                                    "Gmail",
+                                    "Google Display Network",
+                                    "Maps New"
+                                  ].map((ch) => {
+                                    const curChannels = campaignState.channels || ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"];
+                                    const isChSelected = curChannels.includes(ch);
+                                    return (
+                                      <label key={ch} className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChSelected}
+                                          onChange={(e) => {
+                                            const nextCh = e.target.checked
+                                              ? [...curChannels, ch]
+                                              : curChannels.filter(c => c !== ch);
+                                            setCampaignState(prev => ({ ...prev, channels: nextCh }));
+                                          }}
+                                          className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
+                                        />
+                                        <span className="truncate">{ch}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Display Paths & Brand Control */}
+                          <div className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-2">
+                            <span className="font-semibold text-slate-800 text-[11px] block">Display Paths & Brand Rules</span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                               <div>
-                                <label className="block text-[9px] text-slate-500 font-semibold mb-0.5">Card Image URL</label>
+                                <label className="text-[10px] text-slate-500 font-medium block mb-0.5">Display Path 1 (Max 15 chars)</label>
                                 <input
-                                  type="url"
-                                  value={card.image || ""}
-                                  placeholder="https://example.com/slide.jpg"
-                                  onChange={(e) => {
-                                    const nextCards = [...(campaignState.carouselCards || [
-                                      { id: "card-1", image: "", headline: "", finalUrl: "" },
-                                      { id: "card-2", image: "", headline: "", finalUrl: "" }
-                                    ])];
-                                    nextCards[idx] = { ...nextCards[idx], image: e.target.value };
-                                    setCampaignState(prev => ({ ...prev, carouselCards: nextCards }));
-                                  }}
-                                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[10px] text-slate-800"
+                                  type="text"
+                                  maxLength={15}
+                                  value={campaignState.displayPath1 || ""}
+                                  onChange={(e) => setCampaignState(prev => ({ ...prev, displayPath1: e.target.value.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 15) }))}
+                                  placeholder="e.g. sale"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-medium text-slate-800 focus:outline-none focus:border-purple-400"
                                 />
                               </div>
                               <div>
-                                <label className="block text-[9px] text-slate-500 font-semibold mb-0.5">Card Headline (Max 40)</label>
+                                <label className="text-[10px] text-slate-500 font-medium block mb-0.5">Display Path 2 (Max 15 chars)</label>
                                 <input
                                   type="text"
-                                  maxLength={40}
-                                  value={card.headline || ""}
-                                  placeholder="Headline for this card"
+                                  maxLength={15}
+                                  value={campaignState.displayPath2 || ""}
+                                  onChange={(e) => setCampaignState(prev => ({ ...prev, displayPath2: e.target.value.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 15) }))}
+                                  placeholder="e.g. discounts"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-medium text-slate-800 focus:outline-none focus:border-purple-400"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+                              <div>
+                                <label className="text-[10px] text-slate-500 font-medium block mb-0.5">Brand Inclusions (Comma separated)</label>
+                                <input
+                                  type="text"
+                                  value={Array.isArray(campaignState.brandInclusions) ? campaignState.brandInclusions.join(", ") : (campaignState.brandInclusions || "")}
                                   onChange={(e) => {
-                                    const nextCards = [...(campaignState.carouselCards || [
-                                      { id: "card-1", image: "", headline: "", finalUrl: "" },
-                                      { id: "card-2", image: "", headline: "", finalUrl: "" }
-                                    ])];
-                                    nextCards[idx] = { ...nextCards[idx], headline: e.target.value };
-                                    setCampaignState(prev => ({ ...prev, carouselCards: nextCards }));
+                                    const raw = e.target.value;
+                                    const parsed = raw.split(",").map(s => s.trim()).filter(Boolean);
+                                    setCampaignState(prev => ({ ...prev, brandInclusions: parsed }));
                                   }}
-                                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[10px] text-slate-800"
+                                  placeholder="e.g. MyBrand, SubBrand"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:border-purple-400"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-slate-500 font-medium block mb-0.5">Brand Exclusions (Comma separated)</label>
+                                <input
+                                  type="text"
+                                  value={Array.isArray(campaignState.brandExclusions) ? campaignState.brandExclusions.join(", ") : (campaignState.brandExclusions || "")}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    const parsed = raw.split(",").map(s => s.trim()).filter(Boolean);
+                                    setCampaignState(prev => ({ ...prev, brandExclusions: parsed }));
+                                  }}
+                                  placeholder="e.g. CompetitorA, CompetitorB"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:border-purple-400"
                                 />
                               </div>
                             </div>
                           </div>
-                        ))}
 
-                        {((campaignState.carouselCards?.length || 0) < 10) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const cur = campaignState.carouselCards || [
-                                { id: "card-1", image: "", headline: "", finalUrl: campaignState.website || "https://" },
-                                { id: "card-2", image: "", headline: "", finalUrl: campaignState.website || "https://" }
-                              ];
-                              setCampaignState(prev => ({
-                                ...prev,
-                                carouselCards: [...cur, { id: `card-${Date.now()}`, image: "", headline: "", finalUrl: prev.website || "https://" }]
-                              }));
-                            }}
-                            className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-1 rounded-md transition-colors"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Card</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                          {/* Ad URL options */}
+                          <div className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-2">
+                            <span className="font-semibold text-slate-800 text-[11px] block">Ad URL options</span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] text-slate-500 font-medium block mb-0.5">Tracking Template</label>
+                                <input
+                                  type="text"
+                                  value={campaignState.trackingTemplate || ""}
+                                  onChange={(e) => setCampaignState(prev => ({ ...prev, trackingTemplate: e.target.value }))}
+                                  placeholder="https://tracking.com?url={lpurl}"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:border-purple-400"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-slate-500 font-medium block mb-0.5">Final URL Suffix</label>
+                                <input
+                                  type="text"
+                                  value={campaignState.finalUrlSuffix || ""}
+                                  onChange={(e) => setCampaignState(prev => ({ ...prev, finalUrlSuffix: e.target.value }))}
+                                  placeholder="utm_source=google&utm_medium=demandgen"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:border-purple-400"
+                                />
+                              </div>
+                            </div>
 
-                  {/* Brand Guidelines & Colors */}
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-slate-800">Brand Identity & Overlays:</span>
-                      <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(campaignState.includeViewThrough)}
-                          onChange={(e) => setCampaignState(prev => ({ ...prev, includeViewThrough: e.target.checked }))}
-                          className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
-                        />
-                        <span>View-Through Conversions</span>
-                      </label>
-                    </div>
+                            {/* Custom Parameters */}
+                            <div className="space-y-1 pt-1">
+                              <span className="text-[10px] text-slate-500 font-medium block">Custom Parameters:</span>
+                              {(campaignState.customParameters || []).map((cp, cpIdx) => (
+                                <div key={cpIdx} className="flex items-center gap-1">
+                                  <span className="text-[10px] font-mono text-slate-400">{`{_`}</span>
+                                  <input
+                                    type="text"
+                                    value={cp.name}
+                                    placeholder="param"
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.customParameters || [])];
+                                      cur[cpIdx] = { ...cur[cpIdx], name: e.target.value };
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="w-24 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none"
+                                  />
+                                  <span className="text-[10px] font-mono text-slate-400">{`} =`}</span>
+                                  <input
+                                    type="text"
+                                    value={cp.value}
+                                    placeholder="value"
+                                    onChange={(e) => {
+                                      const cur = [...(campaignState.customParameters || [])];
+                                      cur[cpIdx] = { ...cur[cpIdx], value: e.target.value };
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="flex-1 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const cur = (campaignState.customParameters || []).filter((_, i) => i !== cpIdx);
+                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCampaignState(prev => ({
+                                    ...prev,
+                                    customParameters: [...(prev.customParameters || []), { id: Date.now().toString(), name: "", value: "" }]
+                                  }));
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
+                              >
+                                <Plus className="h-3 w-3" /> Add parameter
+                              </button>
+                            </div>
+                          </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-[10px]">
-                      <div>
-                        <span className="text-slate-400 block mb-0.5">Main Brand Color:</span>
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="color"
-                            value={campaignState.mainBrandColor || "#1A73E8"}
-                            onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
-                            className="w-5 h-5 rounded cursor-pointer border-0 p-0"
-                          />
-                          <input
-                            type="text"
-                            value={campaignState.mainBrandColor || "#1A73E8"}
-                            onChange={(e) => setCampaignState(prev => ({ ...prev, mainBrandColor: e.target.value }))}
-                            placeholder="#1A73E8"
-                            className="w-20 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800"
-                          />
+                          {/* Google AI Creative Enhancements */}
+                          <div className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-2">
+                            <span className="font-semibold text-slate-800 text-[11px] block">Creative Asset Optimizations:</span>
+                            <div className="space-y-1.5 text-[10px]">
+                              <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={campaignState.optAdaptiveLayouts !== false}
+                                  onChange={(e) => setCampaignState(prev => ({ ...prev, optAdaptiveLayouts: e.target.checked }))}
+                                  className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
+                                />
+                                <div>
+                                  <span className="font-semibold block">Adaptive Layouts</span>
+                                  <span className="text-slate-400 text-[9px]">Google AI dynamically adjusts image crops and layouts across YouTube & Discover</span>
+                                </div>
+                              </label>
+
+                              <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={campaignState.optAnimatedImages !== false}
+                                  onChange={(e) => setCampaignState(prev => ({ ...prev, optAnimatedImages: e.target.checked }))}
+                                  className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
+                                />
+                                <div>
+                                  <span className="font-semibold block">Animated Images (Beta)</span>
+                                  <span className="text-slate-400 text-[9px]">Generates subtle motion animations on static imagery</span>
+                                </div>
+                              </label>
+
+                              <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={campaignState.optGeneratedVideos !== false}
+                                  onChange={(e) => setCampaignState(prev => ({ ...prev, optGeneratedVideos: e.target.checked }))}
+                                  className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
+                                />
+                                <div>
+                                  <span className="font-semibold block">Auto-Generated Videos</span>
+                                  <span className="text-slate-400 text-[9px]">Builds short video creatives using images, text, and music</span>
+                                </div>
+                              </label>
+
+                              <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={campaignState.optLandingPagePreviews !== false}
+                                  onChange={(e) => setCampaignState(prev => ({ ...prev, optLandingPagePreviews: e.target.checked }))}
+                                  className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
+                                />
+                                <div>
+                                  <span className="font-semibold block">Landing Page Previews</span>
+                                  <span className="text-slate-400 text-[9px]">Shows interactive card previews of the destination URL</span>
+                                </div>
+                              </label>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-
-                      <div>
-                        <span className="text-slate-400 block mb-0.5">Accent Color:</span>
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="color"
-                            value={campaignState.accentBrandColor || "#7C3AED"}
-                            onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
-                            className="w-5 h-5 rounded cursor-pointer border-0 p-0"
-                          />
-                          <input
-                            type="text"
-                            value={campaignState.accentBrandColor || "#7C3AED"}
-                            onChange={(e) => setCampaignState(prev => ({ ...prev, accentBrandColor: e.target.value }))}
-                            placeholder="#7C3AED"
-                            className="w-20 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Brand Font Selection */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                      <span className="text-slate-500 font-semibold">Brand Font:</span>
-                      <select
-                        value={campaignState.brandFont || "Any font"}
-                        onChange={(e) => setCampaignState(prev => ({ ...prev, brandFont: e.target.value }))}
-                        className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-medium text-slate-800 focus:outline-none"
-                      >
-                        <option value="Any font">Any font</option>
-                        <option value="Open Sans">Open Sans</option>
-                        <option value="Roboto">Roboto</option>
-                        <option value="Roboto Slab">Roboto Slab</option>
-                        <option value="Montserrat">Montserrat</option>
-                        <option value="Poppins">Poppins</option>
-                        <option value="Lato">Lato</option>
-                        <option value="Oswald">Oswald</option>
-                        <option value="Playfair Display">Playfair Display</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Search Themes (Demand Gen Targeting Guidance) */}
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-slate-800 font-semibold text-[11px]">
-                        <Target className="h-3 w-3 text-purple-600" />
-                        <span>Search Themes</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {(campaignState.searchThemes || []).length}/25
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      Inform Google AI what search queries & buyer interests relate to your Demand Gen ads across YouTube, Gmail & Discover.
-                    </p>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={newSearchThemeInput}
-                        maxLength={80}
-                        onChange={(e) => setNewSearchThemeInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && newSearchThemeInput.trim()) {
-                            e.preventDefault();
-                            const val = newSearchThemeInput.trim();
-                            if ((campaignState.searchThemes || []).length < 25 && !(campaignState.searchThemes || []).includes(val)) {
-                              setCampaignState(prev => ({ ...prev, searchThemes: [...(prev.searchThemes || []), val] }));
-                            }
-                            setNewSearchThemeInput("");
-                          }
-                        }}
-                        placeholder="e.g. business automation, luxury travel..."
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (newSearchThemeInput.trim()) {
-                            const val = newSearchThemeInput.trim();
-                            if ((campaignState.searchThemes || []).length < 25 && !(campaignState.searchThemes || []).includes(val)) {
-                              setCampaignState(prev => ({ ...prev, searchThemes: [...(prev.searchThemes || []), val] }));
-                            }
-                            setNewSearchThemeInput("");
-                          }
-                        }}
-                        className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
-                      >
-                        + Add
-                      </button>
-                    </div>
-                    {(campaignState.searchThemes || []).length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1 max-h-28 overflow-y-auto">
-                        {(campaignState.searchThemes || []).map((theme, idx) => (
-                          <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-[10px] text-purple-800 font-medium">
-                            <span>{theme}</span>
-                            <button
-                              type="button"
-                              onClick={() => setCampaignState(prev => ({ ...prev, searchThemes: (prev.searchThemes || []).filter((_, i) => i !== idx) }))}
-                              className="text-purple-400 hover:text-rose-600 cursor-pointer"
-                            >
-                              <X className="h-2.5 w-2.5" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Audience Signals (Audience Segments Guidance) */}
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-slate-800 font-semibold text-[11px]">
-                        <Users className="h-3 w-3 text-purple-600" />
-                        <span>Audience Signals</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {(campaignState.audienceSignals || []).length} added
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      Target specific in-market interests, custom segments, or buyer personas to guide Google AI's conversion optimization.
-                    </p>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        id="dg-audience-signal-input"
-                        placeholder="e.g. Technology Enthusiasts, Small Business Owners..."
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            const target = e.currentTarget;
-                            const val = target.value.trim();
-                            if (val && !(campaignState.audienceSignals || []).includes(val)) {
-                              setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
-                            }
-                            target.value = "";
-                          }
-                        }}
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const inputEl = document.getElementById("dg-audience-signal-input") as HTMLInputElement | null;
-                          if (inputEl && inputEl.value.trim()) {
-                            const val = inputEl.value.trim();
-                            if (!(campaignState.audienceSignals || []).includes(val)) {
-                              setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
-                            }
-                            inputEl.value = "";
-                          }
-                        }}
-                        className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
-                      >
-                        + Add
-                      </button>
-                    </div>
-                    {(campaignState.audienceSignals || []).length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1 max-h-28 overflow-y-auto">
-                        {(campaignState.audienceSignals || []).map((signal, idx) => (
-                          <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] text-slate-800 font-medium">
-                            <span>👥 {typeof signal === "string" ? signal : (signal?.name || signal?.segmentName || "Custom Audience")}</span>
-                            <button
-                              type="button"
-                              onClick={() => setCampaignState(prev => ({ ...prev, audienceSignals: (prev.audienceSignals || []).filter((_, i) => i !== idx) }))}
-                              className="text-slate-400 hover:text-rose-600 cursor-pointer"
-                            >
-                              <X className="h-2.5 w-2.5" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Google AI Creative Enhancements */}
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
-                    <span className="font-semibold text-slate-800 block">Creative Asset Optimizations:</span>
-                    <div className="space-y-1.5 text-[10px]">
-                      <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={campaignState.optAdaptiveLayouts !== false}
-                          onChange={(e) => setCampaignState(prev => ({ ...prev, optAdaptiveLayouts: e.target.checked }))}
-                          className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
-                        />
-                        <div>
-                          <span className="font-semibold block">Adaptive Layouts</span>
-                          <span className="text-slate-400 text-[9px]">Google AI dynamically adjusts image crops and layouts across YouTube & Discover</span>
-                        </div>
-                      </label>
-
-                      <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={campaignState.optAnimatedImages !== false}
-                          onChange={(e) => setCampaignState(prev => ({ ...prev, optAnimatedImages: e.target.checked }))}
-                          className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
-                        />
-                        <div>
-                          <span className="font-semibold block">Animated Images (Beta)</span>
-                          <span className="text-slate-400 text-[9px]">Generates subtle motion animations on static imagery</span>
-                        </div>
-                      </label>
-
-                      <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={campaignState.optGeneratedVideos !== false}
-                          onChange={(e) => setCampaignState(prev => ({ ...prev, optGeneratedVideos: e.target.checked }))}
-                          className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
-                        />
-                        <div>
-                          <span className="font-semibold block">Auto-Generated Videos</span>
-                          <span className="text-slate-400 text-[9px]">Builds short video creatives using images, text, and music</span>
-                        </div>
-                      </label>
-
-                      <label className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={campaignState.optLandingPagePreviews !== false}
-                          onChange={(e) => setCampaignState(prev => ({ ...prev, optLandingPagePreviews: e.target.checked }))}
-                          className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
-                        />
-                        <div>
-                          <span className="font-semibold block">Landing Page Previews</span>
-                          <span className="text-slate-400 text-[9px]">Shows interactive card previews of the destination URL</span>
-                        </div>
-                      </label>
+                      )}
                     </div>
                   </div>
                 </div>
-              </div>
+
+                {/* CARD 2: DEMAND GEN TARGETING SIGNALS */}
+                <div className="bg-slate-50 border border-purple-200/80 rounded-2xl p-4 space-y-3.5 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-purple-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-xl bg-purple-100 text-purple-700 shadow-2xs">
+                        <Target className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-bold text-xs text-slate-900">Demand Gen Search Themes (Targeting Signals)</h3>
+                          <span className="px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 text-[9px] font-bold uppercase">
+                            AI Targeting Signals
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          Guide Google AI with search terms and audience signals to find high-intent buyers across YouTube, Gmail & Discover.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 text-[11px]">
+                    {/* Search Themes Input (Up to 25) */}
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-[11px]">
+                          <Search className="h-3.5 w-3.5 text-purple-600" />
+                          <span>Search Themes</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCockpitDirectAiGeneration("SEARCH_THEMES", false)}
+                            className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                            title="Generate high-converting search themes with AI"
+                          >
+                            <Sparkles className="h-2.5 w-2.5 text-purple-600" /> Generate All Themes
+                          </button>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {(campaignState.searchThemes || []).length}/25 themes
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        Inform Google AI what search queries relate directly to your Demand Gen ads across YouTube, Gmail & Discover.
+                      </p>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={newSearchThemeInput}
+                          maxLength={80}
+                          onChange={(e) => setNewSearchThemeInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && newSearchThemeInput.trim()) {
+                              e.preventDefault();
+                              const val = newSearchThemeInput.trim();
+                              if ((campaignState.searchThemes || []).length < 25 && !(campaignState.searchThemes || []).includes(val)) {
+                                setCampaignState(prev => ({ ...prev, searchThemes: [...(prev.searchThemes || []), val] }));
+                              }
+                              setNewSearchThemeInput("");
+                            }
+                          }}
+                          placeholder="e.g. business automation, luxury travel..."
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:bg-white focus:border-purple-400 font-medium"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const hint = newSearchThemeInput.trim();
+                            setNewSearchThemeInput("");
+                            handleCockpitDirectAiGeneration("SEARCH_THEME_SINGLE", false, hint || undefined);
+                          }}
+                          className="px-2.5 py-1.5 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Generate 1 search theme with AI"
+                        >
+                          <BrainCircuit className="h-3.5 w-3.5 text-cyan-300" />
+                          <span>AI Suggest</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newSearchThemeInput.trim()) {
+                              const val = newSearchThemeInput.trim();
+                              if ((campaignState.searchThemes || []).length < 25 && !(campaignState.searchThemes || []).includes(val)) {
+                                setCampaignState(prev => ({ ...prev, searchThemes: [...(prev.searchThemes || []), val] }));
+                              }
+                              setNewSearchThemeInput("");
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[10px] cursor-pointer transition-colors shadow-2xs"
+                        >
+                          + Add
+                        </button>
+                      </div>
+
+                      {(campaignState.searchThemes || []).length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {(campaignState.searchThemes || []).map((theme, idx) => (
+                            <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-[10px] text-purple-900 font-medium shadow-2xs">
+                              <span>{theme}</span>
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, searchThemes: (prev.searchThemes || []).filter((_, i) => i !== idx) }))}
+                                className="text-purple-400 hover:text-rose-600 cursor-pointer p-0.5"
+                                title="Remove theme"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 italic">No search themes added yet. Add up to 25 themes to steer AI targeting.</p>
+                      )}
+                    </div>
+
+                    {/* Audience Signals */}
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-[11px]">
+                          <Users className="h-3.5 w-3.5 text-indigo-600" />
+                          <span>Audience Signals</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCockpitDirectAiGeneration("AUDIENCE_SIGNALS", false)}
+                            className="px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[9.5px] border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                            title="Generate high-converting audience signals with AI"
+                          >
+                            <Sparkles className="h-2.5 w-2.5 text-indigo-600" /> Generate All Signals
+                          </button>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {(campaignState.audienceSignals || []).length} audience(s)
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        Target specific in-market interests, custom segments, or buyer personas to guide Google AI's conversion optimization.
+                      </p>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          id="dg-audience-signal-input"
+                          placeholder="e.g. Technology Enthusiasts, Small Business Owners..."
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const target = e.currentTarget;
+                              const val = target.value.trim();
+                              if (val && !(campaignState.audienceSignals || []).includes(val)) {
+                                setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
+                              }
+                              target.value = "";
+                            }
+                          }}
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-400 font-medium"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const inputEl = document.getElementById("dg-audience-signal-input") as HTMLInputElement | null;
+                            const hint = inputEl?.value.trim() || "";
+                            if (inputEl) inputEl.value = "";
+                            handleCockpitDirectAiGeneration("AUDIENCE_SIGNAL_SINGLE", false, hint || undefined);
+                          }}
+                          className="px-2.5 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:to-pink-700 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Generate 1 audience signal with AI"
+                        >
+                          <BrainCircuit className="h-3.5 w-3.5 text-amber-300" />
+                          <span>AI Suggest</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const inputEl = document.getElementById("dg-audience-signal-input") as HTMLInputElement | null;
+                            if (inputEl && inputEl.value.trim()) {
+                              const val = inputEl.value.trim();
+                              if (!(campaignState.audienceSignals || []).includes(val)) {
+                                setCampaignState(prev => ({ ...prev, audienceSignals: [...(prev.audienceSignals || []), val] }));
+                              }
+                              inputEl.value = "";
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px] cursor-pointer transition-colors shadow-2xs"
+                        >
+                          + Add
+                        </button>
+                      </div>
+
+                      {(campaignState.audienceSignals || []).length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {(campaignState.audienceSignals || []).map((signal, idx) => (
+                            <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-900 font-medium shadow-2xs">
+                              <span>👥 {typeof signal === "string" ? signal : (signal?.name || signal?.segmentName || "Custom Audience")}</span>
+                              <button
+                                type="button"
+                                onClick={() => setCampaignState(prev => ({ ...prev, audienceSignals: (prev.audienceSignals || []).filter((_, i) => i !== idx) }))}
+                                className="text-indigo-400 hover:text-rose-600 cursor-pointer p-0.5"
+                                title="Remove signal"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 italic">No audience signals added yet. Optional, but recommended for fast Demand Gen ramp-up.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
 
             {/* 2b-Display. DISPLAY CAMPAIGN CONTROLS: BRANDING, OPTIMIZATIONS & CREATIVE SETTINGS CARD */}
@@ -15351,523 +17389,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 2b-2. DEMAND GEN CONTROLS: MORE CAMPAIGN SETTINGS (Search settings are handled in Optional Settings & Parameters Card 2) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "DEMAND_GEN" && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="h-4 w-4 text-purple-600" />
-                    <span className="font-bold text-xs text-slate-900">
-                      Demand Gen Advanced Settings
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                    Schedule & Devices
-                  </span>
-                </div>
 
-                <div className="space-y-2 text-[11px]">
-                  {/* More Campaign Settings Collapsible Section */}
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => setShowPMaxMoreSettings(!showPMaxMoreSettings)}
-                      className="w-full flex items-center justify-between p-2 rounded-xl bg-white hover:bg-purple-50/60 border border-purple-200 transition-colors cursor-pointer text-left group"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <Settings2 className="h-3.5 w-3.5 text-purple-600" />
-                        <span className="font-semibold text-slate-800 group-hover:text-purple-700">More campaign settings</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded font-mono">
-                          Schedule • URL Options • Devices • Demographic Exclusions
-                        </span>
-                        <ChevronDown className={`h-3.5 w-3.5 text-purple-400 transition-transform ${showPMaxMoreSettings ? "rotate-180" : ""}`} />
-                      </div>
-                    </button>
-
-                    {showPMaxMoreSettings && (
-                      <div className="mt-2 space-y-2 pt-1 animate-in fade-in duration-150">
-                        {/* 1. Ad Schedule (Duplicate Prevention) */}
-                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1 text-slate-800 font-semibold">
-                              <Clock className="h-3 w-3 text-purple-600" />
-                              <span>Ad Schedule</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400">
-                              {(campaignState.adSchedule || []).length || 1} schedule(s)
-                            </span>
-                          </div>
-                          
-                          <div className="space-y-1.5">
-                            {adScheduleError && (
-                              <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-1.5 text-[10px] text-rose-600 font-semibold animate-pulse">
-                                <AlertCircle className="h-3 w-3 shrink-0" />
-                                <span>{adScheduleError}</span>
-                              </div>
-                            )}
-
-                            {(campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "00:00" }]).map((sched, idx) => {
-                              const isAllDay = sched.start === "00:00" && (sched.end === "00:00" || sched.end === "24:00");
-                              const hasTimeError = !isAllDay && sched.start >= sched.end;
-                              const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? campaignState.adSchedule : [{ day: "All days", start: "00:00", end: "00:00" }];
-                              const isRowDuplicate = currentList.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === sched.end);
-                              const hasRowError = hasTimeError || isRowDuplicate;
-
-                              return (
-                                <div key={idx} className="space-y-1">
-                                  <div className={`flex flex-wrap items-center gap-1.5 p-1.5 rounded-lg border text-[10px] transition-colors ${
-                                    hasRowError ? "bg-rose-50/70 border-rose-300" : "bg-slate-50 border-slate-200"
-                                  }`}>
-                                    <select
-                                      value={sched.day}
-                                      onChange={(e) => {
-                                        const nextDay = e.target.value;
-                                        const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
-                                        const isDup = list.some((s, i) => i !== idx && s.day === nextDay && s.start === sched.start && s.end === sched.end);
-                                        if (isDup) {
-                                          setAdScheduleError(`Duplicate schedule: "${nextDay}: ${sched.start} - ${sched.end}" already exists. Cannot save duplicate.`);
-                                          return;
-                                        }
-                                        list[idx] = { ...list[idx], day: nextDay };
-                                        setAdScheduleError(null);
-                                        setCampaignState(prev => ({ ...prev, adSchedule: list }));
-                                      }}
-                                      className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-medium focus:outline-none"
-                                    >
-                                      {pmaxDayOptions.map((d, i) => (
-                                        <option key={i} value={d}>{d}</option>
-                                      ))}
-                                    </select>
-
-                                    <select
-                                      value={sched.start}
-                                      onChange={(e) => {
-                                        const nextStart = e.target.value;
-                                        const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
-                                        const isDup = list.some((s, i) => i !== idx && s.day === sched.day && s.start === nextStart && s.end === sched.end);
-                                        if (isDup) {
-                                          setAdScheduleError(`Duplicate schedule: "${sched.day}: ${nextStart} - ${sched.end}" already exists. Cannot save duplicate.`);
-                                          return;
-                                        }
-                                        const isFull = nextStart === "00:00" && (sched.end === "00:00" || sched.end === "24:00");
-                                        if (!isFull && nextStart >= sched.end) {
-                                          setAdScheduleError(`Invalid time: Start time (${nextStart}) must be before end time (${sched.end}).`);
-                                          return;
-                                        }
-                                        list[idx] = { ...list[idx], start: nextStart };
-                                        setAdScheduleError(null);
-                                        setCampaignState(prev => ({ ...prev, adSchedule: list }));
-                                      }}
-                                      className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-mono focus:outline-none"
-                                    >
-                                      {pmaxTimeOptions.map((t, i) => (
-                                        <option key={i} value={t}>{t}</option>
-                                      ))}
-                                    </select>
-
-                                    <span className="text-slate-400">to</span>
-
-                                    <select
-                                      value={sched.end}
-                                      onChange={(e) => {
-                                        const nextEnd = e.target.value;
-                                        const list = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
-                                        const isDup = list.some((s, i) => i !== idx && s.day === sched.day && s.start === sched.start && s.end === nextEnd);
-                                        if (isDup) {
-                                          setAdScheduleError(`Duplicate schedule: "${sched.day}: ${sched.start} - ${nextEnd}" already exists. Cannot save duplicate.`);
-                                          return;
-                                        }
-                                        const isFull = sched.start === "00:00" && (nextEnd === "00:00" || nextEnd === "24:00");
-                                        if (!isFull && sched.start >= nextEnd) {
-                                          setAdScheduleError(`Invalid time: Start time (${sched.start}) must be before end time (${nextEnd}).`);
-                                          return;
-                                        }
-                                        list[idx] = { ...list[idx], end: nextEnd };
-                                        setAdScheduleError(null);
-                                        setCampaignState(prev => ({ ...prev, adSchedule: list }));
-                                      }}
-                                      className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 font-mono focus:outline-none"
-                                    >
-                                      {pmaxTimeOptions.map((t, i) => (
-                                        <option key={i} value={t}>{t}</option>
-                                      ))}
-                                    </select>
-
-                                    {(campaignState.adSchedule || []).length > 1 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const currentList = [...(campaignState.adSchedule || [])];
-                                          currentList.splice(idx, 1);
-                                          setAdScheduleError(null);
-                                          setCampaignState(prev => ({ ...prev, adSchedule: currentList }));
-                                        }}
-                                        className="p-1 text-slate-400 hover:text-rose-600 ml-auto cursor-pointer"
-                                        title="Delete schedule row"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {hasRowError && (
-                                    <div className="text-[9px] text-rose-600 font-semibold px-1 flex items-center gap-1">
-                                      <AlertCircle className="h-2.5 w-2.5 shrink-0" />
-                                      <span>
-                                        {isRowDuplicate
-                                          ? "Duplicate schedule detected for this day and time."
-                                          : `Start time (${sched.start}) must be strictly before end time (${sched.end}).`}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentList = campaignState.adSchedule && campaignState.adSchedule.length > 0 ? [...campaignState.adSchedule] : [{ day: "All days", start: "00:00", end: "00:00" }];
-                                // Find an available day not already in currentList
-                                const availableDay = pmaxDayOptions.find(d => !currentList.some(s => s.day === d && s.start === "09:00" && s.end === "18:00")) ||
-                                  pmaxDayOptions.find(d => !currentList.some(s => s.day === d)) || "All days";
-                                const newRow = { day: availableDay, start: "09:00", end: "18:00" };
-                                const isDup = currentList.some(s => s.day === newRow.day && s.start === newRow.start && s.end === newRow.end);
-                                if (isDup) {
-                                  setAdScheduleError(`Schedule for ${newRow.day} (09:00 - 18:00) already exists. Please adjust the existing row.`);
-                                  return;
-                                }
-                                setAdScheduleError(null);
-                                setCampaignState(prev => ({ ...prev, adSchedule: [...currentList, newRow] }));
-                              }}
-                              className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
-                            >
-                              <Plus className="h-3 w-3" /> Add schedule row
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* 2. Campaign URL Options */}
-                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
-                          <div className="flex items-center gap-1 text-slate-800 font-semibold">
-                            <Globe className="h-3 w-3 text-purple-600" />
-                            <span>Campaign URL Options & Custom Parameters</span>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <div>
-                              <span className="text-[10px] text-slate-400 block">Tracking Template:</span>
-                              <input
-                                type="text"
-                                value={campaignState.trackingTemplate || ""}
-                                onChange={(e) => setCampaignState(prev => ({ ...prev, trackingTemplate: e.target.value }))}
-                                placeholder="{lpurl}?utm_source=google&utm_medium=cpc"
-                                className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
-                              />
-                            </div>
-
-                            <div>
-                              <span className="text-[10px] text-slate-400 block">Final URL Suffix:</span>
-                              <input
-                                type="text"
-                                value={campaignState.finalUrlSuffix || ""}
-                                onChange={(e) => setCampaignState(prev => ({ ...prev, finalUrlSuffix: e.target.value }))}
-                                placeholder="src=google_pmax&campaign_id=123"
-                                className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[10px] font-mono text-slate-800 focus:outline-none focus:bg-white"
-                              />
-                            </div>
-
-                            <div className="pt-1 space-y-1">
-                              <span className="text-[10px] text-slate-400 block">Custom Parameters:</span>
-                              {(campaignState.customParameters || []).map((cp, cpIdx) => (
-                                <div key={cpIdx} className="flex items-center gap-1">
-                                  <span className="text-[10px] font-mono text-slate-400">{`{_`}</span>
-                                  <input
-                                    type="text"
-                                    value={cp.name}
-                                    placeholder="param"
-                                    onChange={(e) => {
-                                      const cur = [...(campaignState.customParameters || [])];
-                                      cur[cpIdx] = { ...cur[cpIdx], name: e.target.value };
-                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
-                                    }}
-                                    className="w-24 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none"
-                                  />
-                                  <span className="text-[10px] font-mono text-slate-400">{`} =`}</span>
-                                  <input
-                                    type="text"
-                                    value={cp.value}
-                                    placeholder="value"
-                                    onChange={(e) => {
-                                      const cur = [...(campaignState.customParameters || [])];
-                                      cur[cpIdx] = { ...cur[cpIdx], value: e.target.value };
-                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
-                                    }}
-                                    className="flex-1 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-800 focus:outline-none"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const cur = (campaignState.customParameters || []).filter((_, i) => i !== cpIdx);
-                                      setCampaignState(prev => ({ ...prev, customParameters: cur }));
-                                    }}
-                                    className="p-1 text-slate-400 hover:text-rose-600"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              ))}
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCampaignState(prev => ({
-                                    ...prev,
-                                    customParameters: [...(prev.customParameters || []), { id: Date.now().toString(), name: "", value: "" }]
-                                  }));
-                                }}
-                                className="inline-flex items-center gap-1 text-[10px] text-purple-700 hover:text-purple-900 font-semibold cursor-pointer pt-0.5"
-                              >
-                                <Plus className="h-3 w-3" /> Add URL parameter
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 3. Devices */}
-                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1 text-slate-800 font-semibold">
-                              <Monitor className="h-3 w-3 text-purple-600" />
-                              <span>Devices</span>
-                            </div>
-                          </div>
-                          <p className="text-[10px] text-slate-400">Choose the devices where your Performance Max ads can appear:</p>
-                          <div className="grid grid-cols-2 gap-1 pt-0.5">
-                            {[
-                              { key: "computers" as const, label: "Computers" },
-                              { key: "mobile" as const, label: "Mobile phones" },
-                              { key: "tablets" as const, label: "Tablets" },
-                              { key: "tv" as const, label: "TV screens" }
-                            ].map((d) => {
-                              const curDevices = campaignState.devices || { computers: true, mobile: true, tablets: true, tv: true };
-                              const isChecked = curDevices[d.key] !== false;
-                              return (
-                                <label key={d.key} className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer text-slate-700">
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={(e) => {
-                                      setCampaignState(prev => ({
-                                        ...prev,
-                                        devices: {
-                                          ...(prev.devices || { computers: true, mobile: true, tablets: true, tv: true }),
-                                          [d.key]: e.target.checked
-                                        }
-                                      }));
-                                    }}
-                                    className="rounded text-purple-600 focus:ring-purple-500 h-3 w-3"
-                                  />
-                                  <span>{d.label}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* 4. Demographic Exclusions */}
-                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
-                          <span className="font-semibold text-slate-800 block">Demographic Exclusions:</span>
-                          
-                          {/* Age Exclusions */}
-                          <div className="space-y-1">
-                            <label className="flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={pmaxAgeExclusionsEnabled}
-                                onChange={(e) => setPmaxAgeExclusionsEnabled(e.target.checked)}
-                                className="rounded text-purple-600 h-3 w-3"
-                              />
-                              <span className="text-[10px] font-medium text-slate-700">Turn on age exclusions</span>
-                            </label>
-                            {pmaxAgeExclusionsEnabled && (
-                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-3 gap-1 text-[10px]">
-                                {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map((age) => {
-                                  const curExcluded = campaignState.demographicExclusions?.ages !== undefined
-                                    ? campaignState.demographicExclusions.ages
-                                    : ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
-                                  const isExcluded = curExcluded.includes(age);
-                                  return (
-                                    <label key={age} className="flex items-center gap-1 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={isExcluded}
-                                        onChange={(e) => {
-                                          const nextAges = e.target.checked
-                                            ? [...curExcluded, age]
-                                            : curExcluded.filter(a => a !== age);
-                                          setCampaignState(prev => ({
-                                            ...prev,
-                                            demographicExclusions: {
-                                              ...(prev.demographicExclusions || {}),
-                                              ages: nextAges
-                                            }
-                                          }));
-                                        }}
-                                        className="rounded text-rose-600 h-3 w-3"
-                                      />
-                                      <span>{age}</span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Gender Exclusions */}
-                          <div className="space-y-1 pt-1 border-t border-slate-100">
-                            <label className="flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={pmaxGenderExclusionsEnabled}
-                                onChange={(e) => setPmaxGenderExclusionsEnabled(e.target.checked)}
-                                className="rounded text-purple-600 h-3 w-3"
-                              />
-                              <span className="text-[10px] font-medium text-slate-700">Turn on gender exclusions</span>
-                            </label>
-                            {pmaxGenderExclusionsEnabled && (
-                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 flex gap-4 text-[10px]">
-                                {["Female", "Male", "Unknown"].map((gender) => {
-                                  const curExcluded = campaignState.demographicExclusions?.genders !== undefined
-                                    ? campaignState.demographicExclusions.genders
-                                    : ["Female", "Male"];
-                                  const isExcluded = curExcluded.includes(gender);
-                                  return (
-                                    <label key={gender} className="flex items-center gap-1 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={isExcluded}
-                                        onChange={(e) => {
-                                          const nextGenders = e.target.checked
-                                            ? [...curExcluded, gender]
-                                            : curExcluded.filter(g => g !== gender);
-                                          setCampaignState(prev => ({
-                                            ...prev,
-                                            demographicExclusions: {
-                                              ...(prev.demographicExclusions || {}),
-                                              genders: nextGenders
-                                            }
-                                          }));
-                                        }}
-                                        className="rounded text-rose-600 h-3 w-3"
-                                      />
-                                      <span>{gender}</span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* 5. Brand Exclusions */}
-                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-slate-800 text-[11px]">Brand exclusions</span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setBrandListModalMode("EXCLUSION");
-                                  setBrandListModalTab("SELECT_SAVED");
-                                  setShowBrandListModal(true);
-                                }}
-                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1"
-                              >
-                                <Database className="h-3 w-3" /> Select old lists ({savedBrandExclusionsList.length})
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setBrandListModalMode("EXCLUSION");
-                                  setBrandListModalTab("CREATE_NEW");
-                                  setBrandListNameInput("");
-                                  setSelectedBrandListBrands([]);
-                                  setShowBrandListModal(true);
-                                }}
-                                className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs"
-                              >
-                                <Plus className="h-3 w-3" /> New brand list
-                              </button>
-                              <span className="text-[10px] text-slate-400 font-mono">{(campaignState.brandExclusions || []).length} excluded</span>
-                            </div>
-                          </div>
-                          <p className="text-[10px] text-slate-500 leading-relaxed">
-                            Exclude brands so your Performance Max ads won't show on searches that mention those brands.
-                          </p>
-                          <div className="flex gap-1.5">
-                            <input
-                              type="text"
-                              value={pmaxBrandInput}
-                              onChange={(e) => setPmaxBrandInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && pmaxBrandInput.trim()) {
-                                  e.preventDefault();
-                                  const val = pmaxBrandInput.trim();
-                                  if (!(campaignState.brandExclusions || []).includes(val)) {
-                                    setCampaignState(prev => ({ ...prev, brandExclusions: [...(prev.brandExclusions || []), val] }));
-                                    saveBrandExclusionToDb("Quick Exclusion", [val]);
-                                  }
-                                  setPmaxBrandInput("");
-                                }
-                              }}
-                              placeholder="Exclude brand name..."
-                              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-800 focus:outline-none focus:bg-white"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (pmaxBrandInput.trim()) {
-                                  const val = pmaxBrandInput.trim();
-                                  if (!(campaignState.brandExclusions || []).includes(val)) {
-                                    setCampaignState(prev => ({ ...prev, brandExclusions: [...(prev.brandExclusions || []), val] }));
-                                    saveBrandExclusionToDb("Quick Exclusion", [val]);
-                                  }
-                                  setPmaxBrandInput("");
-                                }
-                              }}
-                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
-                            >
-                              + Exclude
-                            </button>
-                          </div>
-                          {(campaignState.brandExclusions || []).length > 0 && (
-                            <div className="flex flex-wrap gap-1 pt-1">
-                              {(campaignState.brandExclusions || []).map((b, idx) => (
-                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] text-rose-800 font-medium">
-                                  <span>{b}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setCampaignState(prev => ({ ...prev, brandExclusions: (prev.brandExclusions || []).filter((_, i) => i !== idx) }))}
-                                    className="text-rose-400 hover:text-rose-700"
-                                  >
-                                    <X className="h-2.5 w-2.5" />
-                                  </button>
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                      </div>
-                    )}
-                  </div>
-
-                </div>
-              </div>
-            )}
 
             {/* 2c. DEDICATED SHOPPING SETTINGS & READINESS CARD (When CampaignType = SHOPPING) */}
             {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "SHOPPING" && (() => {
@@ -16444,17 +17966,28 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <Target className="h-3.5 w-3.5 text-amber-600" />
                         <span>Product Keywords & Search Themes</span>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {((campaignState.keywords?.length || 0) + (campaignState.searchThemes?.length || 0))} active
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCockpitDirectAiGeneration("SEARCH_THEMES", false)}
+                          className="px-2 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 text-[9px] font-bold border border-amber-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Generate product keywords and search themes with AI"
+                        >
+                          <Sparkles className="h-2.5 w-2.5 text-amber-600" /> Generate All Themes
+                        </button>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {((campaignState.keywords?.length || 0) + (campaignState.searchThemes?.length || 0))} active
+                        </span>
+                      </div>
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed">
                       Define search intent, product attributes, and high-converting commercial keywords to guide Google Shopping placement matching.
                     </p>
                     <div className="space-y-1.5">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <input
                           type="text"
+                          id="shopping-kw-input"
                           placeholder="Type product keyword or search theme & press Enter..."
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
@@ -16476,6 +18009,20 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           }}
                           className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[10.5px] text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 font-medium"
                         />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const inputEl = document.getElementById("shopping-kw-input") as HTMLInputElement | null;
+                            const hint = inputEl?.value.trim() || "";
+                            if (inputEl) inputEl.value = "";
+                            handleCockpitDirectAiGeneration("SEARCH_THEME_SINGLE", false, hint || undefined);
+                          }}
+                          className="px-2.5 py-1 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Generate 1 product theme with AI"
+                        >
+                          <BrainCircuit className="h-3 w-3 text-amber-200" />
+                          <span>AI Suggest</span>
+                        </button>
                       </div>
                       {((campaignState.keywords || []).length > 0 || (campaignState.searchThemes || []).length > 0) && (
                         <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-0.5">
@@ -16485,6 +18032,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-[10px] text-amber-800 font-medium shadow-2xs"
                             >
                               <span>{kw}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCockpitDirectAiGeneration("SEARCH_THEME_SINGLE", false, kw)}
+                                className="text-amber-500 hover:text-amber-800 cursor-pointer p-0.5"
+                                title="AI Suggest Alternative"
+                              >
+                                <Sparkles className="h-2.5 w-2.5" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -16512,17 +18067,28 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <Users className="h-3.5 w-3.5 text-amber-600" />
                         <span>Audience Signals (Buyer Segments)</span>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {(campaignState.audienceSignals || (campaignState.audienceSignal ? [campaignState.audienceSignal] : [])).length} added
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCockpitDirectAiGeneration("AUDIENCE_SIGNALS", false)}
+                          className="px-2 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 text-[9px] font-bold border border-amber-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Generate buyer segments with AI"
+                        >
+                          <Sparkles className="h-2.5 w-2.5 text-amber-600" /> Generate All Signals
+                        </button>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {(campaignState.audienceSignals || (campaignState.audienceSignal ? [campaignState.audienceSignal] : [])).length} added
+                        </span>
+                      </div>
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed">
                       Direct Google Ads to customers with in-market purchase intent, past store visitors, and affinity shopper segments.
                     </p>
                     <div className="space-y-1.5">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <input
                           type="text"
+                          id="shopping-audience-input"
                           placeholder="e.g. In-Market Online Shoppers, Luxury Buyers, Cart Abandoners..."
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
@@ -16544,6 +18110,20 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           }}
                           className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[10.5px] text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 font-medium"
                         />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const inputEl = document.getElementById("shopping-audience-input") as HTMLInputElement | null;
+                            const hint = inputEl?.value.trim() || "";
+                            if (inputEl) inputEl.value = "";
+                            handleCockpitDirectAiGeneration("AUDIENCE_SIGNAL_SINGLE", false, hint || undefined);
+                          }}
+                          className="px-2.5 py-1 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Generate 1 buyer audience with AI"
+                        >
+                          <BrainCircuit className="h-3 w-3 text-amber-200" />
+                          <span>AI Suggest</span>
+                        </button>
                       </div>
                       {(campaignState.audienceSignals || (campaignState.audienceSignal ? [campaignState.audienceSignal] : [])).length > 0 && (
                         <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-0.5">
@@ -16553,6 +18133,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-[10px] text-purple-800 font-medium shadow-2xs"
                             >
                               <span>👥 {typeof aud === "string" ? aud : aud?.name || "Custom Segment"}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCockpitDirectAiGeneration("AUDIENCE_SIGNAL_SINGLE", false, typeof aud === "string" ? aud : aud?.name)}
+                                className="text-purple-400 hover:text-purple-700 cursor-pointer p-0.5"
+                                title="AI Suggest Alternative Segment"
+                              >
+                                <Sparkles className="h-2.5 w-2.5" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -16797,7 +18385,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             })()}
 
             {/* 3. DYNAMIC CAMPAIGN ASSETS & THUMBNAILS CARD (Search, Display, Video Image/Logo Assets & Media) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "PERFORMANCE_MAX" && campaignState.campaignType !== "SHOPPING" && campaignState.campaignType !== "APP" && (
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "PERFORMANCE_MAX" && campaignState.campaignType !== "DEMAND_GEN" && campaignState.campaignType !== "SHOPPING" && campaignState.campaignType !== "APP" && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -17190,7 +18778,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 )}
 
                 {/* Live Demand Gen Asset Requirements Checklist when type is DEMAND_GEN */}
-                {campaignState.campaignType === "DEMAND_GEN" && (
+                {(campaignState.campaignType as string) === "DEMAND_GEN" && (
                   <div className="p-2.5 rounded-xl bg-white border border-indigo-200 shadow-2xs space-y-1.5 text-[10px]">
                     <div className="flex items-center justify-between font-bold text-slate-800">
                       <span className="flex items-center gap-1 text-indigo-700">
@@ -17211,25 +18799,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         </div>
                       )}
                       {(campaignState.adFormat || "SINGLE_IMAGE") === "VIDEO" && (
-                        <>
-                          <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 col-span-2">
-                            <span>YouTube Channel Connection:</span>
-                            <span className={isYouTubeVerified(customerProfile || campaignState.customerProfile) ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
-                              {isYouTubeVerified(customerProfile || campaignState.customerProfile) ? "✓ Connected" : "Not Connected (Required)"}
-                            </span>
-                          </div>
-                          {!isYouTubeVerified(customerProfile || campaignState.customerProfile) && (
-                            <p className="text-[9.5px] text-rose-600 font-medium col-span-2">
-                              YouTube connection is required for Video Demand Gen campaigns. Connect your YouTube channel to continue.
-                            </p>
-                          )}
-                          <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
-                            <span>YouTube Video:</span>
-                            <span className={(campaignState.videos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                              {(campaignState.videos?.length || 0) > 0 ? "✓ Uploaded" : "Missing"}
-                            </span>
-                          </div>
-                        </>
+                        <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
+                          <span>YouTube Video:</span>
+                          <span className={(campaignState.videos?.length || 0) > 0 ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                            {(campaignState.videos?.length || 0) > 0 ? "✓ Uploaded" : "Missing"}
+                          </span>
+                        </div>
                       )}
                       {(campaignState.adFormat || "SINGLE_IMAGE") === "CAROUSEL" && (
                         <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
@@ -17491,13 +19066,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     </div>
                 );
               })()}
-                {/* Live Video & Demand Gen Checklist / Controls when type is VIDEO or DEMAND_GEN */}
-                {((campaignState.campaignType as string) === "VIDEO" || (campaignState.campaignType as string) === "DEMAND_GEN") && (
+                {/* Live Video Checklist / Controls when type is VIDEO */}
+                {(campaignState.campaignType as string) === "VIDEO" && (
                   <div className="p-2.5 rounded-xl bg-white border border-rose-200 shadow-2xs space-y-2 text-[10px]">
                     <div className="flex items-center justify-between font-bold text-slate-800">
                       <span className="flex items-center gap-1 text-rose-700">
                         <Video className="h-3 w-3 text-rose-600" />
-                        {(campaignState.campaignType as string) === "DEMAND_GEN" ? "Demand Gen Targeting & Media Readiness" : "Video Campaign Readiness"}
+                        Video Campaign Readiness
                       </span>
                       <span className={Boolean(
                         isYouTubeVerified(customerProfile || campaignState.customerProfile) &&
@@ -17797,14 +19372,25 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[9.5px]">
                       <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
                         <span>Keywords & Search Themes:</span>
-                        <span className="text-[9px] text-slate-400">
-                          {((campaignState.keywords?.length || 0) + (campaignState.searchThemes?.length || 0))} active
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCockpitDirectAiGeneration("SEARCH_THEMES", false)}
+                            className="px-2 py-0.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[8.5px] border border-rose-200 transition-colors cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                            title="Generate video keywords and search themes with AI"
+                          >
+                            <Sparkles className="h-2.5 w-2.5 text-rose-600" /> Generate All Themes
+                          </button>
+                          <span className="text-[9px] text-slate-400">
+                            {((campaignState.keywords?.length || 0) + (campaignState.searchThemes?.length || 0))} active
+                          </span>
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center gap-1">
                           <input
                             type="text"
+                            id="video-kw-input"
                             placeholder="Add target keyword or theme & press Enter..."
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
@@ -17825,6 +19411,20 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             }}
                             className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[9.5px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-rose-400 font-medium"
                           />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const inputEl = document.getElementById("video-kw-input") as HTMLInputElement | null;
+                              const hint = inputEl?.value.trim() || "";
+                              if (inputEl) inputEl.value = "";
+                              handleCockpitDirectAiGeneration("SEARCH_THEME_SINGLE", false, hint || undefined);
+                            }}
+                            className="px-2 py-1 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold text-[9px] rounded transition-all cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                            title="Generate 1 video theme with AI"
+                          >
+                            <BrainCircuit className="h-2.5 w-2.5 text-rose-200" />
+                            <span>AI Suggest</span>
+                          </button>
                         </div>
                         {((campaignState.keywords || []).length > 0 || (campaignState.searchThemes || []).length > 0) && (
                           <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto pt-0.5">
@@ -17834,6 +19434,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[8.5px] font-medium flex items-center gap-1"
                               >
                                 <span>{kw}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCockpitDirectAiGeneration("SEARCH_THEME_SINGLE", false, kw)}
+                                  className="text-rose-400 hover:text-rose-700 cursor-pointer p-0.5"
+                                  title="AI Suggest Alternative Theme"
+                                >
+                                  <Sparkles className="h-2 w-2" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -17879,14 +19487,25 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[9.5px]">
                       <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
                         <span>Audience Signals:</span>
-                        <span className="text-[9px] text-slate-400">
-                          {((campaignState.audienceSignals || []).length || (campaignState.audienceSignal ? 1 : 0))} configured
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCockpitDirectAiGeneration("AUDIENCE_SIGNALS", false)}
+                            className="px-2 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[8.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                            title="Generate video audience signals with AI"
+                          >
+                            <Sparkles className="h-2.5 w-2.5 text-purple-600" /> Generate All Signals
+                          </button>
+                          <span className="text-[9px] text-slate-400">
+                            {((campaignState.audienceSignals || []).length || (campaignState.audienceSignal ? 1 : 0))} configured
+                          </span>
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center gap-1">
                           <input
                             type="text"
+                            id="video-audience-input"
                             placeholder="Add custom audience segment & press Enter..."
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
@@ -17908,6 +19527,20 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             }}
                             className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[9.5px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-rose-400 font-medium"
                           />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const inputEl = document.getElementById("video-audience-input") as HTMLInputElement | null;
+                              const hint = inputEl?.value.trim() || "";
+                              if (inputEl) inputEl.value = "";
+                              handleCockpitDirectAiGeneration("AUDIENCE_SIGNAL_SINGLE", false, hint || undefined);
+                            }}
+                            className="px-2 py-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-[9px] rounded transition-all cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                            title="Generate 1 audience signal with AI"
+                          >
+                            <BrainCircuit className="h-2.5 w-2.5 text-purple-200" />
+                            <span>AI Suggest</span>
+                          </button>
                         </div>
                         {((campaignState.audienceSignals || []).length > 0 || campaignState.audienceSignal) && (
                           <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto pt-0.5">
@@ -17920,6 +19553,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[8.5px] font-medium flex items-center gap-1"
                               >
                                 <span>{sig}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCockpitDirectAiGeneration("AUDIENCE_SIGNAL_SINGLE", false, typeof sig === "string" ? sig : sig?.name)}
+                                  className="text-purple-400 hover:text-purple-700 cursor-pointer p-0.5"
+                                  title="AI Suggest Alternative Audience"
+                                >
+                                  <Sparkles className="h-2 w-2" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -18949,123 +20590,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               );
             })()}
 
-            {/* 4b. DEMAND GEN SEARCH THEMES MANAGER (PMax uses dedicated Card 4 above) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType === "DEMAND_GEN" && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Target className="h-4 w-4 text-purple-600" />
-                    <span className="font-bold text-xs text-slate-900">
-                      {campaignState.campaignType === "DEMAND_GEN" ? "Demand Gen Search Themes (Targeting Signals)" : "Search Themes (Signals)"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                      (campaignState.searchThemes?.length || 0) >= 1
-                        ? "bg-purple-50 text-purple-700 border-purple-200"
-                        : "bg-slate-100 text-slate-600 border-slate-200"
-                    }`}>
-                      {campaignState.searchThemes?.length || 0} Themes (Max 25)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleSendMessage("Suggest 8 high-converting search themes for my Performance Max campaign based on my target audience and products")}
-                      className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-all shadow-2xs group"
-                      title="Generate high-intent search themes using JDS AI"
-                    >
-                      <Sparkles className="h-3 w-3 text-purple-600 group-hover:rotate-12 transition-transform" />
-                      <span>✨ Suggest Themes with AI</span>
-                    </button>
-                  </div>
-                </div>
 
-                <p className="text-[11px] text-slate-500">
-                  Search themes tell Google AI what your customers are searching for across Search, YouTube, Gmail & Maps. (Up to 25 search themes).
-                </p>
-
-                <div className="space-y-2">
-                  {/* Search Theme Input */}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      let theme = (newSearchThemeInput || "").trim();
-                      if (!theme) return;
-                      if (theme.length > 80) {
-                        theme = theme.slice(0, 80);
-                      }
-                      if ((campaignState.searchThemes || []).length >= 25) {
-                        return;
-                      }
-                      if (!(campaignState.searchThemes || []).some(t => t.toLowerCase() === theme.toLowerCase())) {
-                        setCampaignState(prev => ({
-                          ...prev,
-                          searchThemes: [...(prev.searchThemes || []), theme]
-                        }));
-                      }
-                      setNewSearchThemeInput("");
-                    }}
-                    className="flex gap-1.5"
-                  >
-                    <input
-                      type="text"
-                      maxLength={80}
-                      value={newSearchThemeInput}
-                      onChange={(e) => setNewSearchThemeInput(e.target.value)}
-                      placeholder='Add search theme, e.g. "affordable running shoes"'
-                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-[11px] text-slate-900 focus:outline-none focus:border-purple-600"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!newSearchThemeInput.trim()}
-                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <Plus className="h-3 w-3" />
-                      <span>Add</span>
-                    </button>
-                  </form>
-
-                  {/* Search Themes Chips List */}
-                  {campaignState.searchThemes && campaignState.searchThemes.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 bg-white border border-slate-200 rounded-xl">
-                      {campaignState.searchThemes.map((theme, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-0.5 rounded-lg border text-[10px] font-medium flex items-center gap-1.5 shadow-2xs bg-purple-50 text-purple-700 border-purple-200"
-                        >
-                          <Target className="h-2.5 w-2.5 text-purple-600 opacity-70" />
-                          <span>{theme}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCampaignState(prev => ({
-                                ...prev,
-                                searchThemes: (prev.searchThemes || []).filter((_, i) => i !== idx)
-                              }));
-                            }}
-                            className="hover:text-rose-600 transition-colors cursor-pointer ml-0.5"
-                            title="Remove Search Theme"
-                          >
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center space-y-2">
-                      <p className="text-[11px] text-slate-500">No search themes added yet. Search themes guide Performance Max machine learning towards high-intent queries.</p>
-                      <button
-                        type="button"
-                        onClick={() => handleSendMessage("Suggest 8 high-converting search themes for my Performance Max campaign based on my target audience and products")}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-[11px] font-bold shadow-xs cursor-pointer transition-all"
-                      >
-                        <Sparkles className="h-3.5 w-3.5 text-white animate-pulse" />
-                        <span>✨ Suggest Search Themes with AI</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* 4c. SITELINKS MANAGER (Ad Extensions for Performance Max & Search Campaigns) */}
             {Boolean(campaignState.objective && campaignState.campaignType) && (campaignState.campaignType === "PERFORMANCE_MAX" || campaignState.campaignType === "SEARCH") && (
@@ -19533,8 +21058,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               </div>
             )}
 
-            {/* 5. GENERATED AD COPY CARD (Search, Shopping, Display, Video, App) */}
-            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "PERFORMANCE_MAX" && (
+            {/* 5. GENERATED AD COPY CARD (Search, Shopping, Display, Video, App - Excludes PMax & Demand Gen) */}
+            {Boolean(campaignState.objective && campaignState.campaignType) && campaignState.campaignType !== "PERFORMANCE_MAX" && campaignState.campaignType !== "DEMAND_GEN" && (
               <div className="bg-slate-50 border border-blue-200/80 rounded-2xl p-4 space-y-4 shadow-xs">
                 {/* Header with Ad Strength & AI Actions (Matching PMax Asset Group Parity) */}
                 <div className="flex items-center justify-between border-b border-blue-100 pb-2.5">
@@ -19720,19 +21245,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wider block">
-                    Headlines (Max {campaignState.campaignType === "DEMAND_GEN" ? 40 : 30} chars):
+                    Headlines (Max 30 chars):
                   </span>
                   <div className="flex items-center gap-1.5">
                     <span className={`text-[10px] font-bold ${
-                      (campaignState.headlines?.length || 0) >= (campaignState.campaignType === "DEMAND_GEN" ? 1 : 3) ? "text-emerald-600" : "text-rose-600"
+                      (campaignState.headlines?.length || 0) >= 3 ? "text-emerald-600" : "text-rose-600"
                     }`}>
-                      {campaignState.headlines?.length || 0} {campaignState.campaignType === "DEMAND_GEN" ? "(min 1, max 5)" : "(min 3, max 15)"}
+                      {campaignState.headlines?.length || 0} (min 3, max 15)
                     </span>
                     <button
                       type="button"
                       onClick={() => handleCockpitDirectAiGeneration("HEADLINES")}
                       className="text-[10px] text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-all shadow-2xs group"
-                      title={`AI Generate Headlines (max ${campaignState.campaignType === "DEMAND_GEN" ? 40 : 30} chars each)`}
+                      title="AI Generate Headlines (max 30 chars each)"
                     >
                       <Sparkles className="h-2.5 w-2.5 text-purple-600 group-hover:rotate-12 transition-transform" />
                       <span>Generate Headlines</span>
@@ -19758,7 +21283,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     <div className="flex items-center gap-1.5">
                       <input
                         type="text"
-                        maxLength={campaignState.campaignType === "DEMAND_GEN" ? 40 : 30}
+                        maxLength={30}
                         value={newHeadlineInput}
                         onChange={(e) => setNewHeadlineInput(e.target.value)}
                         onKeyDown={(e) => {
@@ -19839,8 +21364,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     )}
                     <div className="flex justify-between items-center px-1 text-[9px] text-slate-400 font-mono">
                       <span>Press Enter to save</span>
-                      <span className={newHeadlineInput.length > (campaignState.campaignType === "DEMAND_GEN" ? 40 : 30) ? "text-rose-600 font-bold" : ""}>
-                        {newHeadlineInput.length}/{campaignState.campaignType === "DEMAND_GEN" ? 40 : 30} chars
+                      <span className={newHeadlineInput.length > 30 ? "text-rose-600 font-bold" : ""}>
+                        {newHeadlineInput.length}/30 chars
                       </span>
                     </div>
                   </div>
@@ -19853,8 +21378,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <div key={idx} className="p-1.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-800 shadow-2xs flex justify-between items-center group hover:border-blue-300 transition-colors">
                         <span className="truncate flex-1 mr-2 text-slate-800">{hl}</span>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className={`text-[9px] font-mono ${hl.length > (campaignState.campaignType === "DEMAND_GEN" ? 40 : 30) ? "text-rose-600 font-bold" : "text-slate-400"}`}>
-                            {hl.length}/{campaignState.campaignType === "DEMAND_GEN" ? 40 : 30}
+                          <span className={`text-[9px] font-mono ${hl.length > 30 ? "text-rose-600 font-bold" : "text-slate-400"}`}>
+                            {hl.length}/30
                           </span>
                           <button
                             type="button"
@@ -19891,7 +21416,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     <span className="text-[10px] font-bold text-slate-600">
                       {campaignState.longHeadlines?.length || 0} (min 1, max 5)
                     </span>
-                    {(campaignState.campaignType === "DISPLAY" || campaignState.campaignType === "DEMAND_GEN" || !campaignState.campaignType) && (
+                    {(campaignState.campaignType === "DISPLAY" || !campaignState.campaignType) && (
                       <button
                         type="button"
                         onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINES")}
@@ -20212,8 +21737,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                 )}
               </div>
 
-              {/* Search, Demand Gen & Shopping Specific: Business Name & Logo + Ad URL Options */}
-              {(campaignState.campaignType === "SEARCH" || campaignState.campaignType === "DEMAND_GEN" || campaignState.campaignType === "SHOPPING") && (
+              {/* Search & Shopping Specific: Business Name & Logo + Ad URL Options */}
+              {(campaignState.campaignType === "SEARCH" || campaignState.campaignType === "SHOPPING") && (
                 <div className="space-y-3 pt-3 border-t border-slate-200">
                   {/* Business Name */}
                   <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs">

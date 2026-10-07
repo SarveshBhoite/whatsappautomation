@@ -767,14 +767,21 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
         const allVideos = [...(videos || []), ...(youtubeVideos || [])];
         let resolvedVideoAsset: string | null = null;
         for (const v of allVideos) {
-          const raw = typeof v === "string" ? v : v?.asset || v?.videoId || v?.id || "";
+          const raw = typeof v === "string" ? v : v?.asset || v?.videoId || v?.url || v?.id || "";
           if (raw.startsWith("customers/") && raw.includes("/assets/")) {
             resolvedVideoAsset = raw;
             break;
           }
+          if (raw) {
+            const uploaded = await GoogleAdsBaseService.uploadYouTubeVideoAsset(organizationId, customerId, raw);
+            if (uploaded) {
+              resolvedVideoAsset = uploaded;
+              break;
+            }
+          }
         }
 
-        if (!resolvedVideoAsset && !isAiGuided) {
+        if (!resolvedVideoAsset) {
           // Fallback query for existing video asset in account
           try {
             const vRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:searchStream`, {
@@ -785,7 +792,7 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
         }
 
         if (!resolvedVideoAsset) {
-          throw new Error("A valid YouTube video asset is required for Video Demand Gen ads.");
+          throw new Error("A valid YouTube video asset is required for Video Demand Gen ads. Please provide a valid YouTube video URL or ID.");
         }
         if (!resolvedLogoAsset) {
           throw new Error("A logo image asset is required for Video Demand Gen ads.");
@@ -1016,6 +1023,9 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
         audienceSignals: Array.isArray(payload.audienceSignals) ? payload.audienceSignals : (Array.isArray(payload.audienceSignal) ? payload.audienceSignal : (payload.audience ? [payload.audience] : [])),
         demandGenBudgetType: isCampaignTotal ? "Total" : "Daily",
         callPhoneNumber: payload.callPhoneNumber || null,
+        adName: payload.adName || null,
+        displayPath1: payload.displayPath1 || null,
+        displayPath2: payload.displayPath2 || null,
         brandGuidelines: {
           mainBrandColor: payload.brandGuidelines?.mainBrandColor || payload.mainBrandColor || null,
           accentBrandColor: payload.brandGuidelines?.accentBrandColor || payload.accentBrandColor || null,
@@ -1033,8 +1043,12 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
         keywords: Array.isArray(payload.keywords) ? payload.keywords : [],
         callToAction: payload.callToAction || "Automated",
         demographicExclusions: payload.demographicExclusions || null,
+        brandExclusions: payload.brandExclusions || null,
+        brandInclusions: payload.brandInclusions || null,
+        valueRules: payload.valueRules || null,
         merchantCenterId: payload.merchantCenterId || payload.merchantId || null,
         deviceTargeting,
+        devices: payload.devices || { computers: true, mobile: true, tablets: true, tv: true },
         adSchedule,
         objective: payload.campaignGoal || payload.objective || "Leads"
       },

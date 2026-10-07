@@ -631,7 +631,11 @@ export class StoreVisitsPerformanceMaxService extends GoogleAdsBaseService {
       });
 
       // Asset Group Signals (Search Themes and Audience Signals)
+      const seenSearchThemes = new Set<string>();
       validSearchThemes.forEach((theme: string) => {
+        const cleanTheme = String(theme).trim().toLowerCase();
+        if (!cleanTheme || seenSearchThemes.has(cleanTheme)) return;
+        seenSearchThemes.add(cleanTheme);
         mutateOperations.push({
           assetGroupSignalOperation: {
             create: {
@@ -643,9 +647,11 @@ export class StoreVisitsPerformanceMaxService extends GoogleAdsBaseService {
       });
 
       const validAudiences = Array.isArray(audienceSignals) ? audienceSignals : [];
+      const seenAudienceRefs = new Set<string>();
       for (const aud of validAudiences) {
         const resolvedAudRef = await GoogleAdsBaseService.resolveAudienceResource(organizationId, customerId, aud, headers);
-        if (resolvedAudRef) {
+        if (resolvedAudRef && !seenAudienceRefs.has(resolvedAudRef)) {
+          seenAudienceRefs.add(resolvedAudRef);
           mutateOperations.push({
             assetGroupSignalOperation: {
               create: {

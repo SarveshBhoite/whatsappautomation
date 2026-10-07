@@ -32,6 +32,8 @@ export interface NormalizedCampaignContext {
   campaignType: SupportedCampaignType;
   objective: SupportedObjective;
   campaignName: string;
+  adName?: string;
+  adGroupName?: string;
   businessName?: string;
   finalUrl?: string;
   mobileFinalUrl?: string;
@@ -261,11 +263,16 @@ export class CampaignPayloadBuilders {
       source: "AI_GUIDED",
       isAiGuided: true,
       campaignName: ctx.campaignName,
+      adName: raw.adName || ctx.adName || undefined,
+      adGroupName: raw.adGroupName || undefined,
+      adGroups: raw.adGroups || undefined,
       finalUrl: ctx.finalUrl,
+      website: ctx.finalUrl,
       businessName: ctx.businessName,
       dailyBudget: ctx.budget.dailyBudget,
       budget: ctx.budget.type === "TOTAL" && ctx.budget.totalBudget ? ctx.budget.totalBudget : ctx.budget.dailyBudget,
       totalBudget: ctx.budget.totalBudget,
+      budgetType: resolvedBudgetType,
       demandGenBudgetType: resolvedBudgetType,
       locations: ctx.targeting.locations.locations,
       languages: ctx.targeting.languages.languages,
@@ -278,8 +285,12 @@ export class CampaignPayloadBuilders {
       adFormat: raw.adFormat || "SINGLE_IMAGE",
       channelTargeting: raw.channelTargeting || "ALL",
       channels: raw.channels || [],
-      carouselCards: ctx.assets.carouselCards || [],
+      carouselCards: ctx.assets.carouselCards || raw.carouselCards || [],
       callToAction: raw.callToAction || "Automated",
+      displayPath1: raw.displayPath1 || undefined,
+      displayPath2: raw.displayPath2 || undefined,
+      mobileFinalUrl: raw.mobileFinalUrl || undefined,
+      callPhoneNumber: raw.callPhoneNumber || undefined,
       headlines: ctx.assets.headlines,
       longHeadlines: ctx.assets.longHeadlines,
       descriptions: ctx.assets.descriptions,
@@ -288,17 +299,42 @@ export class CampaignPayloadBuilders {
       videos: ctx.assets.videos,
       youtubeVideos: ctx.assets.videos,
       euPolitical: ctx.euPolitical || "NO",
-      adSchedule: ctx.targeting.adSchedule || [],
-      devices: ctx.targeting.devices,
+      includeViewThrough: raw.includeViewThrough !== undefined ? Boolean(raw.includeViewThrough) : true,
+      mainBrandColor: raw.mainBrandColor || undefined,
+      accentBrandColor: raw.accentBrandColor || undefined,
+      brandFont: raw.brandFont || undefined,
+      brandGuidelines: raw.brandGuidelines || (raw.mainBrandColor && raw.accentBrandColor ? {
+        mainBrandColor: raw.mainBrandColor,
+        accentBrandColor: raw.accentBrandColor,
+        brandFont: raw.brandFont
+      } : undefined),
+      optAdaptiveLayouts: raw.optAdaptiveLayouts !== undefined ? Boolean(raw.optAdaptiveLayouts) : true,
+      optAnimatedImages: raw.optAnimatedImages !== undefined ? Boolean(raw.optAnimatedImages) : true,
+      optGeneratedVideos: raw.optGeneratedVideos !== undefined ? Boolean(raw.optGeneratedVideos) : true,
+      optShorterVideos: Boolean(raw.optShorterVideos),
+      optResizedVideos: raw.optResizedVideos !== undefined ? Boolean(raw.optResizedVideos) : true,
+      optLandingPagePreviews: raw.optLandingPagePreviews !== undefined ? Boolean(raw.optLandingPagePreviews) : true,
+      deviceTargeting: raw.deviceTargeting || "ALL",
+      devices: ctx.targeting.devices || raw.devices || { computers: true, mobile: true, tablets: true, tv: true },
+      adSchedule: ctx.targeting.adSchedule || raw.adSchedule || [],
       trackingTemplate: cleanTrackingTemplate,
       finalUrlSuffix: ctx.finalUrlSuffix,
-      customParameters: ctx.customParameters || [],
+      customParameters: ctx.customParameters || raw.customParameters || [],
       sitelinks: ctx.extensions?.sitelinks || [],
       callouts: ctx.extensions?.callouts || [],
       structuredSnippets: ctx.extensions?.structuredSnippets || [],
       promotions: ctx.extensions?.promotions || [],
-      audienceSignals: raw.audienceSignals || [],
+      audienceSignals: raw.audienceSignals || (raw.audienceSignal ? [raw.audienceSignal] : []),
       searchThemes: raw.searchThemes || [],
+      keywords: raw.keywords || [],
+      demographicExclusions: raw.demographicExclusions || undefined,
+      genderExclusions: raw.genderExclusions || raw.demographicExclusions?.genders || undefined,
+      ageExclusions: raw.ageExclusions || raw.demographicExclusions?.ages || undefined,
+      brandExclusions: raw.brandExclusions || undefined,
+      brandInclusions: raw.brandInclusions || undefined,
+      valueRules: raw.valueRules || undefined,
+      merchantCenterId: raw.merchantCenterId || raw.merchantId || undefined,
+      merchantId: raw.merchantCenterId || raw.merchantId || undefined,
       conversionGoals: ctx.conversionGoals || []
     };
   }

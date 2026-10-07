@@ -3562,8 +3562,8 @@ router.post("/create-campaign", async (req, res) => {
         const devs: string[] = [];
         if (rawDevices.computers !== false && rawDevices.desktop !== false) devs.push("DESKTOP");
         if (rawDevices.mobile !== false) devs.push("MOBILE");
-        if (rawDevices.tablets !== false || rawDevices.tablet !== false) devs.push("TABLET");
-        if (rawDevices.tv !== false || rawDevices.connectedTv !== false) devs.push("CONNECTED_TV");
+        if (rawDevices.tablets !== false && rawDevices.tablet !== false) devs.push("TABLET");
+        if (rawDevices.tv !== false && rawDevices.connectedTv !== false) devs.push("CONNECTED_TV");
         return devs;
       }
       return ["DESKTOP", "MOBILE", "TABLET", "CONNECTED_TV"];
@@ -3904,6 +3904,10 @@ router.post("/create-campaign", async (req, res) => {
           optResizedVideos: anyState.optResizedVideos !== undefined ? Boolean(anyState.optResizedVideos) : true,
           optLandingPagePreviews: anyState.optLandingPagePreviews !== undefined ? Boolean(anyState.optLandingPagePreviews) : true,
           adName: anyState.adName || state.adName || undefined,
+          adGroupName: anyState.adGroupName || state.adGroupName || undefined,
+          adGroups: anyState.adGroups || (state as any).adGroups || undefined,
+          displayPath1: anyState.displayPath1 || state.displayPath1 || undefined,
+          displayPath2: anyState.displayPath2 || state.displayPath2 || undefined,
           adSchedule: normalizedAdSchedule,
           mobileFinalUrl: anyState.mobileFinalUrl || state.mobileFinalUrl || undefined,
           deviceTargeting: anyState.deviceTargeting || "ALL",
@@ -3922,6 +3926,10 @@ router.post("/create-campaign", async (req, res) => {
           keywords: anyState.keywords || state.keywords || [],
           demographicExclusions: anyState.demographicExclusions || state.demographicExclusions || undefined,
           genderExclusions: anyState.demographicExclusions?.genders || anyState.genderExclusions || undefined,
+          ageExclusions: anyState.demographicExclusions?.ages || anyState.ageExclusions || undefined,
+          brandExclusions: anyState.brandExclusions || (state as any).brandExclusions || undefined,
+          brandInclusions: anyState.brandInclusions || (state as any).brandInclusions || undefined,
+          valueRules: anyState.valueRules || (state as any).valueRules || undefined,
           merchantCenterId: state.merchantCenterId || state.merchantId || anyState.merchantCenterId || anyState.merchantId || undefined,
           merchantId: state.merchantCenterId || state.merchantId || anyState.merchantCenterId || anyState.merchantId || undefined,
           customerAcquisitionMode: anyState.customerAcquisitionMode || (state.onlyBidNewCustomers ? "ONLY_NEW" : "EQUAL"),
