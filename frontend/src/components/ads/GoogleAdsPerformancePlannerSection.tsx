@@ -8,7 +8,6 @@ import {
   MousePointerClick,
   Activity,
   Layers,
-  Sparkles,
   AlertCircle,
   Loader2,
   RefreshCw,
@@ -325,7 +324,7 @@ export function GoogleAdsPerformancePlannerSection({
               </>
             ) : (
               <>
-                <Sparkles className="h-4 w-4" />
+                <TrendingUp className="h-4 w-4" />
                 Generate Forecast
               </>
             )}

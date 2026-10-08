@@ -315,6 +315,16 @@ export default function SalesSearchPage() {
   const [promoEndDateMode, setPromoEndDateMode] = useState<"NONE" | "CUSTOM">("NONE");
   const [promoEndDate, setPromoEndDate] = useState<string>("");
 
+  // Modal: Prices State
+  const [priceLanguage, setPriceLanguage] = useState<string>("English");
+  const [priceType, setPriceType] = useState<string>("Services");
+  const [priceCurrency, setPriceCurrency] = useState<string>("INR");
+  const [priceQualifier, setPriceQualifier] = useState<string>("No qualifier");
+  const [priceItems, setPriceItems] = useState<Array<{ id: string; header: string; amount: string; unit: string; description: string; finalUrl: string }>>([
+    { id: "pi-1", header: "", amount: "", unit: "No units", description: "", finalUrl: "" }
+  ]);
+  const [savedPrices, setSavedPrices] = useState<Array<{ header: string; amount: number; unit?: string; description?: string; finalUrl: string }>>([]);
+
   // Modal 4: Structured Snippet State
   const [snippetLanguage, setSnippetLanguage] = useState<string>("English");
   const [snippetHeaderType, setSnippetHeaderType] = useState<string>("Select header type");
@@ -1162,7 +1172,49 @@ export default function SalesSearchPage() {
         headlines: validHeadlines,
         descriptions: validDescriptions,
         keywords: uniqueKeywords,
-        callAsset: callPhone ? { countryCode: "IN", phoneNumber: callPhone.trim() } : undefined
+        callAsset: callPhone ? { countryCode: "IN", phoneNumber: callPhone.trim() } : undefined,
+        // More Asset Types
+        callouts: callouts.length > 0 ? callouts : undefined,
+        structuredSnippets: snippetValuesList.filter(Boolean).length >= 3 && snippetHeaderType !== "Select header type" ? [{
+          header: snippetHeaderType,
+          values: snippetValuesList.filter(Boolean)
+        }] : undefined,
+        promotions: (promoItem || promoValue) ? [{
+          item: promoItem || "Special Offer",
+          promotionTarget: promoItem || "Special Offer",
+          percentOff: promoType === "PERCENT" && promoValue ? Number(promoValue) : undefined,
+          moneyAmountOff: promoType === "MONETARY" && promoValue ? Number(promoValue) : undefined,
+          currencyCode: promoCurrency,
+          occasion: promoOccasion !== "None" ? promoOccasion : undefined,
+          finalUrl: promoFinalUrl || trimmedFinalUrl
+        }] : undefined,
+        prices: savedPrices.length > 0 ? savedPrices : (priceItems.filter(p => p.header && p.amount).length > 0 ? priceItems.filter(p => p.header && p.amount).map(p => ({
+          header: p.header,
+          amount: Number(p.amount),
+          unit: p.unit !== "No units" ? p.unit : undefined,
+          description: p.description || undefined,
+          finalUrl: p.finalUrl || trimmedFinalUrl,
+          currencyCode: priceCurrency
+        })) : undefined),
+        leadForms: savedLeadForms.length > 0 ? savedLeadForms : (lfHeadline && lfBusinessName ? [{
+          headline: lfHeadline,
+          businessName: lfBusinessName,
+          description: lfDescription,
+          privacyPolicyUrl: lfPrivacyPolicyUrl || "https://example.com/privacy"
+        }] : undefined),
+        messages: (selectedMessagePlatform === "WhatsApp" && msgPhone) ? [{
+          platform: "WhatsApp",
+          phoneNumber: msgPhone,
+          starterMessage: msgStarterMessage
+        }] : (selectedMessagePlatform !== "Select message platform" && msgCustomUrlName ? [{
+          platform: selectedMessagePlatform,
+          customUrlName: msgCustomUrlName
+        }] : undefined),
+        apps: savedApps.length > 0 ? savedApps : (appSearchQuery || appLinkText ? [{
+          appId: appSearchQuery || "app.id",
+          platform: appPlatform,
+          linkText: appLinkText || "Download"
+        }] : undefined)
       };
 
       let res: Response;
@@ -4291,136 +4343,201 @@ export default function SalesSearchPage() {
 
                     <span className="text-[10px] text-slate-500 block italic">Google is choosing the assets <HelpCircle className="inline h-3 w-3" /></span>
 
-                    {/* 10. More asset types (0/7) Accordion */}
-                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
-                      {showMoreAssetTypesCard ? (
-                        <>
-                          <div 
-                            onClick={() => setShowMoreAssetTypesCard(false)}
-                            className="flex items-center justify-between border-b border-slate-200 pb-2 select-none cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900">More asset types</span>
-                              <span className="text-slate-500 text-[11px] font-mono">(0/7)</span>
-                            </div>
-                            <ChevronUp className="h-4 w-4 text-slate-500" />
-                          </div>
-                          <p className="text-[11px] text-slate-500 leading-relaxed">
-                            Improve your ad performance and make your ad more interactive by adding more details about your business and website
-                          </p>
+                    {/* 10. More asset types Dynamic Accordion */}
+                    {(() => {
+                      const activeTypesCount = [
+                        Boolean(promoItem || promoValue),
+                        Boolean(savedPrices.length > 0 || priceItems.some(p => p.header && p.amount)),
+                        Boolean((selectedMessagePlatform === "WhatsApp" && msgPhone) || (selectedMessagePlatform !== "Select message platform" && msgCustomUrlName)),
+                        Boolean(snippetValuesList.filter(Boolean).length >= 3 && snippetHeaderType !== "Select header type"),
+                        Boolean(savedLeadForms.length > 0 || (lfHeadline && lfBusinessName)),
+                        Boolean(callouts.length > 0),
+                        Boolean(savedApps.length > 0 || appSearchQuery || appLinkText)
+                      ].filter(Boolean).length;
 
-                          <div className="space-y-3 pt-1">
-                            {/* Promotions */}
-                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
-                              <span className="font-bold text-slate-800 block text-xs">Promotions</span>
-                              <button
-                                type="button"
-                                onClick={() => setActiveModal("PROMOTIONS")}
-                                className="text-blue-400 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
+                      return (
+                        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
+                          {showMoreAssetTypesCard ? (
+                            <>
+                              <div 
+                                onClick={() => setShowMoreAssetTypesCard(false)}
+                                className="flex items-center justify-between border-b border-slate-200 pb-2 select-none cursor-pointer"
                               >
-                                + Add promotions
-                              </button>
-                            </div>
-
-                            {/* Prices */}
-                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
-                              <span className="font-bold text-slate-800 block text-xs">Prices</span>
-                              <button
-                                type="button"
-                                onClick={() => setActiveModal("PRICES")}
-                                className="text-blue-400 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
-                              >
-                                + Add prices
-                              </button>
-                            </div>
-
-                            {/* Messages */}
-                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
-                              <span className="font-bold text-slate-800 block text-xs">Messages</span>
-                              <button
-                                type="button"
-                                onClick={() => setActiveModal("MESSAGES")}
-                                className="text-blue-400 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
-                              >
-                                + Add a message
-                              </button>
-                            </div>
-
-                            {/* Structured snippets */}
-                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
-                              <span className="font-bold text-slate-800 block text-xs">Structured snippets</span>
-                              <button
-                                type="button"
-                                onClick={() => setActiveModal("SNIPPETS")}
-                                className="text-blue-400 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
-                              >
-                                + Add snippets of text
-                              </button>
-                            </div>
-
-                            {/* Lead forms */}
-                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
-                              <span className="font-bold text-slate-800 block text-xs">Lead forms</span>
-                              <button
-                                type="button"
-                                onClick={() => setActiveModal("LEAD_FORMS")}
-                                className="text-blue-400 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
-                              >
-                                + Add a form
-                              </button>
-                            </div>
-
-                            {/* Callouts */}
-                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
-                              <span className="font-bold text-slate-800 block text-xs">Callouts</span>
-                              {callouts.length > 0 && (
-                                <div className="flex flex-wrap gap-2 pt-1 pb-1">
-                                  {callouts.map((c, i) => (
-                                    <span key={i} className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 font-semibold">
-                                      {c}
-                                    </span>
-                                  ))}
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-900">More asset types</span>
+                                  <span className={`text-[11px] font-mono font-bold ${activeTypesCount > 0 ? "text-indigo-600" : "text-slate-500"}`}>
+                                    ({activeTypesCount}/7)
+                                  </span>
                                 </div>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => setActiveModal("CALLOUTS")}
-                                className="text-blue-400 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
-                              >
-                                + Add callouts
-                              </button>
-                            </div>
+                                <ChevronUp className="h-4 w-4 text-slate-500" />
+                              </div>
+                              <p className="text-[11px] text-slate-500 leading-relaxed">
+                                Improve your ad performance and make your ad more interactive by adding more details about your business and website
+                              </p>
 
-                            {/* Apps */}
-                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
-                              <span className="font-bold text-slate-800 block text-xs">Apps</span>
-                              <button
-                                type="button"
-                                onClick={() => setActiveModal("APPS")}
-                                className="text-blue-400 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
-                              >
-                                + Add apps
-                              </button>
+                              <div className="space-y-3 pt-1">
+                                {/* Promotions */}
+                                <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-slate-800 block text-xs">Promotions</span>
+                                    {(promoItem || promoValue) && (
+                                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
+                                        1 Configured
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveModal("PROMOTIONS")}
+                                    className="text-blue-500 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {(promoItem || promoValue) ? "Edit promotion" : "+ Add promotions"}
+                                  </button>
+                                </div>
+
+                                {/* Prices */}
+                                <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-slate-800 block text-xs">Prices</span>
+                                    {(savedPrices.length > 0 || priceItems.some(p => p.header && p.amount)) && (
+                                      <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-200">
+                                        {savedPrices.length || priceItems.filter(p => p.header && p.amount).length} Configured
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveModal("PRICES")}
+                                    className="text-blue-500 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {(savedPrices.length > 0 || priceItems.some(p => p.header && p.amount)) ? "Edit prices" : "+ Add prices"}
+                                  </button>
+                                </div>
+
+                                {/* Messages */}
+                                <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-slate-800 block text-xs">Messages</span>
+                                    {((selectedMessagePlatform === "WhatsApp" && msgPhone) || (selectedMessagePlatform !== "Select message platform" && msgCustomUrlName)) && (
+                                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
+                                        {selectedMessagePlatform} Connected
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveModal("MESSAGES")}
+                                    className="text-blue-500 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {((selectedMessagePlatform === "WhatsApp" && msgPhone) || (selectedMessagePlatform !== "Select message platform" && msgCustomUrlName)) ? "Edit message" : "+ Add a message"}
+                                  </button>
+                                </div>
+
+                                {/* Structured snippets */}
+                                <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-slate-800 block text-xs">Structured snippets</span>
+                                    {snippetValuesList.filter(Boolean).length >= 3 && snippetHeaderType !== "Select header type" && (
+                                      <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-200">
+                                        {snippetHeaderType}: {snippetValuesList.filter(Boolean).length} items
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveModal("SNIPPETS")}
+                                    className="text-blue-500 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {snippetValuesList.filter(Boolean).length >= 3 && snippetHeaderType !== "Select header type" ? "Edit structured snippets" : "+ Add snippets of text"}
+                                  </button>
+                                </div>
+
+                                {/* Lead forms */}
+                                <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-slate-800 block text-xs">Lead forms</span>
+                                    {(savedLeadForms.length > 0 || (lfHeadline && lfBusinessName)) && (
+                                      <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-200">
+                                        {savedLeadForms.length || 1} Form Created
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveModal("LEAD_FORMS")}
+                                    className="text-blue-500 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {(savedLeadForms.length > 0 || (lfHeadline && lfBusinessName)) ? "Edit lead form" : "+ Add a form"}
+                                  </button>
+                                </div>
+
+                                {/* Callouts */}
+                                <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-slate-800 block text-xs">Callouts</span>
+                                    {callouts.length > 0 && (
+                                      <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-200">
+                                        {callouts.length} Configured
+                                      </span>
+                                    )}
+                                  </div>
+                                  {callouts.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 pt-1 pb-1">
+                                      {callouts.map((c, i) => (
+                                        <span key={i} className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 font-semibold">
+                                          {c}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveModal("CALLOUTS")}
+                                    className="text-blue-500 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {callouts.length > 0 ? "Edit callouts" : "+ Add callouts"}
+                                  </button>
+                                </div>
+
+                                {/* Apps */}
+                                <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-slate-800 block text-xs">Apps</span>
+                                    {(savedApps.length > 0 || appSearchQuery || appLinkText) && (
+                                      <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-200">
+                                        {appPlatform} App Linked
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveModal("APPS")}
+                                    className="text-blue-500 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {(savedApps.length > 0 || appSearchQuery || appLinkText) ? "Edit app link" : "+ Add apps"}
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div 
+                              className="flex items-center justify-between cursor-pointer select-none"
+                              onClick={() => setShowMoreAssetTypesCard(true)}
+                            >
+                              <div className="flex items-center gap-16">
+                                <div className="w-48">
+                                  <span className="font-bold text-slate-800">More asset types</span>
+                                </div>
+                                <div className={`text-[11px] font-mono font-bold ${activeTypesCount > 0 ? "text-indigo-600" : "text-slate-500"}`}>
+                                  ({activeTypesCount}/7)
+                                </div>
+                              </div>
+                              <ChevronDown className="h-4 w-4 text-slate-500" />
                             </div>
-                          </div>
-                        </>
-                      ) : (
-                        <div 
-                          className="flex items-center justify-between cursor-pointer select-none"
-                          onClick={() => setShowMoreAssetTypesCard(true)}
-                        >
-                          <div className="flex items-center gap-16">
-                            <div className="w-48">
-                              <span className="font-bold text-slate-800">More asset types</span>
-                            </div>
-                            <div className="text-[11px] text-slate-500 font-mono">
-                              (0/7)
-                            </div>
-                          </div>
-                          <ChevronDown className="h-4 w-4 text-slate-500" />
+                          )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
 
                     {/* 3. Ad URL options Accordion */}
                     <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
@@ -7446,6 +7563,238 @@ export default function SalesSearchPage() {
                 </button>
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Prices Modal Overlay ── */}
+      {activeModal === "PRICES" && (
+        <div className="fixed inset-0 z-[120] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+          {/* Header */}
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setActiveModal(null)}
+                className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <h2 className="text-base font-semibold text-slate-900">Add prices to your campaign</h2>
+            </div>
+            <span className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-[11px]">
+              {savedPrices.length} Saved Prices
+            </span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6">
+            <div className="space-y-1">
+              <h3 className="font-bold text-slate-900 text-sm">Campaign-level prices</h3>
+              <p className="text-[11px] text-slate-500">Showcase your products or services and link people directly to your offerings.</p>
+            </div>
+
+            <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Language</label>
+                  <select
+                    value={priceLanguage}
+                    onChange={(e) => setPriceLanguage(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    {["English", "Hindi", "Spanish", "French", "German", "Portuguese", "Japanese", "Arabic"].map((lang, i) => (
+                      <option key={i} value={lang}>{lang}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Type</label>
+                  <select
+                    value={priceType}
+                    onChange={(e) => setPriceType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    {["Brands", "Events", "Locations", "Neighborhoods", "Product categories", "Product tiers", "Service categories", "Service tiers", "Services"].map((t, i) => (
+                      <option key={i} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Currency</label>
+                  <select
+                    value={priceCurrency}
+                    onChange={(e) => setPriceCurrency(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
+                  >
+                    {["INR", "USD", "EUR", "GBP", "AED", "AUD", "CAD", "SGD"].map((curr, i) => (
+                      <option key={i} value={curr}>{curr}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Price qualifier</label>
+                  <select
+                    value={priceQualifier}
+                    onChange={(e) => setPriceQualifier(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    <option value="No qualifier">No qualifier</option>
+                    <option value="From">From</option>
+                    <option value="Up to">Up to</option>
+                    <option value="Average">Average</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Price Offerings */}
+              <div className="space-y-4 pt-4 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-800 text-xs">Price items (Offerings)</h4>
+                  <button
+                    type="button"
+                    onClick={() => setPriceItems(prev => [...prev, { id: `pi-${Date.now()}`, header: "", amount: "", unit: "No units", description: "", finalUrl: "" }])}
+                    className="text-blue-500 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add item</span>
+                  </button>
+                </div>
+
+                {priceItems.map((item, idx) => (
+                  <div key={item.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 relative">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-700 text-xs">Item {idx + 1}</span>
+                      {priceItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setPriceItems(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] text-slate-600 font-semibold mb-1">Header (max 25)</label>
+                        <input
+                          type="text"
+                          maxLength={25}
+                          value={item.header}
+                          onChange={(e) => {
+                            const updated = [...priceItems];
+                            updated[idx].header = e.target.value;
+                            setPriceItems(updated);
+                          }}
+                          placeholder="e.g. Standard Plan"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-600 font-semibold mb-1">Price ({priceCurrency})</label>
+                        <input
+                          type="number"
+                          value={item.amount}
+                          onChange={(e) => {
+                            const updated = [...priceItems];
+                            updated[idx].amount = e.target.value;
+                            setPriceItems(updated);
+                          }}
+                          placeholder="499"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-600 font-semibold mb-1">Unit</label>
+                        <select
+                          value={item.unit}
+                          onChange={(e) => {
+                            const updated = [...priceItems];
+                            updated[idx].unit = e.target.value;
+                            setPriceItems(updated);
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                        >
+                          <option value="No units">No units</option>
+                          <option value="Per hour">Per hour</option>
+                          <option value="Per day">Per day</option>
+                          <option value="Per week">Per week</option>
+                          <option value="Per month">Per month</option>
+                          <option value="Per year">Per year</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] text-slate-600 font-semibold mb-1">Description (max 25)</label>
+                        <input
+                          type="text"
+                          maxLength={25}
+                          value={item.description}
+                          onChange={(e) => {
+                            const updated = [...priceItems];
+                            updated[idx].description = e.target.value;
+                            setPriceItems(updated);
+                          }}
+                          placeholder="e.g. Full suite access"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-600 font-semibold mb-1">Final URL</label>
+                        <input
+                          type="url"
+                          value={item.finalUrl}
+                          onChange={(e) => {
+                            const updated = [...priceItems];
+                            updated[idx].finalUrl = e.target.value;
+                            setPriceItems(updated);
+                          }}
+                          placeholder="https://example.com/pricing"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Form Buttons */}
+              <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const valid = priceItems
+                      .filter(pi => pi.header.trim() && Number(pi.amount) > 0)
+                      .map(pi => ({
+                        header: pi.header.trim(),
+                        amount: Number(pi.amount),
+                        unit: pi.unit !== "No units" ? pi.unit : undefined,
+                        description: pi.description.trim() || undefined,
+                        finalUrl: pi.finalUrl.trim() || "https://example.com"
+                      }));
+                    if (valid.length > 0) {
+                      setSavedPrices(valid);
+                    }
+                    setActiveModal(null);
+                  }}
+                  className="px-6 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500 cursor-pointer shadow"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

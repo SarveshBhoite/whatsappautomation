@@ -37,7 +37,8 @@ import { NoGuidancePerformanceMaxService } from "../../services/googleAds/noGuid
 import { StoreVisitsPerformanceMaxService } from "../../services/googleAds/storeVisits/StoreVisitsPerformanceMaxService";
 import { AppPromotionAppService } from "../../services/googleAds/appPromotion/AppPromotionAppService";
 import axios from "axios";
-import { IndianHolidayService } from "../../services/googleAds/shared/IndianHolidayService";
+import { getGoogleAccessToken } from "../../services/gmbSyncService";
+import { IndianHolidayService, ParsedHolidayEvent, DynamicHolidayFallbackStrategy } from "../../services/googleAds/shared/IndianHolidayService";
 import { GoogleAdsKeywordIntelligenceService } from "../../services/googleAds/shared/GoogleAdsKeywordIntelligenceService";
 import { GoogleAdsAudienceIntelligenceService } from "../../services/googleAds/shared/GoogleAdsAudienceIntelligenceService";
 import { GoogleAdsSharedSetService } from "../../services/googleAds/GoogleAdsSharedSetService";
@@ -165,9 +166,59 @@ router.get("/user-profile", async (req, res) => {
     }
 
     // Filter only active records (Do NOT expose rejected AI suggestions to AI Guided assistant)
-    const activeProducts = Array.isArray(savedProfile?.products)
+    let activeProducts = Array.isArray(savedProfile?.products)
       ? savedProfile.products.filter((p: any) => typeof p === "string" || p.isActive !== false)
       : [];
+
+    // Auto-fetch products from Google Merchant Center Content API if Merchant Center is connected
+    const merchantId = (savedProfile?.merchantCenterId || "").trim();
+    if (Boolean(savedProfile?.hasMerchantAccount) && merchantId) {
+      try {
+        const config = await prisma.googleBusinessConfig.findFirst({
+          where: { organizationId: orgId }
+        });
+        if (config?.googleRefreshToken) {
+          const clientId = process.env.GOOGLE_CLIENT_ID || "";
+          const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+          const accessToken = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+          const prodRes = await axios.get(
+            `https://shoppingcontent.googleapis.com/content/v2.1/${merchantId}/products?maxResults=50`,
+            { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 8000 }
+          );
+          const items = prodRes.data?.resources || [];
+          if (Array.isArray(items) && items.length > 0) {
+            const mcProducts = items.map((p: any) => ({
+              id: p.id || p.offerId || `mc-${Math.random().toString(36).slice(2, 7)}`,
+              name: p.title || "Untitled Product",
+              title: p.title || "Untitled Product",
+              description: p.description || "",
+              productUrl: p.link || "",
+              link: p.link || "",
+              imageLink: p.imageLink || "",
+              price: p.price ? `${p.price.currency || "INR"} ${p.price.value || "0.00"}` : undefined,
+              currency: p.price?.currency || "INR",
+              brand: p.brand || "",
+              availability: p.availability || "in stock",
+              channel: p.channel || "online",
+              condition: p.condition || "new",
+              category: p.googleProductCategory || "",
+              isActive: true,
+              isMerchantFeedItem: true
+            }));
+
+            // Merge with existing products: preserve manual products not in Merchant Center, avoid duplicates by name/id
+            const existingNames = new Set(mcProducts.map((mp: any) => mp.name.toLowerCase().trim()));
+            const nonDuplicateManual = activeProducts.filter((p: any) => {
+              const name = typeof p === "string" ? p : p.name;
+              return name && !existingNames.has(name.toLowerCase().trim());
+            });
+            activeProducts = [...mcProducts, ...nonDuplicateManual];
+          }
+        }
+      } catch (mcErr: any) {
+        console.warn("[AI-GUIDED.user-profile] Merchant products auto-fetch notice:", mcErr?.response?.data || mcErr.message);
+      }
+    }
     const activeServices = Array.isArray(savedProfile?.services)
       ? savedProfile.services.filter((s: any) => typeof s === "string" || s.isActive !== false)
       : [];
@@ -325,7 +376,28 @@ router.get("/user-profile", async (req, res) => {
       currencyCode: currentAccount?.currencyCode || "INR",
       timeZone: currentAccount?.timeZone || "Asia/Kolkata",
       knowledgeSummary: knowledgeSnippets,
-      agentGreeting: primaryAiConfig?.greetingMessage || ""
+      agentGreeting: primaryAiConfig?.greetingMessage || "",
+      upcomingFestival: (() => {
+        try {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const currentYr = today.getFullYear();
+          const curEvents = DynamicHolidayFallbackStrategy.getFallbackEventsForYear(currentYr, today);
+          const nextYrEvents = DynamicHolidayFallbackStrategy.getFallbackEventsForYear(currentYr + 1, today);
+          const allEv = [...curEvents, ...nextYrEvents].filter(ev => ev.daysRemaining >= 0).sort((a, b) => a.daysRemaining - b.daysRemaining);
+          
+          const BIG_FESTIVALS = [
+            "navratri", "dussehra", "vijayadashami", "diwali", "deepavali", "dhanteras", "bhai dooj",
+            "holi", "eid", "raksha bandhan", "ganesh chaturthi", "janmashtami", "krishna janmashtami",
+            "maha shivratri", "pongal", "sankranti", "durga puja", "maha navami", "christmas", "new year",
+            "republic day", "independence day", "chhath puja", "karwa chauth", "onam", "baisakhi"
+          ];
+          const nextBig = allEv.find(ev => BIG_FESTIVALS.some(bf => ev.eventName.toLowerCase().includes(bf))) || allEv[0] || null;
+          return nextBig;
+        } catch {
+          return null;
+        }
+      })()
     });
   } catch (error: any) {
     console.error("[AI-GUIDED] Error fetching user profile:", error);
@@ -804,6 +876,478 @@ Return ONLY JSON matching this format:
   } catch (error: any) {
     console.error(`[AI-GUIDED] analyze-url failure for ${url}:`, error.message);
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/ads/ai-guided/suggest-asset
+// Dynamic 3-Tier AI Asset Suggestion Generator driven by Groq AI and live Indian Holiday Calendar (INDIAN_HOLIDAY_API_URL)
+router.post("/suggest-asset", async (req, res) => {
+  try {
+    const {
+      assetType, // "PROMOTIONS" | "PRICES" | "APPS" | "SNIPPETS" | "LEAD_FORMS" | "BRAND_GUIDELINES" | "APP_ASSET"
+      businessName = "Business",
+      website = "https://example.com",
+      industry = "",
+      customerId = "",
+      targetDate,
+      selectedFestivalName
+    } = req.body;
+
+    const now = targetDate ? new Date(targetDate) : new Date();
+    const currentYear = now.getFullYear();
+    const currentDateIso = now.toISOString().split("T")[0];
+
+    // 1. Fetch rolling Indian festival calendar dynamically from IndianHolidayService (queries INDIAN_HOLIDAY_API_URL & ephemeris)
+    const currentYearEvents: ParsedHolidayEvent[] = await IndianHolidayService.getYearEvents(currentYear, now);
+    const nextYearEvents: ParsedHolidayEvent[] = await IndianHolidayService.getYearEvents(currentYear + 1, now);
+    const calendarEvents = [...currentYearEvents, ...nextYearEvents];
+    
+    // Sort all events by days remaining relative to current date (now)
+    const futureEvents: ParsedHolidayEvent[] = calendarEvents
+      .filter((ev: ParsedHolidayEvent) => ev.daysRemaining >= 0)
+      .sort((a: ParsedHolidayEvent, b: ParsedHolidayEvent) => a.daysRemaining - b.daysRemaining);
+
+    // List of Major / Big Indian Commerce Festivals & Celebrations
+    const BIG_FESTIVAL_KEYWORDS = [
+      "navratri", "dussehra", "vijayadashami", "diwali", "deepavali", "dhanteras", "bhai dooj",
+      "holi", "holika", "eid", "raksha bandhan", "ganesh chaturthi", "janmashtami", "krishna janmashtami",
+      "maha shivratri", "pongal", "sankranti", "durga puja", "maha navami", "christmas", "new year",
+      "republic day", "independence day", "chhath puja", "karwa chauth", "onam", "baisakhi"
+    ];
+
+    const isBigFestival = (name: string) => {
+      const lower = (name || "").toLowerCase();
+      return BIG_FESTIVAL_KEYWORDS.some(k => lower.includes(k));
+    };
+
+    // Filter upcoming big festivals
+    const upcomingBigFestivals = futureEvents
+      .filter(ev => isBigFestival(ev.eventName))
+      .slice(0, 10);
+
+    // Nearest Big Festival
+    const nextBigFestival = upcomingBigFestivals[0] || null;
+
+    // Active festival: if user selected a specific festival from the multi-festival list, use it; otherwise use closest upcoming
+    let activeFestival = futureEvents[0];
+    if (selectedFestivalName) {
+      const matched = futureEvents.find(ev => ev.eventName.toLowerCase().includes(selectedFestivalName.toLowerCase()));
+      if (matched) activeFestival = matched;
+    }
+
+    if (!activeFestival) {
+      activeFestival = calendarEvents[calendarEvents.length - 1] || {
+        eventName: "Festive Season",
+        daysRemaining: 0,
+        date: currentDateIso,
+        type: "Festival",
+        extras: "Seasonal Shopping and Promotional Opportunity"
+      };
+    }
+
+    const daysAwayText = activeFestival.daysRemaining === 0 
+      ? "today" 
+      : activeFestival.daysRemaining === 1 
+        ? "tomorrow" 
+        : `in ${activeFestival.daysRemaining} days (${activeFestival.date})`;
+
+    const festivalDescription = `${activeFestival.eventName} starts ${daysAwayText}. ${activeFestival.extras || "This is an auspicious and high-demand shopping celebration in India with increased consumer buying intent."}`;
+    
+    const festivalHowToUse = `How to use for maximum ROI: Launch targeted ad extensions 3–5 days before ${activeFestival.eventName}. Deploy festive promo codes, highlight special discounts or pricing tiers, and connect prospects via instant WhatsApp chat or direct lead forms to capture high-intent searches.`;
+
+    const festivalCleanCode = (activeFestival.eventName || "FESTIVE")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 8);
+
+    const dynamicFestiveTag = `${activeFestival.eventName} Special Offer`;
+    const dynamicCode = `${festivalCleanCode}25`;
+
+    // Standard Google Ads Promotion Occasions matcher
+    const matchGoogleAdsOccasion = (festivalName: string): string => {
+      const lower = (festivalName || "").toLowerCase();
+      if (lower.includes("diwali") || lower.includes("deepavali") || lower.includes("dhanteras")) return "Diwali";
+      if (lower.includes("navratri") || lower.includes("durga puja") || lower.includes("dussehra") || lower.includes("vijayadashami")) return "Navratri";
+      if (lower.includes("holi")) return "Holi";
+      if (lower.includes("eid")) return "Eid";
+      if (lower.includes("new year")) return "New Year's";
+      if (lower.includes("christmas")) return "Christmas";
+      if (lower.includes("black friday")) return "Black Friday";
+      if (lower.includes("cyber monday")) return "Cyber Monday";
+      if (lower.includes("valentine")) return "Valentine's Day";
+      if (lower.includes("easter")) return "Easter";
+      if (lower.includes("mother")) return "Mother's Day";
+      if (lower.includes("father")) return "Father's Day";
+      if (lower.includes("labor") || lower.includes("labour")) return "Labor Day";
+      if (lower.includes("halloween")) return "Halloween";
+      if (lower.includes("season")) return "End of season";
+      return "None";
+    };
+
+    const resolvedOccasion = matchGoogleAdsOccasion(activeFestival.eventName);
+
+    // 2. Groq AI prompt generation for 3 distinct strategic suggestions
+    const groqKey = process.env.GROQ_KEY || process.env.GROQ_API_KEY_1;
+    let aiPayload: any = null;
+
+    if (groqKey) {
+      try {
+        const prompt = `You are a world-class Google Ads AI Strategist.
+Generate 3 distinct, compliant asset suggestions for a business in India:
+1. Suggestion 1: INDIAN_HOLIDAY_CALENDAR (Derived from live festival "${activeFestival.eventName}", date ${activeFestival.date}, ${activeFestival.daysRemaining} days away).
+2. Suggestion 2: HISTORICAL_CAMPAIGNS (Derived from analyzing top-performing historical Google Ads campaign structures, high CTR copy, and industry evergreen benchmarks).
+3. Suggestion 3: HYBRID_MIX (Smartly combines festive surge with the business's core USP & historical trust factors).
+
+Context:
+- Current Date: ${currentDateIso}
+- Active Festival / Holiday: "${activeFestival.eventName}" (${activeFestival.daysRemaining} days remaining)
+- Business Name: "${businessName}"
+- Website: "${website}"
+- Industry / Focus: "${industry || "Services / E-commerce"}"
+- Requested Asset Type: "${assetType}"
+
+CRITICAL RULES FOR PROMOTIONS:
+- "occasion" MUST be one of standard Google Ads values: "${resolvedOccasion}" or "None", "Diwali", "Navratri", "Holi", "Eid", "New Year's", "Christmas", "Black Friday", "End of season". If the active festival is ${activeFestival.eventName}, set occasion to "${resolvedOccasion}".
+- "item" must be a clean product/service/deal name (max 30 chars), e.g. "${businessName} Growth Suite" or "Festive Package". Do NOT put raw occasion text alone in item.
+- Do NOT use emojis or placeholder dummy strings.
+
+Return strict JSON with this exact structure:
+{
+  "suggestion1": {
+    "badge": "Indian Festival Calendar",
+    "title": "${activeFestival.eventName} Festive Offer",
+    "rationale": "Captures surging search intent and seasonal buying enthusiasm for ${activeFestival.eventName}.",
+    "preview": "<Short 1-line text summary of this asset>",
+    "data": <Data object conforming to ${assetType}>
+  },
+  "suggestion2": {
+    "badge": "Historical Top-Performer",
+    "title": "Evergreen High-Conversion Campaign",
+    "rationale": "Proven high-converting structure based on historical Google Ads benchmarks and trust factors.",
+    "preview": "<Short 1-line text summary of this asset>",
+    "data": <Data object conforming to ${assetType}>
+  },
+  "suggestion3": {
+    "badge": "Smart Hybrid Blend",
+    "title": "Festive Urgency + Core USP",
+    "rationale": "Combines time-sensitive festival excitement with long-term trust and reliability.",
+    "preview": "<Short 1-line text summary of this asset>",
+    "data": <Data object conforming to ${assetType}>
+  }
+}
+
+Data object specifications by assetType:
+- If assetType === "PROMOTIONS":
+  {
+    "occasion": "${resolvedOccasion}",
+    "item": "${businessName} Festive Special",
+    "currency": "INR",
+    "discountType": "Percent discount" | "Monetary discount",
+    "amount": "20",
+    "code": "${festivalCleanCode}20",
+    "finalUrl": "${website.replace(/\/+$/, "")}/offers"
+  }
+- If assetType === "PRICES":
+  {
+    "currency": "INR",
+    "qualifier": "From" | "Up to" | "Average",
+    "priceType": "Service tiers" | "Product tiers",
+    "items": [
+      { "header": "<Tier 1 max 25 chars>", "amount": "<amount e.g. 999>", "unit": "Per month" | "Per item", "description": "<Desc max 35 chars>", "finalUrl": "${website.replace(/\/+$/, "")}/pricing" },
+      { "header": "<Tier 2 max 25 chars>", "amount": "<amount e.g. 2499>", "unit": "Per month" | "Per item", "description": "<Desc max 35 chars>", "finalUrl": "${website.replace(/\/+$/, "")}/pricing" },
+      { "header": "<Tier 3 max 25 chars>", "amount": "<amount e.g. 4999>", "unit": "Per month" | "Per item", "description": "<Desc max 35 chars>", "finalUrl": "${website.replace(/\/+$/, "")}/pricing" }
+    ]
+  }
+- If assetType === "APPS":
+  {
+    "platform": "WhatsApp",
+    "urlName": "+919876543210",
+    "starterMessage": "<Message starter max 100 chars>",
+    "callToAction": "Chat now" | "Contact us" | "Get quote",
+    "ctaDescription": "Quick reply within 2 mins"
+  }
+- If assetType === "SNIPPETS":
+  {
+    "header": "Services" | "Types" | "Amenities" | "Brands",
+    "values": ["<Val 1 max 25 chars>", "<Val 2 max 25 chars>", "<Val 3 max 25 chars>", "<Val 4 max 25 chars>"]
+  }
+- If assetType === "LEAD_FORMS":
+  {
+    "headline": "<Headline max 30 chars>",
+    "businessName": "${businessName.slice(0, 25)}",
+    "description": "<Description max 200 chars>",
+    "callToActionType": "GET_OFFER" | "GET_QUOTE" | "CONTACT_US" | "APPLY_NOW",
+    "privacyPolicyUrl": "${website.replace(/\/+$/, "")}/privacy"
+  }
+- If assetType === "BRAND_GUIDELINES":
+  {
+    "callouts": ["<Callout 1 max 25 chars>", "<Callout 2 max 25 chars>", "<Callout 3 max 25 chars>", "<Callout 4 max 25 chars>"]
+  }
+- If assetType === "APP_ASSET":
+  {
+    "platform": "Android",
+    "appName": "${businessName} Official App",
+    "appId": "com.${businessName.toLowerCase().replace(/[^a-z0-9]/g, "")}.app",
+    "linkText": "Download App"
+  }`;
+
+        const groqResult = await GoogleAdsAiAssistantService.executeGroqChat({
+          messages: [
+            { role: "system", content: "You are an elite Google Ads AI specialist returning strictly structured JSON without emojis or dummy code." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.35,
+          max_tokens: 1500,
+          response_format: { type: "json_object" }
+        });
+
+        aiPayload = JSON.parse(groqResult.content || "{}");
+      } catch (err: any) {
+        console.warn("[AI-GUIDED] Groq AI asset suggestion fallback:", err.message);
+      }
+    }
+
+    // Default Fallback Suggestions if AI call is empty/unavailable
+    const defaultSuggestions = [
+      {
+        id: "sug-1",
+        tier: "INDIAN_HOLIDAY_CALENDAR",
+        badge: "Indian Festival Calendar",
+        title: `${activeFestival.eventName} Special Offer`,
+        rationale: `Capitalizes on surging festive consumer searches for ${activeFestival.eventName} (${daysAwayText}).`,
+        preview: assetType === "PROMOTIONS" 
+          ? `${businessName} Festive Offer • 25% OFF • Code: ${dynamicCode}`
+          : assetType === "PRICES"
+            ? `Festival Starter Tier (₹999/mo), Pro Package (₹2,499/mo)`
+            : assetType === "APPS"
+              ? `WhatsApp: "Hi ${businessName}, I want to claim the ${activeFestival.eventName} offer!"`
+              : assetType === "SNIPPETS"
+                ? `Services: ${activeFestival.eventName} Deals, Express Delivery, 24/7 Support`
+                : assetType === "LEAD_FORMS"
+                  ? `Claim ${activeFestival.eventName} Festive Discount from ${businessName}`
+                  : `${activeFestival.eventName} Special Deals • Express Delivery • 24/7 Support`,
+        data: aiPayload?.suggestion1?.data || (
+          assetType === "PROMOTIONS" ? {
+            occasion: resolvedOccasion,
+            item: `${businessName} Festive Special`.slice(0, 30),
+            currency: "INR",
+            discountType: "Percent discount",
+            amount: "25",
+            code: dynamicCode,
+            finalUrl: `${website.replace(/\/+$/, "")}/offers`
+          } : assetType === "PRICES" ? {
+            currency: "INR",
+            qualifier: "From",
+            priceType: "Service tiers",
+            items: [
+              { header: "Festive Starter", amount: "999", unit: "Per month", description: `${activeFestival.eventName} Special`, finalUrl: `${website.replace(/\/+$/, "")}/pricing` },
+              { header: "Festive Pro", amount: "2499", unit: "Per month", description: "Complete Growth Suite", finalUrl: `${website.replace(/\/+$/, "")}/pricing` },
+              { header: "Festive Enterprise", amount: "4999", unit: "Per month", description: "Priority 24/7 SLA", finalUrl: `${website.replace(/\/+$/, "")}/pricing` }
+            ]
+          } : assetType === "APPS" ? {
+            platform: "WhatsApp",
+            urlName: "+919876543210",
+            starterMessage: `Hi ${businessName}, I would like to inquire about your ${activeFestival.eventName} offers.`,
+            callToAction: "Chat now",
+            ctaDescription: "Instant reply 24/7"
+          } : assetType === "SNIPPETS" ? {
+            header: "Services",
+            values: [`${activeFestival.eventName} Deals`, "Express Delivery", "24/7 Active Support", "Verified Quality"]
+          } : assetType === "LEAD_FORMS" ? {
+            headline: `Claim ${activeFestival.eventName} Offer`.slice(0, 30),
+            businessName: businessName.slice(0, 25),
+            description: `Connect with ${businessName} to unlock special ${activeFestival.eventName} bonuses and savings.`,
+            callToActionType: "GET_OFFER",
+            privacyPolicyUrl: `${website.replace(/\/+$/, "")}/privacy`
+          } : {
+            callouts: [`${activeFestival.eventName} Deals`, "Free Fast Delivery", "24/7 Instant Support", "Verified Partner"]
+          }
+        )
+      },
+      {
+        id: "sug-2",
+        tier: "HISTORICAL_CAMPAIGNS",
+        badge: "Historical Top-Performer",
+        title: "Proven High-Conversion Campaign",
+        rationale: "Engineered from historical campaign performance data to maximize Click-Through Rate (CTR) and quality score.",
+        preview: assetType === "PROMOTIONS"
+          ? `${businessName} Verified Welcome Deal • ₹500 OFF • Code: WELCOME500`
+          : assetType === "PRICES"
+            ? `Starter Tier (₹499/mo), Growth Tier (₹1,499/mo)`
+            : assetType === "APPS"
+              ? `WhatsApp: "Hi ${businessName}, I need assistance with your services."`
+              : assetType === "SNIPPETS"
+                ? `Types: Starter Plan, Professional Suite, Enterprise`
+                : assetType === "LEAD_FORMS"
+                  ? `Get a Free Business Consultation from ${businessName}`
+                  : `Top Rated in India • 100% Satisfaction Guarantee • 24/7 Expert Support`,
+        data: aiPayload?.suggestion2?.data || (
+          assetType === "PROMOTIONS" ? {
+            occasion: "None",
+            item: `${businessName} Special Offer`.slice(0, 30),
+            currency: "INR",
+            discountType: "Monetary discount",
+            amount: "500",
+            code: "WELCOME500",
+            finalUrl: `${website.replace(/\/+$/, "")}/welcome`
+          } : assetType === "PRICES" ? {
+            currency: "INR",
+            qualifier: "From",
+            priceType: "Service tiers",
+            items: [
+              { header: "Standard Plan", amount: "499", unit: "Per month", description: "Essential capabilities", finalUrl: `${website.replace(/\/+$/, "")}/pricing` },
+              { header: "Growth Plan", amount: "1499", unit: "Per month", description: "Scale & automation", finalUrl: `${website.replace(/\/+$/, "")}/pricing` },
+              { header: "Scale Plan", amount: "3999", unit: "Per month", description: "Dedicated account manager", finalUrl: `${website.replace(/\/+$/, "")}/pricing` }
+            ]
+          } : assetType === "APPS" ? {
+            platform: "WhatsApp",
+            urlName: "+919876543210",
+            starterMessage: `Hi ${businessName}, please share more details about your pricing and features.`,
+            callToAction: "Contact us",
+            ctaDescription: "Quick reply in 2 mins"
+          } : assetType === "SNIPPETS" ? {
+            header: "Types",
+            values: ["Starter Plan", "Professional Suite", "Enterprise Custom", "Free Trial Available"]
+          } : assetType === "LEAD_FORMS" ? {
+            headline: `Free Consultation Call`.slice(0, 30),
+            businessName: businessName.slice(0, 25),
+            description: `Schedule a 1-on-1 strategy call with our industry specialists at ${businessName}.`,
+            callToActionType: "GET_QUOTE",
+            privacyPolicyUrl: `${website.replace(/\/+$/, "")}/privacy`
+          } : {
+            callouts: ["Top Rated in India", "100% Quality Guaranteed", "24/7 Dedicated Support", "Zero Setup Fees"]
+          }
+        )
+      },
+      {
+        id: "sug-3",
+        tier: "HYBRID_MIX",
+        badge: "Smart Hybrid Blend",
+        title: "Festive Urgency + Core USPs",
+        rationale: "Combines time-sensitive festive excitement with evergreen trust and reliability to maximize conversions.",
+        preview: assetType === "PROMOTIONS"
+          ? `${businessName} Festive Growth Package • 20% OFF • Code: ${festivalCleanCode}PRO`
+          : assetType === "PRICES"
+            ? `Festive Pro Package (₹1,999/mo) with All Premium Modules`
+            : assetType === "APPS"
+              ? `WhatsApp: "Hi ${businessName}, I want to claim the ${activeFestival.eventName} + Free Audit bundle!"`
+              : assetType === "SNIPPETS"
+                ? `Amenities: ${activeFestival.eventName} Bonus, Free Setup, 24/7 SLA`
+                : assetType === "LEAD_FORMS"
+                  ? `Claim ${activeFestival.eventName} Growth Package from ${businessName}`
+                  : `Limited ${activeFestival.eventName} Deal • Free Setup • 24/7 SLA • Verified Partner`,
+        data: aiPayload?.suggestion3?.data || (
+          assetType === "PROMOTIONS" ? {
+            occasion: resolvedOccasion,
+            item: `${businessName} Festive Growth Pack`.slice(0, 30),
+            currency: "INR",
+            discountType: "Percent discount",
+            amount: "20",
+            code: `${festivalCleanCode}PRO`,
+            finalUrl: `${website.replace(/\/+$/, "")}/special`
+          } : assetType === "PRICES" ? {
+            currency: "INR",
+            qualifier: "From",
+            priceType: "Service tiers",
+            items: [
+              { header: "Festive Value Pack", amount: "799", unit: "Per month", description: "Festive bundle + essentials", finalUrl: `${website.replace(/\/+$/, "")}/pricing` },
+              { header: "Festive Power Suite", amount: "1999", unit: "Per month", description: "Top-rated automation & CRM", finalUrl: `${website.replace(/\/+$/, "")}/pricing` },
+              { header: "Festive VIP Scale", amount: "4499", unit: "Per month", description: "Unlimited access & priority SLA", finalUrl: `${website.replace(/\/+$/, "")}/pricing` }
+            ]
+          } : assetType === "APPS" ? {
+            platform: "WhatsApp",
+            urlName: "+919876543210",
+            starterMessage: `Hello ${businessName}, I want to claim your ${activeFestival.eventName} special bundle and get a free demo.`,
+            callToAction: "Chat now",
+            ctaDescription: "Instant festive VIP support"
+          } : assetType === "SNIPPETS" ? {
+            header: "Amenities",
+            values: [`${activeFestival.eventName} Bonus`, "Free Implementation", "24/7 Dedicated Support", "Money Back Guarantee"]
+          } : assetType === "LEAD_FORMS" ? {
+            headline: `Unlock ${activeFestival.eventName} VIP Bundle`.slice(0, 30),
+            businessName: businessName.slice(0, 25),
+            description: `Get instant access to ${businessName}'s ${activeFestival.eventName} discount bundle plus free onboarding.`,
+            callToActionType: "GET_OFFER",
+            privacyPolicyUrl: `${website.replace(/\/+$/, "")}/privacy`
+          } : {
+            callouts: [`${activeFestival.eventName} VIP Bonus`, "Free Implementation", "100% Quality Guaranteed", "24/7 Live Support"]
+          }
+        )
+      }
+    ];
+
+    return res.status(200).json({
+      success: true,
+      currentDate: currentDateIso,
+      festival: {
+        currentDate: currentDateIso,
+        name: activeFestival.eventName,
+        date: activeFestival.date,
+        daysRemaining: activeFestival.daysRemaining,
+        daysAwayText,
+        type: activeFestival.type || "Festival",
+        extras: activeFestival.extras || "",
+        description: festivalDescription,
+        howToUse: festivalHowToUse,
+        isBig: isBigFestival(activeFestival.eventName)
+      },
+      nextBigFestival: nextBigFestival ? {
+        name: nextBigFestival.eventName,
+        date: nextBigFestival.date,
+        daysRemaining: nextBigFestival.daysRemaining,
+        daysAwayText: nextBigFestival.daysRemaining === 0 ? "today" : `in ${nextBigFestival.daysRemaining} days (${nextBigFestival.date})`,
+        type: nextBigFestival.type,
+        extras: nextBigFestival.extras || ""
+      } : null,
+      upcomingBigFestivals: upcomingBigFestivals.map(ev => ({
+        id: ev.id,
+        name: ev.eventName,
+        date: ev.date,
+        daysRemaining: ev.daysRemaining,
+        daysAwayText: ev.daysRemaining === 0 ? "today" : `in ${ev.daysRemaining}d`,
+        type: ev.type,
+        extras: ev.extras || ""
+      })),
+      upcomingFestivals: futureEvents.slice(0, 8).map(ev => ({
+        id: ev.id,
+        name: ev.eventName,
+        date: ev.date,
+        daysRemaining: ev.daysRemaining,
+        isBig: isBigFestival(ev.eventName)
+      })),
+      suggestions: [
+        {
+          id: "sug-1",
+          tier: "INDIAN_HOLIDAY_CALENDAR",
+          badge: aiPayload?.suggestion1?.badge || defaultSuggestions[0].badge,
+          title: aiPayload?.suggestion1?.title || defaultSuggestions[0].title,
+          rationale: aiPayload?.suggestion1?.rationale || defaultSuggestions[0].rationale,
+          preview: aiPayload?.suggestion1?.preview || defaultSuggestions[0].preview,
+          data: aiPayload?.suggestion1?.data || defaultSuggestions[0].data
+        },
+        {
+          id: "sug-2",
+          tier: "HISTORICAL_CAMPAIGNS",
+          badge: aiPayload?.suggestion2?.badge || defaultSuggestions[1].badge,
+          title: aiPayload?.suggestion2?.title || defaultSuggestions[1].title,
+          rationale: aiPayload?.suggestion2?.rationale || defaultSuggestions[1].rationale,
+          preview: aiPayload?.suggestion2?.preview || defaultSuggestions[1].preview,
+          data: aiPayload?.suggestion2?.data || defaultSuggestions[1].data
+        },
+        {
+          id: "sug-3",
+          tier: "HYBRID_MIX",
+          badge: aiPayload?.suggestion3?.badge || defaultSuggestions[2].badge,
+          title: aiPayload?.suggestion3?.title || defaultSuggestions[2].title,
+          rationale: aiPayload?.suggestion3?.rationale || defaultSuggestions[2].rationale,
+          preview: aiPayload?.suggestion3?.preview || defaultSuggestions[2].preview,
+          data: aiPayload?.suggestion3?.data || defaultSuggestions[2].data
+        }
+      ]
+    });
+  } catch (error: any) {
+    console.error("[AI-GUIDED] Error in /suggest-asset:", error);
+    return res.status(500).json({ error: error.message || "Failed to generate AI asset suggestion" });
   }
 });
 
@@ -3602,6 +4146,8 @@ router.post("/create-campaign", async (req, res) => {
           languages: languages.length > 0 ? languages : ["English"],
           biddingFocus: state.biddingStrategy || "Maximize conversions",
           biddingStrategy: state.biddingStrategy || "Maximize conversions",
+          biddingStrategyId: state.biddingStrategyId || (state as any).biddingStrategyId || undefined,
+          biddingStrategyResourceName: state.biddingStrategyResourceName || (state as any).biddingStrategyResourceName || undefined,
           targetCpa: state.targetCpa || undefined,
           targetRoas: state.targetRoas || undefined,
           maxCpcLimit: (state as any).maxCpcLimit || undefined,
@@ -3611,6 +4157,8 @@ router.post("/create-campaign", async (req, res) => {
           startDate: state.startDate,
           endDate: state.endDate,
           keywords: validKeywords,
+          negativeKeywords: Array.isArray(state.negativeKeywords) ? state.negativeKeywords : (Array.isArray(anyState.negativeKeywords) ? anyState.negativeKeywords : []),
+          campaignNegativeKeywords: Array.isArray(state.campaignNegativeKeywords) ? state.campaignNegativeKeywords : (Array.isArray(anyState.campaignNegativeKeywords) ? anyState.campaignNegativeKeywords : []),
           headlines: validHeadlines,
           descriptions: validDescriptions,
           euPolitical: state.euPolitical || "NO",
@@ -3623,6 +4171,8 @@ router.post("/create-campaign", async (req, res) => {
           displayPath1: anyState.displayPath1 || state.displayPath1 || undefined,
           displayPath2: anyState.displayPath2 || state.displayPath2 || undefined,
           adGroupName: anyState.adGroupName || state.adGroupName || undefined,
+          adGroups: anyState.adGroups || (state as any).adGroups || undefined,
+          ads: anyState.ads || (state as any).ads || undefined,
           trackingTemplate: state.trackingTemplate || anyState.trackingTemplate || undefined,
           finalUrlSuffix: state.finalUrlSuffix || anyState.finalUrlSuffix || undefined,
           customParameters: anyState.customParameters || state.customParameters || [],
@@ -3660,6 +4210,10 @@ router.post("/create-campaign", async (req, res) => {
           feedLabel: state.feedLabel || anyState.feedLabel,
           images: state.images && state.images.length > 0 ? state.images : [],
           logos: state.logos && state.logos.length > 0 ? state.logos : [],
+          audienceSignal: anyState.audienceSignal || (anyState.audienceSignals?.[0] ? anyState.audienceSignals[0] : (state.audienceSignals?.[0] || undefined)),
+          audienceSignals: anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || [])),
+          audiences: anyState.audiences || anyState.selectedAudiences || state.audienceSignalIds || [],
+          audience: anyState.audience || undefined,
           conversionGoals: anyState.conversionGoals || state.conversionGoals || []
         };
         if (objective === "NO_GUIDANCE") {
@@ -3693,6 +4247,9 @@ router.post("/create-campaign", async (req, res) => {
           locations,
           languages,
           biddingFocus: state.biddingStrategy || (state as any).biddingFocus || (objective === "LEADS" ? "Maximize conversions" : "Maximize conversion value"),
+          biddingStrategy: state.biddingStrategy || (state as any).biddingFocus || (objective === "LEADS" ? "Maximize conversions" : "Maximize conversion value"),
+          biddingStrategyId: state.biddingStrategyId || (state as any).biddingStrategyId || undefined,
+          biddingStrategyResourceName: state.biddingStrategyResourceName || (state as any).biddingStrategyResourceName || undefined,
           targetCpa: state.targetCpa || undefined,
           targetRoas: state.targetRoas || undefined,
           headlines: validHeadlines,
@@ -3773,6 +4330,8 @@ router.post("/create-campaign", async (req, res) => {
           languages,
           biddingStrategy: state.biddingStrategy || "MAXIMIZE_CONVERSIONS",
           biddingFocus: state.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+          biddingStrategyId: state.biddingStrategyId || (state as any).biddingStrategyId || undefined,
+          biddingStrategyResourceName: state.biddingStrategyResourceName || (state as any).biddingStrategyResourceName || undefined,
           targetCpa: state.targetCpa || undefined,
           targetRoas: state.targetRoas || undefined,
           targetCpc: anyState.targetCpc || anyState.maxCpc || undefined,
@@ -3797,8 +4356,10 @@ router.post("/create-campaign", async (req, res) => {
           finalUrlSuffix: anyState.finalUrlSuffix || undefined,
           customParameters: anyState.customParameters || anyState.customParamsList || [],
           ipExclusions: anyState.ipExclusions || undefined,
-          audiences: anyState.audiences || anyState.selectedAudiences || [],
-          selectedAudiences: anyState.selectedAudiences || [],
+          audiences: anyState.audiences || anyState.selectedAudiences || state.audienceSignalIds || [],
+          selectedAudiences: anyState.selectedAudiences || state.audienceSignalIds || [],
+          audienceSignal: anyState.audienceSignal || (anyState.audienceSignals?.[0] ? anyState.audienceSignals[0] : (state.audienceSignals?.[0] || undefined)),
+          audienceSignals: anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || [])),
           audience: anyState.audience || undefined,
           demographicsGender: anyState.demographicsGender || undefined,
           demographicsAge: anyState.demographicsAge || undefined,
@@ -3816,14 +4377,16 @@ router.post("/create-campaign", async (req, res) => {
           contentTypeExclusions: anyState.contentTypeExclusions || undefined,
           useOptimizedTargeting: anyState.useOptimizedTargeting !== undefined ? Boolean(anyState.useOptimizedTargeting) : true,
           optimizedTargeting: anyState.optimizedTargeting !== undefined ? Boolean(anyState.optimizedTargeting) : true,
-          useAssetEnhancements: anyState.useAssetEnhancements !== undefined ? Boolean(anyState.useAssetEnhancements) : undefined,
-          useAutoGeneratedVideo: anyState.useAutoGeneratedVideo !== undefined ? Boolean(anyState.useAutoGeneratedVideo) : undefined,
-          useNativeFormats: anyState.useNativeFormats !== undefined ? Boolean(anyState.useNativeFormats) : undefined,
-          useDynamicFeed: anyState.useDynamicFeed !== undefined ? Boolean(anyState.useDynamicFeed) : undefined,
+          adGroupName: anyState.adGroupName || state.adGroupName || undefined,
+          adGroups: anyState.adGroups || (state as any).adGroups || undefined,
+          ads: anyState.ads || (state as any).ads || undefined,
           sitelinks: anyState.sitelinks || [],
           callouts: anyState.callouts || [],
           structuredSnippets: anyState.structuredSnippets || [],
           promotions: anyState.promotions || [],
+          prices: anyState.prices || [],
+          messages: anyState.messages || [],
+          leadForms: anyState.leadForms || [],
           callAsset: anyState.callAsset || undefined,
           leadFormAsset: anyState.leadFormAsset || undefined,
           conversionGoals: anyState.conversionGoals || state.conversionGoals || []
@@ -3869,6 +4432,8 @@ router.post("/create-campaign", async (req, res) => {
           languages,
           biddingStrategy: state.biddingStrategy,
           biddingFocus: state.biddingStrategy,
+          biddingStrategyId: state.biddingStrategyId || (state as any).biddingStrategyId || undefined,
+          biddingStrategyResourceName: state.biddingStrategyResourceName || (state as any).biddingStrategyResourceName || undefined,
           targetCpa: state.targetCpa || undefined,
           targetRoas: state.targetRoas || undefined,
           startDate: state.startDate,
@@ -3919,9 +4484,13 @@ router.post("/create-campaign", async (req, res) => {
           callouts: anyState.callouts || [],
           structuredSnippets: anyState.structuredSnippets || [],
           promotions: anyState.promotions || [],
+          prices: anyState.prices || [],
+          messages: anyState.messages || [],
+          leadForms: anyState.leadForms || [],
           audience: anyState.audience || undefined,
-          audienceSignal: anyState.audienceSignal || anyState.audienceSignals?.[0] || undefined,
-          audienceSignals: anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || [])),
+          audienceSignal: anyState.audienceSignal || (anyState.audienceSignals?.[0] ? anyState.audienceSignals[0] : (state.audienceSignals?.[0] || state.audienceSignalIds?.[0] || undefined)),
+          audienceSignals: anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || state.audienceSignalIds || [])),
+          audiences: anyState.audiences || anyState.selectedAudiences || state.audienceSignalIds || [],
           searchThemes: anyState.searchThemes || state.searchThemes || [],
           keywords: anyState.keywords || state.keywords || [],
           demographicExclusions: anyState.demographicExclusions || state.demographicExclusions || undefined,
@@ -3955,8 +4524,8 @@ router.post("/create-campaign", async (req, res) => {
 
       case "SHOPPING": {
         const anyState = state as any;
-        const audSignal = anyState.audienceSignal || (anyState.audienceSignals?.[0] ? anyState.audienceSignals[0] : (state.audienceSignals?.[0] || undefined));
-        const audSignals = anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || []));
+        const audSignal = anyState.audienceSignal || (anyState.audienceSignals?.[0] ? anyState.audienceSignals[0] : (state.audienceSignals?.[0] || state.audienceSignalIds?.[0] || undefined));
+        const audSignals = anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || state.audienceSignalIds || []));
         const payload = {
           source: "AI_GUIDED",
           isAiGuided: true,
@@ -3973,6 +4542,8 @@ router.post("/create-campaign", async (req, res) => {
           languages: Array.isArray(languages) && languages.length > 0 ? languages : ["All languages"],
           biddingStrategy: state.biddingStrategy || "MAXIMIZE_CONVERSION_VALUE",
           biddingFocus: state.biddingStrategy || "MAXIMIZE_CONVERSION_VALUE",
+          biddingStrategyId: state.biddingStrategyId || (state as any).biddingStrategyId || undefined,
+          biddingStrategyResourceName: state.biddingStrategyResourceName || (state as any).biddingStrategyResourceName || undefined,
           targetRoas: state.targetRoas || undefined,
           maxCpcLimit: anyState.maxCpcLimit || anyState.maxCpc || undefined,
           campaignPriority: anyState.campaignPriority || state.campaignPriority || "LOW",

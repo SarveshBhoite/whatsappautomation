@@ -224,11 +224,13 @@ export class GoogleAdsAudienceIntelligenceService {
 
       for (const ul of userLists) {
         const { relevanceReason, recommended } = this.determineRelevance(ul.name, ul.type, businessContext);
+        const isCrm = ul.type === "CRM_BASED";
+        const typeLabel = isCrm ? "Customer Match (CRM)" : ul.type ? `${ul.type.replace(/_/g, " ")} (User List)` : "Saved User List";
         items.push({
           id: ul.id,
           name: ul.name,
-          source: "CUSTOMER_MATCH",
-          type: "Customer Match (CRM)",
+          source: isCrm ? "CUSTOMER_MATCH" : "AUDIENCE_LIST",
+          type: typeLabel,
           status: ul.membershipStatus || "OPEN",
           memberCount: ul.sizeForSearch || ul.sizeForDisplay || undefined,
           relevanceReason,

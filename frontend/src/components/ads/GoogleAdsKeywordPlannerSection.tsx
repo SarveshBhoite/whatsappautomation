@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Sparkles,
+  Compass,
   Search,
   Globe,
   MapPin,
@@ -240,7 +240,7 @@ export function GoogleAdsKeywordPlannerSection({
           <div>
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-2xs">
-                <Sparkles className="h-5 w-5" />
+                <Compass className="h-5 w-5" />
               </div>
               <div>
                 <h2 className="text-base font-bold text-slate-900 leading-none">
@@ -408,7 +408,7 @@ export function GoogleAdsKeywordPlannerSection({
               </>
             ) : (
               <>
-                <Sparkles className="h-4 w-4" />
+                <Compass className="h-4 w-4" />
                 Generate Keyword Ideas
               </>
             )}
@@ -686,7 +686,7 @@ export function GoogleAdsKeywordPlannerSection({
       {!loading && results.length === 0 && !error && (
         <div className="rounded-3xl border border-dashed border-slate-200 p-12 text-center bg-white space-y-3 shadow-2xs">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto text-blue-600">
-            <Sparkles className="h-6 w-6" />
+            <Compass className="h-6 w-6" />
           </div>
           <h3 className="text-sm font-bold text-slate-900">Ready to Discover High-Value Keywords</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">

@@ -7,7 +7,7 @@ import {
   Save,
   CheckCircle2,
   Loader2,
-  Sparkles
+  Info
 } from "lucide-react";
 
 export interface ProfileSectionFooterNavProps {
@@ -74,7 +74,7 @@ export function ProfileSectionFooterNav({
 
         {/* Center: Subtle Step / Sync Status */}
         <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 font-medium">
-          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+          <Info className="w-3.5 h-3.5 text-blue-600" />
           <span>Approved profile details automatically prefill AI Guided campaigns</span>
         </div>
 

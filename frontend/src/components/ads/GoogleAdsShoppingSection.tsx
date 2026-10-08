@@ -23,7 +23,9 @@ import {
   Info,
   ShieldAlert,
   Sliders,
-  Check
+  Check,
+  Package,
+  Image as ImageIcon
 } from "lucide-react";
 
 interface GoogleAdsShoppingSectionProps {
@@ -46,6 +48,16 @@ interface ProductDiagnosticItem {
   productId: string;
   title: string;
   link: string;
+  imageLink?: string;
+  additionalImageLinks?: string[];
+  description?: string;
+  brand?: string;
+  availability?: string;
+  condition?: string;
+  channel?: string;
+  googleProductCategory?: string;
+  price?: string;
+  salePrice?: string;
   status: "APPROVED" | "DISAPPROVED" | "PENDING" | string;
   destinations: Array<{
     destination: string;
@@ -85,7 +97,7 @@ interface ListingGroupNode {
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 export function GoogleAdsShoppingSection({ customerId, orgId }: GoogleAdsShoppingSectionProps) {
-  const [activeSubTab, setActiveSubTab] = useState<"diagnostics" | "listing-groups">("diagnostics");
+  const [activeSubTab, setActiveSubTab] = useState<"products" | "diagnostics" | "listing-groups">("products");
 
   // Diagnostics State
   const [diagnosticsItems, setDiagnosticsItems] = useState<ProductDiagnosticItem[]>([]);
@@ -240,7 +252,7 @@ export function GoogleAdsShoppingSection({ customerId, orgId }: GoogleAdsShoppin
 
   // Trigger loads based on active subtab
   useEffect(() => {
-    if (activeSubTab === "diagnostics") {
+    if (activeSubTab === "diagnostics" || activeSubTab === "products") {
       fetchDiagnostics();
     } else {
       fetchListingGroups();
@@ -357,6 +369,17 @@ export function GoogleAdsShoppingSection({ customerId, orgId }: GoogleAdsShoppin
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setActiveSubTab("products")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeSubTab === "products"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            <Package className="h-4 w-4" />
+            Merchant Products Catalog
+          </button>
+          <button
             onClick={() => setActiveSubTab("diagnostics")}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeSubTab === "diagnostics"
@@ -365,7 +388,7 @@ export function GoogleAdsShoppingSection({ customerId, orgId }: GoogleAdsShoppin
             }`}
           >
             <ShieldAlert className="h-4 w-4" />
-            Product Diagnostics
+            Product Diagnostics & Policy
           </button>
           <button
             onClick={() => setActiveSubTab("listing-groups")}
@@ -397,6 +420,199 @@ export function GoogleAdsShoppingSection({ customerId, orgId }: GoogleAdsShoppin
           <button onClick={() => setActionSuccess(null)} className="text-emerald-600 hover:text-emerald-800">
             <X className="h-4 w-4" />
           </button>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* 0. MERCHANT PRODUCTS CATALOG SUB-TAB */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {activeSubTab === "products" && (
+        <div className="space-y-6">
+          {/* Summary KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+              <p className="text-xs font-semibold text-slate-500">Live Merchant Products</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{diagnosticsSummary.totalProducts}</p>
+              <p className="text-[11px] text-slate-400 mt-1">Fetched via Content API</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 shadow-2xs">
+              <p className="text-xs font-semibold text-emerald-700">Eligible For Shopping</p>
+              <p className="text-2xl font-bold text-emerald-800 mt-1">{diagnosticsSummary.approved}</p>
+              <p className="text-[11px] text-emerald-600 mt-1">Ready for Shopping & PMax</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-200 shadow-2xs">
+              <p className="text-xs font-semibold text-rose-700">Needs Attention</p>
+              <p className="text-2xl font-bold text-rose-800 mt-1">{diagnosticsSummary.disapproved}</p>
+              <p className="text-[11px] text-rose-600 mt-1">Disapproved or policy issue</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200 shadow-2xs">
+              <p className="text-xs font-semibold text-amber-700">Pending Review</p>
+              <p className="text-2xl font-bold text-amber-800 mt-1">{diagnosticsSummary.pending}</p>
+              <p className="text-[11px] text-amber-600 mt-1">Google review in progress</p>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-600">Status:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-medium focus:outline-none"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="DISAPPROVED">Disapproved</option>
+                  <option value="PENDING">Pending</option>
+                </select>
+              </div>
+
+              {/* Product Search */}
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="h-3.5 w-3.5 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search live products by title, SKU, brand..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={fetchDiagnostics}
+              disabled={diagLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${diagLoading ? "animate-spin" : ""}`} />
+              Refresh Feed
+            </button>
+          </div>
+
+          {/* Notice Alert */}
+          {diagNotice && (
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
+              <Info className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-800">
+                <p className="font-bold">Merchant Center Feed Status</p>
+                <p className="mt-1">{diagNotice}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error Alert */}
+          {diagError && (
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-rose-800">
+                <p className="font-bold">Feed Fetch Error</p>
+                <p className="mt-1">{diagError}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Product Cards Grid */}
+          {diagLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3 bg-white rounded-2xl border border-slate-200">
+              <RefreshCw className="h-8 w-8 text-blue-600 animate-spin" />
+              <p className="text-xs font-medium text-slate-500">Loading live product feed from Google Merchant Center...</p>
+            </div>
+          ) : filteredDiagnostics.length === 0 ? (
+            <div className="flex flex-col items-center py-16 gap-3 text-center px-8 bg-white rounded-2xl border border-slate-200">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center">
+                <Package className="h-7 w-7 text-blue-600" />
+              </div>
+              <p className="text-slate-900 font-bold text-sm">No live products found</p>
+              <p className="text-slate-500 text-xs max-w-sm">
+                No merchant products returned. Make sure your Google Merchant Center is linked to this Google Ads customer account.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredDiagnostics.map((prod, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => setSelectedProduct(prod)}
+                  className="bg-white rounded-2xl border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all p-4 flex flex-col justify-between cursor-pointer group"
+                >
+                  <div>
+                    {/* Image & Status Badge */}
+                    <div className="relative w-full h-44 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center overflow-hidden mb-3">
+                      {prod.imageLink ? (
+                        <img
+                          src={prod.imageLink}
+                          alt={prod.title}
+                          className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-200"
+                        />
+                      ) : (
+                        <ImageIcon className="h-10 w-10 text-slate-300" />
+                      )}
+                      <span
+                        className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs ${
+                          prod.status === "APPROVED"
+                            ? "text-emerald-700 bg-white/90 border-emerald-300"
+                            : prod.status === "DISAPPROVED"
+                            ? "text-rose-700 bg-white/90 border-rose-300"
+                            : "text-amber-700 bg-white/90 border-amber-300"
+                        }`}
+                      >
+                        {prod.status}
+                      </span>
+                    </div>
+
+                    {/* Brand & Category */}
+                    <div className="flex items-center gap-1.5 mb-1">
+                      {prod.brand && (
+                        <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded">
+                          {prod.brand}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-slate-400 font-mono truncate">
+                        {prod.productId}
+                      </span>
+                    </div>
+
+                    {/* Title */}
+                    <h4 className="font-bold text-slate-900 text-xs line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors" title={prod.title}>
+                      {prod.title}
+                    </h4>
+                  </div>
+
+                  {/* Price & Action */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between mt-2">
+                    <div>
+                      {prod.price ? (
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-sm font-black text-slate-900">{prod.price}</span>
+                          {prod.salePrice && (
+                            <span className="text-[10px] text-emerald-600 font-semibold line-through">
+                              {prod.salePrice}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">Price on store</span>
+                      )}
+                      {prod.availability && (
+                        <p className={`text-[9px] font-semibold ${
+                          prod.availability.toLowerCase().includes("in") ? "text-emerald-600" : "text-rose-600"
+                        }`}>
+                          {prod.availability}
+                        </p>
+                      )}
+                    </div>
+
+                    <span className="text-xs text-blue-600 font-bold inline-flex items-center gap-0.5 group-hover:underline">
+                      Inspect <ChevronRight className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -554,6 +770,7 @@ export function GoogleAdsShoppingSection({ customerId, orgId }: GoogleAdsShoppin
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
                       <th className="p-4">Product / Title</th>
+                      <th className="p-4">Price / Availability</th>
                       <th className="p-4">Status</th>
                       <th className="p-4">Issues Detected</th>
                       <th className="p-4">Destinations</th>
@@ -568,13 +785,56 @@ export function GoogleAdsShoppingSection({ customerId, orgId }: GoogleAdsShoppin
                         onClick={() => setSelectedProduct(prod)}
                         className="hover:bg-blue-50/50 transition-all cursor-pointer group"
                       >
-                        <td className="p-4 max-w-xs">
-                          <p className="font-bold text-slate-900 truncate" title={prod.title}>
-                            {prod.title}
-                          </p>
-                          <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
-                            ID: {prod.productId}
-                          </p>
+                        <td className="p-4 max-w-sm">
+                          <div className="flex items-center gap-3">
+                            {prod.imageLink ? (
+                              <img
+                                src={prod.imageLink}
+                                alt={prod.title}
+                                className="w-10 h-10 object-contain rounded-lg border border-slate-200 bg-white shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                                <ImageIcon className="h-5 w-5" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 truncate max-w-xs" title={prod.title}>
+                                {prod.title}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-slate-400 font-mono truncate">
+                                  ID: {prod.productId}
+                                </span>
+                                {prod.brand && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold">
+                                    {prod.brand}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="space-y-1">
+                            {prod.price && (
+                              <div className="flex items-center gap-1 font-bold text-slate-900">
+                                <span>{prod.price}</span>
+                                {prod.salePrice && (
+                                  <span className="text-[10px] text-emerald-600 font-semibold line-through">
+                                    {prod.salePrice}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {prod.availability && (
+                              <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                                prod.availability.toLowerCase().includes("in") ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                              }`}>
+                                {prod.availability}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-4">
                           <span
@@ -853,11 +1113,94 @@ export function GoogleAdsShoppingSection({ customerId, orgId }: GoogleAdsShoppin
 
             {/* Scrollable Body */}
             <div className="p-6 space-y-6 overflow-y-auto">
+              {/* Product Hero / Image & Attributes */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start gap-4">
+                {selectedProduct.imageLink ? (
+                  <div className="shrink-0 space-y-2">
+                    <img
+                      src={selectedProduct.imageLink}
+                      alt={selectedProduct.title}
+                      className="w-28 h-28 object-contain rounded-xl border border-slate-200 bg-white p-1"
+                    />
+                    {selectedProduct.additionalImageLinks && selectedProduct.additionalImageLinks.length > 0 && (
+                      <div className="flex gap-1 overflow-x-auto max-w-[120px]">
+                        {selectedProduct.additionalImageLinks.slice(0, 3).map((img, i) => (
+                          <img
+                            key={i}
+                            src={img}
+                            alt=""
+                            className="w-8 h-8 object-contain rounded-md border border-slate-200 bg-white"
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-28 h-28 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                    <ImageIcon className="h-8 w-8" />
+                  </div>
+                )}
+                
+                <div className="flex-1 min-w-0 space-y-2 text-xs">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">{selectedProduct.title}</h4>
+                    {selectedProduct.description && (
+                      <p className="text-slate-500 text-[11px] mt-1 line-clamp-3 leading-relaxed">
+                        {selectedProduct.description}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {selectedProduct.price && (
+                      <div className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 font-bold text-emerald-800 text-xs flex items-center gap-1">
+                        <span>Price: {selectedProduct.price}</span>
+                        {selectedProduct.salePrice && (
+                          <span className="text-[10px] text-emerald-600 line-through">
+                            {selectedProduct.salePrice}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {selectedProduct.brand && (
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-200 text-slate-700 font-semibold">
+                        Brand: {selectedProduct.brand}
+                      </span>
+                    )}
+                    {selectedProduct.availability && (
+                      <span className={`px-2 py-0.5 rounded-lg font-bold ${
+                        selectedProduct.availability.toLowerCase().includes("in")
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-rose-100 text-rose-800"
+                      }`}>
+                        {selectedProduct.availability}
+                      </span>
+                    )}
+                    {selectedProduct.condition && (
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600">
+                        Condition: {selectedProduct.condition}
+                      </span>
+                    )}
+                    {selectedProduct.channel && (
+                      <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 font-medium">
+                        Channel: {selectedProduct.channel}
+                      </span>
+                    )}
+                  </div>
+
+                  {selectedProduct.googleProductCategory && (
+                    <p className="text-[11px] text-slate-400 font-medium">
+                      Category: <span className="text-slate-600">{selectedProduct.googleProductCategory}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
               {/* Product Info */}
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                   <p className="text-slate-500 font-medium">Merchant Center Account</p>
-                  <p className="text-sm font-bold text-slate-900 mt-0.5">{selectedProduct.merchantId}</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5 font-mono">{selectedProduct.merchantId}</p>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                   <p className="text-slate-500 font-medium">Overall Approval Status</p>
@@ -878,14 +1221,14 @@ export function GoogleAdsShoppingSection({ customerId, orgId }: GoogleAdsShoppin
               {selectedProduct.link && (
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-600">Product Page URL:</span>
+                    <span className="font-semibold text-slate-600">Live Product Page URL:</span>
                     <a
                       href={selectedProduct.link}
                       target="_blank"
                       rel="noreferrer"
                       className="text-blue-600 font-bold inline-flex items-center gap-1 hover:underline"
                     >
-                      Open Link <ExternalLink className="h-3 w-3" />
+                      Open Live Store URL <ExternalLink className="h-3 w-3" />
                     </a>
                   </div>
                   <p className="font-mono text-slate-800 break-all mt-1">{selectedProduct.link}</p>

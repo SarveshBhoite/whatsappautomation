@@ -100,7 +100,7 @@ export class GoogleAdsAudienceService extends GoogleAdsBaseService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Lists Customer Match and CRM-based user lists for a customer.
+   * Lists Customer Match and all Google Ads user lists (Remarketing, CRM, Logical, Rule-based) for a customer.
    */
   public static async listCustomerMatchLists(organizationId: string, customerId: string) {
     const cid = customerId.replace(/-/g, "").trim();
@@ -123,7 +123,7 @@ export class GoogleAdsAudienceService extends GoogleAdsBaseService {
         user_list.match_rate_percentage,
         user_list.resource_name
       FROM user_list
-      WHERE user_list.type = 'CRM_BASED'
+      WHERE user_list.membership_status = 'OPEN'
       LIMIT 100
     `;
 
@@ -151,7 +151,7 @@ export class GoogleAdsAudienceService extends GoogleAdsBaseService {
           matchRatePercentage: ul?.matchRatePercentage !== undefined ? ul.matchRatePercentage : null,
           uploadKeyType: ul?.crmBasedUserList?.uploadKeyType || "CONTACT_INFO",
           dataSourceType: ul?.crmBasedUserList?.dataSourceType || "FIRST_PARTY",
-          type: "CRM_BASED"
+          type: ul?.type || "CRM_BASED"
         };
       });
     } catch (err: any) {

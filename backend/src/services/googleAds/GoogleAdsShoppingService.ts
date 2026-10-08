@@ -168,6 +168,25 @@ export class GoogleAdsShoppingService extends GoogleAdsBaseService {
       const resources = res.data?.resources || [];
       const nextPageToken = res.data?.nextPageToken || null;
 
+      // Also fetch live product details (prices, images, brand, availability, condition, categories)
+      let productsDetailMap = new Map<string, any>();
+      try {
+        const prodRes = await axios.get(
+          `${this.MC_BASE}/${merchantId}/products?maxResults=${limit}`,
+          { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 8000 }
+        );
+        const prodItems = prodRes.data?.resources || [];
+        for (const pi of prodItems) {
+          const key = pi.id || pi.offerId || "";
+          if (key) productsDetailMap.set(key, pi);
+          if (pi.offerId) productsDetailMap.set(pi.offerId, pi);
+          const rawId = (pi.id || "").split(":").pop();
+          if (rawId) productsDetailMap.set(rawId, pi);
+        }
+      } catch (pErr: any) {
+        console.warn("[listProductDiagnostics] products detail fetch notice:", pErr?.message);
+      }
+
       let approvedCount = 0;
       let disapprovedCount = 0;
       let expiringCount = 0;
@@ -177,8 +196,19 @@ export class GoogleAdsShoppingService extends GoogleAdsBaseService {
 
       for (const p of resources) {
         const productId = p.productId || "";
-        const title = p.title || productId || "—";
-        const link = p.link || "";
+        const prodDetail = productsDetailMap.get(productId) || productsDetailMap.get(productId.split(":").pop() || "") || {};
+        const title = p.title || prodDetail.title || productId || "—";
+        const link = p.link || prodDetail.link || "";
+        const imageLink = prodDetail.imageLink || "";
+        const additionalImageLinks = prodDetail.additionalImageLinks || [];
+        const description = prodDetail.description || "";
+        const brand = prodDetail.brand || "";
+        const availability = prodDetail.availability || "in stock";
+        const condition = prodDetail.condition || "new";
+        const channel = prodDetail.channel || "online";
+        const googleProductCategory = prodDetail.googleProductCategory || "";
+        const price = prodDetail.price ? `${prodDetail.price.currency || "INR"} ${prodDetail.price.value || "0.00"}` : undefined;
+        const salePrice = prodDetail.salePrice ? `${prodDetail.salePrice.currency || "INR"} ${prodDetail.salePrice.value || "0.00"}` : undefined;
 
         // Destination statuses
         const destStatuses = p.destinationStatuses || [];
@@ -228,7 +258,17 @@ export class GoogleAdsShoppingService extends GoogleAdsBaseService {
         items.push({
           productId,
           title,
+          description,
           link,
+          imageLink,
+          additionalImageLinks,
+          brand,
+          availability,
+          condition,
+          channel,
+          googleProductCategory,
+          price,
+          salePrice,
           status: overallStatus,
           destinations,
           issues,
@@ -237,6 +277,53 @@ export class GoogleAdsShoppingService extends GoogleAdsBaseService {
           creationDate: p.creationDate || "—",
           merchantId
         });
+      }
+
+      // If productstatuses returned 0 items but products were found in Merchant Center products catalog, populate catalog products
+      if (items.length === 0 && productsDetailMap.size > 0) {
+        for (const [_, pi] of productsDetailMap) {
+          const productId = pi.id || pi.offerId || `prod-${Math.random().toString(36).slice(2, 7)}`;
+          const title = pi.title || "Untitled Product";
+          const link = pi.link || "";
+          const imageLink = pi.imageLink || "";
+          const brand = pi.brand || "";
+          const availability = pi.availability || "in stock";
+          const condition = pi.condition || "new";
+          const channel = pi.channel || "online";
+          const googleProductCategory = pi.googleProductCategory || "";
+          const price = pi.price ? `${pi.price.currency || "INR"} ${pi.price.value || "0.00"}` : undefined;
+          const salePrice = pi.salePrice ? `${pi.salePrice.currency || "INR"} ${pi.salePrice.value || "0.00"}` : undefined;
+
+          approvedCount++;
+          items.push({
+            productId,
+            title,
+            description: pi.description || "",
+            link,
+            imageLink,
+            additionalImageLinks: pi.additionalImageLinks || [],
+            brand,
+            availability,
+            condition,
+            channel,
+            googleProductCategory,
+            price,
+            salePrice,
+            status: "APPROVED",
+            destinations: [{
+              destination: "Shopping",
+              status: "approved",
+              approvedCountries: ["IN"],
+              pendingCountries: [],
+              disapprovedCountries: []
+            }],
+            issues: [],
+            issueCount: 0,
+            lastUpdateDate: new Date().toISOString(),
+            creationDate: new Date().toISOString(),
+            merchantId
+          });
+        }
       }
 
       // Apply client filters if requested

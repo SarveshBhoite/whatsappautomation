@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   GitMerge,
-  Sparkles,
+  Cpu,
   MousePointerClick,
   Info,
   RefreshCw,
@@ -194,7 +194,7 @@ export function GoogleAdsAttributionSection({
               <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
                 Data-Driven (DDA)
               </span>
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+              <Cpu className="w-3.5 h-3.5 text-indigo-600" />
             </div>
             <p className="text-xl font-black text-indigo-900 mt-1 font-mono">
               {summary.dataDrivenActionsCount || 0}
@@ -282,7 +282,7 @@ export function GoogleAdsAttributionSection({
                         <td className="p-3.5">
                           {isDDA ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-[11px]">
-                              <Sparkles className="w-3 h-3 text-indigo-600" />
+                              <Cpu className="w-3 h-3 text-indigo-600" />
                               Data-Driven
                             </span>
                           ) : (

@@ -22,6 +22,8 @@ export class SalesSearchService extends GoogleAdsBaseService {
       locations = ["India"],
       languages = ["English"],
       keywords = [],
+      negativeKeywords = [],
+      campaignNegativeKeywords = [],
       headlines = [],
       descriptions = [],
       images = [],
@@ -35,6 +37,8 @@ export class SalesSearchService extends GoogleAdsBaseService {
       promotions = [],
       prices = [],
       leadForms = [],
+      apps = [],
+      messages = [],
       dailyBudget,
       budget,
       budgetType,
@@ -246,67 +250,175 @@ export class SalesSearchService extends GoogleAdsBaseService {
       const cid = (customerId || "").replace(/-/g, "").trim();
       const ADS_BASE = "https://googleads.googleapis.com/v24";
 
-      // 1. Create AdGroup
-      const effectiveAdGroupName = adGroupName || `${campaignName} - AdGroup 1`;
-      const adGroupPayload = {
-        operations: [{
-          create: {
-            campaign: apiResult.campaignResourceName,
+      // 1. Create Ad Groups & Ads (Multi-Group / Multi-Ad Support)
+      const rawAdGroups = (Array.isArray(payload.adGroups) && payload.adGroups.length > 0)
+        ? payload.adGroups
+        : [{
             name: effectiveAdGroupName,
             status: "ENABLED",
-            type: "SEARCH_STANDARD"
-          }
-        }]
-      };
-      const adGroupRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroups:mutate`, adGroupPayload, { headers });
-      const adGroupRef = adGroupRes.data?.results?.[0]?.resourceName;
-      apiResult.adGroupResourceName = adGroupRef;
+            cpcBid: payload.adGroupBid || payload.maxCpc || payload.targetCpc || undefined,
+            keywords: keywords,
+            ads: (validHeadlines.length > 0 && validDescriptions.length > 0) ? [{
+              headlines: validHeadlines,
+              descriptions: validDescriptions,
+              finalUrl: finalUrl,
+              displayPath1: displayPath1,
+              displayPath2: displayPath2
+            }] : []
+          }];
 
-      // 2. Create Keywords (AdGroupCriterion)
-      const keywordOperations = keywords.map((kw: string) => {
-        let matchType = "BROAD";
-        let text = kw.trim();
-        if (text.startsWith("[") && text.endsWith("]")) {
-          matchType = "EXACT";
-          text = text.slice(1, -1);
-        } else if (text.startsWith('"') && text.endsWith('"')) {
-          matchType = "PHRASE";
-          text = text.slice(1, -1);
-        }
-        return {
-          create: {
-            adGroup: adGroupRef,
-            status: "ENABLED",
-            keyword: {
-              text,
-              matchType
-            }
-          }
+      const createdAdGroupRefs: string[] = [];
+      const createdKeywordRefs: string[] = [];
+      const createdAdRefs: string[] = [];
+
+      for (let agIdx = 0; agIdx < rawAdGroups.length; agIdx++) {
+        const agItem = rawAdGroups[agIdx];
+        const agName = (agItem.name || `${campaignName} - AdGroup ${agIdx + 1}`).trim();
+        const agStatus = agItem.status || "ENABLED";
+
+        const agCreateObj: any = {
+          campaign: apiResult.campaignResourceName,
+          name: agName,
+          status: agStatus,
+          type: "SEARCH_STANDARD"
         };
-      });
-      if (keywordOperations.length > 0) {
-        await axios.post(`${ADS_BASE}/customers/${cid}/adGroupCriteria:mutate`, { operations: keywordOperations }, { headers });
+
+        if (agItem.cpcBid && Number(agItem.cpcBid) > 0) {
+          agCreateObj.cpcBidMicros = Math.round(Number(agItem.cpcBid) * 1_000_000);
+        }
+
+        const adGroupPayload = {
+          operations: [{
+            create: agCreateObj
+          }]
+        };
+        const adGroupRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroups:mutate`, adGroupPayload, { headers });
+        const adGroupRef = adGroupRes.data?.results?.[0]?.resourceName;
+        if (!adGroupRef) {
+          throw new Error(`Failed to create Google Ads Ad Group "${agName}" for Sales Search campaign.`);
+        }
+        createdAdGroupRefs.push(adGroupRef);
+
+        // Keywords for this specific Ad Group
+        const groupKeywords = (Array.isArray(agItem.keywords) && agItem.keywords.length > 0)
+          ? agItem.keywords
+          : (agIdx === 0 ? keywords : []);
+
+        if (groupKeywords.length > 0) {
+          const keywordOperations = groupKeywords.map((kw: string) => {
+            let matchType = "BROAD";
+            let text = kw.trim();
+            if (text.startsWith("[") && text.endsWith("]")) {
+              matchType = "EXACT";
+              text = text.slice(1, -1);
+            } else if (text.startsWith('"') && text.endsWith('"')) {
+              matchType = "PHRASE";
+              text = text.slice(1, -1);
+            }
+            return {
+              create: {
+                adGroup: adGroupRef,
+                status: "ENABLED",
+                keyword: {
+                  text,
+                  matchType
+                }
+              }
+            };
+          });
+
+          const kwRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroupCriteria:mutate`, { operations: keywordOperations }, { headers });
+          const kwRefs = (kwRes.data?.results || []).map((r: any) => r.resourceName);
+          createdKeywordRefs.push(...kwRefs);
+        }
+
+        // Ads for this specific Ad Group (Max 3 Enabled RSAs per Ad Group)
+        const groupAds = (Array.isArray(agItem.ads) && agItem.ads.length > 0)
+          ? agItem.ads.slice(0, 3)
+          : (validHeadlines.length > 0 && validDescriptions.length > 0 ? [{
+              headlines: validHeadlines,
+              descriptions: validDescriptions,
+              finalUrl: finalUrl,
+              displayPath1: displayPath1,
+              displayPath2: displayPath2
+            }] : []);
+
+        for (const adItem of groupAds) {
+          const adHeadlines = (Array.isArray(adItem.headlines) && adItem.headlines.length > 0) ? adItem.headlines : validHeadlines;
+          const adDescriptions = (Array.isArray(adItem.descriptions) && adItem.descriptions.length > 0) ? adItem.descriptions : validDescriptions;
+          const adFinalUrl = adItem.finalUrl || finalUrl;
+
+          const cleanedHeadlines = adHeadlines
+            .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 30))
+            .filter((text: string) => text.length > 0);
+          const cleanedDescriptions = adDescriptions
+            .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 90))
+            .filter((text: string) => text.length > 0);
+
+          if (cleanedHeadlines.length > 0 && cleanedDescriptions.length > 0) {
+            const adGroupAdPayload = {
+              operations: [{
+                create: {
+                  adGroup: adGroupRef,
+                  status: adItem.status || "ENABLED",
+                  ad: {
+                    finalUrls: [adFinalUrl],
+                    responsiveSearchAd: {
+                      headlines: cleanedHeadlines.slice(0, 15).map((text: any) => ({ text: String(text) })),
+                      descriptions: cleanedDescriptions.slice(0, 4).map((text: any) => ({ text: String(text) })),
+                      ...((adItem.path1 || adItem.displayPath1 || displayPath1) ? { path1: GoogleAdsBaseService.cleanAdText(String(adItem.path1 || adItem.displayPath1 || displayPath1), 15) } : {}),
+                      ...((adItem.path2 || adItem.displayPath2 || displayPath2) ? { path2: GoogleAdsBaseService.cleanAdText(String(adItem.path2 || adItem.displayPath2 || displayPath2), 15) } : {})
+                    }
+                  }
+                }
+              }]
+            };
+            const adRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroupAds:mutate`, adGroupAdPayload, { headers });
+            const adRef = adRes.data?.results?.[0]?.resourceName;
+            if (adRef) createdAdRefs.push(adRef);
+          }
+        }
       }
 
-      // 3. Create Responsive Search Ad (AdGroupAd) - Google Ads strictly allows max 15 headlines and max 4 descriptions
-      const adGroupAdPayload = {
-        operations: [{
-          create: {
-            adGroup: adGroupRef,
-            status: "ENABLED",
-            ad: {
-              finalUrls: [finalUrl],
-              responsiveSearchAd: {
-                headlines: validHeadlines.slice(0, 15).map((text: any) => ({ text: String(text) })),
-                descriptions: validDescriptions.slice(0, 4).map((text: any) => ({ text: String(text) })),
-                ...(displayPath1 ? { path1: GoogleAdsBaseService.cleanAdText(String(displayPath1), 15) } : {}),
-                ...(displayPath2 ? { path2: GoogleAdsBaseService.cleanAdText(String(displayPath2), 15) } : {})
-              }
+      apiResult.adGroupResourceNames = createdAdGroupRefs;
+      apiResult.adGroupResourceName = createdAdGroupRefs[0];
+      apiResult.keywordResourceNames = createdKeywordRefs;
+      apiResult.adGroupAdResourceNames = createdAdRefs;
+      apiResult.adGroupAdResourceName = createdAdRefs[0];
+
+      // 2b. Create Campaign Negative Keywords (CampaignCriterion negative)
+      const allNegativeKws = [
+        ...(Array.isArray(negativeKeywords) ? negativeKeywords : []),
+        ...(Array.isArray(campaignNegativeKeywords) ? campaignNegativeKeywords : [])
+      ];
+      if (allNegativeKws.length > 0) {
+        try {
+          const negOperations = allNegativeKws.map((nkw: string) => {
+            let matchType = "BROAD";
+            let text = nkw.trim();
+            if (text.startsWith("[") && text.endsWith("]")) {
+              matchType = "EXACT";
+              text = text.slice(1, -1);
+            } else if (text.startsWith('"') && text.endsWith('"')) {
+              matchType = "PHRASE";
+              text = text.slice(1, -1);
             }
-          }
-        }]
-      };
-      await axios.post(`${ADS_BASE}/customers/${cid}/adGroupAds:mutate`, adGroupAdPayload, { headers });
+            return {
+              create: {
+                campaign: apiResult.campaignResourceName,
+                negative: true,
+                keyword: {
+                  text,
+                  matchType
+                }
+              }
+            };
+          });
+          await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, { operations: negOperations }, { headers });
+        } catch (negErr: any) {
+          console.warn("[SalesSearchService] Campaign Negative Criteria mutate warning:", negErr?.response?.data || negErr.message);
+        }
+      }
 
       // 4. Create Campaign Criteria (Locations and Languages via GoogleAdsBaseService)
       await GoogleAdsBaseService.mutateCampaignGeoAndLanguageCriteria(
@@ -595,6 +707,186 @@ export class SalesSearchService extends GoogleAdsBaseService {
             }
           } catch (pErr: any) {
             console.warn("[SalesSearchService] Promotion asset creation skipped:", pErr?.message || pErr);
+          }
+        }
+      }
+
+      // H. Prices (PriceAsset)
+      const inputPrices = Array.isArray(prices) ? prices : [];
+      if (inputPrices.length > 0) {
+        try {
+          const cleanOfferings = inputPrices.map((p: any) => ({
+            header: GoogleAdsBaseService.cleanAdText(p.header || p.name || "Special Offer", 25),
+            description: GoogleAdsBaseService.cleanAdText(p.description || "Limited time offer", 25),
+            price: {
+              currencyCode: p.currencyCode || "INR",
+              amountMicros: String(Math.round(Number(p.amount || 100) * 1_000_000))
+            },
+            unit: p.unit && p.unit !== "No units" && p.unit !== "NO_UNIT" ? p.unit : "UNSPECIFIED",
+            finalUrls: [GoogleAdsBaseService.cleanUrl(p.finalUrl || finalUrl || "https://example.com")]
+          }));
+
+          const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+            operations: [{
+              create: {
+                name: `Price - ${cleanOfferings[0]?.header || "Offer"} - ${Date.now()}`,
+                priceAsset: {
+                  type: "SERVICES",
+                  priceQualifier: "UNSPECIFIED",
+                  languageCode: "en",
+                  priceOfferings: cleanOfferings
+                }
+              }
+            }]
+          }, { headers });
+          const assetRef = assetRes.data?.results?.[0]?.resourceName;
+          if (assetRef) {
+            createdAssetResources.push(assetRef);
+            campaignAssetOperations.push({
+              create: {
+                campaign: apiResult.campaignResourceName,
+                asset: assetRef,
+                fieldType: "PRICE",
+                status: "ENABLED"
+              }
+            });
+          }
+        } catch (prErr: any) {
+          console.warn("[SalesSearchService] Price asset creation skipped:", prErr?.message || prErr);
+        }
+      }
+
+      // I. Lead Forms (LeadFormAsset)
+      const inputLeadForms = Array.isArray(leadForms) ? leadForms : [];
+      for (const lf of inputLeadForms) {
+        const headline = (lf.headline || "").trim();
+        const businessName = (lf.businessName || lf.business || "").trim();
+        if (headline && businessName) {
+          try {
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [{
+                create: {
+                  name: `LeadForm - ${businessName.slice(0, 20)} - ${Date.now()}`,
+                  leadFormAsset: {
+                    businessName: GoogleAdsBaseService.cleanAdText(businessName, 25),
+                    headline: GoogleAdsBaseService.cleanAdText(headline, 30),
+                    description: GoogleAdsBaseService.cleanAdText(lf.description || "Sign up for details", 200),
+                    privacyPolicyUrl: GoogleAdsBaseService.cleanUrl(lf.privacyPolicyUrl || "https://example.com/privacy"),
+                    callToActionType: lf.callToActionType || "LEARN_MORE",
+                    callToActionDescription: GoogleAdsBaseService.cleanAdText(lf.callToActionDescription || "Learn More", 30),
+                    postSubmitHeadline: GoogleAdsBaseService.cleanAdText(lf.postSubmitHeadline || "Thank you.", 30),
+                    postSubmitDescription: GoogleAdsBaseService.cleanAdText(lf.postSubmitDescription || "We will contact you shortly.", 200),
+                    fields: Array.isArray(lf.fields) && lf.fields.length > 0 ? lf.fields : [{ inputType: "FULL_NAME" }, { inputType: "EMAIL" }]
+                  }
+                }
+              }]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: apiResult.campaignResourceName,
+                  asset: assetRef,
+                  fieldType: "LEAD_FORM",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (lfErr: any) {
+            console.warn("[SalesSearchService] Lead form asset creation skipped:", lfErr?.message || lfErr);
+          }
+        }
+      }
+
+      // J. Apps (AppAsset)
+      const inputApps = Array.isArray(apps) ? apps : [];
+      for (const appItem of inputApps) {
+        const appId = (appItem.appId || appItem.query || "").trim();
+        if (appId) {
+          try {
+            const store = appItem.platform === "iOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE";
+            const linkText = GoogleAdsBaseService.cleanAdText(appItem.linkText || "Download", 25);
+            const defaultUrl = store === "GOOGLE_APP_STORE"
+              ? `https://play.google.com/store/apps/details?id=${appId}`
+              : `https://apps.apple.com/app/id${appId}`;
+
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [{
+                create: {
+                  name: `App - ${appId.slice(0, 20)} - ${Date.now()}`,
+                  appAsset: {
+                    appId,
+                    appStore: store,
+                    linkText
+                  },
+                  finalUrls: [GoogleAdsBaseService.cleanUrl(appItem.finalUrl || defaultUrl)]
+                }
+              }]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: apiResult.campaignResourceName,
+                  asset: assetRef,
+                  fieldType: "APP",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (appErr: any) {
+            console.warn("[SalesSearchService] App asset creation skipped:", appErr?.message || appErr);
+          }
+        }
+      }
+
+      // K. Messages (Message / WhatsApp Sitelink Asset)
+      const inputMessages = Array.isArray(messages) ? messages : [];
+      for (const msg of inputMessages) {
+        const phone = (msg.phone || msg.phoneNumber || "").replace(/[^0-9]/g, "");
+        const platform = msg.platform || "WhatsApp";
+        let messageFinalUrl = "";
+
+        if (platform === "WhatsApp" && phone) {
+          const clean10 = phone.length === 12 && phone.startsWith("91") ? phone.slice(2) : phone;
+          const starterText = msg.starterMessage ? `?text=${encodeURIComponent(msg.starterMessage)}` : "";
+          messageFinalUrl = `https://wa.me/91${clean10}${starterText}`;
+        } else if (msg.customUrlName) {
+          messageFinalUrl = `https://m.me/${encodeURIComponent(msg.customUrlName)}`;
+        }
+
+        if (messageFinalUrl) {
+          try {
+            const assetRes = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+              operations: [{
+                create: {
+                  name: `Message - ${platform} - ${Date.now()}`,
+                  type: "SITELINK",
+                  sitelinkAsset: {
+                    linkText: GoogleAdsBaseService.cleanAdText(msg.callToActionDescription || `Chat on ${platform}`, 25),
+                    description1: GoogleAdsBaseService.cleanAdText(msg.starterMessage || "Direct Instant Support", 35),
+                    description2: GoogleAdsBaseService.cleanAdText("Click to message us directly", 35)
+                  },
+                  finalUrls: [GoogleAdsBaseService.cleanUrl(messageFinalUrl)]
+                }
+              }]
+            }, { headers });
+            const assetRef = assetRes.data?.results?.[0]?.resourceName;
+            if (assetRef) {
+              createdAssetResources.push(assetRef);
+              campaignAssetOperations.push({
+                create: {
+                  campaign: apiResult.campaignResourceName,
+                  asset: assetRef,
+                  fieldType: "SITELINK",
+                  status: "ENABLED"
+                }
+              });
+            }
+          } catch (mErr: any) {
+            console.warn("[SalesSearchService] Message asset creation skipped:", mErr?.message || mErr);
           }
         }
       }

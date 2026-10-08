@@ -1437,7 +1437,7 @@ function ProfilePageContent() {
 
       if (isPrimary && autofilledCount > 0) {
         setSaveSuccessMsg(
-          `✨ Grok AI successfully analyzed ${cleanUrl}! Autofilled ${autofilledCount} profile pillars and discovered ${subPages.length} sub-pages.`
+          `Grok AI successfully analyzed ${cleanUrl}! Autofilled ${autofilledCount} profile pillars and discovered ${subPages.length} sub-pages.`
         );
         setTimeout(() => setSaveSuccessMsg(null), 8000);
       } else {
@@ -3204,50 +3204,36 @@ function ProfilePageContent() {
   return (
     <div
       ref={scrollContainerRef}
-      className="flex-1 h-full min-h-0 overflow-y-auto bg-slate-50/60 pb-24 custom-vertical-scrollbar"
+      className="flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden bg-slate-50/60 pb-36 custom-vertical-scrollbar"
     >
       {/* Top Header Bar */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3.5 sm:px-6 lg:px-8 py-3 transition-all">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-7xl mx-auto">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 transition-all shadow-xs">
+        <div className="flex flex-row items-center justify-between gap-2 sm:gap-3 max-w-7xl mx-auto">
           {/* Left Title and Back Button */}
-          <div className="flex items-center justify-between sm:justify-start gap-2.5 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <button
               onClick={() => router.push(returnToAdsUrl)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0 active:scale-95"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0 active:scale-95 shadow-2xs"
               title="Return to Ads Dashboard"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="hidden xs:inline">Return to Ads</span>
+              <span className="hidden sm:inline">Return to Ads</span>
             </button>
 
             <div className="h-4 w-px bg-slate-200 hidden sm:block" />
 
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-xs">
-                <Building2 className="w-4 h-4" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-xs">
+                <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0">
                 <h1 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">
-                  Business &amp; Marketing Profile
+                  <span className="hidden xs:inline">Business &amp; Marketing </span>Profile
                 </h1>
                 <span className="text-[10px] sm:text-[11px] font-mono text-slate-500 block truncate">
                   CID: {profile?.formattedCustomerId || customerId}
                 </span>
               </div>
-            </div>
-
-            {/* Mobile Status Pill (visible on xs only) */}
-            <div className="sm:hidden shrink-0">
-              {isApproved ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>Approved</span>
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                  Draft
-                </span>
-              )}
             </div>
           </div>
 
@@ -3295,7 +3281,7 @@ function ProfilePageContent() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
+      <main className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-4 sm:space-y-6 overflow-x-hidden">
         {/* Notifications */}
         {saveSuccessMsg && (
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 font-semibold animate-fadeIn">
@@ -3701,52 +3687,66 @@ function ProfilePageContent() {
                   </div>
                 </div>
 
-                {/* Mobile Quick Options Bar (Sticky, touch-friendly horizontal scroll < lg) */}
-                <div className="lg:hidden sticky top-[57px] z-30 flex items-center gap-1.5 border border-slate-200/90 bg-white/95 backdrop-blur-md rounded-2xl p-1.5 shadow-sm overflow-x-auto scrollbar-none transition-all -mx-1 px-2">
-                  {PROFILE_TABS_SEQUENCE.map((tabItem) => {
-                    const isActive = activeTab === tabItem.key;
-                    const isCompleted = isSectionCompleted(tabItem.key);
-                    const IconComponent =
-                      tabItem.key === "business" ? Building2 :
-                      tabItem.key === "products_services" ? Package :
-                      tabItem.key === "target_audience" ? Users :
-                      tabItem.key === "locations" ? MapPin :
-                      tabItem.key === "conversion_goals" ? Target :
-                      tabItem.key === "brand_profile" ? Palette :
-                      tabItem.key === "competitors" ? Swords :
-                      tabItem.key === "seo_keywords" ? Search :
-                      tabItem.key === "faqs" ? HelpCircle :
-                      tabItem.key === "ai_suggestions" ? Sparkles :
-                      tabItem.key === "websites" ? Globe :
-                      tabItem.key === "youtube_channel" ? YoutubeIcon :
-                      tabItem.key === "merchant_apps" ? ShoppingBag :
-                      tabItem.key === "media_assets" ? ImageIcon :
-                      ShieldCheck;
+                {/* Mobile & Tablet Options Navigation Selector (No horizontal scroll, full-width responsive dropdown & quick buttons) */}
+                <div className="lg:hidden sticky top-[54px] z-30 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-sm p-2 transition-all space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0 shadow-2xs ${
+                        activeTab === "ai_suggestions"
+                          ? "bg-gradient-to-r from-purple-600 to-indigo-600"
+                          : "bg-gradient-to-r from-blue-600 to-indigo-600"
+                      }`}>
+                        {(() => {
+                          const IconComponent =
+                            activeTab === "business" ? Building2 :
+                            activeTab === "products_services" ? Package :
+                            activeTab === "target_audience" ? Users :
+                            activeTab === "locations" ? MapPin :
+                            activeTab === "conversion_goals" ? Target :
+                            activeTab === "brand_profile" ? Palette :
+                            activeTab === "competitors" ? Swords :
+                            activeTab === "seo_keywords" ? Search :
+                            activeTab === "faqs" ? HelpCircle :
+                            activeTab === "ai_suggestions" ? Sparkles :
+                            activeTab === "websites" ? Globe :
+                            activeTab === "youtube_channel" ? YoutubeIcon :
+                            activeTab === "merchant_apps" ? ShoppingBag :
+                            activeTab === "media_assets" ? ImageIcon :
+                            ShieldCheck;
+                          return <IconComponent className="w-3.5 h-3.5" />;
+                        })()}
+                      </div>
 
-                    return (
-                      <button
-                        key={tabItem.key}
-                        type="button"
-                        onClick={() => {
-                          setActiveTab(tabItem.key);
-                          scrollToTop();
-                        }}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-95 ${
-                          isActive
-                            ? tabItem.key === "ai_suggestions"
-                              ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs"
-                              : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs"
-                            : "text-slate-600 hover:text-slate-900 bg-slate-50/80 hover:bg-slate-100 border border-slate-200/60"
-                        }`}
-                      >
-                        <IconComponent className="w-3.5 h-3.5 shrink-0" />
-                        <span>{tabItem.shortLabel}</span>
-                        {isCompleted && (
-                          <CheckCircle2 className={`w-3 h-3 shrink-0 ${isActive ? "text-emerald-300" : "text-emerald-600"}`} />
-                        )}
-                      </button>
-                    );
-                  })}
+                      {/* Dropdown Selector for all 15 parameters without horizontal scrolling */}
+                      <div className="relative flex-1 min-w-0">
+                        <select
+                          value={activeTab}
+                          onChange={(e) => {
+                            setActiveTab(e.target.value as TabKey);
+                            scrollToTop();
+                          }}
+                          className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-900 text-xs font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer appearance-none pr-8 truncate"
+                        >
+                          {PROFILE_TABS_SEQUENCE.map((tabItem, idx) => {
+                            const isCompleted = isSectionCompleted(tabItem.key);
+                            return (
+                              <option key={tabItem.key} value={tabItem.key}>
+                                {idx + 1}. {tabItem.label} {isCompleted ? "✓ (Complete)" : "○"}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Step counter badge */}
+                    <div className="shrink-0">
+                      <span className="px-2.5 py-1 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-bold text-[11px] font-mono">
+                        {PROFILE_TABS_SEQUENCE.findIndex((t) => t.key === activeTab) + 1}/15
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Account Overview Header Card */}
@@ -9735,9 +9735,9 @@ function ProfilePageContent() {
                         {analyzingUrl === primaryWebsite ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
-                          <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                          <Bot className="w-3.5 h-3.5 text-purple-600" />
                         )}
-                        <span>✨ Analyze &amp; Autofill with Grok AI</span>
+                        <span>Analyze &amp; Autofill with Grok AI</span>
                       </button>
                     )}
                   </div>
@@ -10387,18 +10387,47 @@ function ProfilePageContent() {
                   )}
 
                   {hasMerchantAccount ? (
-                    <div className="pt-4 border-t border-emerald-100 animate-fadeIn space-y-3">
+                    <div className="pt-4 border-t border-emerald-100 animate-fadeIn space-y-4">
                       {merchantCenterId ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="p-3.5 rounded-2xl bg-white border border-emerald-200/80 shadow-2xs">
-                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Merchant Center Account ID</span>
-                            <span className="text-sm font-mono font-bold text-emerald-950 mt-1 block">{merchantCenterId}</span>
+                        <>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="p-3.5 rounded-2xl bg-white border border-emerald-200/80 shadow-2xs">
+                              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Merchant Center Account ID</span>
+                              <span className="text-sm font-mono font-bold text-emerald-950 mt-1 block">{merchantCenterId}</span>
+                            </div>
+                            <div className="p-3.5 rounded-2xl bg-white border border-emerald-200/80 shadow-2xs">
+                              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Primary Store / Feed Name</span>
+                              <span className="text-sm font-semibold text-slate-900 mt-1 block">{merchantStoreName || "Default Product Feed"}</span>
+                            </div>
                           </div>
-                          <div className="p-3.5 rounded-2xl bg-white border border-emerald-200/80 shadow-2xs">
-                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Primary Store / Feed Name</span>
-                            <span className="text-sm font-semibold text-slate-900 mt-1 block">{merchantStoreName || "Default Product Feed"}</span>
+
+                          {/* Action button to open and view all Merchant Center products */}
+                          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50/50 to-blue-50 border border-emerald-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                <Package className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-900">Google Merchant Product Catalog</h4>
+                                <p className="text-[11px] text-slate-600">
+                                  Browse live synced products, prices, stock statuses, and item feeds for this account.
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                router.push(`/ads/merchant/products?customerId=${encodeURIComponent(customerId)}&merchantId=${encodeURIComponent(merchantCenterId)}&storeName=${encodeURIComponent(merchantStoreName || "Connected Merchant Store")}`);
+                              }}
+                              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-sm shadow-emerald-600/20 cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 shrink-0"
+                            >
+                              <ShoppingBag className="w-4 h-4" />
+                              <span>View Product List</span>
+                              <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                            </button>
                           </div>
-                        </div>
+                        </>
                       ) : (
                         <p className="text-xs text-slate-400 italic p-4 rounded-xl bg-slate-50 border border-slate-200">
                           No Merchant Center account detected yet. Click &quot;Live Sync&quot; above to auto-detect and sync your Google Merchant Center account.

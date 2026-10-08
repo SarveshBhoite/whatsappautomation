@@ -20,7 +20,6 @@ import {
   Video,
   FileCheck,
   ShieldAlert,
-  Sparkles,
   Link,
   Sliders,
   Check,

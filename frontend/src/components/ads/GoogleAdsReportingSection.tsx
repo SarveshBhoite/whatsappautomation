@@ -22,7 +22,7 @@ import {
   ShieldCheck,
   ChevronDown,
   SlidersHorizontal,
-  Sparkles
+  Compass
 } from "lucide-react";
 import { GoogleAdsLandingPagesSection } from "./GoogleAdsLandingPagesSection";
 import { GoogleAdsCustomReportsSection } from "./GoogleAdsCustomReportsSection";
@@ -220,7 +220,7 @@ export function GoogleAdsReportingSection({ customerId, orgId }: GoogleAdsReport
                 : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
           >
-            <Sparkles className="h-4 w-4" />
+            <Compass className="h-4 w-4" />
             Keyword Planner
           </button>
           <button

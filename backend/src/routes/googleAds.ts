@@ -1008,6 +1008,111 @@ router.get("/merchant-accounts", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/ads/merchant-products
+ * Retrieves live products from Google Shopping Content API for the specified merchantId,
+ * with fallback to the Customer Profile's registered products.
+ */
+router.get("/merchant-products", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    const cleanCid = (rawCid || "").replace(/-/g, "").trim();
+    const merchantId = (req.query.merchantId as string || "").trim();
+
+    const config = await prisma.googleBusinessConfig.findFirst({
+      where: { organizationId: orgId }
+    });
+
+    let liveProducts: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      link?: string;
+      imageLink?: string;
+      price?: string | { value?: string; currency?: string };
+      availability?: string;
+      brand?: string;
+      channel?: string;
+      condition?: string;
+      googleProductCategory?: string;
+    }> = [];
+
+    // 1. Try querying Google Shopping Content API
+    if (config?.googleRefreshToken && merchantId) {
+      try {
+        const clientId = process.env.GOOGLE_CLIENT_ID || "";
+        const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+        const accessToken = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+
+        const prodRes = await axios.get(
+          `https://shoppingcontent.googleapis.com/content/v2.1/${merchantId}/products?maxResults=50`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+
+        const items = prodRes.data?.resources || [];
+        if (Array.isArray(items) && items.length > 0) {
+          liveProducts = items.map((p: any) => ({
+            id: p.id || p.offerId || `prod-${Math.random().toString(36).slice(2, 7)}`,
+            title: p.title || "Untitled Product",
+            description: p.description || "",
+            link: p.link || "",
+            imageLink: p.imageLink || "",
+            price: p.price ? `${p.price.currency || "INR"} ${p.price.value || "0.00"}` : undefined,
+            availability: p.availability || "in stock",
+            brand: p.brand || "",
+            channel: p.channel || "online",
+            condition: p.condition || "new",
+            googleProductCategory: p.googleProductCategory || ""
+          }));
+        }
+      } catch (apiErr: any) {
+        console.warn("[merchant-products] Content API query notice:", apiErr?.response?.data || apiErr.message);
+      }
+    }
+
+    // 2. If no products fetched via API or in demo/testing mode, fallback to customer profile products
+    if (liveProducts.length === 0 && cleanCid) {
+      try {
+        const profile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+        if (profile?.products && Array.isArray(profile.products) && (profile.products as any[]).length > 0) {
+          liveProducts = (profile.products as any[]).map((p: any, idx: number) => {
+            const pName = typeof p === "object" ? p.name || p.title : String(p);
+            const pDesc = typeof p === "object" ? p.description : "";
+            const pPrice = typeof p === "object" && p.price ? `${p.currency || profile.currencyCode || "INR"} ${p.price}` : undefined;
+            return {
+              id: typeof p === "object" && p.id ? p.id : `mc-prod-${idx + 1}`,
+              title: pName,
+              description: pDesc,
+              link: typeof p === "object" ? p.productUrl || "" : "",
+              price: pPrice,
+              availability: "in stock",
+              brand: profile.businessName || "Your Brand",
+              channel: "online",
+              condition: "new"
+            };
+          });
+        }
+      } catch (dbErr: any) {
+        console.warn("[merchant-products] database fallback notice:", dbErr.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      merchantId: merchantId || undefined,
+      totalCount: liveProducts.length,
+      products: liveProducts
+    });
+  } catch (error: any) {
+    console.error("[merchant-products] error:", error?.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Failed to retrieve Merchant Center products"
+    });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GOOGLE CONNECTED MOBILE APPS (Play Store / App Store Discovery)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4233,6 +4338,242 @@ router.post("/assets/associate", async (req, res) => {
   } catch (error: any) {
     console.error("[assets/associate POST] error:", error?.response?.data || error.message);
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to associate asset" });
+  }
+});
+
+/**
+ * GET /api/ads/assets/prices
+ */
+router.get("/assets/prices", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const prices = await GoogleAdsAssetTypesService.listPrices(orgId, customerId);
+    res.status(200).json({ success: true, items: prices });
+  } catch (error: any) {
+    console.error("[prices GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list prices" });
+  }
+});
+
+/**
+ * POST /api/ads/assets/prices
+ */
+router.post("/assets/prices", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { priceType, priceQualifier, languageCode, offerings, campaignResourceName, name } = req.body;
+    if (!offerings || !Array.isArray(offerings) || offerings.length === 0) {
+      return res.status(400).json({ error: "At least one offering is required for a Price asset" });
+    }
+
+    const result = await GoogleAdsAssetTypesService.createPrice(orgId, customerId, {
+      priceType,
+      priceQualifier,
+      languageCode,
+      offerings,
+      campaignResourceName,
+      name
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[prices POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create price asset" });
+  }
+});
+
+/**
+ * GET /api/ads/assets/callouts
+ */
+router.get("/assets/callouts", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const callouts = await GoogleAdsAssetTypesService.listCallouts(orgId, customerId);
+    res.status(200).json({ success: true, items: callouts });
+  } catch (error: any) {
+    console.error("[callouts GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list callouts" });
+  }
+});
+
+/**
+ * POST /api/ads/assets/callouts
+ */
+router.post("/assets/callouts", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { calloutText, campaignResourceName, name } = req.body;
+    if (!calloutText || !calloutText.trim()) {
+      return res.status(400).json({ error: "calloutText is required" });
+    }
+
+    const result = await GoogleAdsAssetTypesService.createCallout(orgId, customerId, {
+      calloutText,
+      campaignResourceName,
+      name
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[callouts POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create callout asset" });
+  }
+});
+
+/**
+ * GET /api/ads/assets/apps
+ */
+router.get("/assets/apps", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const apps = await GoogleAdsAssetTypesService.listApps(orgId, customerId);
+    res.status(200).json({ success: true, items: apps });
+  } catch (error: any) {
+    console.error("[apps GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list app assets" });
+  }
+});
+
+/**
+ * POST /api/ads/assets/apps
+ */
+router.post("/assets/apps", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { appId, appStore, linkText, finalUrl, campaignResourceName, name } = req.body;
+    if (!appId || !appId.trim()) {
+      return res.status(400).json({ error: "appId is required" });
+    }
+
+    const result = await GoogleAdsAssetTypesService.createApp(orgId, customerId, {
+      appId,
+      appStore,
+      linkText,
+      finalUrl,
+      campaignResourceName,
+      name
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[apps POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create app asset" });
+  }
+});
+
+/**
+ * GET /api/ads/assets/messages
+ */
+router.get("/assets/messages", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req);
+    if (!rawCid) return res.status(400).json({ error: "customerId query parameter is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const messages = await GoogleAdsAssetTypesService.listMessages(orgId, customerId);
+    res.status(200).json({ success: true, items: messages });
+  } catch (error: any) {
+    console.error("[messages GET] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to list message assets" });
+  }
+});
+
+/**
+ * POST /api/ads/assets/messages
+ */
+router.post("/assets/messages", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body.customerId;
+    if (!rawCid) return res.status(400).json({ error: "customerId is required" });
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const { platform, phoneNumber, countryCode, starterMessage, customUrlName, callToAction, callToActionDescription, campaignResourceName, name } = req.body;
+    if (!platform) {
+      return res.status(400).json({ error: "platform (WhatsApp, Messenger, Zalo) is required" });
+    }
+
+    const result = await GoogleAdsAssetTypesService.createMessage(orgId, customerId, {
+      platform,
+      phoneNumber,
+      countryCode,
+      starterMessage,
+      customUrlName,
+      callToAction,
+      callToActionDescription,
+      campaignResourceName,
+      name
+    });
+
+    res.status(201).json({ success: true, result });
+  } catch (error: any) {
+    console.error("[messages POST] error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to create message asset" });
   }
 });
 

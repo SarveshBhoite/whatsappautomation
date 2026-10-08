@@ -17,7 +17,6 @@ import {
   ExternalLink,
   Loader2,
   HelpCircle,
-  Sparkles,
   Megaphone,
   X,
   FileText
@@ -69,6 +68,65 @@ interface LeadFormItem {
   postSubmitHeadline: string;
   postSubmitDescription: string;
   fields: Array<{ inputType: string }>;
+  policyApprovalStatus: string;
+  policyReviewStatus: string;
+  campaigns?: Array<{ campaignId: string; campaignName: string; resourceName: string }>;
+}
+
+interface PriceItem {
+  id: string;
+  resourceName: string;
+  name: string;
+  type: string;
+  priceType: string;
+  priceQualifier: string;
+  languageCode: string;
+  offerings: Array<{
+    header: string;
+    description: string;
+    amount: number;
+    currencyCode: string;
+    unit: string;
+    finalUrl: string;
+  }>;
+  policyApprovalStatus: string;
+  policyReviewStatus: string;
+  campaigns?: Array<{ campaignId: string; campaignName: string; resourceName: string }>;
+}
+
+interface CalloutItem {
+  id: string;
+  resourceName: string;
+  name: string;
+  type: string;
+  calloutText: string;
+  policyApprovalStatus: string;
+  policyReviewStatus: string;
+  campaigns?: Array<{ campaignId: string; campaignName: string; resourceName: string }>;
+}
+
+interface AppItem {
+  id: string;
+  resourceName: string;
+  name: string;
+  type: string;
+  appId: string;
+  appStore: string;
+  linkText: string;
+  finalUrls: string[];
+  policyApprovalStatus: string;
+  policyReviewStatus: string;
+  campaigns?: Array<{ campaignId: string; campaignName: string; resourceName: string }>;
+}
+
+interface MessageItem {
+  id: string;
+  resourceName: string;
+  name: string;
+  type: string;
+  phoneNumber: string;
+  countryCode: string;
+  finalUrls: string[];
   policyApprovalStatus: string;
   policyReviewStatus: string;
   campaigns?: Array<{ campaignId: string; campaignName: string; resourceName: string }>;
@@ -142,13 +200,20 @@ const LEAD_FORM_CTAS = [
 export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: GoogleAdsAssetsSectionProps) {
   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
-  // Subtabs
-  const [activeAssetType, setActiveAssetType] = useState<"snippets" | "promotions" | "lead-forms">("snippets");
+  // Subtabs (All 7 types)
+  const [activeAssetType, setActiveAssetType] = useState<
+    "snippets" | "promotions" | "prices" | "lead-forms" | "callouts" | "apps" | "messages"
+  >("snippets");
 
   // Data states
   const [snippets, setSnippets] = useState<StructuredSnippetItem[]>([]);
   const [promotions, setPromotions] = useState<PromotionItem[]>([]);
+  const [prices, setPrices] = useState<PriceItem[]>([]);
   const [leadForms, setLeadForms] = useState<LeadFormItem[]>([]);
+  const [callouts, setCallouts] = useState<CalloutItem[]>([]);
+  const [apps, setApps] = useState<AppItem[]>([]);
+  const [messages, setMessages] = useState<MessageItem[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -156,7 +221,12 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
   // Modals
   const [isSnippetModalOpen, setIsSnippetModalOpen] = useState(false);
   const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+  const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
   const [isLeadFormModalOpen, setIsLeadFormModalOpen] = useState(false);
+  const [isCalloutModalOpen, setIsCalloutModalOpen] = useState(false);
+  const [isAppModalOpen, setIsAppModalOpen] = useState(false);
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -177,6 +247,32 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
   const [promoEndDate, setPromoEndDate] = useState("");
   const [promoFinalUrl, setPromoFinalUrl] = useState("");
   const [promoCampaign, setPromoCampaign] = useState("");
+
+  // Price Form
+  const [priceType, setPriceType] = useState("SERVICES");
+  const [priceQualifier, setPriceQualifier] = useState("UNSPECIFIED");
+  const [priceOfferings, setPriceOfferings] = useState<Array<{ header: string; description: string; amount: string; currencyCode: string; unit: string; finalUrl: string }>>([
+    { header: "Basic Plan", description: "Standard features", amount: "499", currencyCode: "INR", unit: "PER_MONTH", finalUrl: "" }
+  ]);
+  const [priceCampaign, setPriceCampaign] = useState("");
+
+  // Callout Form
+  const [calloutText, setCalloutText] = useState("");
+  const [calloutCampaign, setCalloutCampaign] = useState("");
+
+  // App Form
+  const [appId, setAppId] = useState("");
+  const [appStore, setAppStore] = useState<"GOOGLE_APP_STORE" | "APPLE_APP_STORE">("GOOGLE_APP_STORE");
+  const [appLinkText, setAppLinkText] = useState("Download App");
+  const [appFinalUrl, setAppFinalUrl] = useState("");
+  const [appCampaign, setAppCampaign] = useState("");
+
+  // Message Form
+  const [msgPlatform, setMsgPlatform] = useState<"WhatsApp" | "Messenger" | "Zalo">("WhatsApp");
+  const [msgPhone, setMsgPhone] = useState("");
+  const [msgStarter, setMsgStarter] = useState("Hello, I need more info!");
+  const [msgCustomUrl, setMsgCustomUrl] = useState("");
+  const [msgCampaign, setMsgCampaign] = useState("");
 
   // Lead Form
   const [lfBusinessName, setLfBusinessName] = useState("");
@@ -203,31 +299,50 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
           headers: { "x-organization-id": orgId }
         });
         const data = await res.json();
-        if (res.ok && data.success) {
-          setSnippets(data.items || []);
-        } else {
-          setErrorMsg(data.error || "Failed to load structured snippets");
-        }
+        if (res.ok && data.success) setSnippets(data.items || []);
+        else setErrorMsg(data.error || "Failed to load structured snippets");
       } else if (activeAssetType === "promotions") {
         const res = await fetch(`${BACKEND}/api/ads/assets/promotions?customerId=${cleanCid}`, {
           headers: { "x-organization-id": orgId }
         });
         const data = await res.json();
-        if (res.ok && data.success) {
-          setPromotions(data.items || []);
-        } else {
-          setErrorMsg(data.error || "Failed to load promotions");
-        }
+        if (res.ok && data.success) setPromotions(data.items || []);
+        else setErrorMsg(data.error || "Failed to load promotions");
+      } else if (activeAssetType === "prices") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/prices?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setPrices(data.items || []);
+        else setErrorMsg(data.error || "Failed to load prices");
+      } else if (activeAssetType === "callouts") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/callouts?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setCallouts(data.items || []);
+        else setErrorMsg(data.error || "Failed to load callouts");
+      } else if (activeAssetType === "apps") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/apps?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setApps(data.items || []);
+        else setErrorMsg(data.error || "Failed to load app assets");
+      } else if (activeAssetType === "messages") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/messages?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setMessages(data.items || []);
+        else setErrorMsg(data.error || "Failed to load message assets");
       } else if (activeAssetType === "lead-forms") {
         const res = await fetch(`${BACKEND}/api/ads/assets/lead-forms?customerId=${cleanCid}`, {
           headers: { "x-organization-id": orgId }
         });
         const data = await res.json();
-        if (res.ok && data.success) {
-          setLeadForms(data.items || []);
-        } else {
-          setErrorMsg(data.error || "Failed to load lead forms");
-        }
+        if (res.ok && data.success) setLeadForms(data.items || []);
+        else setErrorMsg(data.error || "Failed to load lead forms");
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Network error loading assets");
@@ -259,6 +374,147 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
       }
     } catch (err: any) {
       alert(err.message || "Error deleting asset");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Handle Save Price ──────────────────────────────────────────────────────
+  const handleSavePrice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!priceOfferings || priceOfferings.length === 0) {
+      alert("At least 1 price offering is required.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/assets/prices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-organization-id": orgId },
+        body: JSON.stringify({
+          customerId: cleanCid,
+          priceType,
+          priceQualifier,
+          offerings: priceOfferings.map(o => ({
+            header: o.header,
+            description: o.description,
+            amount: Number(o.amount) || 0,
+            currencyCode: o.currencyCode || "INR",
+            unit: o.unit,
+            finalUrl: o.finalUrl || "https://example.com"
+          })),
+          campaignResourceName: priceCampaign || undefined
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsPriceModalOpen(false);
+        fetchAssets();
+      } else {
+        alert(data.error || "Failed to create price asset");
+      }
+    } catch (err: any) {
+      alert(err.message || "Error saving price");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Handle Save Callout ────────────────────────────────────────────────────
+  const handleSaveCallout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!calloutText.trim()) {
+      alert("Callout text is required.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/assets/callouts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-organization-id": orgId },
+        body: JSON.stringify({
+          customerId: cleanCid,
+          calloutText: calloutText.trim(),
+          campaignResourceName: calloutCampaign || undefined
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsCalloutModalOpen(false);
+        setCalloutText("");
+        fetchAssets();
+      } else {
+        alert(data.error || "Failed to create callout asset");
+      }
+    } catch (err: any) {
+      alert(err.message || "Error saving callout");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Handle Save App ────────────────────────────────────────────────────────
+  const handleSaveApp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!appId.trim()) {
+      alert("App ID or Package Name is required.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/assets/apps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-organization-id": orgId },
+        body: JSON.stringify({
+          customerId: cleanCid,
+          appId: appId.trim(),
+          appStore,
+          linkText: appLinkText.trim() || "Download",
+          finalUrl: appFinalUrl.trim() || undefined,
+          campaignResourceName: appCampaign || undefined
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsAppModalOpen(false);
+        setAppId("");
+        fetchAssets();
+      } else {
+        alert(data.error || "Failed to create app asset");
+      }
+    } catch (err: any) {
+      alert(err.message || "Error saving app asset");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Handle Save Message ────────────────────────────────────────────────────
+  const handleSaveMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/ads/assets/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-organization-id": orgId },
+        body: JSON.stringify({
+          customerId: cleanCid,
+          platform: msgPlatform,
+          phoneNumber: msgPhone.trim() || undefined,
+          starterMessage: msgStarter.trim() || undefined,
+          customUrlName: msgCustomUrl.trim() || undefined,
+          campaignResourceName: msgCampaign || undefined
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsMessageModalOpen(false);
+        fetchAssets();
+      } else {
+        alert(data.error || "Failed to create message asset");
+      }
+    } catch (err: any) {
+      alert(err.message || "Error saving message asset");
     } finally {
       setSubmitting(false);
     }
@@ -589,6 +845,110 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
               </button>
             )}
 
+            {activeAssetType === "snippets" && (
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setSnippetHeader("Services");
+                  setSnippetValues(["", "", ""]);
+                  setSnippetCampaign("");
+                  setIsSnippetModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Snippet</span>
+              </button>
+            )}
+
+            {activeAssetType === "promotions" && (
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setPromoTarget("");
+                  setPromoDiscountType("PERCENT_OFF");
+                  setPromoPercent(20);
+                  setPromoMoney("");
+                  setPromoOccasion("NONE");
+                  setPromoCode("");
+                  setPromoStartDate("");
+                  setPromoEndDate("");
+                  setPromoFinalUrl("");
+                  setPromoCampaign("");
+                  setIsPromoModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Promotion</span>
+              </button>
+            )}
+
+            {activeAssetType === "prices" && (
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setPriceOfferings([{ header: "Basic Plan", description: "Standard features", amount: "499", currencyCode: "INR", unit: "PER_MONTH", finalUrl: "" }]);
+                  setPriceCampaign("");
+                  setIsPriceModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Price</span>
+              </button>
+            )}
+
+            {activeAssetType === "callouts" && (
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setCalloutText("");
+                  setCalloutCampaign("");
+                  setIsCalloutModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Callout</span>
+              </button>
+            )}
+
+            {activeAssetType === "apps" && (
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setAppId("");
+                  setAppLinkText("Download App");
+                  setAppFinalUrl("");
+                  setAppCampaign("");
+                  setIsAppModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create App</span>
+              </button>
+            )}
+
+            {activeAssetType === "messages" && (
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setMsgPlatform("WhatsApp");
+                  setMsgPhone("");
+                  setMsgStarter("Hello, I would like to inquire about your services.");
+                  setMsgCustomUrl("");
+                  setMsgCampaign("");
+                  setIsMessageModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Message</span>
+              </button>
+            )}
+
             {activeAssetType === "lead-forms" && (
               <button
                 onClick={() => {
@@ -616,25 +976,21 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
 
         {/* 2. Sub-Tabs */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-100">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setActiveAssetType("snippets")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeAssetType === "snippets"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeAssetType === "snippets" ? "bg-slate-900 text-white shadow-xs" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Structured Snippets ({snippets.length})</span>
+              <span>Snippets ({snippets.length})</span>
             </button>
 
             <button
               onClick={() => setActiveAssetType("promotions")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeAssetType === "promotions"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeAssetType === "promotions" ? "bg-slate-900 text-white shadow-xs" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
               <Tag className="w-3.5 h-3.5" />
@@ -642,11 +998,49 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
             </button>
 
             <button
+              onClick={() => setActiveAssetType("prices")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeAssetType === "prices" ? "bg-slate-900 text-white shadow-xs" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              <span>Prices ({prices.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAssetType("callouts")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeAssetType === "callouts" ? "bg-slate-900 text-white shadow-xs" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <Megaphone className="w-3.5 h-3.5" />
+              <span>Callouts ({callouts.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAssetType("messages")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeAssetType === "messages" ? "bg-slate-900 text-white shadow-xs" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Messages ({messages.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAssetType("apps")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeAssetType === "apps" ? "bg-slate-900 text-white shadow-xs" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>Apps ({apps.length})</span>
+            </button>
+
+            <button
               onClick={() => setActiveAssetType("lead-forms")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeAssetType === "lead-forms"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeAssetType === "lead-forms" ? "bg-slate-900 text-white shadow-xs" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
@@ -871,6 +1265,243 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
             </div>
           </div>
         )
+      ) : activeAssetType === "prices" ? (
+        // ── Prices Table ──
+        prices.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-white border border-slate-200">
+            <DollarSign className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-bold text-slate-800">No Price Assets Found</p>
+            <p className="text-xs text-slate-500 mt-1">Price assets showcase your products or service tiers with structured pricing directly in search results.</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                    <th className="p-4">Type &amp; Language</th>
+                    <th className="p-4">Offerings &amp; Prices</th>
+                    <th className="p-4">Associated Campaigns</th>
+                    <th className="p-4">Policy Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {prices.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-all">
+                      <td className="p-4 font-bold text-slate-900">
+                        <div>{item.priceType}</div>
+                        <span className="text-[10px] text-slate-400 font-mono">ID: {item.id}</span>
+                      </td>
+                      <td className="p-4">
+                        <div className="space-y-1">
+                          {item.offerings.map((o, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-800">{o.header}</span>
+                              <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-mono font-bold text-[11px]">
+                                {o.currencyCode} {o.amount} {o.unit !== "NO_UNIT" ? `/${o.unit}` : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        {item.campaigns && item.campaigns.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {item.campaigns.map((c, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold">
+                                {c.campaignName || `Campaign ${c.campaignId}`}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-xs">Account-level</span>
+                        )}
+                      </td>
+                      <td className="p-4">{getApprovalBadge(item.policyApprovalStatus)}</td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => handleDeleteAsset(item.resourceName, item.name || "Price Asset")}
+                          disabled={submitting}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                          title="Delete Asset"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      ) : activeAssetType === "callouts" ? (
+        // ── Callouts Table ──
+        callouts.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-white border border-slate-200">
+            <Megaphone className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-bold text-slate-800">No Callout Assets Found</p>
+            <p className="text-xs text-slate-500 mt-1">Callouts promote unique selling points like Free Shipping or 24/7 Support.</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                    <th className="p-4">Callout Text</th>
+                    <th className="p-4">Associated Campaigns</th>
+                    <th className="p-4">Policy Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {callouts.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-all">
+                      <td className="p-4 font-bold text-slate-900">
+                        <div>{item.calloutText}</div>
+                        <span className="text-[10px] text-slate-400 font-mono">ID: {item.id}</span>
+                      </td>
+                      <td className="p-4">
+                        {item.campaigns && item.campaigns.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {item.campaigns.map((c, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold">
+                                {c.campaignName || `Campaign ${c.campaignId}`}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-xs">Account-level</span>
+                        )}
+                      </td>
+                      <td className="p-4">{getApprovalBadge(item.policyApprovalStatus)}</td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => handleDeleteAsset(item.resourceName, item.calloutText)}
+                          disabled={submitting}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                          title="Delete Asset"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      ) : activeAssetType === "apps" ? (
+        // ── Apps Table ──
+        apps.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-white border border-slate-200">
+            <Smartphone className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-bold text-slate-800">No App Assets Found</p>
+            <p className="text-xs text-slate-500 mt-1">App assets drive downloads for your Android or iOS app directly from ads.</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                    <th className="p-4">App Store &amp; ID</th>
+                    <th className="p-4">Link Text</th>
+                    <th className="p-4">Associated Campaigns</th>
+                    <th className="p-4">Policy Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {apps.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-all">
+                      <td className="p-4 font-bold text-slate-900">
+                        <div>{item.appStore === "GOOGLE_APP_STORE" ? "Android (Google Play)" : "iOS (Apple App Store)"}</div>
+                        <span className="text-[10px] text-slate-400 font-mono">{item.appId}</span>
+                      </td>
+                      <td className="p-4 font-semibold text-slate-700">{item.linkText}</td>
+                      <td className="p-4">
+                        {item.campaigns && item.campaigns.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {item.campaigns.map((c, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold">
+                                {c.campaignName || `Campaign ${c.campaignId}`}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-xs">Account-level</span>
+                        )}
+                      </td>
+                      <td className="p-4">{getApprovalBadge(item.policyApprovalStatus)}</td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => handleDeleteAsset(item.resourceName, item.appId)}
+                          disabled={submitting}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                          title="Delete Asset"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      ) : activeAssetType === "messages" ? (
+        // ── Messages Table ──
+        messages.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-white border border-slate-200">
+            <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-bold text-slate-800">No Message Assets Found</p>
+            <p className="text-xs text-slate-500 mt-1">Message assets connect customers directly with WhatsApp, Messenger, or Zalo click-to-chat.</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                    <th className="p-4">Platform &amp; Contact</th>
+                    <th className="p-4">Final Destination</th>
+                    <th className="p-4">Policy Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {messages.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-all">
+                      <td className="p-4 font-bold text-slate-900">
+                        <div>{item.name || "WhatsApp Direct Chat"}</div>
+                        <span className="text-[10px] text-slate-400 font-mono">ID: {item.id}</span>
+                      </td>
+                      <td className="p-4 font-mono text-[11px] text-blue-600 truncate max-w-xs">
+                        {item.finalUrls?.[0] || "wa.me link"}
+                      </td>
+                      <td className="p-4">{getApprovalBadge(item.policyApprovalStatus)}</td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => handleDeleteAsset(item.resourceName, item.name || "Message Asset")}
+                          disabled={submitting}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                          title="Delete Asset"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
       ) : (
         // ── Lead Forms Table ──
         leadForms.length === 0 ? (
@@ -951,6 +1582,865 @@ export function GoogleAdsAssetsSection({ customerId, orgId, campaigns = [] }: Go
             </div>
           </div>
         )
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: CREATE / EDIT STRUCTURED SNIPPET                               */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isSnippetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">
+                  {editingItem ? "Edit Structured Snippet" : "Create Structured Snippet"}
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads Asset</p>
+              </div>
+              <button
+                onClick={() => setIsSnippetModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSnippet} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Snippet Header *</label>
+                <select
+                  value={snippetHeader}
+                  onChange={(e) => setSnippetHeader(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                >
+                  {SNIPPET_HEADERS.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">Choose the category header matching your values.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Snippet Values (At least 3 required) *</label>
+                <div className="space-y-2">
+                  {snippetValues.map((val, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder={`Value ${idx + 1}`}
+                        value={val}
+                        onChange={(e) => {
+                          const copy = [...snippetValues];
+                          copy[idx] = e.target.value;
+                          setSnippetValues(copy);
+                        }}
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                      />
+                      {snippetValues.length > 3 && (
+                        <button
+                          type="button"
+                          onClick={() => setSnippetValues(snippetValues.filter((_, i) => i !== idx))}
+                          className="text-slate-400 hover:text-rose-500 p-1"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {snippetValues.length < 10 && (
+                  <button
+                    type="button"
+                    onClick={() => setSnippetValues([...snippetValues, ""])}
+                    className="mt-2 text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Value</span>
+                  </button>
+                )}
+              </div>
+
+              {campaigns.length > 0 && !editingItem && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Link to Campaign (Optional)</label>
+                  <select
+                    value={snippetCampaign}
+                    onChange={(e) => setSnippetCampaign(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Account-level (All Campaigns)</option>
+                    {campaigns.map((c) => (
+                      <option key={c.id} value={c.resourceName || `customers/${cleanCid}/campaigns/${c.id}`}>
+                        {c.name} ({c.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSnippetModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{editingItem ? "Update Snippet" : "Create Snippet"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: CREATE / EDIT PROMOTION                                        */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isPromoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">
+                  {editingItem ? "Edit Promotion" : "Create Promotion"}
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads Asset</p>
+              </div>
+              <button
+                onClick={() => setIsPromoModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePromotion} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Target Item or Service *</label>
+                <input
+                  type="text"
+                  maxLength={30}
+                  placeholder="e.g. Summer Sale, Web Design, Shoes"
+                  value={promoTarget}
+                  onChange={(e) => setPromoTarget(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Discount Type</label>
+                  <select
+                    value={promoDiscountType}
+                    onChange={(e) => setPromoDiscountType(e.target.value as any)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="PERCENT_OFF">Percent Off (%)</option>
+                    <option value="MONEY_AMOUNT_OFF">Money Amount Off (₹/$)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {promoDiscountType === "PERCENT_OFF" ? "Percent (1-100)" : "Amount"}
+                  </label>
+                  {promoDiscountType === "PERCENT_OFF" ? (
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={promoPercent}
+                      onChange={(e) => setPromoPercent(e.target.value === "" ? "" : Number(e.target.value))}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                    />
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="500"
+                        value={promoMoney}
+                        onChange={(e) => setPromoMoney(e.target.value === "" ? "" : Number(e.target.value))}
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                      />
+                      <select
+                        value={promoCurrency}
+                        onChange={(e) => setPromoCurrency(e.target.value)}
+                        className="w-20 bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs text-slate-900"
+                      >
+                        <option value="INR">INR (₹)</option>
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="GBP">GBP (£)</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Occasion</label>
+                <select
+                  value={promoOccasion}
+                  onChange={(e) => setPromoOccasion(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                >
+                  {PROMOTION_OCCASIONS.map((occ) => (
+                    <option key={occ.value} value={occ.value}>{occ.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Promotion Code (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. DIWALI2026, SUMMER50"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Final Destination URL *</label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/offers"
+                  value={promoFinalUrl}
+                  onChange={(e) => setPromoFinalUrl(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {campaigns.length > 0 && !editingItem && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Link to Campaign (Optional)</label>
+                  <select
+                    value={promoCampaign}
+                    onChange={(e) => setPromoCampaign(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Account-level (All Campaigns)</option>
+                    {campaigns.map((c) => (
+                      <option key={c.id} value={c.resourceName || `customers/${cleanCid}/campaigns/${c.id}`}>
+                        {c.name} ({c.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPromoModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{editingItem ? "Update Promotion" : "Create Promotion"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: CREATE PRICE ASSET                                             */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isPriceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Create Price Asset</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads Asset</p>
+              </div>
+              <button
+                onClick={() => setIsPriceModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePrice} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Type</label>
+                  <select
+                    value={priceType}
+                    onChange={(e) => setPriceType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    <option value="SERVICES">Services</option>
+                    <option value="BRANDS">Brands</option>
+                    <option value="EVENTS">Events</option>
+                    <option value="PRODUCT_CATEGORIES">Product Categories</option>
+                    <option value="PRODUCT_TIERS">Product Tiers</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Price Qualifier</label>
+                  <select
+                    value={priceQualifier}
+                    onChange={(e) => setPriceQualifier(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  >
+                    <option value="UNSPECIFIED">No qualifier</option>
+                    <option value="FROM">From</option>
+                    <option value="UP_TO">Up to</option>
+                    <option value="AVERAGE">Average</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Price Offerings</label>
+                <div className="space-y-3">
+                  {priceOfferings.map((off, idx) => (
+                    <div key={idx} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-900">Offering #{idx + 1}</span>
+                        {priceOfferings.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setPriceOfferings(priceOfferings.filter((_, i) => i !== idx))}
+                            className="text-rose-500 hover:text-rose-700 text-xs"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Header (e.g. Basic Plan)"
+                          value={off.header}
+                          onChange={(e) => {
+                            const copy = [...priceOfferings];
+                            copy[idx].header = e.target.value;
+                            setPriceOfferings(copy);
+                          }}
+                          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900"
+                        />
+                        <div className="flex gap-1">
+                          <input
+                            type="number"
+                            placeholder="499"
+                            value={off.amount}
+                            onChange={(e) => {
+                              const copy = [...priceOfferings];
+                              copy[idx].amount = e.target.value;
+                              setPriceOfferings(copy);
+                            }}
+                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 flex-1"
+                          />
+                          <select
+                            value={off.unit}
+                            onChange={(e) => {
+                              const copy = [...priceOfferings];
+                              copy[idx].unit = e.target.value;
+                              setPriceOfferings(copy);
+                            }}
+                            className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900"
+                          >
+                            <option value="PER_MONTH">/mo</option>
+                            <option value="PER_YEAR">/yr</option>
+                            <option value="PER_DAY">/day</option>
+                            <option value="PER_HOUR">/hr</option>
+                            <option value="NO_UNIT">None</option>
+                          </select>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Description (e.g. Standard support & updates)"
+                        value={off.description}
+                        onChange={(e) => {
+                          const copy = [...priceOfferings];
+                          copy[idx].description = e.target.value;
+                          setPriceOfferings(copy);
+                        }}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900"
+                      />
+                      <input
+                        type="url"
+                        placeholder="Final URL (e.g. https://example.com/pricing)"
+                        value={off.finalUrl}
+                        onChange={(e) => {
+                          const copy = [...priceOfferings];
+                          copy[idx].finalUrl = e.target.value;
+                          setPriceOfferings(copy);
+                        }}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-mono"
+                      />
+                    </div>
+                  ))}
+                  {priceOfferings.length < 8 && (
+                    <button
+                      type="button"
+                      onClick={() => setPriceOfferings([...priceOfferings, { header: "", description: "", amount: "", currencyCode: "INR", unit: "PER_MONTH", finalUrl: "" }])}
+                      className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Offering</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPriceModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Save Price Asset</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: CREATE CALLOUT ASSET                                           */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isCalloutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Create Callout Asset</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads Asset</p>
+              </div>
+              <button
+                onClick={() => setIsCalloutModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCallout} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Callout Text (Max 25 chars) *</label>
+                <input
+                  type="text"
+                  maxLength={25}
+                  placeholder="e.g. Free Shipping, 24/7 Support"
+                  value={calloutText}
+                  onChange={(e) => setCalloutText(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCalloutModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Save Callout</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: CREATE APP ASSET                                               */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isAppModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Create App Asset</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads Asset</p>
+              </div>
+              <button
+                onClick={() => setIsAppModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveApp} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Platform</label>
+                <select
+                  value={appStore}
+                  onChange={(e) => setAppStore(e.target.value as any)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                >
+                  <option value="GOOGLE_APP_STORE">Android (Google Play)</option>
+                  <option value="APPLE_APP_STORE">iOS (Apple App Store)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">App ID / Package Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. com.example.myapp or 123456789"
+                  value={appId}
+                  onChange={(e) => setAppId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Link Text</label>
+                <input
+                  type="text"
+                  maxLength={25}
+                  placeholder="Download App"
+                  value={appLinkText}
+                  onChange={(e) => setAppLinkText(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAppModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Save App Asset</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: CREATE MESSAGE ASSET                                           */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isMessageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Create Message Asset</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads Asset</p>
+              </div>
+              <button
+                onClick={() => setIsMessageModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMessage} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Platform</label>
+                <select
+                  value={msgPlatform}
+                  onChange={(e) => setMsgPlatform(e.target.value as any)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                >
+                  <option value="WhatsApp">WhatsApp</option>
+                  <option value="Messenger">Facebook Messenger</option>
+                  <option value="Zalo">Zalo</option>
+                </select>
+              </div>
+
+              {msgPlatform === "WhatsApp" ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">10-Digit Mobile Number *</label>
+                  <input
+                    type="tel"
+                    maxLength={10}
+                    placeholder="e.g. 9876543210"
+                    value={msgPhone}
+                    onChange={(e) => setMsgPhone(e.target.value.replace(/[^0-9]/g, "").slice(0, 10))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Username / Page ID *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. jisnudigital"
+                    value={msgCustomUrl}
+                    onChange={(e) => setMsgCustomUrl(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Starter Pre-filled Message</label>
+                <textarea
+                  rows={2}
+                  maxLength={140}
+                  placeholder="Hi, I saw your ad on Google and want to learn more."
+                  value={msgStarter}
+                  onChange={(e) => setMsgStarter(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsMessageModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Save Message Asset</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: CREATE LEAD FORM                                               */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isLeadFormModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Create Lead Form Asset</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Google Ads Asset</p>
+              </div>
+              <button
+                onClick={() => setIsLeadFormModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLeadForm} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Business Name (Max 25 chars) *</label>
+                  <input
+                    type="text"
+                    maxLength={25}
+                    placeholder="e.g. Jisnu Digital"
+                    value={lfBusinessName}
+                    onChange={(e) => setLfBusinessName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Headline (Max 30 chars) *</label>
+                  <input
+                    type="text"
+                    maxLength={30}
+                    placeholder="e.g. Get a Free Strategy Call"
+                    value={lfHeadline}
+                    onChange={(e) => setLfHeadline(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Description (Max 200 chars) *</label>
+                <textarea
+                  rows={2}
+                  maxLength={200}
+                  placeholder="Fill out this quick form and our experts will reach out to you within 24 hours."
+                  value={lfDescription}
+                  onChange={(e) => setLfDescription(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Privacy Policy URL *</label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/privacy-policy"
+                  value={lfPrivacyUrl}
+                  onChange={(e) => setLfPrivacyUrl(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Call-To-Action Type</label>
+                  <select
+                    value={lfCtaType}
+                    onChange={(e) => setLfCtaType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    {LEAD_FORM_CTAS.map((cta) => (
+                      <option key={cta.value} value={cta.value}>{cta.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">CTA Description (Max 30 chars)</label>
+                  <input
+                    type="text"
+                    maxLength={30}
+                    placeholder="Apply today"
+                    value={lfCtaDesc}
+                    onChange={(e) => setLfCtaDesc(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Form Questions / Fields</label>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {[
+                    { key: "FULL_NAME", label: "Full Name" },
+                    { key: "EMAIL", label: "Email" },
+                    { key: "PHONE_NUMBER", label: "Phone Number" },
+                    { key: "CITY", label: "City" },
+                    { key: "POSTAL_CODE", label: "Postal Code" }
+                  ].map((field) => {
+                    const isChecked = lfFields.includes(field.key);
+                    return (
+                      <button
+                        type="button"
+                        key={field.key}
+                        onClick={() => {
+                          if (isChecked) {
+                            if (lfFields.length <= 1) return;
+                            setLfFields(lfFields.filter(f => f !== field.key));
+                          } else {
+                            setLfFields([...lfFields, field.key]);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                          isChecked
+                            ? "bg-blue-50 border-blue-500 text-blue-700"
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {field.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Thank You Headline</label>
+                  <input
+                    type="text"
+                    maxLength={30}
+                    value={lfPostHeadline}
+                    onChange={(e) => setLfPostHeadline(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Thank You Description</label>
+                  <input
+                    type="text"
+                    maxLength={200}
+                    value={lfPostDesc}
+                    onChange={(e) => setLfPostDesc(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {campaigns.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Link to Campaign (Optional)</label>
+                  <select
+                    value={lfCampaign}
+                    onChange={(e) => setLfCampaign(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Account-level (All Campaigns)</option>
+                    {campaigns.map((c) => (
+                      <option key={c.id} value={c.resourceName || `customers/${cleanCid}/campaigns/${c.id}`}>
+                        {c.name} ({c.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsLeadFormModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Create Lead Form in Google Ads</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════ */}

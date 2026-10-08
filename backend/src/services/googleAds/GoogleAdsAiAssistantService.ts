@@ -47,11 +47,15 @@ export interface CampaignState {
   locations?: string[];
   language?: string;
   biddingStrategy?: string;
+  biddingStrategyId?: string;
+  biddingStrategyResourceName?: string;
   targetCpa?: number | null;
   targetRoas?: number | null;
   maxCpcLimit?: number | string | null;
   targetImpressionSharePercent?: number | string | null;
   impressionShareLocation?: string;
+  devices?: Array<"DESKTOP" | "MOBILE" | "TABLET" | "CONNECTED_TV"> | { computers?: boolean; mobile?: boolean; tablets?: boolean; tv?: boolean } | string[];
+  adSchedule?: Array<{ day: string; start: string; end: string }>;
   conversionGoal?: string;
   keywords?: string[];
   campaignNegativeKeywords?: string[];

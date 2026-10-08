@@ -1,9 +1,9 @@
 "use client";
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Megaphone, TrendingUp, MousePointerClick, Eye, DollarSign,
-  Target, Plus, Play, Pause, Sparkles, ChevronRight, ChevronLeft,
+  Target, Plus, Play, Pause, ChevronRight, ChevronLeft,
   CheckCircle, AlertCircle, Loader2, X, RefreshCw, Zap, BarChart2,
   Search, Trash2, Edit3, ChevronDown, Globe, Tag, Link2,
   Phone, Bell, LayoutGrid, List, Info, PlusCircle, ArrowUpRight,
@@ -20,7 +20,6 @@ import { GoogleAdsAudienceSection } from "@/components/ads/GoogleAdsAudienceSect
 import { GoogleAdsBiddingSection } from "@/components/ads/GoogleAdsBiddingSection";
 import { GoogleAdsReportingSection } from "@/components/ads/GoogleAdsReportingSection";
 import { GoogleAdsShoppingSection } from "@/components/ads/GoogleAdsShoppingSection";
-import { GoogleAdsExperimentsSection } from "@/components/ads/GoogleAdsExperimentsSection";
 import { GoogleAdsDataManagerSection } from "@/components/ads/GoogleAdsDataManagerSection";
 import { GoogleAdsBillingSection } from "@/components/ads/GoogleAdsBillingSection";
 import { GoogleAdsAssetGroupsSection } from "@/components/ads/GoogleAdsAssetGroupsSection";
@@ -468,31 +467,278 @@ function AccountPickerScreen({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TABS
+// TABS & TIERS
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = "overview" | "recommendations" | "campaigns" | "ad-groups" | "asset-groups" | "ads" | "policy-disapprovals" | "keywords" | "extensions" | "conversions" | "bidding" | "audiences" | "shopping" | "experiments" | "data-manager" | "reports" | "history" | "billing" | "settings";
+type Tab = "overview" | "recommendations" | "campaigns" | "ad-groups" | "asset-groups" | "policy-disapprovals" | "keywords" | "extensions" | "conversions" | "bidding" | "audiences" | "shopping" | "data-manager" | "reports" | "history" | "billing" | "settings";
 
-const TABS: { id: Tab; label: string; icon: any }[] = [
-  { id: "overview",             label: "Overview",             icon: LayoutGrid    },
-  { id: "recommendations",      label: "Recommendations",      icon: Sparkles      },
-  { id: "campaigns",            label: "Campaigns",            icon: Megaphone     },
-  { id: "ad-groups",            label: "Ad Groups",            icon: Layers        },
-  { id: "asset-groups",         label: "Asset Groups (PMax)",  icon: Layers        },
-  { id: "ads",                  label: "Ads",                  icon: FileText      },
-  { id: "policy-disapprovals",  label: "Policy & Disapprovals", icon: ShieldAlert  },
-  { id: "keywords",             label: "Keywords",             icon: Tag           },
-  { id: "extensions",           label: "Assets & Extensions",  icon: Link2         },
-  { id: "conversions",          label: "Conversions",          icon: Target        },
-  { id: "bidding",              label: "Bidding Strategies",   icon: TrendingUp    },
-  { id: "audiences",            label: "Audiences",            icon: Users         },
-  { id: "shopping",             label: "Shopping",             icon: ShoppingBag   },
-  { id: "experiments",          label: "Experiments",          icon: FlaskConical  },
-  { id: "data-manager",         label: "Data Manager",         icon: Database      },
-  { id: "reports",              label: "Reports",              icon: BarChart2     },
-  { id: "history",              label: "Change History",       icon: History       },
-  { id: "billing",              label: "Billing",              icon: CreditCard    },
-  { id: "settings",             label: "Settings",             icon: Settings      },
+export interface TierConfig {
+  id: number;
+  number: string;
+  name: string;
+  shortDesc: string;
+  color: {
+    bg: string;
+    text: string;
+    border: string;
+    activeBg: string;
+    badgeBg: string;
+    badgeText: string;
+  };
+  tabIds: Tab[];
+}
+
+export const TIERS: TierConfig[] = [
+  {
+    id: 1,
+    number: "Tier 1",
+    name: "Daily Operations",
+    shortDesc: "Core campaign management, ad groups & ads, search keywords, and extensions",
+    color: {
+      bg: "bg-blue-50/70 hover:bg-blue-100/70 text-blue-900 border-blue-200",
+      text: "text-blue-700",
+      border: "border-blue-600",
+      activeBg: "bg-blue-600 text-white shadow-sm shadow-blue-500/25",
+      badgeBg: "bg-blue-100 text-blue-800 border-blue-200",
+      badgeText: "text-blue-700",
+    },
+    tabIds: ["overview", "campaigns", "ad-groups", "asset-groups", "keywords", "extensions"]
+  },
+  {
+    id: 2,
+    number: "Tier 2",
+    name: "Conversions & Targeting",
+    shortDesc: "Conversion goals, smart bidding strategies, audiences, and shopping feeds",
+    color: {
+      bg: "bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900 border-emerald-200",
+      text: "text-emerald-700",
+      border: "border-emerald-600",
+      activeBg: "bg-emerald-600 text-white shadow-sm shadow-emerald-500/25",
+      badgeBg: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      badgeText: "text-emerald-700",
+    },
+    tabIds: ["conversions", "bidding", "audiences", "shopping"]
+  },
+  {
+    id: 3,
+    number: "Tier 3",
+    name: "Quality & Intelligence",
+    shortDesc: "Optimization suggestions, policy compliance, and CRM customer data sync",
+    color: {
+      bg: "bg-purple-50/70 hover:bg-purple-100/70 text-purple-900 border-purple-200",
+      text: "text-purple-700",
+      border: "border-purple-600",
+      activeBg: "bg-purple-600 text-white shadow-sm shadow-purple-500/25",
+      badgeBg: "bg-purple-100 text-purple-800 border-purple-200",
+      badgeText: "text-purple-700",
+    },
+    tabIds: ["recommendations", "policy-disapprovals", "data-manager"]
+  },
+  {
+    id: 4,
+    number: "Tier 4",
+    name: "Insights & Administration",
+    shortDesc: "Performance reporting, change history logs, billing, and linked accounts",
+    color: {
+      bg: "bg-amber-50/70 hover:bg-amber-100/70 text-amber-900 border-amber-200",
+      text: "text-amber-700",
+      border: "border-amber-600",
+      activeBg: "bg-amber-600 text-white shadow-sm shadow-amber-500/25",
+      badgeBg: "bg-amber-100 text-amber-800 border-amber-200",
+      badgeText: "text-amber-700",
+    },
+    tabIds: ["reports", "history", "billing", "settings"]
+  }
 ];
+
+export interface SectionMeta {
+  id: Tab;
+  label: string;
+  tierNumber: string;
+  tierName: string;
+  icon: any;
+  tagline: string;
+  description: string;
+  crmUse: string;
+}
+
+export const SECTION_METADATA: Record<Tab, SectionMeta> = {
+  "overview": {
+    id: "overview",
+    label: "Overview",
+    tierNumber: "Tier 1",
+    tierName: "Daily Operations",
+    icon: LayoutGrid,
+    tagline: "Account Performance & KPI Dashboard",
+    description: "Real-time summary of impressions, clicks, spend, CTR, conversion count, and cost per conversion across all active campaigns.",
+    crmUse: "Gives sales & marketing managers an immediate bird's-eye view of account performance and ad spend health before diving into specific campaigns."
+  },
+  "campaigns": {
+    id: "campaigns",
+    label: "Campaigns",
+    tierNumber: "Tier 1",
+    tierName: "Daily Operations",
+    icon: Megaphone,
+    tagline: "Campaign Controls & Budget Management",
+    description: "Manage Search, Performance Max, Display, and Video campaigns with live status toggling, daily budget adjustments, bidding overrides, and ad schedule controls.",
+    crmUse: "Allows CRM operators to launch, pause, or adjust daily ad budgets in real-time based on current lead volume and sales team bandwidth."
+  },
+  "ad-groups": {
+    id: "ad-groups",
+    label: "Ad Groups & Ads",
+    tierNumber: "Tier 1",
+    tierName: "Daily Operations",
+    icon: Layers,
+    tagline: "Ad Group Targeting & Creative Copy",
+    description: "Manage ad groups, CPC bids, and inspect responsive search ads, display creatives, copy performance, and ad strength in a unified workspace.",
+    crmUse: "Helps tailor ad messaging, inspect winning ad copy, and adjust audience targeting bids within the CRM pipeline."
+  },
+  "asset-groups": {
+    id: "asset-groups",
+    label: "Asset Groups (PMax)",
+    tierNumber: "Tier 1",
+    tierName: "Daily Operations",
+    icon: Layers,
+    tagline: "Performance Max Asset Collections",
+    description: "View and edit Performance Max asset groups, creative assets, headline/description strength, and automated multi-channel delivery status.",
+    crmUse: "Ensures automated Google AI campaigns (Search, YouTube, Gmail, Maps) are armed with high-converting marketing creative assets."
+  },
+  "keywords": {
+    id: "keywords",
+    label: "Keywords",
+    tierNumber: "Tier 1",
+    tierName: "Daily Operations",
+    icon: Tag,
+    tagline: "Search Keywords & Negative Filtering",
+    description: "Manage positive keywords (Broad, Phrase, Exact match) with CPC bids and maintain negative keyword lists to prevent wasteful ad spend.",
+    crmUse: "Ensures Google Ads exclusively targets high-intent searchers looking for your exact products and services, saving budget from irrelevant search queries."
+  },
+  "extensions": {
+    id: "extensions",
+    label: "Assets & Extensions",
+    tierNumber: "Tier 1",
+    tierName: "Daily Operations",
+    icon: Link2,
+    tagline: "WhatsApp Click-to-Chat, Calls & Sitelinks",
+    description: "Configure lead generation extensions including WhatsApp direct chat buttons, call assets, sitelink shortcuts, price cards, and structured snippets.",
+    crmUse: "Drives direct WhatsApp and phone leads straight into your CRM inbox with 1-click customer interaction right from the Google search page."
+  },
+  "conversions": {
+    id: "conversions",
+    label: "Conversions",
+    tierNumber: "Tier 2",
+    tierName: "Conversions & Targeting",
+    icon: Target,
+    tagline: "Conversion Actions & Attribution Goals",
+    description: "Set up and monitor primary conversion goals such as WhatsApp Chats, Lead Form Submissions, Phone Calls, and Website Purchases with revenue values.",
+    crmUse: "Directly bridges Google Ads with closed sales in the CRM so Google's smart bidding algorithms optimize for real revenue and qualified leads."
+  },
+  "bidding": {
+    id: "bidding",
+    label: "Bidding Strategies",
+    tierNumber: "Tier 2",
+    tierName: "Conversions & Targeting",
+    icon: TrendingUp,
+    tagline: "Smart Bidding & Target CPA / ROAS",
+    description: "Configure automated bidding strategies (Maximize Conversions, Target CPA, Target ROAS, Maximize Clicks) across your portfolio.",
+    crmUse: "Allows marketing leads to set exact cost-per-lead limits (Target CPA) or return on ad spend (ROAS) targets to keep customer acquisition cost profitable."
+  },
+  "audiences": {
+    id: "audiences",
+    label: "Audiences",
+    tierNumber: "Tier 2",
+    tierName: "Conversions & Targeting",
+    icon: Users,
+    tagline: "Audience Segments & Customer Lists",
+    description: "Manage first-party Customer Match lists, website remarketing visitors, and Google in-market/affinity audience targeting criteria.",
+    crmUse: "Remarket to past CRM contacts, re-engage cold prospects, and create high-converting Lookalike/Similar audiences from closed deals."
+  },
+  "shopping": {
+    id: "shopping",
+    label: "Shopping",
+    tierNumber: "Tier 2",
+    tierName: "Conversions & Targeting",
+    icon: ShoppingBag,
+    tagline: "Google Merchant Center Product Feeds",
+    description: "Track Google Merchant Center inventory feed sync status, product approval health, item pricing, and e-commerce shopping campaign performance.",
+    crmUse: "Ensures e-commerce product catalogs in the CRM stay synchronized with Google Shopping ads with zero stock or pricing discrepancies."
+  },
+  "recommendations": {
+    id: "recommendations",
+    label: "Recommendations",
+    tierNumber: "Tier 3",
+    tierName: "Quality & Intelligence",
+    icon: Zap,
+    tagline: "Google AI Optimization & Score Boosts",
+    description: "Native Google Ads AI recommendations categorized by Bidding, Keywords, Ads, and Repairs with estimated Optimization Score impact and 1-click apply/dismiss actions.",
+    crmUse: "Provides actionable AI-powered suggestions to boost account efficiency, improve ad ranking, and uncover new keyword opportunities without leaving the CRM."
+  },
+  "policy-disapprovals": {
+    id: "policy-disapprovals",
+    label: "Policy & Disapprovals",
+    tierNumber: "Tier 3",
+    tierName: "Quality & Intelligence",
+    icon: ShieldAlert,
+    tagline: "Compliance Monitoring & Disapproval Appeals",
+    description: "Audit policy compliance across all ads, detect disapproved or limited assets, view policy violation topics, and submit appeals directly to Google.",
+    crmUse: "Prevents account suspensions and ad delivery downtime by instantly alerting CRM admins whenever an ad copy or asset violates Google advertising guidelines."
+  },
+  "data-manager": {
+    id: "data-manager",
+    label: "Data Manager",
+    tierNumber: "Tier 3",
+    tierName: "Quality & Intelligence",
+    icon: Database,
+    tagline: "Offline Conversions & Enhanced Conversions",
+    description: "Sync first-party CRM customer data, upload offline store/deal conversions, and manage enhanced conversion data streams with Google Ads.",
+    crmUse: "Sends closed-deal revenue from the CRM back into Google Ads to feed conversion value data back to Google's AI bidding algorithms."
+  },
+  "reports": {
+    id: "reports",
+    label: "Reports",
+    tierNumber: "Tier 4",
+    tierName: "Insights & Administration",
+    icon: BarChart2,
+    tagline: "Custom Analytics & Search Term Insights",
+    description: "Comprehensive multi-dimensional performance reports, search term queries report, device breakdowns, and geographical performance analysis.",
+    crmUse: "Enables business stakeholders to export analytical reports and inspect actual user search terms that resulted in CRM inquiries."
+  },
+  "history": {
+    id: "history",
+    label: "Change History",
+    tierNumber: "Tier 4",
+    tierName: "Insights & Administration",
+    icon: History,
+    tagline: "Audit Trail & Account Change Logs",
+    description: "Read-only chronological audit log of all account modifications including budget updates, bid changes, keyword additions, and status toggles.",
+    crmUse: "Provides full accountability by tracking who made what changes in the Google Ads account and when, preventing unintended account misconfigurations."
+  },
+  "billing": {
+    id: "billing",
+    label: "Billing",
+    tierNumber: "Tier 4",
+    tierName: "Insights & Administration",
+    icon: CreditCard,
+    tagline: "Payment Setup, Invoices & Budget Caps",
+    description: "Monitor primary billing account status, account-level monthly spending caps, active payment methods, and invoice receipt history.",
+    crmUse: "Keeps financial controllers informed of ad spend balances, upcoming charges, and billing threshold alerts to prevent account pauses."
+  },
+  "settings": {
+    id: "settings",
+    label: "Settings",
+    tierNumber: "Tier 4",
+    tierName: "Insights & Administration",
+    icon: Settings,
+    tagline: "Google Ads Account Connection & Config",
+    description: "Manage Google OAuth credentials, switch active Customer IDs, refresh token permissions, and configure system sync intervals.",
+    crmUse: "Connects and configures the Google Ads API connection for your organization."
+  }
+};
+
+const TABS: { id: Tab; label: string; icon: any }[] = Object.values(SECTION_METADATA).map(s => ({
+  id: s.id,
+  label: s.label,
+  icon: s.icon
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SETTINGS TAB COMPONENT
@@ -825,6 +1071,7 @@ export default function GoogleAdsPage() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [accountsLoading, setAccountsLoading] = useState(false);
 
+  const [activeTier, setActiveTier] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [dateRange, setDateRange] = useState("LAST_30_DAYS");
 
@@ -877,6 +1124,20 @@ export default function GoogleAdsPage() {
   const [toast, setToast] = useState("");
   const [kwSearch, setKwSearch] = useState("");
   const [campSearch, setCampSearch] = useState("");
+  const [isCampaignSelectionMode, setIsCampaignSelectionMode] = useState(false);
+  const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
+  const [isBulkOperating, setIsBulkOperating] = useState(false);
+  const [showBulkBudgetModal, setShowBulkBudgetModal] = useState(false);
+  const [bulkBudgetVal, setBulkBudgetVal] = useState<number | string>("");
+
+  // Ad Groups & Ads Multi-Select & Sub-View State
+  const [adGroupSubView, setAdGroupSubView] = useState<"ad-groups" | "ads" | "hierarchical">("hierarchical");
+  const [selectedAdGroupFilter, setSelectedAdGroupFilter] = useState<string>("ALL");
+  const [isAdGroupSelectionMode, setIsAdGroupSelectionMode] = useState(false);
+  const [selectedAdGroupIds, setSelectedAdGroupIds] = useState<string[]>([]);
+  const [isAdSelectionMode, setIsAdSelectionMode] = useState(false);
+  const [selectedAdIds, setSelectedAdIds] = useState<string[]>([]);
+  const [expandedAdGroupIds, setExpandedAdGroupIds] = useState<string[]>([]);
 
   const [showAddKeyword, setShowAddKeyword] = useState(false);
   const [newKwAdGroupRes, setNewKwAdGroupRes] = useState("");
@@ -931,6 +1192,7 @@ export default function GoogleAdsPage() {
 
   const handleOAuthParams = useCallback((oauthStatus: string, tabParam: string) => {
     if (oauthStatus === "success" || tabParam === "settings") {
+      setActiveTier(4);
       setActiveTab("settings");
       if (oauthStatus === "success") {
         showToast("✅ Google account connected! Fetching your ad accounts…");
@@ -1220,8 +1482,10 @@ export default function GoogleAdsPage() {
     if (activeTab === "overview") loadOverview(cid);
     if (activeTab === "recommendations") loadRecommendations(cid);
     if (activeTab === "campaigns") loadCampaigns(cid);
-    if (activeTab === "ad-groups") loadAdGroups(cid);
-    if (activeTab === "ads") loadAds(cid);
+    if (activeTab === "ad-groups") {
+      loadAdGroups(cid);
+      loadAds(cid);
+    }
     if (activeTab === "keywords") loadKeywords(cid);
     if (activeTab === "extensions") loadExtensions(cid);
     if (activeTab === "conversions") loadConversions(cid);
@@ -1298,6 +1562,204 @@ export default function GoogleAdsPage() {
       loadCampaigns(selectedCustomerId);
     } catch (e: any) { showToast(`Error: ${e.message}`); }
   }
+
+  // ─── Multi-Select Bulk Actions for Campaigns ───
+  const toggleSelectCampaign = (id: string) => {
+    setSelectedCampaignIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllCampaigns = () => {
+    if (selectedCampaignIds.length === filteredCamps.length) {
+      setSelectedCampaignIds([]);
+    } else {
+      setSelectedCampaignIds(filteredCamps.map(c => c.id));
+    }
+  };
+
+  const handleBulkToggleStatus = async (targetStatus: "ENABLED" | "PAUSED") => {
+    if (selectedCampaignIds.length === 0) {
+      showToast("Please select at least one campaign.");
+      return;
+    }
+    const actionName = targetStatus === "ENABLED" ? "Enable" : "Pause";
+    if (!confirm(`${actionName} ${selectedCampaignIds.length} selected campaign(s) in Google Ads?`)) return;
+
+    setIsBulkOperating(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const cId of selectedCampaignIds) {
+      try {
+        const res = await api("/campaign/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orgId,
+            campaignId: cId,
+            customerId: selectedCustomerId,
+            status: targetStatus
+          })
+        });
+        if (res.ok) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsBulkOperating(false);
+    showToast(`Bulk update complete: ${successCount} ${targetStatus === "ENABLED" ? "enabled" : "paused"}${failCount > 0 ? `, ${failCount} failed` : ""}`);
+    setSelectedCampaignIds([]);
+    loadCampaigns(selectedCustomerId);
+  };
+
+  const handleBulkDeleteCampaigns = async () => {
+    if (selectedCampaignIds.length === 0) {
+      showToast("Please select at least one campaign.");
+      return;
+    }
+    if (!confirm(`⚠️ Remove/Delete ${selectedCampaignIds.length} selected campaign(s) from Google Ads? This action cannot be undone.`)) return;
+
+    setIsBulkOperating(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const cId of selectedCampaignIds) {
+      try {
+        const res = await api(`/campaigns/${cId}?orgId=${orgId}&customerId=${selectedCustomerId}`, { method: "DELETE" });
+        if (res.ok) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsBulkOperating(false);
+    showToast(`Bulk delete complete: ${successCount} campaign(s) removed${failCount > 0 ? `, ${failCount} failed` : ""}`);
+    setSelectedCampaignIds([]);
+    loadCampaigns(selectedCustomerId);
+  };
+
+  const handleBulkUpdateBudget = async () => {
+    const budgetNum = Number(bulkBudgetVal);
+    if (isNaN(budgetNum) || budgetNum <= 0) {
+      showToast("Please enter a valid daily budget amount greater than 0.");
+      return;
+    }
+    if (selectedCampaignIds.length === 0) {
+      showToast("Please select at least one campaign.");
+      return;
+    }
+
+    setIsBulkOperating(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const cId of selectedCampaignIds) {
+      try {
+        const res = await api(`/campaigns/${cId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orgId,
+            customerId: selectedCustomerId,
+            budget: budgetNum
+          })
+        });
+        if (res.ok) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsBulkOperating(false);
+    setShowBulkBudgetModal(false);
+    setBulkBudgetVal("");
+    showToast(`Budget updated for ${successCount} campaign(s) (₹${budgetNum}/day)${failCount > 0 ? `, ${failCount} failed` : ""}`);
+    setSelectedCampaignIds([]);
+    loadCampaigns(selectedCustomerId);
+  };
+
+  // ─── Multi-Select Bulk Actions for Ad Groups ───
+  const toggleSelectAdGroup = (id: string) => {
+    setSelectedAdGroupIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllAdGroups = () => {
+    if (selectedAdGroupIds.length === adGroups.length) {
+      setSelectedAdGroupIds([]);
+    } else {
+      setSelectedAdGroupIds(adGroups.map(ag => ag.id));
+    }
+  };
+
+  const handleBulkToggleAdGroupStatus = async (targetStatus: "ENABLED" | "PAUSED") => {
+    if (selectedAdGroupIds.length === 0) {
+      showToast("Please select at least one ad group.");
+      return;
+    }
+    const actionName = targetStatus === "ENABLED" ? "Enable" : "Pause";
+    if (!confirm(`${actionName} ${selectedAdGroupIds.length} selected ad group(s) in Google Ads?`)) return;
+
+    setIsBulkOperating(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const agId of selectedAdGroupIds) {
+      try {
+        const res = await api(`/ad-groups/${agId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orgId,
+            customerId: selectedCustomerId,
+            status: targetStatus
+          })
+        });
+        if (res.ok) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsBulkOperating(false);
+    showToast(`Ad Groups updated: ${successCount} ${targetStatus === "ENABLED" ? "enabled" : "paused"}${failCount > 0 ? `, ${failCount} failed` : ""}`);
+    setSelectedAdGroupIds([]);
+    loadAdGroups(selectedCustomerId);
+  };
+
+  const handleBulkDeleteAdGroups = async () => {
+    if (selectedAdGroupIds.length === 0) {
+      showToast("Please select at least one ad group.");
+      return;
+    }
+    if (!confirm(`⚠️ Remove/Delete ${selectedAdGroupIds.length} selected ad group(s) from Google Ads?`)) return;
+
+    setIsBulkOperating(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const agId of selectedAdGroupIds) {
+      try {
+        const res = await api(`/ad-groups/${agId}?orgId=${orgId}&customerId=${selectedCustomerId}`, { method: "DELETE" });
+        if (res.ok) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsBulkOperating(false);
+    showToast(`Ad Groups removed: ${successCount} deleted${failCount > 0 ? `, ${failCount} failed` : ""}`);
+    setSelectedAdGroupIds([]);
+    loadAdGroups(selectedCustomerId);
+  };
 
   async function deleteKeyword(kw: any) {
     try {
@@ -1756,9 +2218,54 @@ export default function GoogleAdsPage() {
         </div>
       </header>
 
-      {/* ── Tab Bar ── */}
+      {/* ── Tier Selector Bar (4 Parts) ── */}
+      <div className="bg-slate-100/90 border-b border-slate-200/90 px-4 py-2 shrink-0">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 shrink-0 mr-1 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+            Parts:
+          </span>
+          {TIERS.map(tier => {
+            const isTierActive = activeTier === tier.id;
+            return (
+              <button
+                key={tier.id}
+                onClick={() => {
+                  setActiveTier(tier.id);
+                  if (!tier.tabIds.includes(activeTab)) {
+                    setActiveTab(tier.tabIds[0]);
+                  }
+                }}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border cursor-pointer ${
+                  isTierActive
+                    ? `${tier.color.activeBg} border-transparent shadow-xs`
+                    : "bg-white text-slate-700 border-slate-200/80 hover:bg-slate-50 hover:border-slate-300"
+                }`}
+                title={tier.shortDesc}
+              >
+                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black tracking-wide ${
+                  isTierActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {tier.number}
+                </span>
+                <span>{tier.name}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  isTierActive ? "bg-white/25 text-white" : "bg-slate-200/60 text-slate-500"
+                }`}>
+                  {tier.tabIds.length}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Section Tabs (Filtered by Active Tier) ── */}
       <div className="flex items-center gap-1 border-b border-slate-200 bg-white overflow-x-auto shrink-0 px-4">
-        {TABS.map(t => (
+        {TABS.filter(t => {
+          const currentTierObj = TIERS.find(tier => tier.id === activeTier);
+          return currentTierObj ? currentTierObj.tabIds.includes(t.id) : true;
+        }).map(t => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
@@ -1782,6 +2289,51 @@ export default function GoogleAdsPage() {
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* ══ SECTION DESCRIPTION BANNER ══ */}
+          {SECTION_METADATA[activeTab] && (
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs relative overflow-hidden">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  {(() => {
+                    const CurrentIcon = SECTION_METADATA[activeTab].icon;
+                    return (
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0 mt-0.5">
+                        <CurrentIcon className="h-5 w-5" />
+                      </div>
+                    );
+                  })()}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-base font-bold text-slate-900 leading-tight">
+                        {SECTION_METADATA[activeTab].label}
+                      </h2>
+                      <span className="text-[11px] font-semibold text-slate-400">•</span>
+                      <span className="text-xs font-semibold text-slate-600">
+                        {SECTION_METADATA[activeTab].tagline}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
+                        {SECTION_METADATA[activeTab].tierNumber}: {SECTION_METADATA[activeTab].tierName}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed max-w-4xl">
+                      {SECTION_METADATA[activeTab].description}
+                    </p>
+                  </div>
+                </div>
+
+                {/* CRM Use Box */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 shrink-0 md:max-w-md">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Target className="h-3.5 w-3.5 text-blue-600" />
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">CRM Purpose</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-normal">
+                    {SECTION_METADATA[activeTab].crmUse}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           {/* ══ OVERVIEW TAB ══ */}
           {activeTab === "overview" && (
             <>
@@ -1863,7 +2415,7 @@ export default function GoogleAdsPage() {
               <div className="flex items-center justify-between gap-3 flex-wrap bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs">
                 <div>
                   <h2 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-blue-600" />
+                    <Zap className="h-5 w-5 text-blue-600" />
                     Google Ads &amp; CRM Recommendations
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
@@ -2060,7 +2612,7 @@ export default function GoogleAdsPage() {
                         onClick={() => analyzeCampaign(campaigns[0])}
                         className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                       >
-                        <Sparkles className="h-3.5 w-3.5 text-purple-600" /> Run AI Audit
+                        <Bot className="h-3.5 w-3.5 text-purple-600" /> Run AI Audit
                       </button>
                     )}
                   </div>
@@ -2117,21 +2669,114 @@ export default function GoogleAdsPage() {
                     className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs"
                   />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Edit Campaigns Multi-Select Toggle Button */}
+                  <button
+                    onClick={() => {
+                      setIsCampaignSelectionMode(prev => {
+                        if (prev) setSelectedCampaignIds([]);
+                        return !prev;
+                      });
+                    }}
+                    className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer border ${
+                      isCampaignSelectionMode
+                        ? "bg-blue-50 text-blue-700 border-blue-300 ring-2 ring-blue-500/20"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                    title="Toggle multi-select mode to edit, delete, or change status for multiple campaigns"
+                  >
+                    <Sliders className="h-4 w-4 text-blue-600" />
+                    <span>{isCampaignSelectionMode ? "Exit Multi-Select" : "Edit Campaigns"}</span>
+                    {selectedCampaignIds.length > 0 && (
+                      <span className="px-1.5 py-0.2 bg-blue-600 text-white rounded-full text-[10px] font-bold">
+                        {selectedCampaignIds.length}
+                      </span>
+                    )}
+                  </button>
+
                   <button
                     onClick={() => loadCampaigns(selectedCustomerId)}
                     className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
+                    title="Refresh campaigns"
                   >
                     <RefreshCw className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => router.push(`/ads/campaigns/create/manual?customerId=${selectedCustomerId}`)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
                   >
                     <Plus className="h-4 w-4" /> New Campaign
                   </button>
                 </div>
               </div>
+
+              {/* Multi-Select Floating Bulk Actions Bar */}
+              {isCampaignSelectionMode && (
+                <div className="p-3.5 rounded-2xl bg-slate-900 text-white flex items-center justify-between gap-4 flex-wrap shadow-md animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-xs font-bold cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={filteredCamps.length > 0 && selectedCampaignIds.length === filteredCamps.length}
+                        onChange={toggleSelectAllCampaigns}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>Select All ({selectedCampaignIds.length}/{filteredCamps.length})</span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => handleBulkToggleStatus("ENABLED")}
+                      disabled={isBulkOperating || selectedCampaignIds.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      <span>Enable ({selectedCampaignIds.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleBulkToggleStatus("PAUSED")}
+                      disabled={isBulkOperating || selectedCampaignIds.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                    >
+                      <Pause className="h-3.5 w-3.5" />
+                      <span>Pause ({selectedCampaignIds.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (selectedCampaignIds.length === 0) {
+                          showToast("Select at least one campaign first");
+                          return;
+                        }
+                        setShowBulkBudgetModal(true);
+                      }}
+                      disabled={isBulkOperating || selectedCampaignIds.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                    >
+                      <DollarSign className="h-3.5 w-3.5" />
+                      <span>Update Budget</span>
+                    </button>
+
+                    <button
+                      onClick={handleBulkDeleteCampaigns}
+                      disabled={isBulkOperating || selectedCampaignIds.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                    >
+                      {isBulkOperating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      <span>Delete ({selectedCampaignIds.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => setSelectedCampaignIds([])}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                 {campsLoading ? (
@@ -2143,144 +2788,607 @@ export default function GoogleAdsPage() {
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                          {isCampaignSelectionMode && (
+                            <th className="p-4 w-10 text-center">
+                              <input
+                                type="checkbox"
+                                checked={filteredCamps.length > 0 && selectedCampaignIds.length === filteredCamps.length}
+                                onChange={toggleSelectAllCampaigns}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                            </th>
+                          )}
                           {["Campaign", "Status", "Type", "Budget/day", "Impressions", "Clicks", "CTR", "Spend", "Conv.", "Actions"].map(h => (
                             <th key={h} className="px-4 py-3 whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {filteredCamps.map(c => (
-                          <tr key={c.id} className="hover:bg-slate-50/80 transition-all group">
-                            <td className="p-4 min-w-[180px]">
-                              <button
-                                onClick={() => openEditCampaignModal(c, "info")}
-                                className="font-bold text-blue-600 hover:text-blue-800 hover:underline text-left text-xs truncate max-w-[200px] block focus:outline-none cursor-pointer"
-                              >
-                                {c.name}
-                              </button>
-                              <p className="text-[11px] text-slate-500 font-mono mt-0.5">{c.googleAdsCampaignId || "Not synced"}</p>
-                            </td>
-                            <td className="p-4"><Pill status={c.liveStatus || c.status} /></td>
-                            <td className="p-4 font-mono text-slate-600">{c.campaignType || "SEARCH"}</td>
-                            <td className="p-4 font-semibold text-slate-900">₹{c.budget}</td>
-                            <td className="p-4 font-semibold text-slate-900">{Number(c.impressions || 0).toLocaleString()}</td>
-                            <td className="p-4 font-semibold text-slate-900">{Number(c.clicks || 0).toLocaleString()}</td>
-                            <td className="p-4 font-semibold text-slate-900">{c.ctr || "0%"}</td>
-                            <td className="p-4 font-bold text-emerald-700">₹{c.cost || "0.00"}</td>
-                            <td className="p-4 font-semibold text-purple-700">{Number(c.conversions || 0).toFixed(1)}</td>
-                            <td className="p-4">
-                              <div className="flex items-center gap-1">
+                        {filteredCamps.map(c => {
+                          const isSelected = selectedCampaignIds.includes(c.id);
+                          return (
+                            <tr
+                              key={c.id}
+                              className={`transition-all group ${
+                                isSelected ? "bg-blue-50/60 hover:bg-blue-50" : "hover:bg-slate-50/80"
+                              }`}
+                            >
+                              {isCampaignSelectionMode && (
+                                <td className="p-4 w-10 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleSelectCampaign(c.id)}
+                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                  />
+                                </td>
+                              )}
+                              <td className="p-4 min-w-[180px]">
                                 <button
                                   onClick={() => openEditCampaignModal(c, "info")}
-                                  title="Edit Campaign Settings"
-                                  className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-all cursor-pointer flex items-center gap-1 font-semibold text-[11px]"
+                                  className="font-bold text-blue-600 hover:text-blue-800 hover:underline text-left text-xs truncate max-w-[200px] block focus:outline-none cursor-pointer"
                                 >
-                                  <Edit3 className="h-3.5 w-3.5" />
-                                  <span className="hidden sm:inline">Edit</span>
+                                  {c.name}
                                 </button>
-                                <button
-                                  onClick={() => toggleCampaign(c)}
-                                  disabled={toggling === c.id || !c.googleAdsCampaignId}
-                                  className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                    (c.liveStatus || c.status) === "ENABLED"
-                                      ? "text-amber-700 hover:bg-amber-50"
-                                      : "text-emerald-700 hover:bg-emerald-50"
-                                  }`}
-                                >
-                                  {toggling === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (c.liveStatus || c.status) === "ENABLED" ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                                </button>
-                                <button onClick={() => analyzeCampaign(c)} title="AI Analysis" className="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50 transition-all cursor-pointer">
-                                  <Bot className="h-3.5 w-3.5" />
-                                </button>
-                                <button onClick={() => deleteCampaign(c)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-all cursor-pointer">
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                                <p className="text-[11px] text-slate-500 font-mono mt-0.5">{c.googleAdsCampaignId || "Not synced"}</p>
+                              </td>
+                              <td className="p-4"><Pill status={c.liveStatus || c.status} /></td>
+                              <td className="p-4 font-mono text-slate-600">{c.campaignType || "SEARCH"}</td>
+                              <td className="p-4 font-semibold text-slate-900">₹{c.budget}</td>
+                              <td className="p-4 font-semibold text-slate-900">{Number(c.impressions || 0).toLocaleString()}</td>
+                              <td className="p-4 font-semibold text-slate-900">{Number(c.clicks || 0).toLocaleString()}</td>
+                              <td className="p-4 font-semibold text-slate-900">{c.ctr || "0%"}</td>
+                              <td className="p-4 font-bold text-emerald-700">₹{c.cost || "0.00"}</td>
+                              <td className="p-4 font-semibold text-purple-700">{Number(c.conversions || 0).toFixed(1)}</td>
+                              <td className="p-4">
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => openEditCampaignModal(c, "info")}
+                                    title="Edit Campaign Settings"
+                                    className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-all cursor-pointer flex items-center gap-1 font-semibold text-[11px]"
+                                  >
+                                    <Edit3 className="h-3.5 w-3.5" />
+                                    <span className="hidden sm:inline">Edit</span>
+                                  </button>
+                                  <button
+                                    onClick={() => toggleCampaign(c)}
+                                    disabled={toggling === c.id || !c.googleAdsCampaignId}
+                                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                      (c.liveStatus || c.status) === "ENABLED"
+                                        ? "text-amber-700 hover:bg-amber-50"
+                                        : "text-emerald-700 hover:bg-emerald-50"
+                                    }`}
+                                  >
+                                    {toggling === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (c.liveStatus || c.status) === "ENABLED" ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                                  </button>
+                                  <button onClick={() => analyzeCampaign(c)} title="AI Analysis" className="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50 transition-all cursor-pointer">
+                                    <Bot className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => deleteCampaign(c)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-all cursor-pointer">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 )}
               </div>
+
+              {/* Bulk Budget Update Modal */}
+              {showBulkBudgetModal && (
+                <Modal title={`Update Daily Budget (${selectedCampaignIds.length} Selected)`} onClose={() => setShowBulkBudgetModal(false)}>
+                  <div className="space-y-4">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Enter the new daily budget amount to apply across all <strong>{selectedCampaignIds.length}</strong> selected campaigns.
+                    </p>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">New Daily Budget (₹ / day)</label>
+                      <input
+                        type="number"
+                        min="100"
+                        step="100"
+                        value={bulkBudgetVal}
+                        onChange={(e) => setBulkBudgetVal(e.target.value)}
+                        placeholder="e.g. 1000"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-bold font-mono focus:bg-white focus:outline-none focus:border-blue-500 transition-all"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => setShowBulkBudgetModal(false)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleBulkUpdateBudget}
+                        disabled={isBulkOperating || !bulkBudgetVal}
+                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {isBulkOperating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        <span>Apply to {selectedCampaignIds.length} Campaigns</span>
+                      </button>
+                    </div>
+                  </div>
+                </Modal>
+              )}
             </>
           )}
 
-          {/* ══ AD GROUPS TAB ══ */}
+          {/* ══ AD GROUPS & ADS COMBINED TAB ══ */}
           {activeTab === "ad-groups" && (
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Layers className="h-4 w-4 text-blue-600" />Ad Groups <span className="text-slate-500 font-normal">({adGroups.length})</span></h2>
-                <button onClick={() => loadAdGroups(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+            <div className="space-y-4">
+              {/* Unified Header & Quick Filters */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 min-w-0">
+                  <div className="flex items-center justify-between sm:justify-start gap-2">
+                    <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-blue-600 shrink-0" />
+                      <span>Ad Groups &amp; Ads</span>
+                    </h3>
+                    <span className="text-slate-500 font-normal text-xs bg-slate-100 px-2 py-0.5 rounded-full shrink-0">
+                      {adGroups.length} groups · {ads.length} ads
+                    </span>
+                  </div>
+
+                  {adGroups.length > 0 && (
+                    <div className="w-full sm:w-auto">
+                      <select
+                        value={selectedAdGroupFilter}
+                        onChange={(e) => setSelectedAdGroupFilter(e.target.value)}
+                        className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 rounded-xl px-3 py-2 sm:py-1.5 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer truncate"
+                      >
+                        <option value="ALL">All Ad Groups ({adGroups.length})</option>
+                        {adGroups.map(ag => (
+                          <option key={ag.id} value={ag.id}>{ag.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                  <button
+                    onClick={() => {
+                      if (expandedAdGroupIds.length === adGroups.length) {
+                        setExpandedAdGroupIds([]);
+                      } else {
+                        setExpandedAdGroupIds(adGroups.map(ag => ag.id));
+                      }
+                    }}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    <span>{expandedAdGroupIds.length === adGroups.length ? "Collapse All" : "Expand All"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsAdGroupSelectionMode(prev => {
+                        if (prev) setSelectedAdGroupIds([]);
+                        return !prev;
+                      });
+                    }}
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer border shrink-0 ${
+                      isAdGroupSelectionMode
+                        ? "bg-blue-50 text-blue-700 border-blue-300 ring-2 ring-blue-500/20"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                    title="Toggle multi-select mode to edit, pause, or remove ad groups"
+                  >
+                    <Sliders className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                    <span>{isAdGroupSelectionMode ? "Exit Select" : "Edit Groups"}</span>
+                    {selectedAdGroupIds.length > 0 && (
+                      <span className="px-1.5 py-0.2 bg-blue-600 text-white rounded-full text-[10px] font-bold shrink-0">
+                        {selectedAdGroupIds.length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      loadAdGroups(selectedCustomerId);
+                      loadAds(selectedCustomerId);
+                    }}
+                    className="p-2 sm:p-1.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer shrink-0"
+                    title="Refresh Ad Groups & Ads"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-              {adGroupsLoading ? (
-                <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
-              ) : adGroups.length === 0 ? (
-                <EmptyState icon={Layers} title="No ad groups" sub="Ad groups are automatically synced from your campaigns." />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead><tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">{["Ad Group", "Status", "Type", "CPC Bid", "Impressions", "Clicks", "Spend", "Conv."].map(h => <th key={h} className="p-4">{h}</th>)}</tr></thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {adGroups.map(ag => (
-                        <tr key={ag.id} className="hover:bg-slate-50/80 transition-all">
-                          <td className="p-4"><p className="font-bold text-slate-900">{ag.name}</p><p className="text-[11px] text-slate-500 font-mono">{ag.id}</p></td>
-                          <td className="p-4"><Pill status={ag.status} /></td>
-                          <td className="p-4 text-slate-600 font-mono">{ag.type}</td>
-                          <td className="p-4 font-semibold text-slate-900">{ag.cpcBidMicros ? `₹${(Number(ag.cpcBidMicros) / 1_000_000).toFixed(2)}` : "—"}</td>
-                          <td className="p-4 font-semibold text-slate-900">{Number(ag.impressions || 0).toLocaleString()}</td>
-                          <td className="p-4 font-semibold text-slate-900">{Number(ag.clicks || 0).toLocaleString()}</td>
-                          <td className="p-4 font-bold text-emerald-700">₹{ag.cost || "0.00"}</td>
-                          <td className="p-4 font-semibold text-purple-700">{Number(ag.conversions || 0).toFixed(1)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+
+              {/* Multi-Select Floating Bulk Actions Bar for Ad Groups */}
+              {isAdGroupSelectionMode && (
+                <div className="p-3.5 rounded-2xl bg-slate-900 text-white flex items-center justify-between gap-4 flex-wrap shadow-md animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-xs font-bold cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={adGroups.length > 0 && selectedAdGroupIds.length === adGroups.length}
+                        onChange={toggleSelectAllAdGroups}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>Select All ({selectedAdGroupIds.length}/{adGroups.length})</span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => handleBulkToggleAdGroupStatus("ENABLED")}
+                      disabled={isBulkOperating || selectedAdGroupIds.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      <span>Enable ({selectedAdGroupIds.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleBulkToggleAdGroupStatus("PAUSED")}
+                      disabled={isBulkOperating || selectedAdGroupIds.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                    >
+                      <Pause className="h-3.5 w-3.5" />
+                      <span>Pause ({selectedAdGroupIds.length})</span>
+                    </button>
+
+                    <button
+                      onClick={handleBulkDeleteAdGroups}
+                      disabled={isBulkOperating || selectedAdGroupIds.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                    >
+                      {isBulkOperating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      <span>Delete ({selectedAdGroupIds.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => setSelectedAdGroupIds([])}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* ══ ADS TAB ══ */}
-          {activeTab === "ads" && (
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><FileText className="h-4 w-4 text-blue-600" />Ads <span className="text-slate-500 font-normal">({ads.length})</span></h2>
-                <button onClick={() => loadAds(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
-              </div>
-              {adsLoading ? (
-                <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
-              ) : ads.length === 0 ? (
-                <EmptyState icon={FileText} title="No ads found" sub="Ads are synced from your Google Ads account. Create a campaign to generate ads." />
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {ads.map(ad => (
-                    <div key={ad.id} className="p-5 hover:bg-slate-50/80 transition-all">
-                      <div className="flex items-start gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <Pill status={ad.status} />
-                            <span className="text-xs font-mono text-slate-500">{ad.adType?.replace(/_/g, " ")}</span>
-                            <span className={`text-xs px-2.5 py-0.5 rounded-full border font-bold ${ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" : ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" : "text-slate-600 border-slate-200 bg-slate-100"}`}>
-                              {ad.adStrength || "—"}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 mb-1">Group: <strong className="text-slate-700">{ad.adGroupName}</strong></p>
-                          <div className="flex flex-wrap gap-1.5 mb-2">
-                            {(ad.headlines || []).slice(0, 3).map((h: any, i: number) => (
-                              <span key={i} className="text-xs bg-slate-100 text-slate-800 font-semibold px-2.5 py-0.5 rounded-lg border border-slate-200">{h.text || h}</span>
-                            ))}
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(ad.descriptions || []).slice(0, 2).map((d: any, i: number) => (
-                              <span key={i} className="text-xs text-slate-600">{d.text || d}</span>
-                            ))}
-                          </div>
+              {/* 1. HIERARCHICAL VIEW (Mobile Card Layout + Desktop Table) */}
+              {adGroupSubView === "hierarchical" && (
+                <div>
+                  {adGroupsLoading || adsLoading ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white flex items-center justify-center py-16 shadow-2xs">
+                      <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+                    </div>
+                  ) : adGroups.length === 0 ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                      <EmptyState icon={Layers} title="No ad groups found" sub="Ad groups and ads are automatically synced from your campaigns." />
+                    </div>
+                  ) : (
+                    <>
+                      {/* ── MOBILE CARDS VIEW (visible on < md screens) ── */}
+                      <div className="block md:hidden space-y-3">
+                        {adGroups
+                          .filter(ag => selectedAdGroupFilter === "ALL" || ag.id === selectedAdGroupFilter)
+                          .map(ag => {
+                            const isSelected = selectedAdGroupIds.includes(ag.id);
+                            const isExpanded = expandedAdGroupIds.includes(ag.id);
+                            const groupAds = ads.filter(a => String(a.adGroupId) === String(ag.id) || a.adGroupName === ag.name);
+
+                            return (
+                              <div
+                                key={`mobile-ag-${ag.id}`}
+                                className={`rounded-2xl border bg-white shadow-2xs transition-all overflow-hidden ${
+                                  isSelected ? "border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20" : "border-slate-200 hover:border-slate-300"
+                                }`}
+                              >
+                                {/* Mobile Header / Summary Bar */}
+                                <div className="p-4 space-y-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                      {isAdGroupSelectionMode && (
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={() => toggleSelectAdGroup(ag.id)}
+                                          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                                        />
+                                      )}
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <Layers className="h-4 w-4 text-blue-600 shrink-0" />
+                                          <p className="font-bold text-slate-900 text-sm truncate">{ag.name}</p>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {ag.id}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <Pill status={ag.status} />
+                                    </div>
+                                  </div>
+
+                                  {/* Mobile Metrics Grid */}
+                                  <div className="grid grid-cols-2 gap-2 bg-slate-50/90 rounded-xl p-2.5 border border-slate-100 text-xs">
+                                    <div>
+                                      <span className="text-[10px] font-semibold text-slate-400 uppercase">Type / CPC</span>
+                                      <p className="font-semibold text-slate-800 text-[11px] truncate">
+                                        {ag.type?.replace(/_/g, " ") || "SEARCH"} • {ag.cpcBidMicros ? `₹${(Number(ag.cpcBidMicros) / 1_000_000).toFixed(2)}` : "—"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] font-semibold text-slate-400 uppercase">Spend</span>
+                                      <p className="font-bold text-emerald-700">₹{ag.cost || "0.00"}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] font-semibold text-slate-400 uppercase">Impressions / Clicks</span>
+                                      <p className="font-semibold text-slate-800">
+                                        {Number(ag.impressions || 0).toLocaleString()} / {Number(ag.clicks || 0).toLocaleString()}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] font-semibold text-slate-400 uppercase">Conversions</span>
+                                      <p className="font-semibold text-purple-700">{Number(ag.conversions || 0).toFixed(1)}</p>
+                                    </div>
+                                  </div>
+
+                                  {/* Expand/Collapse Ads Button on Mobile */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExpandedAdGroupIds(prev =>
+                                        prev.includes(ag.id) ? prev.filter(id => id !== ag.id) : [...prev, ag.id]
+                                      );
+                                    }}
+                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                      isExpanded
+                                        ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                        : "bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200"
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-1.5">
+                                      <FileText className="h-3.5 w-3.5 text-blue-600" />
+                                      {groupAds.length} Responsive Search Ads
+                                    </span>
+                                    <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-180 text-blue-600" : "text-slate-500"}`} />
+                                  </button>
+                                </div>
+
+                                {/* Expanded Mobile Nested Ads Container */}
+                                {isExpanded && (
+                                  <div className="bg-slate-50 border-t border-slate-200 p-3.5 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                                        <FileText className="h-3 w-3 text-blue-600" />
+                                        Creatives in {ag.name}
+                                      </h4>
+                                      <span className="text-[10px] text-slate-500 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                        {groupAds.length} Total
+                                      </span>
+                                    </div>
+
+                                    {groupAds.length === 0 ? (
+                                      <div className="bg-white rounded-xl p-3.5 border border-slate-200 text-center text-xs text-slate-500">
+                                        No ads found in this ad group.
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2.5">
+                                        {groupAds.map(ad => (
+                                          <div key={`m-ad-${ad.id}`} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shadow-2xs">
+                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                              <div className="flex items-center gap-1.5">
+                                                <Pill status={ad.status} />
+                                                <span className="text-[10px] font-mono text-slate-500">{ad.adType?.replace(/_/g, " ") || "RESPONSIVE SEARCH"}</span>
+                                              </div>
+                                              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
+                                                ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" :
+                                                ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" :
+                                                "text-slate-600 border-slate-200 bg-slate-100"
+                                              }`}>
+                                                Strength: {ad.adStrength || "—"}
+                                              </span>
+                                            </div>
+
+                                            {/* Mobile Headlines */}
+                                            <div>
+                                              <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Headlines</p>
+                                              <div className="flex flex-wrap gap-1">
+                                                {(ad.headlines || []).map((h: any, i: number) => (
+                                                  <span key={i} className="text-[11px] bg-slate-50 text-slate-800 font-medium px-2 py-0.5 rounded border border-slate-200">
+                                                    {h.text || h}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            </div>
+
+                                            {/* Mobile Descriptions */}
+                                            <div>
+                                              <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Descriptions</p>
+                                              <div className="space-y-1">
+                                                {(ad.descriptions || []).map((d: any, i: number) => (
+                                                  <p key={i} className="text-[11px] text-slate-600 bg-slate-50/60 p-1.5 rounded border border-slate-100 leading-snug">
+                                                    {d.text || d}
+                                                  </p>
+                                                ))}
+                                              </div>
+                                            </div>
+
+                                            {/* Mobile Paths / URL */}
+                                            {(ad.finalUrls?.[0] || ad.finalUrl || ad.path1) && (
+                                              <div className="text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-100 flex items-center gap-1 truncate">
+                                                <Globe className="h-3 w-3 text-slate-400 shrink-0" />
+                                                <span className="truncate">{ad.finalUrls?.[0] || ad.finalUrl || "—"}</span>
+                                                {(ad.path1 || ad.path2) && (
+                                                  <span className="text-slate-700 font-semibold shrink-0">/{ad.path1 || ""}{ad.path2 ? `/${ad.path2}` : ""}</span>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+
+                      {/* ── DESKTOP TABLE VIEW (hidden on mobile, visible on md:table) ── */}
+                      <div className="hidden md:block rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                                <th className="p-4 w-10 text-center"></th>
+                                {isAdGroupSelectionMode && (
+                                  <th className="p-4 w-10 text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={adGroups.length > 0 && selectedAdGroupIds.length === adGroups.length}
+                                      onChange={toggleSelectAllAdGroups}
+                                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                  </th>
+                                )}
+                                {["Ad Group", "Status", "Type", "CPC Bid", "Ads Count", "Impressions", "Clicks", "Spend", "Conv."].map(h => <th key={h} className="p-4 whitespace-nowrap">{h}</th>)}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-slate-700">
+                              {adGroups
+                                .filter(ag => selectedAdGroupFilter === "ALL" || ag.id === selectedAdGroupFilter)
+                                .map(ag => {
+                                  const isSelected = selectedAdGroupIds.includes(ag.id);
+                                  const isExpanded = expandedAdGroupIds.includes(ag.id);
+                                  const groupAds = ads.filter(a => String(a.adGroupId) === String(ag.id) || a.adGroupName === ag.name);
+
+                                  return (
+                                    <React.Fragment key={ag.id}>
+                                      <tr className={`transition-all ${isSelected ? "bg-blue-50/60 hover:bg-blue-50" : isExpanded ? "bg-slate-50/70" : "hover:bg-slate-50/80"}`}>
+                                        <td className="p-4 w-10 text-center">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setExpandedAdGroupIds(prev =>
+                                                prev.includes(ag.id) ? prev.filter(id => id !== ag.id) : [...prev, ag.id]
+                                              );
+                                            }}
+                                            className="p-1 rounded-md text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 transition-all cursor-pointer"
+                                            title={isExpanded ? "Collapse Ads" : `Expand Ads (${groupAds.length})`}
+                                          >
+                                            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-180 text-blue-600" : ""}`} />
+                                          </button>
+                                        </td>
+                                        {isAdGroupSelectionMode && (
+                                          <td className="p-4 w-10 text-center">
+                                            <input
+                                              type="checkbox"
+                                              checked={isSelected}
+                                              onChange={() => toggleSelectAdGroup(ag.id)}
+                                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                            />
+                                          </td>
+                                        )}
+                                        <td className="p-4">
+                                          <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                                            <Layers className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                                            <span>{ag.name}</span>
+                                          </p>
+                                          <p className="text-[11px] text-slate-500 font-mono pl-5">{ag.id}</p>
+                                        </td>
+                                        <td className="p-4"><Pill status={ag.status} /></td>
+                                        <td className="p-4 text-slate-600 font-mono">{ag.type}</td>
+                                        <td className="p-4 font-semibold text-slate-900">{ag.cpcBidMicros ? `₹${(Number(ag.cpcBidMicros) / 1_000_000).toFixed(2)}` : "—"}</td>
+                                        <td className="p-4">
+                                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                            groupAds.length > 0 ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-slate-100 text-slate-500"
+                                          }`}>
+                                            <FileText className="h-3 w-3" />
+                                            {groupAds.length} Ads
+                                          </span>
+                                        </td>
+                                        <td className="p-4 font-semibold text-slate-900">{Number(ag.impressions || 0).toLocaleString()}</td>
+                                        <td className="p-4 font-semibold text-slate-900">{Number(ag.clicks || 0).toLocaleString()}</td>
+                                        <td className="p-4 font-bold text-emerald-700">₹{ag.cost || "0.00"}</td>
+                                        <td className="p-4 font-semibold text-purple-700">{Number(ag.conversions || 0).toFixed(1)}</td>
+                                      </tr>
+
+                                      {/* Desktop Expanded Nested Ads */}
+                                      {isExpanded && (
+                                        <tr className="bg-slate-50/90 border-y border-slate-200">
+                                          <td colSpan={isAdGroupSelectionMode ? 11 : 10} className="p-4 pl-12">
+                                            <div className="space-y-3">
+                                              <div className="flex items-center justify-between">
+                                                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                                                  <FileText className="h-3.5 w-3.5 text-blue-600" />
+                                                  Ads in &quot;{ag.name}&quot; ({groupAds.length})
+                                                </h4>
+                                              </div>
+
+                                              {groupAds.length === 0 ? (
+                                                <div className="bg-white rounded-xl p-4 border border-slate-200 text-center text-xs text-slate-500">
+                                                  No ads found under this ad group.
+                                                </div>
+                                              ) : (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                  {groupAds.map(ad => (
+                                                    <div key={ad.id} className="bg-white rounded-xl border border-slate-200 p-4 space-y-2 shadow-2xs hover:border-blue-300 transition-all">
+                                                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                        <div className="flex items-center gap-2">
+                                                          <Pill status={ad.status} />
+                                                          <span className="text-[11px] font-mono text-slate-500">{ad.adType?.replace(/_/g, " ")}</span>
+                                                        </div>
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
+                                                          ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" :
+                                                          ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" :
+                                                          "text-slate-600 border-slate-200 bg-slate-100"
+                                                        }`}>
+                                                          Ad Strength: {ad.adStrength || "—"}
+                                                        </span>
+                                                      </div>
+
+                                                      <div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Headlines</p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                          {(ad.headlines || []).map((h: any, i: number) => (
+                                                            <span key={i} className="text-xs bg-slate-50 text-slate-800 font-semibold px-2 py-0.5 rounded-md border border-slate-200">
+                                                              {h.text || h}
+                                                            </span>
+                                                          ))}
+                                                        </div>
+                                                      </div>
+
+                                                      <div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Descriptions</p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                          {(ad.descriptions || []).map((d: any, i: number) => (
+                                                            <span key={i} className="text-xs text-slate-600 bg-slate-50/60 px-2 py-0.5 rounded-md border border-slate-100">
+                                                              {d.text || d}
+                                                            </span>
+                                                          ))}
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -2557,16 +3665,6 @@ export default function GoogleAdsPage() {
           {activeTab === "shopping" && (
             <div className="space-y-6">
               <GoogleAdsShoppingSection
-                customerId={selectedCustomerId}
-                orgId={orgId}
-              />
-            </div>
-          )}
-
-          {/* ══ EXPERIMENTS TAB (A/B TESTING) ══ */}
-          {activeTab === "experiments" && (
-            <div className="space-y-6">
-              <GoogleAdsExperimentsSection
                 customerId={selectedCustomerId}
                 orgId={orgId}
               />
@@ -3575,7 +4673,7 @@ export default function GoogleAdsPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-amber-600" /> Languages
+                      <Globe className="h-3.5 w-3.5 text-amber-600" /> Languages
                     </h4>
                   </div>
 
@@ -4164,7 +5262,7 @@ export default function GoogleAdsPage() {
               </div>
 
               <div>
-                <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-blue-600" />AI Recommendations</h4>
+                <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center gap-1.5"><Bot className="h-4 w-4 text-blue-600" />AI Recommendations</h4>
                 <div className="space-y-2">
                   {(analysis.recommendations || []).map((r: any, i: number) => (
                     <div key={i} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">

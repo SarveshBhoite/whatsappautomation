@@ -1353,7 +1353,7 @@ export function GoogleAdsProfileModal({
         const conflictCount = newSuggestions.filter((s) => s.status === "conflict").length;
         if (autofilledCount > 0) {
           setSuggestionSuccessMsg(
-            `✨ Grok AI analyzed ${targetUrl}! Autofilled ${autofilledCount} fields (Email, Phone, WhatsApp, Address, Services, Products, etc.) and discovered ${newSuggestions.length} suggestions (${newCount} new, ${conflictCount} potential conflicts).`
+            `Grok AI analyzed ${targetUrl}! Autofilled ${autofilledCount} fields (Email, Phone, WhatsApp, Address, Services, Products, etc.) and discovered ${newSuggestions.length} suggestions (${newCount} new, ${conflictCount} potential conflicts).`
           );
         } else {
           setSuggestionSuccessMsg(
@@ -1363,7 +1363,7 @@ export function GoogleAdsProfileModal({
         setTimeout(() => setSuggestionSuccessMsg(null), 8000);
       } else {
         if (autofilledCount > 0) {
-          setSaveSuccessMsg(`✨ Grok AI analyzed ${targetUrl}! Autofilled ${autofilledCount} profile fields and discovered ${subPages.length} relevant sub-pages!`);
+          setSaveSuccessMsg(`Grok AI analyzed ${targetUrl}! Autofilled ${autofilledCount} profile fields and discovered ${subPages.length} relevant sub-pages!`);
         } else {
           setSaveSuccessMsg(`AI analyzed ${targetUrl} and discovered ${subPages.length} relevant sub-pages!`);
         }

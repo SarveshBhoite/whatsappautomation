@@ -21,8 +21,7 @@ import {
   ExternalLink,
   ChevronDown,
   DollarSign,
-  TrendingUp,
-  Sparkles
+  TrendingUp
 } from "lucide-react";
 
 export type KeywordMatchType = "EXACT" | "PHRASE" | "BROAD";

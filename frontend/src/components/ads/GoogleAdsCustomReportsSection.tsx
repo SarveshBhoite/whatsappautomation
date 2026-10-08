@@ -17,7 +17,6 @@ import {
   AlertCircle,
   FileSpreadsheet,
   Layers,
-  Sparkles,
   Info,
   CheckSquare,
   Square

@@ -34,7 +34,12 @@ import {
   Users,
   TrendingUp,
   BarChart3,
-  Lightbulb
+  Lightbulb,
+  Monitor,
+  Clock,
+  Sliders,
+  Radio,
+  Plus
 } from "lucide-react";
 
 export interface BusinessContext {
@@ -64,8 +69,12 @@ export interface CampaignState {
   startDate?: string;
   endDate?: string;
   biddingStrategy?: string;
+  biddingStrategyId?: string;
+  biddingStrategyResourceName?: string;
   targetCpa?: number | null;
   targetRoas?: number | null;
+  devices?: { computers: boolean; mobile: boolean; tablets: boolean; tv: boolean } | string[];
+  adSchedule?: Array<{ day: string; start: string; end: string }>;
   keywords?: string[];
   campaignNegativeKeywords?: string[];
   linkedSharedNegativeSetIds?: string[];
@@ -336,6 +345,48 @@ export function AiCampaignAssistantModal({
   const conversionGoalIntelAbortRef = useRef<AbortController | null>(null);
   const forecastAbortRef = useRef<AbortController | null>(null);
   const recommendationsAbortRef = useRef<AbortController | null>(null);
+
+  // New Modals for Selecting Old/Saved Data
+  const [isBiddingModalOpen, setIsBiddingModalOpen] = useState<boolean>(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
+  const [isDevicesModalOpen, setIsDevicesModalOpen] = useState<boolean>(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState<boolean>(false);
+
+  const [portfolioStrategies, setPortfolioStrategies] = useState<any[]>([]);
+  const [dataExclusions, setDataExclusions] = useState<any[]>([]);
+  const [isLoadingBidding, setIsLoadingBidding] = useState<boolean>(false);
+
+  const fetchPortfolioStrategies = async () => {
+    if (!customerId) return;
+    setIsLoadingBidding(true);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cleanCid = customerId.replace(/-/g, "").trim();
+      const res = await fetch(`${BACKEND}/api/ads/bidding/portfolio-strategies?customerId=${encodeURIComponent(cleanCid)}`, {
+        headers: { "x-organization-id": orgId }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.strategies)) {
+          setPortfolioStrategies(data.strategies);
+        }
+      }
+      const exRes = await fetch(`${BACKEND}/api/ads/bidding/data-exclusions?customerId=${encodeURIComponent(cleanCid)}`, {
+        headers: { "x-organization-id": orgId }
+      });
+      if (exRes.ok) {
+        const exData = await exRes.json();
+        if (exData.success && Array.isArray(exData.dataExclusions)) {
+          setDataExclusions(exData.dataExclusions);
+        }
+      }
+    } catch (err) {
+      console.warn("[Portfolio Bidding Fetch Warning]:", err);
+    } finally {
+      setIsLoadingBidding(false);
+    }
+  };
 
   const [campaignState, setCampaignState] = useState<CampaignState>({
     business: {},
@@ -1539,9 +1590,9 @@ export function AiCampaignAssistantModal({
     }
   };
 
-  // Auto-fetch audience intelligence when campaign type changes
+  // Auto-fetch audience intelligence when campaign type or customerId changes
   useEffect(() => {
-    if (customerId && campaignState.campaignType && campaignState.campaignType !== "SEARCH") {
+    if (customerId && campaignState.campaignType) {
       const timer = setTimeout(() => {
         runAudienceIntelligence();
       }, 500);
@@ -2566,23 +2617,88 @@ export function AiCampaignAssistantModal({
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center py-1 border-b border-slate-200">
-                  <span className="text-slate-500">Location:</span>
-                  <span className="text-slate-800 font-medium">
-                    {campaignState.locations && campaignState.locations.length > 0 ? campaignState.locations.join(", ") : "India"}
+                <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <MapPin className="h-3 w-3 text-blue-500" /> Locations:
                   </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-800 font-medium truncate max-w-[140px]">
+                      {campaignState.locations && campaignState.locations.length > 0 ? campaignState.locations.join(", ") : "India"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsLocationModalOpen(true)}
+                      className="px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[9px] border border-blue-200 cursor-pointer transition-all"
+                    >
+                      Select Saved
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3 text-emerald-500" /> Bidding Strategy:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-slate-800 text-[11px] truncate max-w-[140px]">
+                      {campaignState.biddingStrategy || "MAXIMIZE_CONVERSIONS"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fetchPortfolioStrategies();
+                        setIsBiddingModalOpen(true);
+                      }}
+                      className="px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[9px] border border-emerald-200 cursor-pointer transition-all"
+                    >
+                      Select Saved
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <Monitor className="h-3 w-3 text-purple-500" /> Devices:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-slate-700 text-[10px]">
+                      {Array.isArray(campaignState.devices)
+                        ? `${campaignState.devices.length} targeted`
+                        : "All Devices"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsDevicesModalOpen(true)}
+                      className="px-1.5 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[9px] border border-purple-200 cursor-pointer transition-all"
+                    >
+                      Select Saved
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <Clock className="h-3 w-3 text-amber-500" /> Ad Schedule:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-slate-700 text-[10px]">
+                      {campaignState.adSchedule && campaignState.adSchedule.length > 0
+                        ? `${campaignState.adSchedule.length} days active`
+                        : "24/7 All Days"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsScheduleModalOpen(true)}
+                      className="px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-[9px] border border-amber-200 cursor-pointer transition-all"
+                    >
+                      Select Saved
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex justify-between items-center py-1 border-b border-slate-200">
                   <span className="text-slate-500">Language:</span>
                   <span className="text-slate-800 font-medium">{campaignState.language || "English"}</span>
-                </div>
-
-                <div className="flex justify-between items-center py-1 border-b border-slate-200">
-                  <span className="text-slate-500">Bidding Strategy:</span>
-                  <span className="font-semibold text-slate-800 text-[11px]">
-                    {campaignState.biddingStrategy || "MAXIMIZE_CONVERSIONS"}
-                  </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1 border-b border-slate-200">
@@ -3852,6 +3968,7 @@ export function AiCampaignAssistantModal({
                       const isCustomerMatch = aud.source === "CUSTOMER_MATCH";
                       const isCustom = aud.source === "CUSTOM_AUDIENCE";
                       const isProfile = aud.source === "CRM_PROFILE";
+                      const isAudList = aud.source === "AUDIENCE_LIST";
 
                       return (
                         <div
@@ -3869,11 +3986,13 @@ export function AiCampaignAssistantModal({
                             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
                               isCustomerMatch ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                               isCustom ? "bg-blue-50 text-blue-700 border-blue-200" :
+                              isAudList ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
                               isProfile ? "bg-amber-50 text-amber-700 border-amber-200" :
                               "bg-purple-50 text-purple-700 border-purple-200"
                             }`}>
                               {isCustomerMatch ? "Customer Match" :
                                isCustom ? "Custom Segment" :
+                               isAudList ? (aud.type || "Saved List") :
                                isProfile ? "CRM Persona" : "Audience"}
                             </span>
                           </div>
@@ -4724,6 +4843,439 @@ export function AiCampaignAssistantModal({
                     <Check className="h-3.5 w-3.5" /> Save to Business Profile
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 1: Bidding Strategies & Portfolio Picker Modal ── */}
+      {isBiddingModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-xl bg-white rounded-2xl border border-slate-200 shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-150 text-slate-900 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-emerald-600" />
+                <h4 className="font-bold text-sm text-slate-900">Select Bidding Strategy</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBiddingModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Standard Preset Strategies */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Standard Account Bidding Strategies
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: "MAXIMIZE_CONVERSIONS", label: "Maximize Conversions", desc: "Get maximum conversions within budget" },
+                  { id: "MAXIMIZE_CONVERSION_VALUE", label: "Maximize Conversion Value", desc: "Drive highest conversion value / revenue" },
+                  { id: "TARGET_CPA", label: "Target CPA", desc: "Optimize for specific Cost Per Acquisition" },
+                  { id: "TARGET_ROAS", label: "Target ROAS", desc: "Optimize for specific Return on Ad Spend" },
+                  { id: "TARGET_SPEND", label: "Maximize Clicks", desc: "Get as many clicks as possible" },
+                  { id: "MANUAL_CPC", label: "Manual CPC", desc: "Full manual control over bid amounts" }
+                ].map((strat) => {
+                  const isSelected = (campaignState.biddingStrategy || "MAXIMIZE_CONVERSIONS") === strat.id;
+                  return (
+                    <div
+                      key={strat.id}
+                      onClick={() => {
+                        setCampaignState(prev => ({
+                          ...prev,
+                          biddingStrategy: strat.id,
+                          biddingStrategyId: undefined,
+                          biddingStrategyResourceName: undefined
+                        }));
+                      }}
+                      className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                        isSelected
+                          ? "bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-400"
+                          : "bg-slate-50 border-slate-200 hover:bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-900">{strat.label}</span>
+                        {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{strat.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Portfolio Bidding Strategies from Live Account */}
+            <div className="space-y-2 pt-2 border-t border-slate-200">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Saved Portfolio Strategies ({portfolioStrategies.length})
+                </span>
+                {isLoadingBidding && (
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-mono">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Fetching...
+                  </span>
+                )}
+              </div>
+
+              {portfolioStrategies.length > 0 ? (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {portfolioStrategies.map((ps: any) => {
+                    const isSelected = campaignState.biddingStrategyId === ps.id || campaignState.biddingStrategyResourceName === ps.resourceName;
+                    return (
+                      <div
+                        key={ps.id}
+                        onClick={() => {
+                          setCampaignState(prev => ({
+                            ...prev,
+                            biddingStrategy: ps.type || "TARGET_CPA",
+                            biddingStrategyId: ps.id,
+                            biddingStrategyResourceName: ps.resourceName,
+                            targetCpa: ps.targetCpa || prev.targetCpa,
+                            targetRoas: ps.targetRoas || prev.targetRoas
+                          }));
+                          setIsBiddingModalOpen(false);
+                        }}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                          isSelected
+                            ? "bg-emerald-50 border-emerald-300 ring-1 ring-emerald-400"
+                            : "bg-white border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-xs text-slate-900">{ps.name}</span>
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-mono">
+                              {ps.type}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            Used in {ps.campaignCount || 0} campaign(s) • {ps.targetDisplay || "Standard"}
+                          </p>
+                        </div>
+                        <span className="text-xs font-bold text-emerald-700">
+                          {isSelected ? "Selected ✓" : "Use Strategy →"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400 italic">No custom portfolio bidding strategies found in this Google Ads account.</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setIsBiddingModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 2: Saved Locations & Geo-Targets Modal ── */}
+      {isLocationModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-150 text-slate-900 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-blue-600" />
+                <h4 className="font-bold text-sm text-slate-900">Select Target Locations</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLocationModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Quick Geo Presets */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Quick Regional Presets
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { name: "All India", targets: ["India"] },
+                  { name: "Top 6 Metros (India)", targets: ["Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Chennai", "Kolkata"] },
+                  { name: "North India", targets: ["Delhi", "Punjab", "Haryana", "Uttar Pradesh", "Rajasthan"] },
+                  { name: "West & South India", targets: ["Maharashtra", "Karnataka", "Tamil Nadu", "Gujarat", "Telangana"] },
+                  { name: "United States", targets: ["United States"] },
+                  { name: "Global / Tier-1", targets: ["United States", "United Kingdom", "Canada", "Australia", "Singapore", "United Arab Emirates"] }
+                ].map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setCampaignState(prev => ({ ...prev, locations: preset.targets }));
+                    }}
+                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 text-left cursor-pointer transition-all"
+                  >
+                    <span className="font-bold text-xs text-slate-900 block">{preset.name}</span>
+                    <span className="text-[10px] text-slate-500 truncate block mt-0.5">{preset.targets.join(", ")}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Business Profile Location */}
+            {customerProfileData?.businessLocations && customerProfileData.businessLocations.length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                  Saved Profile Physical Locations
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {customerProfileData.businessLocations.map((loc: string, i: number) => {
+                    const isAdded = (campaignState.locations || []).includes(loc);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          setCampaignState(prev => ({
+                            ...prev,
+                            locations: isAdded
+                              ? (prev.locations || []).filter(l => l !== loc)
+                              : [...(prev.locations || []), loc]
+                          }));
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border cursor-pointer transition-all flex items-center gap-1 ${
+                          isAdded
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <MapPin className="h-3 w-3" />
+                        <span>{loc}</span>
+                        {isAdded && <Check className="h-3 w-3" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Currently Active Locations */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Active Campaign Targets ({(campaignState.locations || []).length})
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {(campaignState.locations || []).map((loc, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium">
+                    <span>{loc}</span>
+                    <button
+                      type="button"
+                      onClick={() => setCampaignState(prev => ({ ...prev, locations: (prev.locations || []).filter((_, idx) => idx !== i) }))}
+                      className="text-blue-500 hover:text-rose-600 cursor-pointer"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setIsLocationModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                Apply Locations
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 3: Device Targeting Controls Modal ── */}
+      {isDevicesModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-150 text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2">
+                <Monitor className="h-4 w-4 text-purple-600" />
+                <h4 className="font-bold text-sm text-slate-900">Device Targeting</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDevicesModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Target specific hardware platforms for ad impressions and bidding:
+            </p>
+
+            <div className="space-y-2">
+              {[
+                { id: "DESKTOP", label: "Computers (Desktop / Laptops)", desc: "Full browser desktop experience", icon: Monitor },
+                { id: "MOBILE", label: "Mobile Phones", desc: "High-intent smartphones (Android & iOS)", icon: Smartphone },
+                { id: "TABLET", label: "Tablets", desc: "iPads and Android tablets", icon: Monitor },
+                { id: "CONNECTED_TV", label: "Connected TVs", desc: "Smart TVs and streaming boxes", icon: Radio }
+              ].map((dev) => {
+                const currentDevs: string[] = Array.isArray(campaignState.devices)
+                  ? (campaignState.devices as string[])
+                  : ["DESKTOP", "MOBILE", "TABLET", "CONNECTED_TV"];
+                const isChecked = currentDevs.includes(dev.id);
+                const DevIcon = dev.icon;
+
+                return (
+                  <label
+                    key={dev.id}
+                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                      isChecked
+                        ? "bg-purple-50/70 border-purple-300"
+                        : "bg-slate-50 border-slate-200 opacity-60"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        let nextDevs: string[];
+                        if (e.target.checked) {
+                          nextDevs = [...currentDevs, dev.id];
+                        } else {
+                          nextDevs = currentDevs.filter(d => d !== dev.id);
+                        }
+                        setCampaignState(prev => ({ ...prev, devices: nextDevs }));
+                      }}
+                      className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <DevIcon className="h-3.5 w-3.5 text-purple-600" />
+                        <span className="font-bold text-xs text-slate-900">{dev.label}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{dev.desc}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setCampaignState(prev => ({ ...prev, devices: ["DESKTOP", "MOBILE", "TABLET", "CONNECTED_TV"] }))}
+                className="text-xs text-purple-700 hover:underline font-semibold cursor-pointer"
+              >
+                Reset to All Devices
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDevicesModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                Apply Devices
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 4: Ad Schedule & Day-Parting Modal ── */}
+      {isScheduleModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-150 text-slate-900 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-amber-600" />
+                <h4 className="font-bold text-sm text-slate-900">Select Ad Schedule</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsScheduleModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Schedule Presets */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Standard Business Schedule Presets
+              </span>
+              <div className="space-y-1.5">
+                {[
+                  {
+                    name: "24/7 (All Days, All Hours)",
+                    desc: "Continuous ad delivery without schedule restrictions",
+                    schedule: []
+                  },
+                  {
+                    name: "Standard Business Hours (Mon - Fri: 9:00 AM - 6:00 PM)",
+                    desc: "Ideal for B2B and call-driven business leads",
+                    schedule: [
+                      { day: "Monday", start: "09:00", end: "18:00" },
+                      { day: "Tuesday", start: "09:00", end: "18:00" },
+                      { day: "Wednesday", start: "09:00", end: "18:00" },
+                      { day: "Thursday", start: "09:00", end: "18:00" },
+                      { day: "Friday", start: "09:00", end: "18:00" }
+                    ]
+                  },
+                  {
+                    name: "Extended Retail (Mon - Sun: 8:00 AM - 10:00 PM)",
+                    desc: "Great for retail stores, e-commerce, and restaurants",
+                    schedule: [
+                      { day: "Monday", start: "08:00", end: "22:00" },
+                      { day: "Tuesday", start: "08:00", end: "22:00" },
+                      { day: "Wednesday", start: "08:00", end: "22:00" },
+                      { day: "Thursday", start: "08:00", end: "22:00" },
+                      { day: "Friday", start: "08:00", end: "22:00" },
+                      { day: "Saturday", start: "08:00", end: "22:00" },
+                      { day: "Sunday", start: "08:00", end: "22:00" }
+                    ]
+                  },
+                  {
+                    name: "Weekend Special (Sat & Sun: 10:00 AM - 11:00 PM)",
+                    desc: "Target high weekend shopping activity",
+                    schedule: [
+                      { day: "Saturday", start: "10:00", end: "23:00" },
+                      { day: "Sunday", start: "10:00", end: "23:00" }
+                    ]
+                  }
+                ].map((preset, i) => (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      setCampaignState(prev => ({ ...prev, adSchedule: preset.schedule }));
+                      setIsScheduleModalOpen(false);
+                    }}
+                    className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 cursor-pointer transition-all"
+                  >
+                    <span className="font-bold text-xs text-slate-900 block">{preset.name}</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">{preset.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setIsScheduleModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                Done
               </button>
             </div>
           </div>

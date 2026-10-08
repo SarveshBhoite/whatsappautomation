@@ -472,82 +472,139 @@ export class NoGuidanceSearchService extends GoogleAdsBaseService {
       // useSearchTermMatchingAdGroup === false means disableSearchTermMatching = true
       const disableSearchTermMatching = !Boolean(useSearchTermMatchingAdGroup);
 
-      const adGroupName = payload.adGroupName || `${campaignName} Ad Group 1`;
-      const adGroupPayload = {
-        operations: [{
-          create: {
-            campaign: campaignRef,
-            name: adGroupName,
+      // ── 6. CREATE AD GROUPS & ADS (MULTI-GROUP / MULTI-AD SUPPORT) ──
+      const rawAdGroups = (Array.isArray(payload.adGroups) && payload.adGroups.length > 0)
+        ? payload.adGroups
+        : [{
+            name: payload.adGroupName || `${campaignName} Ad Group 1`,
             status: "ENABLED",
-            type: "SEARCH_STANDARD",
-            aiMaxAdGroupSetting: {
-              disableSearchTermMatching
-            }
+            cpcBid: payload.adGroupBid || payload.maxCpc || payload.targetCpc || undefined,
+            keywords: validKeywords,
+            ads: (validHeadlines.length > 0 && validDescriptions.length > 0) ? [{
+              headlines: validHeadlines,
+              descriptions: validDescriptions,
+              finalUrl: finalUrl
+            }] : []
+          }];
+
+      const createdAdGroupRefs: string[] = [];
+      const createdKeywordRefs: string[] = [];
+      const createdAdRefs: string[] = [];
+
+      for (let agIdx = 0; agIdx < rawAdGroups.length; agIdx++) {
+        const agItem = rawAdGroups[agIdx];
+        const agName = (agItem.name || `${campaignName} Ad Group ${agIdx + 1}`).trim();
+        const agStatus = agItem.status || "ENABLED";
+
+        const agCreateObj: any = {
+          campaign: campaignRef,
+          name: agName,
+          status: agStatus,
+          type: "SEARCH_STANDARD",
+          aiMaxAdGroupSetting: {
+            disableSearchTermMatching
           }
-        }]
-      };
-      const adGroupRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroups:mutate`, adGroupPayload, { headers });
-      const adGroupRef = adGroupRes.data?.results?.[0]?.resourceName;
-      if (!adGroupRef) {
-        throw new Error("Failed to create Google Ads Ad Group for Search campaign.");
-      }
-      apiResult.adGroupResourceName = adGroupRef;
+        };
 
-      // ── 7. CREATE KEYWORDS (AdGroupCriterion) ──
-      if (validKeywords.length > 0) {
-        const keywordOperations = validKeywords.map((kw: string) => {
-          let matchType = "BROAD";
-          let text = kw.trim();
-          if (text.startsWith("[") && text.endsWith("]")) {
-            matchType = "EXACT";
-            text = text.slice(1, -1).trim();
-          } else if (text.startsWith('"') && text.endsWith('"')) {
-            matchType = "PHRASE";
-            text = text.slice(1, -1).trim();
-          }
-          return {
-            create: {
-              adGroup: adGroupRef,
-              status: "ENABLED",
-              keyword: {
-                text,
-                matchType
-              }
-            }
-          };
-        });
+        if (agItem.cpcBid && Number(agItem.cpcBid) > 0) {
+          agCreateObj.cpcBidMicros = Math.round(Number(agItem.cpcBid) * 1_000_000);
+        }
 
-        const kwRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroupCriteria:mutate`, { operations: keywordOperations }, { headers });
-        apiResult.keywordResourceNames = (kwRes.data?.results || []).map((r: any) => r.resourceName);
-      }
-
-      // ── 8. CREATE RESPONSIVE SEARCH AD (AdGroupAd) ──
-      if (validHeadlines.length > 0 && validDescriptions.length > 0) {
-        const cleanedHeadlines = validHeadlines
-          .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 30))
-          .filter((text: string) => text.length > 0);
-        const cleanedDescriptions = validDescriptions
-          .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 90))
-          .filter((text: string) => text.length > 0);
-
-        const adGroupAdPayload = {
+        const adGroupPayload = {
           operations: [{
-            create: {
-              adGroup: adGroupRef,
-              status: "ENABLED",
-              ad: {
-                finalUrls: [finalUrl],
-                responsiveSearchAd: {
-                  headlines: cleanedHeadlines.slice(0, 15).map((text: string) => ({ text })),
-                  descriptions: cleanedDescriptions.slice(0, 4).map((text: string) => ({ text }))
-                }
-              }
-            }
+            create: agCreateObj
           }]
         };
-        const adRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroupAds:mutate`, adGroupAdPayload, { headers });
-        apiResult.adGroupAdResourceName = adRes.data?.results?.[0]?.resourceName;
+
+        const adGroupRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroups:mutate`, adGroupPayload, { headers });
+        const adGroupRef = adGroupRes.data?.results?.[0]?.resourceName;
+        if (!adGroupRef) {
+          throw new Error(`Failed to create Google Ads Ad Group "${agName}" for Search campaign.`);
+        }
+        createdAdGroupRefs.push(adGroupRef);
+
+        // Keywords for this specific Ad Group
+        const groupKeywords = (Array.isArray(agItem.keywords) && agItem.keywords.length > 0)
+          ? agItem.keywords
+          : (agIdx === 0 ? validKeywords : []);
+
+        if (groupKeywords.length > 0) {
+          const keywordOperations = groupKeywords.map((kw: string) => {
+            let matchType = "BROAD";
+            let text = kw.trim();
+            if (text.startsWith("[") && text.endsWith("]")) {
+              matchType = "EXACT";
+              text = text.slice(1, -1).trim();
+            } else if (text.startsWith('"') && text.endsWith('"')) {
+              matchType = "PHRASE";
+              text = text.slice(1, -1).trim();
+            }
+            return {
+              create: {
+                adGroup: adGroupRef,
+                status: "ENABLED",
+                keyword: {
+                  text,
+                  matchType
+                }
+              }
+            };
+          });
+
+          const kwRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroupCriteria:mutate`, { operations: keywordOperations }, { headers });
+          const kwRefs = (kwRes.data?.results || []).map((r: any) => r.resourceName);
+          createdKeywordRefs.push(...kwRefs);
+        }
+
+        // Ads for this specific Ad Group (Max 3 Enabled RSAs per Ad Group)
+        const groupAds = (Array.isArray(agItem.ads) && agItem.ads.length > 0)
+          ? agItem.ads.slice(0, 3)
+          : (validHeadlines.length > 0 && validDescriptions.length > 0 ? [{
+              headlines: validHeadlines,
+              descriptions: validDescriptions,
+              finalUrl: finalUrl
+            }] : []);
+
+        for (const adItem of groupAds) {
+          const adHeadlines = (Array.isArray(adItem.headlines) && adItem.headlines.length > 0) ? adItem.headlines : validHeadlines;
+          const adDescriptions = (Array.isArray(adItem.descriptions) && adItem.descriptions.length > 0) ? adItem.descriptions : validDescriptions;
+          const adFinalUrl = adItem.finalUrl || finalUrl;
+
+          const cleanedHeadlines = adHeadlines
+            .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 30))
+            .filter((text: string) => text.length > 0);
+          const cleanedDescriptions = adDescriptions
+            .map((text: string) => GoogleAdsBaseService.cleanAdText(text, 90))
+            .filter((text: string) => text.length > 0);
+
+          if (cleanedHeadlines.length > 0 && cleanedDescriptions.length > 0) {
+            const adGroupAdPayload = {
+              operations: [{
+                create: {
+                  adGroup: adGroupRef,
+                  status: adItem.status || "ENABLED",
+                  ad: {
+                    finalUrls: [adFinalUrl],
+                    responsiveSearchAd: {
+                      headlines: cleanedHeadlines.slice(0, 15).map((text: string) => ({ text })),
+                      descriptions: cleanedDescriptions.slice(0, 4).map((text: string) => ({ text }))
+                    }
+                  }
+                }
+              }]
+            };
+            const adRes = await axios.post(`${ADS_BASE}/customers/${cid}/adGroupAds:mutate`, adGroupAdPayload, { headers });
+            const adRef = adRes.data?.results?.[0]?.resourceName;
+            if (adRef) createdAdRefs.push(adRef);
+          }
+        }
       }
+
+      apiResult.adGroupResourceNames = createdAdGroupRefs;
+      apiResult.adGroupResourceName = createdAdGroupRefs[0];
+      apiResult.keywordResourceNames = createdKeywordRefs;
+      apiResult.adGroupAdResourceNames = createdAdRefs;
+      apiResult.adGroupAdResourceName = createdAdRefs[0];
 
       // ── 9. CREATE CAMPAIGN CRITERIA (Locations, Languages via GoogleAdsBaseService, & Ad Schedule) ──
       const geoAndLangResults = await GoogleAdsBaseService.mutateCampaignGeoAndLanguageCriteria(
