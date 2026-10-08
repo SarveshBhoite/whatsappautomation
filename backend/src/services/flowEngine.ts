@@ -624,11 +624,21 @@ async function sendNodeMessage(
       },
     });
 
+    // Touch conversation updatedAt timestamp
+    const updatedConv = await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    });
+
     // Lazy load socket server to emit to client dashboard instantly
     const { io } = require("../index");
     io.to(organizationId).emit("new-message", {
       conversationId,
       message: savedMsg,
+      conversation: {
+        ...updatedConv,
+        messages: [savedMsg],
+      },
     });
   } catch (err: any) {
     console.error(`Failed to send flow node message ${node.id} to ${to}:`, err.message);

@@ -585,7 +585,24 @@ router.get("/conversations", async (req: Request, res: Response) => {
       orderBy: { updatedAt: "desc" },
     });
 
-    return res.status(200).json(conversations);
+    // Compute unread message count for each conversation
+    const conversationsWithUnread = await Promise.all(
+      conversations.map(async (conv) => {
+        const unreadCount = await prisma.message.count({
+          where: {
+            conversationId: conv.id,
+            direction: "inbound",
+            status: "unread",
+          },
+        });
+        return {
+          ...conv,
+          unreadCount,
+        };
+      })
+    );
+
+    return res.status(200).json(conversationsWithUnread);
   } catch (error: any) {
     console.error("Error fetching conversations:", error);
     return res.status(500).json({ error: "Failed to fetch conversations", details: error.message });

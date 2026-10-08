@@ -326,6 +326,7 @@ interface Conversation {
   messages?: Message[];
   platform?: string;
   updatedAt: string;
+  unreadCount?: number;
 }
 
 const NODE_TYPES = {
@@ -693,29 +694,82 @@ export default function Dashboard() {
     });
 
     // Handle Inbound/Outbound Messages
-    socket.on("new-message", (data: { conversationId: string; message: Message }) => {
-      // Append message if active conversation matches
+    socket.on("new-message", (data: { conversationId: string; message: Message; conversation?: any }) => {
       const currentActiveConv = activeConvRef.current;
-      if (currentActiveConv && currentActiveConv.id === data.conversationId) {
+      const isCurrentlyActive = currentActiveConv && currentActiveConv.id === data.conversationId;
+
+      // Append message if active conversation matches
+      if (isCurrentlyActive) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === data.message.id)) return prev;
           return [...prev, data.message];
         });
+
+        // Automatically mark message as read on backend if active chat is open
+        if (data.message.direction === "inbound") {
+          fetch(`${BACKEND_URL}/api/messages/read`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ conversationId: data.conversationId }),
+          }).catch((err) => console.warn("Failed to mark active conversation as read:", err));
+        }
       }
       
       // Update conversations list state so last message & timestamp update in real-time and jump to top of list
       setConversations((prev) => {
         const index = prev.findIndex((c) => c.id === data.conversationId);
         const msgTime = data.message.createdAt || new Date().toISOString();
+        const isInbound = data.message.direction === "inbound";
+
         if (index !== -1) {
-          const target = { ...prev[index], messages: [data.message], updatedAt: msgTime };
+          const currentConv = prev[index];
+          // Calculate new unread count: if currently active chat, unread is 0; otherwise increment if inbound
+          const currentUnread = currentConv.unreadCount || 0;
+          const nextUnread = isCurrentlyActive ? 0 : isInbound ? currentUnread + 1 : currentUnread;
+
+          const updatedTarget: Conversation = {
+            ...currentConv,
+            messages: [data.message],
+            updatedAt: msgTime,
+            unreadCount: nextUnread,
+          };
           const rest = prev.filter((_, i) => i !== index);
-          return [target, ...rest];
+          return [updatedTarget, ...rest];
         } else {
+          // Brand new conversation from a new contact! Place immediately at the top
+          const newConv: Conversation = data.conversation ? {
+            ...data.conversation,
+            messages: [data.message],
+            updatedAt: msgTime,
+            unreadCount: isCurrentlyActive ? 0 : (isInbound ? 1 : 0),
+          } : {
+            id: data.conversationId,
+            customerPhone: data.message.senderName || "New Contact",
+            customerName: data.message.senderName || undefined,
+            platform: "whatsapp",
+            isBotPaused: false,
+            messages: [data.message],
+            updatedAt: msgTime,
+            unreadCount: isCurrentlyActive ? 0 : (isInbound ? 1 : 0),
+          };
+
+          // Re-fetch in background to hydrate all metadata
           fetchConversations();
-          return prev;
+          return [newConv, ...prev];
         }
       });
+    });
+
+    // Handle Conversation Marked as Read (from other clients or tab)
+    socket.on("conversation-read", (data: { conversationId: string }) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id === data.conversationId) {
+            return { ...c, unreadCount: 0 };
+          }
+          return c;
+        })
+      );
     });
 
     // Handle Status Updates (Ticks)
@@ -929,6 +983,20 @@ export default function Dashboard() {
     setActiveConv(conv);
     fetchMessages(conv.id);
     setMobileChatOpen(true); // On mobile, open the chat panel
+
+    // Clear unread count locally immediately
+    setConversations((prev) =>
+      prev.map((c) => (c.id === conv.id ? { ...c, unreadCount: 0 } : c))
+    );
+
+    // Persist read state on backend if there were unread messages
+    if (conv.unreadCount && conv.unreadCount > 0) {
+      fetch(`${BACKEND_URL}/api/messages/read`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: conv.id }),
+      }).catch((err) => console.warn("Failed to mark messages as read:", err));
+    }
   };
 
   // Auto-select first conversation on desktop when conversations list loads if none currently selected
@@ -1244,6 +1312,15 @@ export default function Dashboard() {
                     <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isInstagramTab ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
                       {filteredConversations.length} active
                     </span>
+                    {(() => {
+                      const totalUnread = filteredConversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+                      if (totalUnread <= 0) return null;
+                      return (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-emerald-500 text-white shadow-xs animate-in zoom-in-50">
+                          {totalUnread} unread
+                        </span>
+                      );
+                    })()}
                   </h2>
                 </div>
                 
@@ -1275,25 +1352,33 @@ export default function Dashboard() {
                       const lastMsg = conv.messages?.[0];
                       const isSelected = activeConv?.id === conv.id;
                       const isInstagram = (conv.platform || "whatsapp") === "instagram";
+                      const unread = conv.unreadCount || 0;
+                      const hasUnread = unread > 0;
 
                       return (
                         <div
                           key={conv.id}
                           onClick={() => handleSelectConversation(conv)}
-                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-3 ${isSelected ? (isInstagram ? "bg-pink-50/80 border-pink-500 text-slate-900" : "bg-emerald-50/80 border-emerald-500 text-slate-900") : "hover:bg-slate-50 border-transparent text-slate-700"}`}
+                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-3 ${
+                            isSelected 
+                              ? (isInstagram ? "bg-pink-50/80 border-pink-500 text-slate-900" : "bg-emerald-50/80 border-emerald-500 text-slate-900") 
+                              : hasUnread
+                                ? "bg-emerald-50/30 hover:bg-emerald-50/60 border-emerald-400 text-slate-900"
+                                : "hover:bg-slate-50 border-transparent text-slate-700"
+                          }`}
                         >
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="flex justify-between items-center gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
                               {isInstagram ? (
                                 <Instagram className="h-3.5 w-3.5 text-pink-600 shrink-0" />
                               ) : (
                                 <WhatsApp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                               )}
-                              <span className="font-bold text-slate-900 text-sm truncate">
+                              <span className={`text-sm truncate ${hasUnread ? "font-extrabold text-slate-950" : "font-bold text-slate-900"}`}>
                                 {conv.customerName || conv.customerPhone}
                               </span>
                             </div>
-                            <span className="text-[10px] text-slate-400 font-medium">
+                            <span className={`text-[10px] shrink-0 font-medium ${hasUnread ? "text-emerald-600 font-bold" : "text-slate-400"}`}>
                               {(() => {
                                 const lastMsgDate = conv.messages?.[0]?.createdAt || conv.updatedAt;
                                 const header = formatDateHeader(lastMsgDate);
@@ -1301,8 +1386,8 @@ export default function Dashboard() {
                               })()}
                             </span>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <p className="text-xs text-slate-500 truncate max-w-[180px]">
+                          <div className="flex justify-between items-center gap-2">
+                            <p className={`text-xs truncate max-w-[170px] ${hasUnread ? "text-slate-900 font-semibold" : "text-slate-500"}`}>
                               {(() => {
                                 let snippet = lastMsg?.content || "No messages yet";
                                 if (snippet.includes("📋 [Template:")) {
@@ -1311,15 +1396,25 @@ export default function Dashboard() {
                                 return snippet.replace(/_Powered by [^_]+_/g, "").trim();
                               })()}
                             </p>
-                            {conv.isBotPaused ? (
-                              <span className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
-                                <User className="h-2.5 w-2.5" /> Manual
-                              </span>
-                            ) : (
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${isInstagram ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-                                <Bot className="h-2.5 w-2.5" /> Auto
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {conv.isBotPaused ? (
+                                <span className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
+                                  <User className="h-2.5 w-2.5" /> Manual
+                                </span>
+                              ) : (
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${isInstagram ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
+                                  <Bot className="h-2.5 w-2.5" /> Auto
+                                </span>
+                              )}
+                              {hasUnread && (
+                                <span 
+                                  className="min-w-[19px] h-[19px] px-1.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center shadow-xs animate-in zoom-in-50 duration-200 shrink-0"
+                                  title={`${unread} unread message${unread > 1 ? "s" : ""}`}
+                                >
+                                  {unread > 99 ? "99+" : unread}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );

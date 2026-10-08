@@ -608,6 +608,12 @@ const savedTextMessage = await prisma.message.create({
   },
 });
 
+// Touch conversation updatedAt timestamp
+await prisma.conversation.update({
+  where: { id: conversation.id },
+  data: { updatedAt: new Date() },
+});
+
 // Broadcast Socket.IO event for live agent dashboard monitoring
 try {
   const { io: socketIo } = require("../index");
@@ -615,6 +621,11 @@ try {
     socketIo.to(orgId).emit("new-message", {
       conversationId: conversation.id,
       message: savedTextMessage,
+      conversation: {
+        ...conversation,
+        updatedAt: new Date(),
+        messages: [savedTextMessage],
+      },
     });
   }
 } catch (ioErr: any) {

@@ -297,6 +297,12 @@ router.post("/send", async (req: Request, res: Response) => {
       },
     });
 
+    // Touch conversation updatedAt timestamp
+    const updatedConversation = await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    });
+
     // Fetch the saved message with quotedMessage relation
     const fullMessage = await prisma.message.findUnique({
       where: { id: savedMessage.id },
@@ -311,6 +317,10 @@ router.post("/send", async (req: Request, res: Response) => {
     io.to(orgId).emit("new-message", {
       conversationId,
       message: fullMessage,
+      conversation: {
+        ...updatedConversation,
+        messages: [fullMessage],
+      },
     });
 
     // Notify agents of the bot pause state update
@@ -401,6 +411,43 @@ router.post("/toggle-bot", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error toggling bot status:", error);
     return res.status(500).json({ error: "Failed to toggle bot status", details: error.message });
+  }
+});
+
+// POST: Mark all messages in a conversation as read
+router.post("/read", async (req: Request, res: Response) => {
+  try {
+    const { conversationId } = req.body;
+    if (!conversationId) {
+      return res.status(400).json({ error: "Missing conversationId" });
+    }
+
+    await prisma.message.updateMany({
+      where: {
+        conversationId,
+        direction: "inbound",
+        status: "unread",
+      },
+      data: {
+        status: "read",
+      },
+    });
+
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { organizationId: true },
+    });
+
+    if (conversation) {
+      io.to(conversation.organizationId).emit("conversation-read", {
+        conversationId,
+      });
+    }
+
+    return res.status(200).json({ success: true, conversationId });
+  } catch (error: any) {
+    console.error("Error marking messages as read:", error);
+    return res.status(500).json({ error: "Failed to mark messages as read", details: error.message });
   }
 });
 

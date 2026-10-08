@@ -311,7 +311,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           mediaMimeType: mimeType,
           mediaUrl: messageMediaUrl || null,
           waMessageId: mid,
-          status: isEcho ? "sent" : "read",
+          status: isEcho ? "sent" : "unread",
           createdAt: timestamp,
           senderName: isEcho ? "Agent" : null,
         },
@@ -321,6 +321,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
       io.to(organizationId).emit("new-message", {
         conversationId: conversation.id,
         message: savedMessage,
+        conversation: {
+          ...conversation,
+          messages: [savedMessage],
+        },
       });
 
       // For inbound media messages, update content to virtual text so AI acknowledges receipt naturally
@@ -664,11 +668,15 @@ export const handleWebhook = async (req: Request, res: Response) => {
               isBotPaused: false,
             },
           });
-        } else if (conversation.customerName !== contactName && contactName !== "WhatsApp User") {
-          // Keep customer name updated with WhatsApp Profile Name
+        } else {
+          // Touch updatedAt and keep customer name updated with WhatsApp Profile Name if changed
           conversation = await prisma.conversation.update({
             where: { id: conversation.id },
-            data: { customerName: contactName, phoneNumberId: phoneNumberId || (conversation as any).phoneNumberId },
+            data: { 
+              updatedAt: new Date(),
+              ...(conversation.customerName !== contactName && contactName !== "WhatsApp User" ? { customerName: contactName } : {}),
+              ...(phoneNumberId && !(conversation as any).phoneNumberId ? { phoneNumberId } : {}),
+            },
           });
         }
 
@@ -707,7 +715,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
             mediaMimeType: mimeType,
             mediaUrl: messageMediaUrl,
             waMessageId,
-            status: "read",
+            status: "unread",
             createdAt: timestamp,
             quotedMessageId: quotedMessageId || null,
           },
@@ -745,6 +753,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
           socketIo.to(organizationId).emit("new-message", {
             conversationId: conversation.id,
             message: fullMessage,
+            conversation: {
+              ...conversation,
+              messages: [fullMessage],
+            },
           });
         }
 
