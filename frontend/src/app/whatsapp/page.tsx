@@ -361,6 +361,7 @@ export default function Dashboard() {
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -380,14 +381,27 @@ export default function Dashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.accounts) {
+        if (data.accounts && Array.isArray(data.accounts) && data.accounts.length > 0) {
           setWaAccounts(data.accounts);
           const defaultAcc = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
-          if (defaultAcc) setSelectedWaAccountId(defaultAcc.id);
+          if (defaultAcc) {
+            setSelectedWaAccountId(defaultAcc.id);
+            // Fetch immediately with this active number
+            if (defaultAcc.phoneNumberId) {
+              fetchConversations(defaultAcc.phoneNumberId);
+            } else {
+              fetchConversations();
+            }
+          }
+        } else {
+          fetchConversations();
         }
+      } else {
+        fetchConversations();
       }
     } catch (err) {
       console.warn("Could not fetch WhatsApp accounts:", err);
+      fetchConversations();
     }
   };
 
@@ -800,8 +814,7 @@ export default function Dashboard() {
       );
     });
 
-    // Initial Fetch
-    fetchConversations();
+    // Initial Fetch (fetchWaAccounts will immediately load active number and trigger fast conversation fetch)
     fetchWaAccounts();
     fetchActiveFlow("whatsapp");
 
@@ -879,6 +892,7 @@ export default function Dashboard() {
 
   const fetchMessages = async (convId: string) => {
     try {
+      setLoadingMessages(true);
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}/messages`);
       if (!res.ok) return;
       const data = await res.json();
@@ -887,6 +901,8 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.warn("Could not fetch messages:", err);
+    } finally {
+      setLoadingMessages(false);
     }
   };
 
@@ -1503,7 +1519,27 @@ export default function Dashboard() {
                     </div>
                     {/* Messages list container */}
                     <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-100/60 relative scrollbar-thin">
-                      {messages.map((msg, index) => {
+                      {loadingMessages ? (
+                        <div className="h-full flex flex-col justify-center items-center py-12 space-y-4 animate-in fade-in duration-200">
+                          <div className="h-8 w-8 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+                          <p className="text-xs font-semibold text-slate-500">Loading conversation history...</p>
+                        </div>
+                      ) : messages.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
+                          <div className="p-3 bg-white rounded-2xl border border-slate-200/80 shadow-xs mb-3 text-slate-300">
+                            {activeConv.platform === "instagram" ? (
+                              <Instagram className="h-7 w-7 text-pink-400" />
+                            ) : (
+                              <WhatsApp className="h-7 w-7 text-emerald-500" />
+                            )}
+                          </div>
+                          <p className="text-sm font-semibold text-slate-700">No message history yet</p>
+                          <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                            Send a message below to start the conversation with {activeConv.customerName || activeConv.customerPhone}.
+                          </p>
+                        </div>
+                      ) : (
+                        messages.map((msg, index) => {
                         const isInbound = msg.direction === "inbound";
                         const msgDateHeader = formatDateHeader(msg.createdAt);
                         const prevMsgDateHeader = index > 0 ? formatDateHeader(messages[index - 1].createdAt) : null;
@@ -1810,7 +1846,8 @@ export default function Dashboard() {
                             </div>
                           </React.Fragment>
                         );
-                      })}
+                      })
+                    )}
                       <div ref={messageEndRef} />
                     </div>
 

@@ -168,6 +168,8 @@ export async function syncAllWhatsAppAccountsForToken(organizationId: string, ac
 router.get("/accounts", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    const { sync } = req.query;
+
     let accounts = await prisma.whatsAppConfig.findMany({
       where: { OR: [{ organizationId }, { organizationId: "demo-org-123" }] },
       orderBy: { createdAt: "desc" },
@@ -179,15 +181,19 @@ router.get("/accounts", async (req: Request, res: Response) => {
       });
     }
 
-    // Auto-sync if an active config with access token exists
+    // Auto-sync in background or synchronously only if explicitly requested
     const tokenConfig = accounts.find((a) => a.accessToken);
     if (tokenConfig && tokenConfig.accessToken) {
-      await syncAllWhatsAppAccountsForToken(organizationId, tokenConfig.accessToken, tokenConfig.wabaId || undefined).catch(() => {});
-      // Refetch after sync to pick up newly added phone numbers
-      accounts = await prisma.whatsAppConfig.findMany({
-        where: { OR: [{ organizationId }, { organizationId: "demo-org-123" }] },
-        orderBy: { createdAt: "desc" },
-      });
+      if (sync === "true") {
+        await syncAllWhatsAppAccountsForToken(organizationId, tokenConfig.accessToken, tokenConfig.wabaId || undefined).catch(() => {});
+        accounts = await prisma.whatsAppConfig.findMany({
+          where: { OR: [{ organizationId }, { organizationId: "demo-org-123" }] },
+          orderBy: { createdAt: "desc" },
+        });
+      } else {
+        // Fire-and-forget background sync without slowing down the UI response
+        syncAllWhatsAppAccountsForToken(organizationId, tokenConfig.accessToken, tokenConfig.wabaId || undefined).catch(() => {});
+      }
     }
 
     return res.status(200).json({ success: true, accounts });

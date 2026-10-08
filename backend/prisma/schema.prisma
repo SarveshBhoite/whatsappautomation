@@ -697,6 +697,9 @@ model Message {
   quotedMessage   Message?      @relation("QuotedReplies", fields: [quotedMessageId], references: [id], onDelete: SetNull)
   replyMessages   Message[]     @relation("QuotedReplies")
   createdAt       DateTime      @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([conversationId, direction, status])
 }
 
 model GoogleAdAccount {

@@ -576,31 +576,59 @@ router.get("/conversations", async (req: Request, res: Response) => {
 
     const conversations = await prisma.conversation.findMany({
       where: whereClause,
-      include: {
+      select: {
+        id: true,
+        customerPhone: true,
+        customerName: true,
+        platform: true,
+        phoneNumberId: true,
+        accountHandle: true,
+        isBotPaused: true,
+        updatedAt: true,
         messages: {
           orderBy: { createdAt: "desc" },
-          take: 1, // Include only the last message for list view snippet
+          take: 1, // Only last message for sidebar preview
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            direction: true,
+            status: true,
+            messageType: true,
+          },
         },
       },
       orderBy: { updatedAt: "desc" },
+      take: 100, // Safe high limit for instantaneous rendering
     });
 
-    // Compute unread message count for each conversation
-    const conversationsWithUnread = await Promise.all(
-      conversations.map(async (conv) => {
-        const unreadCount = await prisma.message.count({
-          where: {
-            conversationId: conv.id,
-            direction: "inbound",
-            status: "unread",
-          },
-        });
-        return {
-          ...conv,
-          unreadCount,
-        };
-      })
-    );
+    if (conversations.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    // High performance single batch query for unread counts
+    const convIds = conversations.map((c) => c.id);
+    const unreadCounts = await prisma.message.groupBy({
+      by: ["conversationId"],
+      where: {
+        conversationId: { in: convIds },
+        direction: "inbound",
+        status: "unread",
+      },
+      _count: {
+        _all: true,
+      },
+    });
+
+    const unreadMap = new Map<string, number>();
+    for (const item of unreadCounts) {
+      unreadMap.set(item.conversationId, item._count._all);
+    }
+
+    const conversationsWithUnread = conversations.map((conv) => ({
+      ...conv,
+      unreadCount: unreadMap.get(conv.id) || 0,
+    }));
 
     return res.status(200).json(conversationsWithUnread);
   } catch (error: any) {
