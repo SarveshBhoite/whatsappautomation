@@ -887,21 +887,12 @@ export class LeadsSearchService extends GoogleAdsBaseService {
       // ── ATOMIC ROLLBACK / CLEANUP ──
       // If a subsequent mutate call failed after campaign creation, pause/remove the created campaign to prevent ghost resources
       if (createdCampaignResource) {
-        try {
-          console.warn(`[LeadsSearchService] Rolling back / pausing created campaign ${createdCampaignResource} due to downstream step failure...`);
-          await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
-            operations: [{
-              update: {
-                resourceName: createdCampaignResource,
-                status: "REMOVED"
-              },
-              updateMask: "status"
-            }]
-          }, { headers });
-          console.warn(`[LeadsSearchService] Successfully cleaned up campaign ${createdCampaignResource}`);
-        } catch (cleanupErr: any) {
-          console.error(`[LeadsSearchService] Rollback removal failed for ${createdCampaignResource}:`, cleanupErr?.message);
-        }
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          createdCampaignResource,
+          "LeadsSearchService"
+        );
       }
 
       if (apiErr?.response?.data) {

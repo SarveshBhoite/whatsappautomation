@@ -163,6 +163,14 @@ export class WebsiteTrafficShoppingService extends GoogleAdsBaseService {
         }
       }
     } catch (apiErr: any) {
+      if (apiResult.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "WebsiteTrafficShoppingService"
+        );
+      }
       console.error("[Google Ads API Error for Website Traffic Shopping]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr));
       console.error("[Google Ads API Raw Error Data]:", JSON.stringify(apiErr?.response?.data || apiErr.message, null, 2));
       throw new Error(GoogleAdsBaseService.formatGoogleAdsError(apiErr));

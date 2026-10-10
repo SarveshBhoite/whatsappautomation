@@ -831,6 +831,14 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       }
 
     } catch (err: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "NoGuidancePerformanceMaxService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);
       console.error("[Google Ads API error for No Guidance Performance Max]:", formatted);
       throw new Error(formatted);

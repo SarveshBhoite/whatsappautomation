@@ -1344,10 +1344,80 @@ export class GoogleAdsBaseService {
       sanitizedData.languages = data.languages;
     }
 
-    if (data?.mobileFinalUrl && sanitizedData.geoTargets && typeof sanitizedData.geoTargets === "object") {
-      sanitizedData.geoTargets.mobileFinalUrl = data.mobileFinalUrl;
+    // Prevent ghost/duplicate entries: If a record with this googleAdsCampaignId or same org+name already exists, update it instead of creating duplicates
+    if (sanitizedData.googleAdsCampaignId) {
+      const existing = await prisma.googleAdCampaign.findFirst({
+        where: {
+          organizationId: sanitizedData.organizationId,
+          googleAdsCampaignId: sanitizedData.googleAdsCampaignId
+        }
+      });
+      if (existing) {
+        return await prisma.googleAdCampaign.update({
+          where: { id: existing.id },
+          data: sanitizedData
+        });
+      }
+    }
+
+    if (sanitizedData.organizationId && sanitizedData.name) {
+      const existingByName = await prisma.googleAdCampaign.findFirst({
+        where: {
+          organizationId: sanitizedData.organizationId,
+          name: sanitizedData.name,
+          status: { in: ["PAUSED", "ENABLED", "REMOVED"] }
+        },
+        orderBy: { createdAt: "desc" }
+      });
+      // If an existing campaign with identical name exists and was created recently (e.g. failed attempt or draft), update it
+      if (existingByName && (!existingByName.googleAdsCampaignId || existingByName.googleAdsCampaignId.startsWith("mock-") || existingByName.status === "REMOVED")) {
+        return await prisma.googleAdCampaign.update({
+          where: { id: existingByName.id },
+          data: sanitizedData
+        });
+      }
     }
 
     return await prisma.googleAdCampaign.create({ data: sanitizedData });
+  }
+
+  /**
+   * Immediately remove/delete a partially created campaign shell in Google Ads if downstream steps fail.
+   * Sends both REMOVED status update and remove operation to guarantee it never stays as an incomplete campaign in Google Ads console.
+   */
+  public static async rollbackGoogleAdsCampaign(organizationId: string, customerId: string, campaignResourceName: string, serviceName = "GoogleAdsBaseService") {
+    if (!campaignResourceName || campaignResourceName.includes("mock-")) return;
+    try {
+      const cid = (customerId || "").replace(/-/g, "").trim();
+      const { headers } = await this.getAdsHeaders(organizationId, customerId);
+      const ADS_BASE = "https://googleads.googleapis.com/v24";
+
+      console.warn(`[${serviceName}] Rolling back and REMOVING incomplete campaign from Google Ads: ${campaignResourceName}...`);
+      
+      // Step 1: Remove via remove operation
+      try {
+        await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
+          operations: [{
+            remove: campaignResourceName
+          }]
+        }, { headers });
+        console.warn(`[${serviceName}] Successfully removed incomplete campaign ${campaignResourceName} from Google Ads.`);
+        return;
+      } catch (removeErr: any) {
+        // Fallback: update status to REMOVED
+        await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
+          operations: [{
+            update: {
+              resourceName: campaignResourceName,
+              status: "REMOVED"
+            },
+            updateMask: "status"
+          }]
+        }, { headers });
+        console.warn(`[${serviceName}] Successfully marked incomplete campaign ${campaignResourceName} as REMOVED in Google Ads.`);
+      }
+    } catch (cleanupErr: any) {
+      console.error(`[${serviceName}] Rollback removal failed for ${campaignResourceName}:`, cleanupErr?.response?.data || cleanupErr?.message);
+    }
   }
 }

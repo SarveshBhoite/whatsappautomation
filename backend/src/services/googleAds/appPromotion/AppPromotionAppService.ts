@@ -420,15 +420,12 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
       console.error("[Google Ads API Raw Error Data]:", JSON.stringify(apiErr?.response?.data || apiErr.message, null, 2));
 
       if (createdCampaignResource) {
-        try {
-          console.warn(`[Rollback] Removing created App Campaign ${createdCampaignResource}...`);
-          const { headers } = await this.getAdsHeaders(organizationId, customerId);
-          await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
-            operations: [{ remove: createdCampaignResource }]
-          }, { headers });
-        } catch (rollbackErr: any) {
-          console.error("[Rollback Failed for Campaign]:", rollbackErr?.message);
-        }
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          createdCampaignResource,
+          "AppPromotionAppService"
+        );
       }
 
       if (createdBudgetResource) {

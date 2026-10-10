@@ -357,6 +357,14 @@ export class SalesVideoService extends GoogleAdsBaseService {
       }
 
     } catch (apiErr: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "SalesVideoService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
       console.error("[Google Ads API Error for Sales Video]:", formatted);
       console.error("[Google Ads API Raw Error Data]:", JSON.stringify(apiErr?.response?.data || apiErr.message, null, 2));

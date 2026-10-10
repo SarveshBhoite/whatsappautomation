@@ -826,6 +826,14 @@ export class WebsiteTrafficPerformanceMaxService extends GoogleAdsBaseService {
       }
 
     } catch (err: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "WebsiteTrafficPerformanceMaxService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);
       console.error("[Google Ads API error for Website Traffic Performance Max]:", formatted);
       throw new Error(formatted);

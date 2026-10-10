@@ -360,6 +360,14 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       }
 
     } catch (apiErr: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "SalesDisplayService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
       console.error("[Google Ads API Error for Sales Display]:", formatted);
       throw new Error(formatted);

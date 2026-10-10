@@ -142,6 +142,14 @@ export class WebsiteTrafficVideoService extends GoogleAdsBaseService {
          console.warn("[Google Ads API fallback for Website Traffic Video Ad Group]:", err.message);
       }
     } catch (apiErr: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "WebsiteTrafficVideoService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
       console.error("[Google Ads API Error for Website Traffic Video]:", formatted);
       throw new Error(formatted);

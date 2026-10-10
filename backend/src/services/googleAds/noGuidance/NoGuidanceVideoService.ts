@@ -142,6 +142,14 @@ export class NoGuidanceVideoService extends GoogleAdsBaseService {
          console.warn("[Google Ads API fallback for No Guidance Video Ad Group]:", err.message);
       }
     } catch (apiErr: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "NoGuidanceVideoService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
       console.error("[Google Ads API Error for No Guidance Video]:", formatted);
       throw new Error(formatted);

@@ -920,17 +920,12 @@ export class NoGuidanceSearchService extends GoogleAdsBaseService {
       // ── ATOMIC ROLLBACK / CLEANUP ──
       // If a subsequent mutate call failed after campaign creation, remove campaign and any created assets
       if (createdCampaignResource) {
-        try {
-          console.warn(`[NoGuidanceSearchService] Rolling back created campaign ${createdCampaignResource} due to downstream step failure...`);
-          await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
-            operations: [{
-              remove: createdCampaignResource
-            }]
-          }, { headers });
-          console.warn(`[NoGuidanceSearchService] Successfully removed campaign ${createdCampaignResource}`);
-        } catch (cleanupErr: any) {
-          console.error(`[NoGuidanceSearchService] Rollback removal failed for ${createdCampaignResource}:`, cleanupErr?.message);
-        }
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          createdCampaignResource,
+          "NoGuidanceSearchService"
+        );
       }
 
       if (apiErr?.response?.data) {

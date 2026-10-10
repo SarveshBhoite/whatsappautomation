@@ -19,7 +19,10 @@ import {
   HelpCircle,
   Megaphone,
   X,
-  FileText
+  FileText,
+  DollarSign,
+  MessageSquare,
+  Smartphone
 } from "lucide-react";
 
 interface StructuredSnippetItem {

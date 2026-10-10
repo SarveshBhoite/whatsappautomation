@@ -251,6 +251,7 @@ export class SalesSearchService extends GoogleAdsBaseService {
       const ADS_BASE = "https://googleads.googleapis.com/v24";
 
       // 1. Create Ad Groups & Ads (Multi-Group / Multi-Ad Support)
+      const effectiveAdGroupName = (adGroupName || payload.adGroupName || `${campaignName} Ad Group 1`).trim();
       const rawAdGroups = (Array.isArray(payload.adGroups) && payload.adGroups.length > 0)
         ? payload.adGroups
         : [{
@@ -917,21 +918,12 @@ export class SalesSearchService extends GoogleAdsBaseService {
 
     } catch (apiErr: any) {
       if (createdCampaignResource) {
-        try {
-          console.warn(`[SalesSearchService] Rolling back / pausing created campaign ${createdCampaignResource} due to downstream step failure...`);
-          await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
-            operations: [{
-              update: {
-                resourceName: createdCampaignResource,
-                status: "REMOVED"
-              },
-              updateMask: "status"
-            }]
-          }, { headers });
-          console.warn(`[SalesSearchService] Successfully cleaned up campaign ${createdCampaignResource}`);
-        } catch (cleanupErr: any) {
-          console.error(`[SalesSearchService] Rollback removal failed for ${createdCampaignResource}:`, cleanupErr?.message);
-        }
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          createdCampaignResource,
+          "SalesSearchService"
+        );
       }
       if (apiErr?.response?.data) {
         console.error(
@@ -963,10 +955,26 @@ export class SalesSearchService extends GoogleAdsBaseService {
       adSchedule: effectiveSchedule.length > 0 ? effectiveSchedule : null,
       languages: cleanLanguages,
       searchThemes: payload?.searchThemes || null,
+      audienceSignal: payload?.audienceSignals || payload?.audienceSignal || (payload?.demographicExclusions || payload?.customerAcquisition ? {
+        demographicExclusions: payload?.demographicExclusions || null,
+        customerAcquisition: payload?.customerAcquisition || null
+      } : null),
       geoTargets: {
         locations,
         languages: cleanLanguages,
-        objective: "Sales",
+        objective: payload?.objective || "Sales",
+        devices: payload?.devices || ["DESKTOP", "MOBILE", "TABLET", "CONNECTED_TV"],
+        callouts: callouts || [],
+        structuredSnippets: structuredSnippets || [],
+        promotions: promotions || [],
+        prices: prices || [],
+        leadForms: leadForms || [],
+        messages: messages || [],
+        feedLabel: payload?.feedLabel || null,
+        merchantCenterId: payload?.merchantCenterId || null,
+        conversionGoals: conversionGoals || null,
+        customerAcquisition: payload?.customerAcquisition || null,
+        demographicExclusions: payload?.demographicExclusions || null,
         customParameters: (Array.isArray(customParameters) && customParameters.length > 0) ? customParameters : undefined,
         callPhoneNumber: effectiveCallPhone || undefined
       },

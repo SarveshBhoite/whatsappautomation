@@ -272,6 +272,14 @@ export class LeadsVideoService extends GoogleAdsBaseService {
       }
 
     } catch (apiErr: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "LeadsVideoService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
       console.error("[Google Ads API Error for Leads Video]:", formatted);
       throw new Error(formatted);

@@ -1337,9 +1337,23 @@ router.get("/campaigns", async (req, res) => {
     const orgId = getOrgId(req);
     const customerId = getCustomerId(req);
 
-    // Get from DB first
-    const whereClause: any = { organizationId: orgId };
-    if (customerId) whereClause.customerId = customerId;
+    const cleanCid = customerId ? customerId.replace(/-/g, "").trim() : "";
+
+    // Get from DB first (exclude REMOVED / discarded failed attempts)
+    const whereClause: any = {
+      organizationId: orgId,
+      status: { not: "REMOVED" }
+    };
+    if (cleanCid) {
+      whereClause.AND = [
+        {
+          OR: [
+            { customerId: cleanCid },
+            { customerId: customerId }
+          ]
+        }
+      ];
+    }
     const localCampaigns = await prisma.googleAdCampaign.findMany({
       where: whereClause,
       orderBy: { createdAt: "desc" }
@@ -1347,70 +1361,138 @@ router.get("/campaigns", async (req, res) => {
 
     const serializeCamp = (c: any) => ({
       ...c,
+      budget: c.budget != null ? Number(c.budget) : (c.amountMicros ? Number(c.amountMicros) / 1_000_000 : 0),
       amountMicros: c.amountMicros != null ? Number(c.amountMicros) : 0,
       costMicros: c.costMicros != null ? Number(c.costMicros) : 0,
       impressions: c.impressions != null ? Number(c.impressions) : 0,
       clicks: c.clicks != null ? Number(c.clicks) : 0
     });
 
-    if (!customerId) return res.status(200).json(localCampaigns.map(serializeCamp));
+    if (!cleanCid) return res.status(200).json(localCampaigns.map(serializeCamp));
 
     try {
-      const livePerformance = await GoogleAdsService.getCampaignPerformance(orgId, customerId);
+      const livePerformance = await GoogleAdsService.getCampaignPerformance(orgId, cleanCid);
+      const liveIds = new Set(livePerformance.map((lp: any) => String(lp.id)));
 
-      // Auto-sync any Google campaigns not in DB
+      // 1. Build authoritative response: ONLY campaigns that are live in Google Ads
+      const combined: any[] = [];
+
       for (const lp of livePerformance) {
-        const existing = localCampaigns.find(lc => lc.googleAdsCampaignId === String(lp.id));
-        if (!existing) {
-          try {
-            const created = await prisma.googleAdCampaign.create({
-              data: {
-                organizationId: orgId,
-                customerId,
-                googleAdsCampaignId: String(lp.id),
-                name: lp.name,
-                campaignType: lp.channelType || "SEARCH",
-                biddingStrategy: lp.biddingStrategy,
-                budget: lp.budgetAmountMicros ? Number(lp.budgetAmountMicros) / 1_000_000 : 0,
-                budgetResourceName: lp.budgetResourceName,
-                startDate: lp.startDate ? new Date(lp.startDate) : new Date(),
-                status: lp.status,
-                headlines: [],
-                descriptions: [],
-                keywords: []
-              }
-            });
-            localCampaigns.push(created);
-          } catch { /* skip */ }
+        const liveBudgetNum = lp.budgetAmountMicros != null ? Number(lp.budgetAmountMicros) / 1_000_000 : 0;
+        const matchingDb = localCampaigns.find(lc => lc.googleAdsCampaignId === String(lp.id));
+
+        if (matchingDb) {
+          const serialized = serializeCamp(matchingDb);
+          combined.push({
+            ...serialized,
+            name: lp.name || serialized.name,
+            status: lp.status || serialized.status,
+            budget: liveBudgetNum > 0 ? liveBudgetNum : serialized.budget,
+            startDate: lp.startDate ? lp.startDate : serialized.startDate,
+            publishDate: serialized.createdAt || lp.startDate || serialized.startDate || new Date(),
+            live: lp,
+            impressions: lp.impressions || 0,
+            clicks: lp.clicks || 0,
+            ctr: lp.ctr || "0%",
+            conversions: lp.conversions || 0,
+            cost: lp.cost || "0.00",
+            avgCpc: lp.avgCpc || "0.00"
+          });
         } else {
-          // Sync name/status/budget
-          const needsUpdate = existing.name !== lp.name || existing.status !== lp.status;
-          if (needsUpdate) {
-            try {
-              await prisma.googleAdCampaign.update({
-                where: { id: existing.id },
-                data: { name: lp.name, status: lp.status, biddingStrategy: lp.biddingStrategy }
-              });
-            } catch { /* skip */ }
-          }
+          combined.push({
+            id: `google-${lp.id}`,
+            googleAdsCampaignId: String(lp.id),
+            name: lp.name,
+            campaignType: lp.channelType || "SEARCH",
+            biddingStrategy: lp.biddingStrategy,
+            budget: liveBudgetNum,
+            budgetResourceName: lp.budgetResourceName,
+            startDate: lp.startDate ? lp.startDate : new Date(),
+            publishDate: lp.startDate ? lp.startDate : new Date(),
+            status: lp.status,
+            amountMicros: lp.budgetAmountMicros ? Number(lp.budgetAmountMicros) : 0,
+            costMicros: 0,
+            impressions: lp.impressions || 0,
+            clicks: lp.clicks || 0,
+            ctr: lp.ctr || "0%",
+            conversions: lp.conversions || 0,
+            cost: lp.cost || "0.00",
+            avgCpc: lp.avgCpc || "0.00",
+            live: lp
+          });
         }
       }
 
-      const combined = localCampaigns.map(lc => {
-        const lm = livePerformance.find((lp: any) => String(lp.id) === lc.googleAdsCampaignId);
-        return {
-          ...serializeCamp(lc),
-          live: lm || null,
-          impressions: lm?.impressions || 0,
-          clicks: lm?.clicks || 0,
-          ctr: lm?.ctr || "0%",
-          conversions: lm?.conversions || 0,
-          cost: lm?.cost || "0.00",
-          avgCpc: lm?.avgCpc || "0.00"
-        };
-      });
-
+      // Send the clean, authoritative Google Ads count immediately (e.g. exactly 219)
       res.status(200).json(combined);
+
+      // 2. Background cleanup: mark orphaned / rejected campaigns as REMOVED in DB and sync new ones
+      (async () => {
+        // Clean up database campaigns that no longer exist in live Google Ads
+        const orphanedLocal = localCampaigns.filter(lc => {
+          // If it has a real Google Ads ID (digits) and is not in live list, or is a leftover temporary ID
+          return !liveIds.has(String(lc.googleAdsCampaignId));
+        });
+
+        if (orphanedLocal.length > 0) {
+          const orphanIds = orphanedLocal.map(o => o.id);
+          try {
+            await prisma.googleAdCampaign.updateMany({
+              where: { id: { in: orphanIds } },
+              data: { status: "REMOVED" }
+            });
+            console.log(`[CampaignSync] Cleaned up ${orphanIds.length} orphaned/removed campaigns from database.`);
+          } catch (cleanErr: any) {
+            console.warn("[CampaignSync] Warning cleaning orphaned campaigns:", cleanErr.message);
+          }
+        }
+
+        // Sync fresh/updated records
+        for (const lp of livePerformance) {
+          const liveBudgetNum = lp.budgetAmountMicros != null ? Number(lp.budgetAmountMicros) / 1_000_000 : undefined;
+          const existing = localCampaigns.find(lc => lc.googleAdsCampaignId === String(lp.id));
+          if (!existing) {
+            try {
+              await prisma.googleAdCampaign.create({
+                data: {
+                  organizationId: orgId,
+                  customerId: cleanCid,
+                  googleAdsCampaignId: String(lp.id),
+                  name: lp.name,
+                  campaignType: lp.channelType || "SEARCH",
+                  biddingStrategy: lp.biddingStrategy,
+                  budget: liveBudgetNum !== undefined ? liveBudgetNum : 0,
+                  budgetResourceName: lp.budgetResourceName,
+                  startDate: lp.startDate ? new Date(lp.startDate) : new Date(),
+                  status: lp.status,
+                  headlines: [],
+                  descriptions: [],
+                  keywords: []
+                }
+              });
+            } catch { /* skip */ }
+          } else {
+            const updateData: any = {};
+            if (lp.name && existing.name !== lp.name) updateData.name = lp.name;
+            if (lp.status && existing.status !== lp.status) updateData.status = lp.status;
+            if (lp.biddingStrategy && existing.biddingStrategy !== lp.biddingStrategy) updateData.biddingStrategy = lp.biddingStrategy;
+            if (lp.budgetResourceName && existing.budgetResourceName !== lp.budgetResourceName) updateData.budgetResourceName = lp.budgetResourceName;
+            if (liveBudgetNum !== undefined && liveBudgetNum > 0 && (existing.budget == null || existing.budget === 0 || existing.budget !== liveBudgetNum)) {
+              updateData.budget = liveBudgetNum;
+            }
+
+            if (Object.keys(updateData).length > 0) {
+              try {
+                await prisma.googleAdCampaign.update({
+                  where: { id: existing.id },
+                  data: updateData
+                });
+              } catch { /* skip */ }
+            }
+          }
+        }
+      })().catch(err => console.warn("[backgroundCampaignSync] Non-blocking sync error:", err.message));
+      return;
     } catch (apiErr: any) {
       console.warn("Live data unavailable, returning local:", apiErr.message);
       res.status(200).json(localCampaigns.map(lc => ({
@@ -1560,18 +1642,40 @@ router.get("/campaigns/drafts", async (req, res) => {
 router.get("/campaigns/:id", async (req, res) => {
   try {
     const orgId = getOrgId(req);
-    const campaign = await prisma.googleAdCampaign.findFirst({ where: { id: req.params.id, organizationId: orgId } });
-    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+    const paramId = req.params.id;
+    const cleanGoogleId = paramId.startsWith("google-") ? paramId.replace("google-", "") : paramId;
 
-    const rawCid = (req.query.customerId as string) || campaign.customerId;
+    // Lookup by id, campaignId, or googleAdsCampaignId
+    let campaign = await prisma.googleAdCampaign.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { id: paramId },
+          { campaignId: paramId },
+          { googleAdsCampaignId: paramId },
+          { googleAdsCampaignId: cleanGoogleId }
+        ]
+      }
+    });
+
+    const rawCid = (req.query.customerId as string) || campaign?.customerId || "";
     const cid = rawCid ? rawCid.replace(/-/g, "") : "";
     const isOwned = await validateCustomerOwnership(orgId, cid);
-    if (!isOwned) {
+    if (!isOwned && cid) {
       return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
     }
 
+    const effectiveGoogleAdsCampaignId = campaign?.googleAdsCampaignId || cleanGoogleId;
+
     let liveGoogleDetails: any = null;
-    if (campaign.googleAdsCampaignId) {
+    let liveAdGroups: any[] = [];
+    let liveKeywords: any[] = [];
+    let liveAds: any[] = [];
+    let liveGeoTargets: any[] = [];
+    let liveLanguages: any[] = [];
+    let liveAssetGroups: any[] = [];
+
+    if (effectiveGoogleAdsCampaignId && cid) {
       try {
         const rows = await GoogleAdsService.gaqlSearch(orgId, cid, `
           SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type,
@@ -1588,7 +1692,7 @@ router.get("/campaigns/:id", async (req, res) => {
                  campaign_budget.amount_micros, campaign_budget.resource_name, campaign_budget.id,
                  metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.ctr
           FROM campaign
-          WHERE campaign.id = ${campaign.googleAdsCampaignId}
+          WHERE campaign.id = ${effectiveGoogleAdsCampaignId}
           LIMIT 1
         `);
 
@@ -1621,18 +1725,183 @@ router.get("/campaigns/:id", async (req, res) => {
             }
           };
         }
+
+        // Fetch Live Ad Groups
+        try {
+          const agRows = await GoogleAdsService.gaqlSearch(orgId, cid, `
+            SELECT ad_group.id, ad_group.name, ad_group.status, ad_group.type, ad_group.cpc_bid_micros
+            FROM ad_group
+            WHERE campaign.id = ${effectiveGoogleAdsCampaignId} AND ad_group.status != 'REMOVED'
+          `);
+          liveAdGroups = agRows.map((a: any) => ({
+            id: String(a.adGroup?.id),
+            name: a.adGroup?.name,
+            status: a.adGroup?.status,
+            type: a.adGroup?.type,
+            cpcBidMicros: a.adGroup?.cpcBidMicros ? Number(a.adGroup.cpcBidMicros) : null
+          }));
+        } catch (agErr: any) {
+          // ignore
+        }
+
+        // Fetch Live Keywords / Criteria
+        try {
+          const kwRows = await GoogleAdsService.gaqlSearch(orgId, cid, `
+            SELECT ad_group_criterion.criterion_id, ad_group_criterion.keyword.text,
+                   ad_group_criterion.keyword.match_type, ad_group_criterion.status,
+                   ad_group.id, ad_group.name
+            FROM ad_group_criterion
+            WHERE campaign.id = ${effectiveGoogleAdsCampaignId} AND ad_group_criterion.type = 'KEYWORD' AND ad_group_criterion.status != 'REMOVED'
+          `);
+          liveKeywords = kwRows.map((k: any) => ({
+            id: String(k.adGroupCriterion?.criterionId),
+            text: k.adGroupCriterion?.keyword?.text,
+            matchType: k.adGroupCriterion?.keyword?.matchType,
+            status: k.adGroupCriterion?.status,
+            adGroupId: String(k.adGroup?.id),
+            adGroupName: k.adGroup?.name
+          }));
+        } catch (kwErr: any) {
+          // ignore
+        }
+
+        // Fetch Live Geo Targets
+        try {
+          const geoRows = await GoogleAdsService.gaqlSearch(orgId, cid, `
+            SELECT campaign_criterion.criterion_id, campaign_criterion.location.geo_target_constant,
+                   campaign_criterion.type, campaign_criterion.status, campaign_criterion.negative
+            FROM campaign_criterion
+            WHERE campaign.id = ${effectiveGoogleAdsCampaignId} AND campaign_criterion.type IN ('LOCATION', 'PROXIMITY', 'LANGUAGE')
+          `);
+          liveGeoTargets = geoRows.filter((g: any) => g.campaignCriterion?.type === 'LOCATION' || g.campaignCriterion?.type === 'PROXIMITY').map((g: any) => ({
+            criterionId: String(g.campaignCriterion?.criterionId),
+            type: g.campaignCriterion?.type,
+            negative: g.campaignCriterion?.negative,
+            geoTargetConstant: g.campaignCriterion?.location?.geoTargetConstant
+          }));
+          liveLanguages = geoRows.filter((g: any) => g.campaignCriterion?.type === 'LANGUAGE').map((g: any) => ({
+            criterionId: String(g.campaignCriterion?.criterionId)
+          }));
+        } catch (critErr: any) {
+          // ignore
+        }
+
+        // Fetch Live RSA Ads (Headlines, Descriptions, Final URLs)
+        try {
+          const adRows = await GoogleAdsService.gaqlSearch(orgId, cid, `
+            SELECT ad_group_ad.ad.id, ad_group_ad.ad.name, ad_group_ad.status,
+                   ad_group_ad.ad.type, ad_group_ad.ad.final_urls,
+                   ad_group_ad.ad.responsive_search_ad.headlines,
+                   ad_group_ad.ad.responsive_search_ad.descriptions,
+                   ad_group_ad.ad.responsive_search_ad.path1,
+                   ad_group_ad.ad.responsive_search_ad.path2,
+                   ad_group_ad.ad_strength, ad_group.id, ad_group.name
+            FROM ad_group_ad
+            WHERE campaign.id = ${effectiveGoogleAdsCampaignId} AND ad_group_ad.status != 'REMOVED'
+          `);
+          liveAds = adRows.map((a: any) => ({
+            id: String(a.adGroupAd?.ad?.id),
+            name: a.adGroupAd?.ad?.name,
+            status: a.adGroupAd?.status,
+            type: a.adGroupAd?.ad?.type,
+            finalUrls: a.adGroupAd?.ad?.finalUrls || [],
+            headlines: (a.adGroupAd?.ad?.responsiveSearchAd?.headlines || []).map((h: any) => h.text || h),
+            descriptions: (a.adGroupAd?.ad?.responsiveSearchAd?.descriptions || []).map((d: any) => d.text || d),
+            path1: a.adGroupAd?.ad?.responsiveSearchAd?.path1,
+            path2: a.adGroupAd?.ad?.responsiveSearchAd?.path2,
+            adStrength: a.adGroupAd?.adStrength,
+            adGroupId: String(a.adGroup?.id),
+            adGroupName: a.adGroup?.name
+          }));
+        } catch (adsErr: any) {
+          // ignore
+        }
+
+        // If Performance Max, fetch Asset Groups
+        if (liveGoogleDetails?.channelType === "PERFORMANCE_MAX") {
+          try {
+            const agRows = await GoogleAdsService.gaqlSearch(orgId, cid, `
+              SELECT asset_group.id, asset_group.name, asset_group.status,
+                     asset_group.final_urls, asset_group.path1, asset_group.path2,
+                     asset_group.ad_strength
+              FROM asset_group
+              WHERE campaign.id = ${effectiveGoogleAdsCampaignId} AND asset_group.status != 'REMOVED'
+            `);
+            liveAssetGroups = agRows.map((ag: any) => ({
+              id: String(ag.assetGroup?.id),
+              name: ag.assetGroup?.name,
+              status: ag.assetGroup?.status,
+              finalUrls: ag.assetGroup?.finalUrls || [],
+              path1: ag.assetGroup?.path1,
+              path2: ag.assetGroup?.path2,
+              adStrength: ag.assetGroup?.adStrength
+            }));
+          } catch (agErr: any) {
+            // ignore
+          }
+        }
+
       } catch (liveErr: any) {
         console.warn("[getCampaignById] Could not fetch live Google Ads v24 details:", liveErr?.message);
       }
     }
 
+    // Synthesize fallback headlines, descriptions, finalUrl from live ads if database didn't have them
+    const allHeadlines = campaign?.headlines && Array.isArray(campaign.headlines) && campaign.headlines.length > 0
+      ? campaign.headlines
+      : (liveAds[0]?.headlines || []);
+
+    const allDescriptions = campaign?.descriptions && Array.isArray(campaign.descriptions) && campaign.descriptions.length > 0
+      ? campaign.descriptions
+      : (liveAds[0]?.descriptions || []);
+
+    const effectiveFinalUrl = campaign?.finalUrl || liveAds[0]?.finalUrls?.[0] || liveAssetGroups[0]?.finalUrls?.[0] || "";
+
+    const allKeywords = campaign?.keywords && Array.isArray(campaign.keywords) && campaign.keywords.length > 0
+      ? campaign.keywords
+      : liveKeywords.map(k => k.text);
+
+    const effectiveBudget = liveGoogleDetails?.budgetDailyAmount != null
+      ? liveGoogleDetails.budgetDailyAmount
+      : (campaign?.budget != null ? Number(campaign.budget) : (campaign?.amountMicros ? Number(campaign.amountMicros) / 1_000_000 : 0));
+
     res.status(200).json({
-      ...campaign,
-      amountMicros: Number(campaign.amountMicros || 0),
-      costMicros: Number(campaign.costMicros || 0),
-      impressions: Number(campaign.impressions || 0),
-      clicks: Number(campaign.clicks || 0),
-      live: liveGoogleDetails
+      id: campaign?.id || `google-${effectiveGoogleAdsCampaignId}`,
+      organizationId: orgId,
+      customerId: cid,
+      googleAdsCampaignId: effectiveGoogleAdsCampaignId,
+      name: liveGoogleDetails?.name || campaign?.name || `Campaign ${effectiveGoogleAdsCampaignId}`,
+      status: liveGoogleDetails?.status || campaign?.status || "PAUSED",
+      campaignType: liveGoogleDetails?.channelType || campaign?.campaignType || "SEARCH",
+      advertisingChannelType: liveGoogleDetails?.channelType || campaign?.advertisingChannelType || "SEARCH",
+      biddingStrategy: liveGoogleDetails?.biddingStrategyType || campaign?.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+      budget: effectiveBudget,
+      budgetResourceName: liveGoogleDetails?.budgetResourceName || campaign?.budgetResourceName,
+      startDate: liveGoogleDetails?.startDateTime || campaign?.startDate,
+      endDate: liveGoogleDetails?.endDateTime || campaign?.endDate,
+      finalUrl: effectiveFinalUrl,
+      headlines: allHeadlines,
+      descriptions: allDescriptions,
+      keywords: allKeywords,
+      geoTargets: campaign?.geoTargets || liveGeoTargets,
+      languages: campaign?.languages || ["English"],
+      searchThemes: campaign?.searchThemes || [],
+      audienceSignal: campaign?.audienceSignal || null,
+      adSchedule: campaign?.adSchedule || null,
+      amountMicros: liveGoogleDetails?.budgetAmountMicros || Number(campaign?.amountMicros || 0),
+      costMicros: Number(campaign?.costMicros || 0),
+      impressions: liveGoogleDetails?.metrics?.impressions || Number(campaign?.impressions || 0),
+      clicks: liveGoogleDetails?.metrics?.clicks || Number(campaign?.clicks || 0),
+      cost: liveGoogleDetails?.metrics?.cost || "0.00",
+      ctr: liveGoogleDetails?.metrics?.ctr || "0%",
+      conversions: liveGoogleDetails?.metrics?.conversions || Number(campaign?.conversions || 0),
+      createdAt: campaign?.createdAt || new Date(),
+      updatedAt: campaign?.updatedAt || new Date(),
+      live: liveGoogleDetails,
+      liveAdGroups,
+      liveKeywords,
+      liveAds,
+      liveAssetGroups
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

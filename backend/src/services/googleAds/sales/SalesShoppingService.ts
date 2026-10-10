@@ -175,6 +175,14 @@ export class SalesShoppingService extends GoogleAdsBaseService {
         }
       }
     } catch (apiErr: any) {
+      if (apiResult.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "SalesShoppingService"
+        );
+      }
       console.error("[Google Ads API Error for Sales Shopping]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr));
       console.error("[Google Ads API Raw Error Data]:", JSON.stringify(apiErr?.response?.data || apiErr.message, null, 2));
       throw new Error(GoogleAdsBaseService.formatGoogleAdsError(apiErr));

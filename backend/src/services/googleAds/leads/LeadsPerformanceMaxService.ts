@@ -826,6 +826,14 @@ export class LeadsPerformanceMaxService extends GoogleAdsBaseService {
       }
 
     } catch (err: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "LeadsPerformanceMaxService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);
       console.error("[Google Ads API error for Leads Performance Max]:", formatted);
       throw new Error(formatted);

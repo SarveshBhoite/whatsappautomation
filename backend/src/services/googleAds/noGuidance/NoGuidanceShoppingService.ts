@@ -163,6 +163,14 @@ export class NoGuidanceShoppingService extends GoogleAdsBaseService {
         }
       }
     } catch (apiErr: any) {
+      if (apiResult.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "NoGuidanceShoppingService"
+        );
+      }
       console.error("[Google Ads API Error for No Guidance Shopping]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr));
       console.error("[Google Ads API Raw Error Data]:", JSON.stringify(apiErr?.response?.data || apiErr.message, null, 2));
       throw new Error(GoogleAdsBaseService.formatGoogleAdsError(apiErr));

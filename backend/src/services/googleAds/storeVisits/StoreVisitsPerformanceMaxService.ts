@@ -854,6 +854,14 @@ export class StoreVisitsPerformanceMaxService extends GoogleAdsBaseService {
       }
 
     } catch (err: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "StoreVisitsPerformanceMaxService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);
       console.error("[Google Ads API error for Store Visits Performance Max]:", formatted);
       throw new Error(formatted);

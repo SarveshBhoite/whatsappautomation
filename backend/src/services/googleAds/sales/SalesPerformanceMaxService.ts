@@ -902,6 +902,14 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       }
 
     } catch (err: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "SalesPerformanceMaxService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);
       console.error("[Google Ads API error for Sales Performance Max]:", formatted);
       throw new Error(formatted);

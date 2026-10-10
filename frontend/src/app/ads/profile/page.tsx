@@ -45,7 +45,8 @@ import {
   Image as ImageIcon,
   ArrowRight,
   PartyPopper,
-  Trophy
+  Trophy,
+  Bot
 } from "lucide-react";
 import { MediaAssetsLibraryTab, MediaAssetItem } from "@/components/ads/MediaAssetsLibraryTab";
 

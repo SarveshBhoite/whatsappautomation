@@ -1053,17 +1053,12 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
       // ── ATOMIC ROLLBACK / CLEANUP ──
       // If a subsequent mutate call failed after campaign creation, remove campaign and any created assets
       if (createdCampaignResource) {
-        try {
-          console.warn(`[WebsiteTrafficSearchService] Rolling back created campaign ${createdCampaignResource} due to downstream step failure...`);
-          await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
-            operations: [{
-              remove: createdCampaignResource
-            }]
-          }, { headers });
-          console.warn(`[WebsiteTrafficSearchService] Successfully removed campaign ${createdCampaignResource}`);
-        } catch (cleanupErr: any) {
-          console.error(`[WebsiteTrafficSearchService] Rollback removal failed for ${createdCampaignResource}:`, cleanupErr?.message);
-        }
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          createdCampaignResource,
+          "WebsiteTrafficSearchService"
+        );
       }
 
       if (apiErr?.response?.data) {

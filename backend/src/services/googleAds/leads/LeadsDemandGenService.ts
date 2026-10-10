@@ -983,14 +983,12 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
       const errContext = { organizationId, customerId: cid, currencyCode: (payload as any)?.currencyCode || "INR" };
       console.error("[Google Ads API Error for Leads Demand Gen]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr, errContext));
       if (createdCampaignResource) {
-        try {
-          console.warn(`[Rollback] Removing created campaign ${createdCampaignResource}...`);
-          await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
-            operations: [{ remove: createdCampaignResource }]
-          }, { headers });
-        } catch (rollbackErr: any) {
-          console.error(`[Rollback Failed for Campaign]:`, rollbackErr?.message);
-        }
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          createdCampaignResource,
+          "LeadsDemandGenService"
+        );
       }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr, errContext);
       throw new Error(formatted);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   X,
@@ -83,7 +83,9 @@ import {
   Type,
   MousePointerClick,
   Share2,
-  Phone
+  Phone,
+  ListFilter,
+  Megaphone
 } from "lucide-react";
 import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
 import { GoogleCampaignChannelIcons } from "@/components/ads/GoogleCampaignChannelIcons";
@@ -1567,6 +1569,83 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const [customSuggestDate, setCustomSuggestDate] = useState<string>("2026-10-07");
   const [previewingAiSuggestion, setPreviewingAiSuggestion] = useState<{ type: string; suggestion: any } | null>(null);
   const [assetLibrarySearchQuery, setAssetLibrarySearchQuery] = useState<string>("");
+
+  // Backend / Database Asset Library states for Google Ads Extension Assets (Parity with http://localhost:3000/ads?customerId=...)
+  const [dbPromotions, setDbPromotions] = useState<any[]>([]);
+  const [dbPrices, setDbPrices] = useState<any[]>([]);
+  const [dbSnippets, setDbSnippets] = useState<any[]>([]);
+  const [dbLeadForms, setDbLeadForms] = useState<any[]>([]);
+  const [dbCallouts, setDbCallouts] = useState<any[]>([]);
+  const [dbApps, setDbApps] = useState<any[]>([]);
+  const [dbMessages, setDbMessages] = useState<any[]>([]);
+  const [isLoadingDbAssets, setIsLoadingDbAssets] = useState<boolean>(false);
+
+  // Fetch saved assets from Google Ads API / backend library when modal is opened
+  const fetchDbAssetsForModal = useCallback(async (modalType: string | null) => {
+    if (!modalType || !customerId) return;
+    const cleanCid = customerId.replace(/-/g, "").trim();
+    if (!cleanCid) return;
+
+    setIsLoadingDbAssets(true);
+    const orgId = typeof window !== "undefined" ? localStorage.getItem("organization_id") || "demo-org-123" : "demo-org-123";
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+
+    try {
+      if (modalType === "PROMOTIONS") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/promotions?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setDbPromotions(data.items || []);
+      } else if (modalType === "PRICES") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/prices?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setDbPrices(data.items || []);
+      } else if (modalType === "SNIPPETS") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/structured-snippets?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setDbSnippets(data.items || []);
+      } else if (modalType === "LEAD_FORMS") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/lead-forms?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setDbLeadForms(data.items || []);
+      } else if (modalType === "BRAND_GUIDELINES") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/callouts?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setDbCallouts(data.items || []);
+      } else if (modalType === "APPS") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/messages?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setDbMessages(data.items || []);
+      } else if (modalType === "APP_ASSET") {
+        const res = await fetch(`${BACKEND}/api/ads/assets/apps?customerId=${cleanCid}`, {
+          headers: { "x-organization-id": orgId }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) setDbApps(data.items || []);
+      }
+    } catch (err) {
+      console.error("Failed to load DB asset library:", err);
+    } finally {
+      setIsLoadingDbAssets(false);
+    }
+  }, [customerId]);
+
+  useEffect(() => {
+    if (activeAssetModal) {
+      fetchDbAssetsForModal(activeAssetModal);
+    }
+  }, [activeAssetModal, fetchDbAssetsForModal]);
 
   // Apply a specific AI suggestion (Row 1 Festival, Row 2 Historical, or Row 3 Hybrid) into active form fields
   const handleApplySuggestion = (sug: any, assetType: string | null) => {
@@ -7064,6 +7143,33 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         if (campaignState.assetGroupName && campaignState.assetGroupName.trim()) {
           effectiveState.assetGroupName = campaignState.assetGroupName.trim();
         }
+
+        // Synchronize Merchant Center inclusion flag
+        if (campaignState.useMerchantInCampaign === false || (!campaignState.merchantCenterId && !campaignState.merchantId)) {
+          effectiveState.useMerchantInCampaign = false;
+          effectiveState.merchantCenterId = undefined;
+          effectiveState.merchantId = undefined;
+          effectiveState.feedLabel = undefined;
+          effectiveState.salesCountry = undefined;
+        } else if (effectiveState.merchantCenterId || campaignState.merchantCenterId) {
+          // If Merchant Center is active, verify that finalUrl domain matches website / merchant claimed domain
+          const effectiveFinalUrl = effectiveState.finalUrl || effectiveState.website || campaignState.finalUrl || campaignState.website || "";
+          if (effectiveFinalUrl) {
+            try {
+              const urlHost = new URL(effectiveFinalUrl.startsWith("http") ? effectiveFinalUrl : `https://${effectiveFinalUrl}`).hostname.replace(/^www\./, "");
+              const merchantClaimedHost = (customerProfile?.merchantClaimedDomain || (campaignState as any).merchantClaimedDomain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+              if (merchantClaimedHost && urlHost && !urlHost.endsWith(merchantClaimedHost) && !merchantClaimedHost.endsWith(urlHost)) {
+                console.warn(`[AI-GUIDED] Final URL domain (${urlHost}) does not match claimed Merchant Center domain (${merchantClaimedHost}). Disabling Merchant feed attachment to prevent Google Ads mutate rejection.`);
+                effectiveState.useMerchantInCampaign = false;
+                effectiveState.merchantCenterId = undefined;
+                effectiveState.merchantId = undefined;
+              }
+            } catch (e) {
+              // Ignore URL parse error
+            }
+          }
+        }
+
         // Deduplicate search themes and audience signals to prevent Google Ads duplicate resource error
         if (effectiveState.searchThemes && Array.isArray(effectiveState.searchThemes)) {
           effectiveState.searchThemes = Array.from(new Set(effectiveState.searchThemes.map(t => String(t).trim()).filter(Boolean)));
@@ -7418,12 +7524,24 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       }
 
       // Merchant Center and Products Information
-      const rawMerchantId = effectiveState.merchantCenterId || (campaignState as any).merchantCenterId || (campaignState as any).merchantId;
-      if (rawMerchantId && String(rawMerchantId).trim()) {
-        effectiveState.merchantCenterId = String(rawMerchantId).trim();
-        effectiveState.merchantId = String(rawMerchantId).trim();
-        effectiveState.feedLabel = effectiveState.feedLabel || (campaignState as any).feedLabel || undefined;
-        effectiveState.salesCountry = effectiveState.salesCountry || (campaignState as any).salesCountry || "IN";
+      if (effectiveState.useMerchantInCampaign === false || campaignState.useMerchantInCampaign === false) {
+        delete (effectiveState as any).merchantCenterId;
+        delete (effectiveState as any).merchantId;
+        delete (effectiveState as any).feedLabel;
+        delete (effectiveState as any).salesCountry;
+      } else {
+        const rawMerchantId = effectiveState.merchantCenterId || (campaignState as any).merchantCenterId || (campaignState as any).merchantId;
+        if (rawMerchantId && String(rawMerchantId).trim()) {
+          effectiveState.merchantCenterId = String(rawMerchantId).trim();
+          effectiveState.merchantId = String(rawMerchantId).trim();
+          effectiveState.feedLabel = effectiveState.feedLabel || (campaignState as any).feedLabel || undefined;
+          effectiveState.salesCountry = effectiveState.salesCountry || (campaignState as any).salesCountry || "IN";
+        } else {
+          delete (effectiveState as any).merchantCenterId;
+          delete (effectiveState as any).merchantId;
+          delete (effectiveState as any).feedLabel;
+          delete (effectiveState as any).salesCountry;
+        }
       }
 
       // Automatically resolve customerId from active context, userProfile, or campaignState
@@ -7514,6 +7632,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         }
       } else if (rawMsg.includes("ENABLED_UBERVERSAL_CAMPAIGNS_PER_CUSTOMER") || rawMsg.includes("RESOURCE_LIMIT") || rawMsg.includes("limit on the number of allowed resources")) {
         const friendlyMsg = `Google Ads Account Limit Reached: Your Google Ads account has reached the maximum allowed number of active/enabled campaigns (RESOURCE_LIMIT: ENABLED_UBERVERSAL_CAMPAIGNS_PER_CUSTOMER). To launch a new campaign, please pause or remove older active campaigns in your Google Ads account, or switch an existing campaign to Draft/Paused.`;
+        setPublishError(friendlyMsg);
+      } else if (rawMsg.includes("Final url and shopping merchant url does not have the same domain") || rawMsg.includes("Final url and shopping merchant url")) {
+        const friendlyMsg = `Merchant Center Domain Mismatch Notice: Your campaign's Final URL does not match the claimed website domain in your connected Google Merchant Center. To fix this: 1) Change your Final URL to match your Merchant Center domain, OR 2) In the Cockpit under "Merchant Center Details", select "No" to run standard multi-channel ads without attaching the Merchant catalog.`;
         setPublishError(friendlyMsg);
       } else if (rawMsg.includes("DESTINATION_NOT_WORKING") || rawMsg.includes("Landing page URL is unreachable")) {
         setPublishError(`Landing page URL (${campaignState.website}) is unreachable or returning an error (DESTINATION_NOT_WORKING). Please update to a live, working URL before launching.`);
@@ -13101,6 +13222,382 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           )}
                         </div>
 
+                        {/* Optional Asset Type: Promotions */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <Tag className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Promotions:</span>
+                              {(campaignState.promotions || []).length > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-800 text-[9px] font-mono font-bold border border-amber-200">
+                                  {(campaignState.promotions || []).length} active
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("OLD");
+                                  setActiveAssetModal("PROMOTIONS");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1"
+                              >
+                                <Database className="h-3 w-3" /> Select old
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("CREATE");
+                                  setEditingAssetIndex(null);
+                                  setActiveAssetModal("PROMOTIONS");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1"
+                              >
+                                <Plus className="h-3 w-3" /> Create new
+                              </button>
+                            </div>
+                          </div>
+                          {(campaignState.promotions || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {(campaignState.promotions || []).map((pr, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[9px] text-amber-900 font-medium">
+                                  <span>{pr.promotionTarget} ({pr.percentOff ? `${pr.percentOff}% off` : pr.moneyAmountOff ? `₹${pr.moneyAmountOff} off` : "Discount"})</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCampaignState(prev => ({ ...prev, promotions: (prev.promotions || []).filter((_, i) => i !== idx) }))}
+                                    className="text-amber-500 hover:text-rose-700"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Optional Asset Type: Prices */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Prices:</span>
+                              {(campaignState.prices || []).length > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-800 text-[9px] font-mono font-bold border border-emerald-200">
+                                  {(campaignState.prices || []).length} active
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("OLD");
+                                  setActiveAssetModal("PRICES");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1"
+                              >
+                                <Database className="h-3 w-3" /> Select old
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("CREATE");
+                                  setEditingAssetIndex(null);
+                                  setActiveAssetModal("PRICES");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1"
+                              >
+                                <Plus className="h-3 w-3" /> Create new
+                              </button>
+                            </div>
+                          </div>
+                          {(campaignState.prices || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {(campaignState.prices || []).map((pItem, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[9px] text-emerald-900 font-medium">
+                                  <span>{pItem.header || `Price Tier ${idx + 1}`}: ₹{pItem.amount || "0"}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCampaignState(prev => ({ ...prev, prices: (prev.prices || []).filter((_, i) => i !== idx) }))}
+                                    className="text-emerald-500 hover:text-rose-700"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Optional Asset Type: Messages */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+                              <span>Messages:</span>
+                              {(campaignState.messages || []).length > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full bg-sky-50 text-sky-800 text-[9px] font-mono font-bold border border-sky-200">
+                                  {(campaignState.messages || []).length} active
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("OLD");
+                                  setActiveAssetModal("APPS");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 flex items-center gap-1"
+                              >
+                                <Database className="h-3 w-3" /> Select old
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("CREATE");
+                                  setEditingAssetIndex(null);
+                                  setActiveAssetModal("APPS");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1"
+                              >
+                                <Plus className="h-3 w-3" /> Create new
+                              </button>
+                            </div>
+                          </div>
+                          {(campaignState.messages || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {(campaignState.messages || []).map((mItem, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-50 border border-sky-200 text-[9px] text-sky-900 font-medium">
+                                  <span>{mItem.platform}: {mItem.customUrlName || mItem.starterMessage || "Message"}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCampaignState(prev => ({ ...prev, messages: (prev.messages || []).filter((_, i) => i !== idx) }))}
+                                    className="text-sky-500 hover:text-rose-700"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Optional Asset Type: Structured Snippets */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <ListFilter className="w-3.5 h-3.5 text-purple-600" />
+                              <span>Structured Snippets:</span>
+                              {(campaignState.structuredSnippets || []).length > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full bg-purple-50 text-purple-800 text-[9px] font-mono font-bold border border-purple-200">
+                                  {(campaignState.structuredSnippets || []).length} active
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("OLD");
+                                  setActiveAssetModal("SNIPPETS");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1"
+                              >
+                                <Database className="h-3 w-3" /> Select old
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("CREATE");
+                                  setEditingAssetIndex(null);
+                                  setActiveAssetModal("SNIPPETS");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1"
+                              >
+                                <Plus className="h-3 w-3" /> Create new
+                              </button>
+                            </div>
+                          </div>
+                          {(campaignState.structuredSnippets || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {(campaignState.structuredSnippets || []).map((snItem, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 border border-purple-200 text-[9px] text-purple-900 font-medium">
+                                  <span>{snItem.header}: {snItem.values.join(", ")}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCampaignState(prev => ({ ...prev, structuredSnippets: (prev.structuredSnippets || []).filter((_, i) => i !== idx) }))}
+                                    className="text-purple-500 hover:text-rose-700"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Optional Asset Type: Lead Forms */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <FileText className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Lead Forms:</span>
+                              {(campaignState.leadForms || []).length > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full bg-rose-50 text-rose-800 text-[9px] font-mono font-bold border border-rose-200">
+                                  {(campaignState.leadForms || []).length} active
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("OLD");
+                                  setActiveAssetModal("LEAD_FORMS");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1"
+                              >
+                                <Database className="h-3 w-3" /> Select old
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("CREATE");
+                                  setEditingAssetIndex(null);
+                                  setActiveAssetModal("LEAD_FORMS");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1"
+                              >
+                                <Plus className="h-3 w-3" /> Create new
+                              </button>
+                            </div>
+                          </div>
+                          {(campaignState.leadForms || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {(campaignState.leadForms || []).map((lfItem, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 border border-rose-200 text-[9px] text-rose-900 font-medium">
+                                  <span>{lfItem.headline || "Lead Form"} ({lfItem.businessName || "Business"})</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCampaignState(prev => ({ ...prev, leadForms: (prev.leadForms || []).filter((_, i) => i !== idx) }))}
+                                    className="text-rose-400 hover:text-rose-700"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Optional Asset Type: Callouts */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <Megaphone className="w-3.5 h-3.5 text-teal-600" />
+                              <span>Callouts:</span>
+                              {(campaignState.callouts || []).length > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full bg-teal-50 text-teal-800 text-[9px] font-mono font-bold border border-teal-200">
+                                  {(campaignState.callouts || []).length} active
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("OLD");
+                                  setActiveAssetModal("BRAND_GUIDELINES");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 flex items-center gap-1"
+                              >
+                                <Database className="h-3 w-3" /> Select old
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("CREATE");
+                                  setEditingAssetIndex(null);
+                                  setActiveAssetModal("BRAND_GUIDELINES");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1"
+                              >
+                                <Plus className="h-3 w-3" /> Create new
+                              </button>
+                            </div>
+                          </div>
+                          {(campaignState.callouts || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {(campaignState.callouts || []).map((coItem, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-50 border border-teal-200 text-[9px] text-teal-900 font-medium">
+                                  <span>{coItem}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCampaignState(prev => ({ ...prev, callouts: (prev.callouts || []).filter((_, i) => i !== idx) }))}
+                                    className="text-teal-500 hover:text-rose-700"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Optional Asset Type: App */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
+                              <Smartphone className="w-3.5 h-3.5 text-cyan-600" />
+                              <span>App:</span>
+                              {Boolean(campaignState.appName || campaignState.appId) && (
+                                <span className="px-1.5 py-0.2 rounded-full bg-cyan-50 text-cyan-800 text-[9px] font-mono font-bold border border-cyan-200">
+                                  1 active
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("OLD");
+                                  setActiveAssetModal("APP_ASSET");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-200 flex items-center gap-1"
+                              >
+                                <Database className="h-3 w-3" /> Select old
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssetModalMode("CREATE");
+                                  setEditingAssetIndex(null);
+                                  setActiveAssetModal("APP_ASSET");
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1"
+                              >
+                                <Plus className="h-3 w-3" /> Create new
+                              </button>
+                            </div>
+                          </div>
+                          {Boolean(campaignState.appName || campaignState.appId) && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-cyan-50 border border-cyan-200 text-[9px] text-cyan-900 font-medium">
+                                <span>📱 {campaignState.appName || campaignState.appId} ({campaignState.platform || "Android"})</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignState(prev => ({ ...prev, appName: undefined, appId: undefined }))}
+                                  className="text-cyan-500 hover:text-rose-700"
+                                >
+                                  <X className="h-2.5 w-2.5" />
+                                </button>
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
                         {/* Optional Param 4: Customer Acquisition Mode (Strictly Performance Max) */}
                         {campaignState.campaignType === "PERFORMANCE_MAX" && (
                           <div className="py-1.5 border-b border-slate-200/80 flex items-center justify-between">
@@ -13864,6 +14361,102 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           </div>
                         </div>
 
+                        {/* Merchant Center (GMC) Conditional Feed Toggle */}
+                        <div className="py-2 border-b border-slate-200/80 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-[11px]">
+                              <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Merchant Center Details:</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px]">
+                              <label className="flex items-center gap-1 cursor-pointer font-bold">
+                                <input
+                                  type="radio"
+                                  name="cockpitMerchantOption"
+                                  checked={Boolean(campaignState.merchantCenterId || campaignState.merchantId)}
+                                  onChange={() => {
+                                    const profileMerchantId = customerProfile?.merchantCenterId || (campaignState as any).customerProfile?.merchantCenterId || "";
+                                    setCampaignState(prev => ({
+                                      ...prev,
+                                      merchantCenterId: profileMerchantId || "CONNECTED",
+                                      merchantId: profileMerchantId || "CONNECTED",
+                                      feedLabel: prev.feedLabel || prev.salesCountry || "IN"
+                                    }));
+                                  }}
+                                  className="text-purple-600 focus:ring-purple-500 h-3 w-3"
+                                />
+                                <span className={Boolean(campaignState.merchantCenterId || campaignState.merchantId) ? "text-purple-700 font-bold" : "text-slate-600"}>Yes</span>
+                              </label>
+                              <label className="flex items-center gap-1 cursor-pointer font-bold ml-1">
+                                <input
+                                  type="radio"
+                                  name="cockpitMerchantOption"
+                                  checked={!Boolean(campaignState.merchantCenterId || campaignState.merchantId)}
+                                  onChange={() => {
+                                    setCampaignState(prev => ({
+                                      ...prev,
+                                      merchantCenterId: undefined,
+                                      merchantId: undefined,
+                                      feedLabel: undefined,
+                                      salesCountry: undefined
+                                    }));
+                                  }}
+                                  className="text-purple-600 focus:ring-purple-500 h-3 w-3"
+                                />
+                                <span className={!Boolean(campaignState.merchantCenterId || campaignState.merchantId) ? "text-rose-600 font-bold" : "text-slate-600"}>No</span>
+                              </label>
+                            </div>
+                          </div>
+
+                          {Boolean(campaignState.merchantCenterId || campaignState.merchantId) ? (
+                            <div className="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-2 animate-in fade-in-50 duration-150">
+                              <p className="text-[9.5px] text-amber-900 leading-relaxed">
+                                When <strong>Yes</strong> is selected, products from your connected Google Merchant Center are included. Ensure your <strong>Final URL</strong> domain matches your claimed Merchant Center domain.
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[9.5px] text-slate-500 font-bold block mb-0.5">Merchant Center ID</label>
+                                  <input
+                                    type="text"
+                                    value={campaignState.merchantCenterId || campaignState.merchantId || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value.trim();
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        merchantCenterId: val || undefined,
+                                        merchantId: val || undefined
+                                      }));
+                                    }}
+                                    placeholder="e.g. 5840531233"
+                                    className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[10.5px] font-mono text-slate-800 focus:outline-none focus:border-amber-400"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[9.5px] text-slate-500 font-bold block mb-0.5">Feed Label / Country</label>
+                                  <input
+                                    type="text"
+                                    value={campaignState.feedLabel || campaignState.salesCountry || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value.trim();
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        feedLabel: val || undefined,
+                                        salesCountry: val || undefined
+                                      }));
+                                    }}
+                                    placeholder="e.g. IN or US"
+                                    className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[10.5px] font-mono text-slate-800 focus:outline-none focus:border-amber-400"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 text-[10px] text-slate-500 flex items-center justify-between">
+                              <span>Merchant Center excluded • Standard multi-channel conversion ads (Any website domain allowed).</span>
+                            </div>
+                          )}
+                        </div>
+
                       </div>
                     )}
                   </div>
@@ -13913,10 +14506,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     <button
                       type="button"
                       onClick={() => handleCockpitDirectAiGeneration("ALL", false)}
-                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 active:scale-95 active:brightness-125 active:shadow-inner text-white font-bold text-[10px] transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-xs select-none"
                       title="Auto-generate all creative assets using JDS AI"
                     >
-                      <Wand2 className="h-3 w-3 text-cyan-200" />
+                      <Wand2 className="h-3 w-3 text-cyan-200 animate-pulse" />
                       <span>Auto-Generate Assets</span>
                     </button>
                     <button
@@ -14049,10 +14642,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             <button
                               type="button"
                               onClick={() => handleCockpitDirectAiGeneration("HEADLINES", false)}
-                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-95 active:bg-purple-200 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-2xs select-none"
                               title="Generate all headlines with AI"
                             >
-                              <Wand2 className="h-2.5 w-2.5 text-purple-600" /> Generate All Headlines
+                              <Wand2 className="h-2.5 w-2.5 text-purple-600 animate-pulse" /> Generate All Headlines
                             </button>
                             <button
                               type="button"
@@ -14087,7 +14680,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   <button
                                     type="button"
                                     onClick={() => handleCockpitDirectAiGeneration("HEADLINE_SINGLE", false, hl.trim() || undefined)}
-                                    className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                    className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-90 active:bg-purple-200 text-purple-700 border border-purple-200 transition-all duration-150 cursor-pointer shrink-0 select-none"
                                     title="AI Generate / Rewrite this headline"
                                   >
                                     <Wand2 className="h-3 w-3 text-purple-600" />
@@ -14137,10 +14730,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             <button
                               type="button"
                               onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINES", false)}
-                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-95 active:bg-purple-200 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-2xs select-none"
                               title="Generate all long headlines with AI"
                             >
-                              <Wand2 className="h-2.5 w-2.5 text-purple-600" /> Generate All Long Headlines
+                              <Wand2 className="h-2.5 w-2.5 text-purple-600 animate-pulse" /> Generate All Long Headlines
                             </button>
                             <button
                               type="button"
@@ -14175,7 +14768,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   <button
                                     type="button"
                                     onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINE_SINGLE", false, lh.trim() || undefined)}
-                                    className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                    className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-90 active:bg-purple-200 text-purple-700 border border-purple-200 transition-all duration-150 cursor-pointer shrink-0 select-none"
                                     title="AI Generate / Rewrite this long headline"
                                   >
                                     <Wand2 className="h-3 w-3 text-purple-600" />
@@ -14225,10 +14818,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             <button
                               type="button"
                               onClick={() => handleCockpitDirectAiGeneration("DESCRIPTIONS", false)}
-                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                              className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-95 active:bg-purple-200 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-2xs select-none"
                               title="Generate all descriptions with AI"
                             >
-                              <Wand2 className="h-2.5 w-2.5 text-purple-600" /> Generate All Descriptions
+                              <Wand2 className="h-2.5 w-2.5 text-purple-600 animate-pulse" /> Generate All Descriptions
                             </button>
                             <button
                               type="button"
@@ -14263,7 +14856,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   <button
                                     type="button"
                                     onClick={() => handleCockpitDirectAiGeneration("DESCRIPTION_SINGLE", false, desc.trim() || undefined)}
-                                    className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer self-start mt-1 shrink-0"
+                                    className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-90 active:bg-purple-200 text-purple-700 border border-purple-200 transition-all duration-150 cursor-pointer self-start mt-1 shrink-0 select-none"
                                     title="AI Generate / Rewrite this description"
                                   >
                                     <Wand2 className="h-3 w-3 text-purple-600" />
@@ -14818,7 +15411,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <button
                           type="button"
                           onClick={() => handleCockpitDirectAiGeneration("SEARCH_THEMES", false)}
-                          className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                          className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-95 active:bg-purple-200 text-purple-700 font-semibold text-[9.5px] border border-purple-200 transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-2xs select-none"
                           title="Generate high-converting search themes with AI"
                         >
                           Generate All Themes
@@ -14857,10 +15450,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           setNewSearchThemeInput("");
                           handleCockpitDirectAiGeneration("SEARCH_THEME_SINGLE", false, hint || undefined);
                         }}
-                        className="px-2.5 py-1.5 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 active:scale-95 active:brightness-125 active:shadow-inner text-white font-bold text-[10px] rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-2xs select-none"
                         title="Generate 1 search theme with AI"
                       >
-                        <BrainCircuit className="h-3.5 w-3.5 text-cyan-300" />
+                        <BrainCircuit className="h-3.5 w-3.5 text-cyan-300 animate-pulse" />
                         <span>AI Suggest</span>
                       </button>
                       <button
@@ -14874,7 +15467,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             setNewSearchThemeInput("");
                           }
                         }}
-                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[10px] cursor-pointer transition-colors shadow-2xs"
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold rounded-lg text-[10px] cursor-pointer transition-all shadow-2xs select-none"
                       >
                         + Add
                       </button>
@@ -14912,10 +15505,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <button
                           type="button"
                           onClick={() => handleCockpitDirectAiGeneration("AUDIENCE_SIGNALS", false)}
-                          className="px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[9.5px] border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                          className="px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 active:scale-95 active:bg-indigo-200 text-indigo-700 font-semibold text-[9.5px] border border-indigo-200 transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-2xs select-none"
                           title="Generate high-converting audience signals with AI"
                         >
-                          <Wand2 className="h-2.5 w-2.5 text-indigo-600" /> Generate All Signals
+                          <Wand2 className="h-2.5 w-2.5 text-indigo-600 animate-pulse" /> Generate All Signals
                         </button>
                         <span className="text-[10px] text-slate-400 font-mono">
                           {(campaignState.audienceSignals || []).length} audience(s)
@@ -14951,10 +15544,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           if (inputEl) inputEl.value = "";
                           handleCockpitDirectAiGeneration("AUDIENCE_SIGNAL_SINGLE", false, hint || undefined);
                         }}
-                        className="px-2.5 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:to-pink-700 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:to-pink-700 active:scale-95 active:brightness-125 active:shadow-inner text-white font-bold text-[10px] rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-2xs select-none"
                         title="Generate 1 audience signal with AI"
                       >
-                        <BrainCircuit className="h-3.5 w-3.5 text-cyan-300" />
+                        <BrainCircuit className="h-3.5 w-3.5 text-cyan-300 animate-pulse" />
                         <span>AI Suggest</span>
                       </button>
                       <button
@@ -14969,7 +15562,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             inputEl.value = "";
                           }
                         }}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px] cursor-pointer transition-colors shadow-2xs"
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-lg text-[10px] cursor-pointer transition-all shadow-2xs select-none"
                       >
                         + Add
                       </button>
@@ -14983,7 +15576,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             <button
                               type="button"
                               onClick={() => handleCockpitDirectAiGeneration("AUDIENCE_SIGNAL_SINGLE", false, typeof signal === "string" ? signal : (signal?.name || ""))}
-                              className="text-indigo-400 hover:text-indigo-700 cursor-pointer p-0.5"
+                              className="text-indigo-400 hover:text-indigo-700 active:scale-90 cursor-pointer p-0.5 transition-transform"
                               title="AI Change / Suggest alternative audience signal"
                             >
                               <Wand2 className="h-2.5 w-2.5" />
@@ -15957,9 +16550,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             <button
                               type="button"
                               onClick={() => handleCockpitDirectAiGeneration("ALL", false)}
-                              className="px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-[9.5px] border border-blue-200 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                              className="px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 active:scale-95 active:bg-blue-200 text-blue-700 font-semibold text-[9.5px] border border-blue-200 transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-2xs select-none"
                             >
-                              <Wand2 className="h-2.5 w-2.5 text-blue-600" /> AI Optimize Creative
+                              <Wand2 className="h-2.5 w-2.5 text-blue-600 animate-pulse" /> AI Optimize Creative
                             </button>
                           </div>
                         </div>
@@ -16080,10 +16673,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <button
                         type="button"
                         onClick={() => handleCockpitDirectAiGeneration("ALL", false)}
-                        className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                        className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 active:scale-95 active:brightness-125 active:shadow-inner text-white font-bold text-[10px] transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-xs select-none"
                         title="Auto-generate creative assets using AI"
                       >
-                        <Wand2 className="h-3 w-3 text-cyan-200" />
+                        <Wand2 className="h-3 w-3 text-cyan-200 animate-pulse" />
                         <span>Auto-Generate Assets</span>
                       </button>
                     </div>
@@ -16636,10 +17229,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                         <button
                                           type="button"
                                           onClick={() => handleCockpitDirectAiGeneration("ALL", false)}
-                                          className="px-2 py-0.5 rounded-md bg-purple-100 hover:bg-purple-200 text-purple-800 text-[9px] font-bold flex items-center gap-1 border border-purple-300 shadow-2xs transition-all cursor-pointer"
+                                          className="px-2 py-0.5 rounded-md bg-purple-100 hover:bg-purple-200 active:scale-95 active:bg-purple-300 text-purple-800 text-[9px] font-bold flex items-center gap-1 border border-purple-300 shadow-2xs transition-all duration-150 cursor-pointer select-none"
                                           title="Generate all ad text assets with AI"
                                         >
-                                          <Wand2 className="h-2.5 w-2.5 text-purple-600" />
+                                          <Wand2 className="h-2.5 w-2.5 text-purple-600 animate-pulse" />
                                           <span>Generate All Text</span>
                                         </button>
                                       </div>
@@ -16654,7 +17247,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                             <button
                                               type="button"
                                               onClick={() => handleCockpitDirectAiGeneration("HEADLINES", false)}
-                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-colors"
+                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 active:scale-95 active:bg-purple-300 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-all duration-150 select-none"
                                               title="AI Generate All Headlines"
                                             >
                                               <Wand2 className="h-2.5 w-2.5 text-purple-600" />
@@ -16685,7 +17278,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                                 <button
                                                   type="button"
                                                   onClick={() => handleCockpitDirectAiGeneration("HEADLINE_SINGLE", false, h.trim() || undefined)}
-                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-90 active:bg-purple-200 text-purple-700 border border-purple-200 transition-all duration-150 cursor-pointer shrink-0 select-none"
                                                   title="AI Generate / Rewrite this headline"
                                                 >
                                                   <Wand2 className="h-3 w-3 text-purple-600" />
@@ -16725,7 +17318,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                             <button
                                               type="button"
                                               onClick={() => handleCockpitDirectAiGeneration("DESCRIPTIONS", false)}
-                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-colors"
+                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 active:scale-95 active:bg-purple-300 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-all duration-150 select-none"
                                               title="AI Generate All Descriptions"
                                             >
                                               <Wand2 className="h-2.5 w-2.5 text-purple-600" />
@@ -16756,7 +17349,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                                 <button
                                                   type="button"
                                                   onClick={() => handleCockpitDirectAiGeneration("DESCRIPTION_SINGLE", false, d.trim() || undefined)}
-                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-90 active:bg-purple-200 text-purple-700 border border-purple-200 transition-all duration-150 cursor-pointer shrink-0 select-none"
                                                   title="AI Generate / Rewrite this description"
                                                 >
                                                   <Wand2 className="h-3 w-3 text-purple-600" />
@@ -17103,10 +17696,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                         <button
                                           type="button"
                                           onClick={() => handleCockpitDirectAiGeneration("ALL", false)}
-                                          className="px-2 py-0.5 rounded-md bg-purple-100 hover:bg-purple-200 text-purple-800 text-[9px] font-bold flex items-center gap-1 border border-purple-300 shadow-2xs transition-all cursor-pointer"
+                                          className="px-2 py-0.5 rounded-md bg-purple-100 hover:bg-purple-200 active:scale-95 active:bg-purple-300 text-purple-800 text-[9px] font-bold flex items-center gap-1 border border-purple-300 shadow-2xs transition-all duration-150 cursor-pointer select-none"
                                           title="Generate all ad text assets with AI"
                                         >
-                                          <Wand2 className="h-2.5 w-2.5 text-purple-600" />
+                                          <Wand2 className="h-2.5 w-2.5 text-purple-600 animate-pulse" />
                                           <span>Generate All Text</span>
                                         </button>
                                       </div>
@@ -17121,7 +17714,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                             <button
                                               type="button"
                                               onClick={() => handleCockpitDirectAiGeneration("HEADLINES", false)}
-                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-colors"
+                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 active:scale-95 active:bg-purple-300 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-all duration-150 select-none"
                                               title="AI Generate All Headlines"
                                             >
                                               <Wand2 className="h-2.5 w-2.5 text-purple-600" />
@@ -17152,7 +17745,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                                 <button
                                                   type="button"
                                                   onClick={() => handleCockpitDirectAiGeneration("HEADLINE_SINGLE", false, h.trim() || undefined)}
-                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-90 active:bg-purple-200 text-purple-700 border border-purple-200 transition-all duration-150 cursor-pointer shrink-0 select-none"
                                                   title="AI Generate / Rewrite this headline"
                                                 >
                                                   <Wand2 className="h-3 w-3 text-purple-600" />
@@ -17192,7 +17785,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                             <button
                                               type="button"
                                               onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINES", false)}
-                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-colors"
+                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 active:scale-95 active:bg-purple-300 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-all duration-150 select-none"
                                               title="AI Generate All Long Headlines"
                                             >
                                               <Wand2 className="h-2.5 w-2.5 text-purple-600" />
@@ -17223,7 +17816,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                                 <button
                                                   type="button"
                                                   onClick={() => handleCockpitDirectAiGeneration("LONG_HEADLINE_SINGLE", false, lh.trim() || undefined)}
-                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-90 active:bg-purple-200 text-purple-700 border border-purple-200 transition-all duration-150 cursor-pointer shrink-0 select-none"
                                                   title="AI Generate / Rewrite this long headline"
                                                 >
                                                   <Wand2 className="h-3 w-3 text-purple-600" />
@@ -17263,7 +17856,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                             <button
                                               type="button"
                                               onClick={() => handleCockpitDirectAiGeneration("DESCRIPTIONS", false)}
-                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-colors"
+                                              className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 active:scale-95 active:bg-purple-300 text-purple-800 text-[8.5px] font-bold flex items-center gap-0.5 border border-purple-200 cursor-pointer shadow-2xs transition-all duration-150 select-none"
                                               title="AI Generate All Descriptions"
                                             >
                                               <Wand2 className="h-2.5 w-2.5 text-purple-600" />
@@ -17294,7 +17887,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                                 <button
                                                   type="button"
                                                   onClick={() => handleCockpitDirectAiGeneration("DESCRIPTION_SINGLE", false, d.trim() || undefined)}
-                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors cursor-pointer shrink-0"
+                                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 active:scale-90 active:bg-purple-200 text-purple-700 border border-purple-200 transition-all duration-150 cursor-pointer shrink-0 select-none"
                                                   title="AI Generate / Rewrite this description"
                                                 >
                                                   <Wand2 className="h-3 w-3 text-purple-600" />
@@ -19906,7 +20499,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <button
                           type="button"
                           onClick={() => handleCockpitDirectAiGeneration("ALL", isFullyFilled)}
-                          className={`px-2.5 py-1 rounded-lg text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs ${
+                          className={`px-2.5 py-1 rounded-lg text-white font-bold text-[10px] transition-all duration-150 active:scale-95 active:brightness-125 active:shadow-inner select-none cursor-pointer flex items-center gap-1 shadow-xs ${
                             isFullyFilled
                               ? "bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 hover:from-amber-700 hover:to-rose-700"
                               : "bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
@@ -19915,12 +20508,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         >
                           {isFullyFilled ? (
                             <>
-                              <RefreshCw className="h-2.5 w-2.5" />
+                              <RefreshCw className="h-2.5 w-2.5 animate-spin-reverse" />
                               <span>🔄 Re-Generate AI Assets</span>
                             </>
                           ) : (
                             <>
-                              <Wand2 className="h-2.5 w-2.5" />
+                              <Wand2 className="h-2.5 w-2.5 animate-pulse" />
                               <span>Generate All</span>
                             </>
                           )}
@@ -21327,17 +21920,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         <button
                           type="button"
                           onClick={() => handleCockpitDirectAiGeneration("IMAGE")}
-                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 active:brightness-125 active:shadow-inner text-white font-bold text-[10px] transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-xs select-none"
                         >
-                          <Wand2 className="h-2.5 w-2.5" />
+                          <Wand2 className="h-2.5 w-2.5 animate-pulse text-cyan-200" />
                           <span>AI Generate Images</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleCockpitDirectAiGeneration("LOGO")}
-                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 active:scale-95 active:brightness-125 active:shadow-inner text-white font-bold text-[10px] transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-xs select-none"
                         >
-                          <Wand2 className="h-2.5 w-2.5" />
+                          <Wand2 className="h-2.5 w-2.5 animate-pulse text-pink-200" />
                           <span>AI Generate Logo</span>
                         </button>
                       </div>
@@ -21413,19 +22006,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           <button
                             type="button"
                             onClick={() => handleCockpitDirectAiGeneration("IMAGE")}
-                            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-[9px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 active:brightness-125 active:shadow-inner text-white font-bold text-[9px] transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-2xs select-none"
                             title="AI Generate additional marketing images"
                           >
-                            <Wand2 className="h-2.5 w-2.5" />
+                            <Wand2 className="h-2.5 w-2.5 animate-pulse text-cyan-200" />
                             <span>AI Generate Images</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleCockpitDirectAiGeneration("LOGO")}
-                            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-[9px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 active:scale-95 active:brightness-125 active:shadow-inner text-white font-bold text-[9px] transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-2xs select-none"
                             title="AI Generate new logo"
                           >
-                            <Wand2 className="h-2.5 w-2.5" />
+                            <Wand2 className="h-2.5 w-2.5 animate-pulse text-pink-200" />
                             <span>AI Generate Logo</span>
                           </button>
                         </div>
@@ -23138,6 +23731,25 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </div>
                     )}
 
+                    {/* Prices list */}
+                    {(campaignState.prices?.length || 0) > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Prices:</span>
+                        {campaignState.prices?.map((pItem, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] flex items-center gap-1 font-medium">
+                            <span>🏷️ {pItem.header || `Tier ${idx + 1}`}: ₹{pItem.amount || "0"}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignState(p => ({ ...p, prices: (p.prices || []).filter((_, i) => i !== idx) }))}
+                              className="text-slate-400 hover:text-rose-600 transition-colors"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Lead Forms list */}
                     {(campaignState.leadForms?.length || 0) > 0 && (
                       <div className="flex flex-wrap gap-1">
@@ -24312,6 +24924,30 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         >
                           <ImageIcon className="h-3 w-3 text-rose-600" />
                           <span>Switch to Demand Gen (Image)</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Interactive resolution buttons for Merchant Center domain mismatch */}
+                    {(publishError.includes("Merchant Center Domain Mismatch") || publishError.includes("Final url and shopping merchant url")) && (
+                      <div className="flex items-center gap-1.5 pt-1 border-t border-rose-200/60 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCampaignState(p => ({
+                              ...p,
+                              useMerchantInCampaign: false,
+                              merchantCenterId: undefined,
+                              merchantId: undefined,
+                              feedLabel: undefined,
+                              salesCountry: undefined
+                            }));
+                            setPublishError(null);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9.5px] cursor-pointer shadow-2xs flex items-center gap-1 transition-all"
+                        >
+                          <Check className="h-3 w-3" />
+                          <span>Exclude Merchant Feed (Run Standard Campaign)</span>
                         </button>
                       </div>
                     )}
@@ -26688,10 +27324,238 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   )}
                 </div>
 
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {(campaignState.promotions || []).length === 0 ? (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {isLoadingDbAssets && (
+                    <div className="p-6 text-center text-slate-500 space-y-2 bg-slate-50 rounded-xl border border-slate-200">
+                      <Loader2 className="h-5 w-5 animate-spin text-indigo-600 mx-auto" />
+                      <p className="text-xs font-semibold">Loading promotions from Google Ads Account & Library...</p>
+                    </div>
+                  )}
+
+                  {/* 1. Google Ads Account / Database Library Promotions */}
+                  {dbPromotions.length > 0 && (
+                    <div className="space-y-1.5 pb-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-indigo-600" />
+                          Account Asset Library ({dbPromotions.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => fetchDbAssetsForModal("PROMOTIONS")}
+                          className="text-[10px] text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-semibold cursor-pointer"
+                        >
+                          <RefreshCw className={`h-2.5 w-2.5 ${isLoadingDbAssets ? "animate-spin" : ""}`} /> Refresh
+                        </button>
+                      </div>
+
+                      {dbPromotions
+                        .filter((p: any) => {
+                          if (!assetLibrarySearchQuery.trim()) return true;
+                          const q = assetLibrarySearchQuery.toLowerCase();
+                          return (
+                            (p.promotionTarget || "").toLowerCase().includes(q) ||
+                            (p.name || "").toLowerCase().includes(q) ||
+                            (p.promotionCode || "").toLowerCase().includes(q) ||
+                            (p.finalUrls?.[0] || "").toLowerCase().includes(q) ||
+                            (p.occasion || "").toLowerCase().includes(q)
+                          );
+                        })
+                        .map((promo: any, idx: number) => {
+                          const isAlreadyAttached = (campaignState.promotions || []).some(
+                            (cp: any) => (cp.promotionTarget === promo.promotionTarget && cp.finalUrl === promo.finalUrls?.[0]) || (cp.resourceName && cp.resourceName === promo.resourceName)
+                          );
+                          return (
+                            <div
+                              key={promo.id || `db-promo-${idx}`}
+                              className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                                isAlreadyAttached
+                                  ? "bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/30"
+                                  : "bg-white border-slate-200 hover:border-indigo-300"
+                              }`}
+                            >
+                              <div className="max-w-[65%]">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-900 truncate text-xs">{promo.promotionTarget || promo.name || "Promotion"}</span>
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 font-bold text-[9px] shrink-0">
+                                    {promo.discountText || (promo.percentOff ? `${promo.percentOff}% OFF` : `₹${promo.moneyAmountOff?.amount || promo.moneyAmountOff || ""} OFF`)}
+                                  </span>
+                                  {promo.occasion && promo.occasion !== "NONE" && promo.occasion !== "None" && (
+                                    <span className="text-[9px] text-slate-500 italic shrink-0">({promo.occasion})</span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-0.5 font-mono truncate">
+                                  {promo.promotionCode ? `Code: ${promo.promotionCode} • ` : ""}{promo.finalUrls?.[0] || promo.finalUrl || ""}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingAssetItem({ type: "PROMOTIONS", data: promo })}
+                                  className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="View full details"
+                                >
+                                  <Eye className="h-3 w-3 text-slate-500" />
+                                  <span>View</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isAlreadyAttached) {
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        promotions: (prev.promotions || []).filter(
+                                          (cp: any) => cp.promotionTarget !== promo.promotionTarget && cp.resourceName !== promo.resourceName
+                                        )
+                                      }));
+                                      toast.info("Promotion detached from campaign.");
+                                    } else {
+                                      const newPromo = {
+                                        resourceName: promo.resourceName,
+                                        promotionTarget: promo.promotionTarget || promo.name || "Special Offer",
+                                        finalUrl: promo.finalUrls?.[0] || promo.finalUrl || campaignState.website || "https://example.com",
+                                        occasion: promo.occasion && promo.occasion !== "NONE" ? promo.occasion : undefined,
+                                        percentOff: promo.percentOff || undefined,
+                                        moneyAmountOff: promo.moneyAmountOff?.amount || promo.moneyAmountOff || undefined,
+                                        currencyCode: promo.moneyAmountOff?.currencyCode || promo.currencyCode || "INR",
+                                        languageCode: promo.languageCode || "English",
+                                        promotionCode: promo.promotionCode || undefined
+                                      };
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        promotions: [...(prev.promotions || []), newPromo].slice(0, 15)
+                                      }));
+                                      toast.success("✓ Promotion selected & attached to campaign!");
+                                    }
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs ${
+                                    isAlreadyAttached
+                                      ? "bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100"
+                                      : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                                  }`}
+                                >
+                                  {isAlreadyAttached ? (
+                                    <>
+                                      <X className="h-3 w-3" />
+                                      <span>Detach</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="h-3 w-3" />
+                                      <span>Select & Use</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {/* 2. Draft / Current Session Configured Promotions */}
+                  {(campaignState.promotions || []).length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 px-1 block">
+                        Draft Campaign Promotions ({(campaignState.promotions || []).length})
+                      </span>
+                      {(campaignState.promotions || [])
+                        .filter((p: any) => {
+                          if (!assetLibrarySearchQuery.trim()) return true;
+                          const q = assetLibrarySearchQuery.toLowerCase();
+                          return (
+                            (p.promotionTarget || "").toLowerCase().includes(q) ||
+                            (p.promotionCode || "").toLowerCase().includes(q) ||
+                            (p.finalUrl || "").toLowerCase().includes(q) ||
+                            (p.occasion || "").toLowerCase().includes(q)
+                          );
+                        })
+                        .map((promo: any, idx: number) => {
+                          return (
+                            <div
+                              key={`draft-p-${idx}`}
+                              className="p-3 rounded-xl border bg-white border-slate-200 flex items-center justify-between transition-all hover:border-indigo-300"
+                            >
+                              <div className="max-w-[60%]">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-900 truncate">{promo.promotionTarget}</span>
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 font-bold text-[9px] shrink-0">
+                                    {promo.percentOff ? `${promo.percentOff}% OFF` : `₹${promo.moneyAmountOff} OFF`}
+                                  </span>
+                                  {promo.occasion && promo.occasion !== "None" && (
+                                    <span className="text-[9px] text-slate-500 italic shrink-0">({promo.occasion})</span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-0.5 font-mono truncate">
+                                  {promo.promotionCode ? `Code: ${promo.promotionCode} • ` : ""}{promo.finalUrl}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingAssetItem({ type: "PROMOTIONS", data: promo })}
+                                  className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="Read / View Full Details"
+                                >
+                                  <Eye className="h-3 w-3 text-slate-500" />
+                                  <span>Read</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPromoItem(promo.promotionTarget || "");
+                                    setPromoOccasion(promo.occasion || "None");
+                                    setPromoLanguage(promo.languageCode || "English");
+                                    setPromoCurrency(promo.currencyCode || "INR");
+                                    if (promo.percentOff) {
+                                      setPromoType("Percent discount");
+                                      setPromoAmountValue(String(promo.percentOff));
+                                    } else {
+                                      setPromoType("Monetary discount");
+                                      setPromoAmountValue(String(promo.moneyAmountOff || ""));
+                                    }
+                                    setPromoFinalUrl(promo.finalUrl || "");
+                                    if (promo.promotionCode) {
+                                      setPromoDetailsType("Promo code");
+                                      setPromoDetailsValue(promo.promotionCode);
+                                    } else {
+                                      setPromoDetailsType("None");
+                                      setPromoDetailsValue("");
+                                    }
+                                    setEditingAssetIndex(idx);
+                                    setAssetModalMode("CREATE");
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="Edit this promotion"
+                                >
+                                  <Edit3 className="h-3 w-3 text-indigo-600" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCampaignState(prev => ({
+                                      ...prev,
+                                      promotions: (prev.promotions || []).filter((_, i) => i !== idx)
+                                    }));
+                                    toast.info("Promotion removed.");
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="Delete this promotion"
+                                >
+                                  <Trash2 className="h-3 w-3 text-rose-600" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {!isLoadingDbAssets && dbPromotions.length === 0 && (campaignState.promotions || []).length === 0 && (
                     <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-3">
-                      <p className="text-slate-500 text-xs">No saved promotions yet for this campaign session.</p>
+                      <p className="text-slate-500 text-xs">No saved promotions found in Google Ads Account or current session.</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -26703,98 +27567,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         + Create Your First Promotion
                       </button>
                     </div>
-                  ) : (
-                    (campaignState.promotions || [])
-                      .filter((p: any) => {
-                        if (!assetLibrarySearchQuery.trim()) return true;
-                        const q = assetLibrarySearchQuery.toLowerCase();
-                        return (
-                          (p.promotionTarget || "").toLowerCase().includes(q) ||
-                          (p.promotionCode || "").toLowerCase().includes(q) ||
-                          (p.finalUrl || "").toLowerCase().includes(q) ||
-                          (p.occasion || "").toLowerCase().includes(q)
-                        );
-                      })
-                      .map((promo: any, idx: number) => {
-                        return (
-                          <div
-                            key={idx}
-                            className="p-3 rounded-xl border bg-white border-slate-200 flex items-center justify-between transition-all hover:border-indigo-300"
-                          >
-                            <div className="max-w-[60%]">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-900 truncate">{promo.promotionTarget}</span>
-                                <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 font-bold text-[9px] shrink-0">
-                                  {promo.percentOff ? `${promo.percentOff}% OFF` : `₹${promo.moneyAmountOff} OFF`}
-                                </span>
-                                {promo.occasion && promo.occasion !== "None" && (
-                                  <span className="text-[9px] text-slate-500 italic shrink-0">({promo.occasion})</span>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-slate-500 mt-0.5 font-mono truncate">
-                                {promo.promotionCode ? `Code: ${promo.promotionCode} • ` : ""}{promo.finalUrl}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setViewingAssetItem({ type: "PROMOTIONS", data: promo })}
-                                className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
-                                title="Read / View Full Details"
-                              >
-                                <Eye className="h-3 w-3 text-slate-500" />
-                                <span>Read</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPromoItem(promo.promotionTarget || "");
-                                  setPromoOccasion(promo.occasion || "None");
-                                  setPromoLanguage(promo.languageCode || "English");
-                                  setPromoCurrency(promo.currencyCode || "INR");
-                                  if (promo.percentOff) {
-                                    setPromoType("Percent discount");
-                                    setPromoAmountValue(String(promo.percentOff));
-                                  } else {
-                                    setPromoType("Monetary discount");
-                                    setPromoAmountValue(String(promo.moneyAmountOff || ""));
-                                  }
-                                  setPromoFinalUrl(promo.finalUrl || "");
-                                  if (promo.promotionCode) {
-                                    setPromoDetailsType("Promo code");
-                                    setPromoDetailsValue(promo.promotionCode);
-                                  } else {
-                                    setPromoDetailsType("None");
-                                    setPromoDetailsValue("");
-                                  }
-                                  setEditingAssetIndex(idx);
-                                  setAssetModalMode("CREATE");
-                                }}
-                                className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
-                                title="Edit this promotion"
-                              >
-                                <Edit3 className="h-3 w-3 text-indigo-600" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCampaignState(prev => ({
-                                    ...prev,
-                                    promotions: (prev.promotions || []).filter((_, i) => i !== idx)
-                                  }));
-                                  toast.info("Promotion removed.");
-                                }}
-                                className="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
-                                title="Delete this promotion"
-                              >
-                                <Trash2 className="h-3 w-3 text-rose-600" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
                   )}
                 </div>
               </div>
@@ -27148,10 +27920,227 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   )}
                 </div>
 
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {(campaignState.prices || []).length === 0 ? (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {isLoadingDbAssets && (
+                    <div className="p-6 text-center text-slate-500 space-y-2 bg-slate-50 rounded-xl border border-slate-200">
+                      <Loader2 className="h-5 w-5 animate-spin text-indigo-600 mx-auto" />
+                      <p className="text-xs font-semibold">Loading prices from Google Ads Account & Library...</p>
+                    </div>
+                  )}
+
+                  {/* 1. Google Ads Account / Database Library Prices */}
+                  {dbPrices.length > 0 && (
+                    <div className="space-y-1.5 pb-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-indigo-600" />
+                          Account Asset Library ({dbPrices.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => fetchDbAssetsForModal("PRICES")}
+                          className="text-[10px] text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-semibold cursor-pointer"
+                        >
+                          <RefreshCw className={`h-2.5 w-2.5 ${isLoadingDbAssets ? "animate-spin" : ""}`} /> Refresh
+                        </button>
+                      </div>
+
+                      {dbPrices
+                        .filter((p: any) => {
+                          if (!assetLibrarySearchQuery.trim()) return true;
+                          const q = assetLibrarySearchQuery.toLowerCase();
+                          return (
+                            (p.name || "").toLowerCase().includes(q) ||
+                            (p.priceType || "").toLowerCase().includes(q) ||
+                            (p.offerings || []).some((off: any) =>
+                              (off.header || "").toLowerCase().includes(q) ||
+                              (off.description || "").toLowerCase().includes(q)
+                            )
+                          );
+                        })
+                        .map((priceItem: any, idx: number) => {
+                          const firstOff = priceItem.offerings?.[0] || {};
+                          const isAlreadyAttached = (campaignState.prices || []).some(
+                            (cp: any) => (cp.header === firstOff.header && cp.amount === firstOff.amount) || (cp.resourceName && cp.resourceName === priceItem.resourceName)
+                          );
+                          return (
+                            <div
+                              key={priceItem.id || `db-price-${idx}`}
+                              className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                                isAlreadyAttached
+                                  ? "bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/30"
+                                  : "bg-white border-slate-200 hover:border-indigo-300"
+                              }`}
+                            >
+                              <div className="max-w-[65%]">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-900 truncate text-xs">{priceItem.name || firstOff.header || "Price Asset"}</span>
+                                  <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-900 font-bold text-[10px] shrink-0">
+                                    ₹{firstOff.amount || 0} {firstOff.unit ? `/ ${firstOff.unit}` : ""}
+                                  </span>
+                                  {priceItem.offerings?.length > 1 && (
+                                    <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-bold text-[9px] shrink-0">
+                                      +{priceItem.offerings.length - 1} tiers
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                                  {firstOff.description || firstOff.finalUrl || `Type: ${priceItem.priceType || "SERVICES"}`}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingAssetItem({ type: "PRICES", data: priceItem })}
+                                  className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="View full details"
+                                >
+                                  <Eye className="h-3 w-3 text-slate-500" />
+                                  <span>View</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isAlreadyAttached) {
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        prices: (prev.prices || []).filter(
+                                          (cp: any) => cp.header !== firstOff.header && cp.resourceName !== priceItem.resourceName
+                                        )
+                                      }));
+                                      toast.info("Price item detached from campaign.");
+                                    } else {
+                                      const mappedOfferings = (priceItem.offerings && priceItem.offerings.length > 0 ? priceItem.offerings : [firstOff]).map((off: any) => ({
+                                        resourceName: priceItem.resourceName,
+                                        header: off.header || priceItem.name || "Service Plan",
+                                        description: off.description || undefined,
+                                        amount: Number(off.amount) || 100,
+                                        currencyCode: off.currencyCode || priceItem.currencyCode || "INR",
+                                        unit: off.unit || undefined,
+                                        finalUrl: off.finalUrl || campaignState.website || "https://example.com"
+                                      }));
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        prices: [...(prev.prices || []), ...mappedOfferings].slice(0, 15)
+                                      }));
+                                      toast.success("✓ Price offerings selected & attached to campaign!");
+                                    }
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs ${
+                                    isAlreadyAttached
+                                      ? "bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100"
+                                      : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                                  }`}
+                                >
+                                  {isAlreadyAttached ? (
+                                    <>
+                                      <X className="h-3 w-3" />
+                                      <span>Detach</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="h-3 w-3" />
+                                      <span>Select & Use</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {/* 2. Draft / Current Session Configured Prices */}
+                  {(campaignState.prices || []).length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 px-1 block">
+                        Draft Campaign Prices ({(campaignState.prices || []).length})
+                      </span>
+                      {(campaignState.prices || [])
+                        .filter((p: any) => {
+                          if (!assetLibrarySearchQuery.trim()) return true;
+                          const q = assetLibrarySearchQuery.toLowerCase();
+                          return (
+                            (p.header || "").toLowerCase().includes(q) ||
+                            (p.description || "").toLowerCase().includes(q) ||
+                            (p.finalUrl || "").toLowerCase().includes(q)
+                          );
+                        })
+                        .map((priceItem: any, idx: number) => {
+                          return (
+                            <div
+                              key={`draft-pr-${idx}`}
+                              className="p-3 rounded-xl border bg-white border-slate-200 flex items-center justify-between transition-all hover:border-indigo-300"
+                            >
+                              <div className="max-w-[60%]">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-900 truncate">{priceItem.header}</span>
+                                  <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-900 font-bold text-[10px] shrink-0">
+                                    ₹{priceItem.amount} {priceItem.unit ? `/ ${priceItem.unit}` : ""}
+                                  </span>
+                                </div>
+                                {priceItem.description && (
+                                  <p className="text-[10px] text-slate-500 mt-0.5 truncate">{priceItem.description}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingAssetItem({ type: "PRICES", data: priceItem })}
+                                  className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="Read / View Full Details"
+                                >
+                                  <Eye className="h-3 w-3 text-slate-500" />
+                                  <span>Read</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPriceItems([{
+                                      id: `pi-${Date.now()}`,
+                                      header: priceItem.header || "",
+                                      amount: String(priceItem.amount || ""),
+                                      unit: priceItem.unit || "No units",
+                                      description: priceItem.description || "",
+                                      finalUrl: priceItem.finalUrl || "",
+                                      mobileFinalUrl: ""
+                                    }]);
+                                    setPriceCurrency(priceItem.currencyCode || "INR");
+                                    setEditingAssetIndex(idx);
+                                    setAssetModalMode("CREATE");
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="Edit this price item"
+                                >
+                                  <Edit3 className="h-3 w-3 text-indigo-600" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCampaignState(prev => ({
+                                      ...prev,
+                                      prices: (prev.prices || []).filter((_, i) => i !== idx)
+                                    }));
+                                    toast.info("Price item removed.");
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="Delete this price item"
+                                >
+                                  <Trash2 className="h-3 w-3 text-rose-600" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {!isLoadingDbAssets && dbPrices.length === 0 && (campaignState.prices || []).length === 0 && (
                     <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-3">
-                      <p className="text-slate-500 text-xs">No saved prices yet for this campaign session.</p>
+                      <p className="text-slate-500 text-xs">No saved price items found in Google Ads Account or current session.</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -27163,85 +28152,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         + Create Your First Price Item
                       </button>
                     </div>
-                  ) : (
-                    (campaignState.prices || [])
-                      .filter((p: any) => {
-                        if (!assetLibrarySearchQuery.trim()) return true;
-                        const q = assetLibrarySearchQuery.toLowerCase();
-                        return (
-                          (p.header || "").toLowerCase().includes(q) ||
-                          (p.description || "").toLowerCase().includes(q) ||
-                          (p.finalUrl || "").toLowerCase().includes(q)
-                        );
-                      })
-                      .map((priceItem: any, idx: number) => {
-                        return (
-                          <div
-                            key={idx}
-                            className="p-3 rounded-xl border bg-white border-slate-200 flex items-center justify-between transition-all hover:border-indigo-300"
-                          >
-                            <div className="max-w-[60%]">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-900 truncate">{priceItem.header}</span>
-                                <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-900 font-bold text-[10px] shrink-0">
-                                  ₹{priceItem.amount} {priceItem.unit ? `/ ${priceItem.unit}` : ""}
-                                </span>
-                              </div>
-                              {priceItem.description && (
-                                <p className="text-[10px] text-slate-500 mt-0.5 truncate">{priceItem.description}</p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setViewingAssetItem({ type: "PRICES", data: priceItem })}
-                                className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
-                                title="Read / View Full Details"
-                              >
-                                <Eye className="h-3 w-3 text-slate-500" />
-                                <span>Read</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPriceItems([{
-                                    id: `pi-${Date.now()}`,
-                                    header: priceItem.header || "",
-                                    amount: String(priceItem.amount || ""),
-                                    unit: priceItem.unit || "No units",
-                                    description: priceItem.description || "",
-                                    finalUrl: priceItem.finalUrl || "",
-                                    mobileFinalUrl: ""
-                                  }]);
-                                  setPriceCurrency(priceItem.currencyCode || "INR");
-                                  setEditingAssetIndex(idx);
-                                  setAssetModalMode("CREATE");
-                                }}
-                                className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
-                                title="Edit this price item"
-                              >
-                                <Edit3 className="h-3 w-3 text-indigo-600" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCampaignState(prev => ({
-                                    ...prev,
-                                    prices: (prev.prices || []).filter((_, i) => i !== idx)
-                                  }));
-                                  toast.info("Price item removed.");
-                                }}
-                                className="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
-                                title="Delete this price item"
-                              >
-                                <Trash2 className="h-3 w-3 text-rose-600" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
                   )}
                 </div>
               </div>
@@ -27622,10 +28532,216 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   )}
                 </div>
 
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {(campaignState.messages || []).length === 0 ? (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {isLoadingDbAssets && (
+                    <div className="p-6 text-center text-slate-500 space-y-2 bg-slate-50 rounded-xl border border-slate-200">
+                      <Loader2 className="h-5 w-5 animate-spin text-emerald-600 mx-auto" />
+                      <p className="text-xs font-semibold">Loading messages from Google Ads Account & Library...</p>
+                    </div>
+                  )}
+
+                  {/* 1. Google Ads Account / Database Library Messages */}
+                  {dbMessages.length > 0 && (
+                    <div className="space-y-1.5 pb-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                          Account Asset Library ({dbMessages.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => fetchDbAssetsForModal("APPS")}
+                          className="text-[10px] text-emerald-600 hover:text-emerald-800 flex items-center gap-1 font-semibold cursor-pointer"
+                        >
+                          <RefreshCw className={`h-2.5 w-2.5 ${isLoadingDbAssets ? "animate-spin" : ""}`} /> Refresh
+                        </button>
+                      </div>
+
+                      {dbMessages
+                        .filter((m: any) => {
+                          if (!assetLibrarySearchQuery.trim()) return true;
+                          const q = assetLibrarySearchQuery.toLowerCase();
+                          return (
+                            (m.name || "").toLowerCase().includes(q) ||
+                            (m.phoneNumber || "").toLowerCase().includes(q) ||
+                            (m.countryCode || "").toLowerCase().includes(q) ||
+                            (m.finalUrls?.[0] || "").toLowerCase().includes(q)
+                          );
+                        })
+                        .map((msgItem: any, idx: number) => {
+                          const isAlreadyAttached = (campaignState.messages || []).some(
+                            (cm: any) => (cm.customUrlName === msgItem.phoneNumber) || (cm.resourceName && cm.resourceName === msgItem.resourceName)
+                          );
+                          return (
+                            <div
+                              key={msgItem.id || `db-msg-${idx}`}
+                              className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                                isAlreadyAttached
+                                  ? "bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/30"
+                                  : "bg-white border-slate-200 hover:border-emerald-300"
+                              }`}
+                            >
+                              <div className="max-w-[65%]">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-900 truncate text-xs">{msgItem.name || msgItem.phoneNumber || "Message Channel"}</span>
+                                  <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold text-[9px] shrink-0">
+                                    WhatsApp / Chat
+                                  </span>
+                                  {msgItem.countryCode && (
+                                    <span className="text-[9px] text-slate-500 font-mono">({msgItem.countryCode})</span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-0.5 font-mono truncate">
+                                  {msgItem.phoneNumber} {msgItem.finalUrls?.[0] ? `• ${msgItem.finalUrls[0]}` : ""}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingAssetItem({ type: "MESSAGES", data: msgItem })}
+                                  className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="View full details"
+                                >
+                                  <Eye className="h-3 w-3 text-slate-500" />
+                                  <span>View</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isAlreadyAttached) {
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        messages: (prev.messages || []).filter(
+                                          (cm: any) => cm.customUrlName !== msgItem.phoneNumber && cm.resourceName !== msgItem.resourceName
+                                        )
+                                      }));
+                                      toast.info("Message channel detached from campaign.");
+                                    } else {
+                                      const newMsg = {
+                                        resourceName: msgItem.resourceName,
+                                        platform: "WhatsApp" as const,
+                                        customUrlName: msgItem.phoneNumber || msgItem.name || "",
+                                        starterMessage: "Hello! I am interested in your services.",
+                                        callToAction: "Chat now",
+                                        ctaDescription: "Instant response on WhatsApp"
+                                      };
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        messages: [...(prev.messages || []), newMsg as any].slice(0, 15)
+                                      }));
+                                      toast.success("✓ Message channel selected & attached to campaign!");
+                                    }
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs ${
+                                    isAlreadyAttached
+                                      ? "bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100"
+                                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  }`}
+                                >
+                                  {isAlreadyAttached ? (
+                                    <>
+                                      <X className="h-3 w-3" />
+                                      <span>Detach</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="h-3 w-3" />
+                                      <span>Select & Use</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {/* 2. Draft / Current Session Configured Messages */}
+                  {(campaignState.messages || []).length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 px-1 block">
+                        Draft Campaign Messages ({(campaignState.messages || []).length})
+                      </span>
+                      {(campaignState.messages || [])
+                        .filter((m: any) => {
+                          if (!assetLibrarySearchQuery.trim()) return true;
+                          const q = assetLibrarySearchQuery.toLowerCase();
+                          return (
+                            (m.customUrlName || "").toLowerCase().includes(q) ||
+                            (m.platform || "").toLowerCase().includes(q) ||
+                            (m.starterMessage || "").toLowerCase().includes(q)
+                          );
+                        })
+                        .map((msgItem: any, idx: number) => {
+                          return (
+                            <div
+                              key={`draft-msg-${idx}`}
+                              className="p-3 rounded-xl border bg-white border-slate-200 flex items-center justify-between transition-all hover:border-emerald-300"
+                            >
+                              <div className="max-w-[60%]">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-900 truncate">{msgItem.platform}: {msgItem.customUrlName}</span>
+                                  <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold text-[9px] shrink-0">
+                                    {msgItem.callToAction || "Chat now"}
+                                  </span>
+                                </div>
+                                {msgItem.starterMessage && (
+                                  <p className="text-[10px] text-slate-500 mt-0.5 italic truncate">"{msgItem.starterMessage}"</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingAssetItem({ type: "MESSAGES", data: msgItem })}
+                                  className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="Read / View Full Details"
+                                >
+                                  <Eye className="h-3 w-3 text-slate-500" />
+                                  <span>Read</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMsgPlatform(msgItem.platform as any || "WhatsApp");
+                                    setMsgCustomUrlName(msgItem.customUrlName || "");
+                                    setMsgStarterMessage(msgItem.starterMessage || "");
+                                    setMsgCallToAction(msgItem.callToAction || "Chat now");
+                                    setMsgCtaDescription(msgItem.ctaDescription || "");
+                                    setEditingAssetIndex(idx);
+                                    setAssetModalMode("CREATE");
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="Edit this message channel"
+                                >
+                                  <Edit3 className="h-3 w-3 text-emerald-600" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCampaignState(prev => ({
+                                      ...prev,
+                                      messages: (prev.messages || []).filter((_, i) => i !== idx)
+                                    }));
+                                    toast.info("Message channel removed.");
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+                                  title="Delete this message channel"
+                                >
+                                  <Trash2 className="h-3 w-3 text-rose-600" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {!isLoadingDbAssets && dbMessages.length === 0 && (campaignState.messages || []).length === 0 && (
                     <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-3">
-                      <p className="text-slate-500 text-xs">No saved message channels yet for this campaign session.</p>
+                      <p className="text-slate-500 text-xs">No saved message channels found in Google Ads Account or current session.</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -27637,80 +28753,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         + Create Your First Message Link
                       </button>
                     </div>
-                  ) : (
-                    (campaignState.messages || [])
-                      .filter((m: any) => {
-                        if (!assetLibrarySearchQuery.trim()) return true;
-                        const q = assetLibrarySearchQuery.toLowerCase();
-                        return (
-                          (m.customUrlName || "").toLowerCase().includes(q) ||
-                          (m.platform || "").toLowerCase().includes(q) ||
-                          (m.starterMessage || "").toLowerCase().includes(q)
-                        );
-                      })
-                      .map((msgItem: any, idx: number) => {
-                        return (
-                          <div
-                            key={idx}
-                            className="p-3 rounded-xl border bg-white border-slate-200 flex items-center justify-between transition-all hover:border-emerald-300"
-                          >
-                            <div className="max-w-[60%]">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-900 truncate">{msgItem.platform}: {msgItem.customUrlName}</span>
-                                <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold text-[9px] shrink-0">
-                                  {msgItem.callToAction || "Chat now"}
-                                </span>
-                              </div>
-                              {msgItem.starterMessage && (
-                                <p className="text-[10px] text-slate-500 mt-0.5 italic truncate">"{msgItem.starterMessage}"</p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setViewingAssetItem({ type: "MESSAGES", data: msgItem })}
-                                className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
-                                title="Read / View Full Details"
-                              >
-                                <Eye className="h-3 w-3 text-slate-500" />
-                                <span>Read</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setMsgPlatform(msgItem.platform as any || "WhatsApp");
-                                  setMsgCustomUrlName(msgItem.customUrlName || "");
-                                  setMsgStarterMessage(msgItem.starterMessage || "");
-                                  setMsgCallToAction(msgItem.callToAction || "Chat now");
-                                  setMsgCtaDescription(msgItem.ctaDescription || "");
-                                  setEditingAssetIndex(idx);
-                                  setAssetModalMode("CREATE");
-                                }}
-                                className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
-                                title="Edit this message channel"
-                              >
-                                <Edit3 className="h-3 w-3 text-emerald-600" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCampaignState(prev => ({
-                                    ...prev,
-                                    messages: (prev.messages || []).filter((_, i) => i !== idx)
-                                  }));
-                                  toast.info("Message channel removed.");
-                                }}
-                                className="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 text-[10px] font-semibold cursor-pointer transition-all flex items-center gap-1"
-                                title="Delete this message channel"
-                              >
-                                <Trash2 className="h-3 w-3 text-rose-600" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
                   )}
                 </div>
               </div>
@@ -28000,10 +29042,200 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   )}
                 </div>
 
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {(campaignState.structuredSnippets || []).length === 0 ? (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {isLoadingDbAssets && (
+                    <div className="p-6 text-center text-slate-500 space-y-2 bg-slate-50 rounded-xl border border-slate-200">
+                      <Loader2 className="h-5 w-5 animate-spin text-indigo-600 mx-auto" />
+                      <p className="text-xs font-semibold">Loading structured snippets from Google Ads Account & Library...</p>
+                    </div>
+                  )}
+
+                  {/* 1. Google Ads Account / Database Library Snippets */}
+                  {dbSnippets.length > 0 && (
+                    <div className="space-y-1.5 pb-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-indigo-600" />
+                          Account Asset Library ({dbSnippets.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => fetchDbAssetsForModal("SNIPPETS")}
+                          className="text-[10px] text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-semibold cursor-pointer"
+                        >
+                          <RefreshCw className={`h-2.5 w-2.5 ${isLoadingDbAssets ? "animate-spin" : ""}`} /> Refresh
+                        </button>
+                      </div>
+
+                      {dbSnippets
+                        .filter((s: any) => {
+                          if (!assetLibrarySearchQuery.trim()) return true;
+                          const q = assetLibrarySearchQuery.toLowerCase();
+                          return (
+                            (s.name || "").toLowerCase().includes(q) ||
+                            (s.header || "").toLowerCase().includes(q) ||
+                            (s.values || []).some((v: string) => v.toLowerCase().includes(q))
+                          );
+                        })
+                        .map((snippet: any, idx: number) => {
+                          const isAlreadyAttached = (campaignState.structuredSnippets || []).some(
+                            (cs: any) => (cs.header === snippet.header && JSON.stringify(cs.values) === JSON.stringify(snippet.values)) || (cs.resourceName && cs.resourceName === snippet.resourceName)
+                          );
+                          return (
+                            <div
+                              key={snippet.id || `db-snip-${idx}`}
+                              className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                                isAlreadyAttached
+                                  ? "bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/30"
+                                  : "bg-white border-slate-200 hover:border-indigo-300"
+                              }`}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-900 text-xs">{snippet.header || snippet.name}:</span>
+                                  <span className="px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 font-bold text-[9px]">
+                                    {(snippet.values || []).length} items
+                                  </span>
+                                </div>
+                                <span className="text-slate-600 text-[11px] truncate block mt-0.5">
+                                  {(snippet.values || []).join(", ")}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingAssetItem({ type: "Structured Snippet", data: snippet })}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center gap-1 cursor-pointer"
+                                  title="View full details"
+                                >
+                                  <Eye className="h-3 w-3 text-slate-500" />
+                                  <span>View</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isAlreadyAttached) {
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        structuredSnippets: (prev.structuredSnippets || []).filter(
+                                          (cs: any) => cs.header !== snippet.header && cs.resourceName !== snippet.resourceName
+                                        )
+                                      }));
+                                      toast.info("Structured snippet detached from campaign.");
+                                    } else {
+                                      const newSnip = {
+                                        resourceName: snippet.resourceName,
+                                        header: snippet.header || "Types",
+                                        values: snippet.values || []
+                                      };
+                                      setCampaignState(prev => ({
+                                        ...prev,
+                                        structuredSnippets: [...(prev.structuredSnippets || []), newSnip].slice(0, 15)
+                                      }));
+                                      toast.success("✓ Structured snippet selected & attached to campaign!");
+                                    }
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs ${
+                                    isAlreadyAttached
+                                      ? "bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100"
+                                      : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                                  }`}
+                                >
+                                  {isAlreadyAttached ? (
+                                    <>
+                                      <X className="h-3 w-3" />
+                                      <span>Detach</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="h-3 w-3" />
+                                      <span>Select & Use</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {/* 2. Draft / Current Session Configured Snippets */}
+                  {(campaignState.structuredSnippets || []).length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 px-1 block">
+                        Draft Campaign Snippets ({(campaignState.structuredSnippets || []).length})
+                      </span>
+                      {(campaignState.structuredSnippets || [])
+                        .filter((s: any) => {
+                          if (!assetLibrarySearchQuery.trim()) return true;
+                          const q = assetLibrarySearchQuery.toLowerCase();
+                          return (
+                            (s.header || "").toLowerCase().includes(q) ||
+                            (s.values || []).some((v: string) => v.toLowerCase().includes(q))
+                          );
+                        })
+                        .map((snippet: any, idx: number) => {
+                          return (
+                            <div
+                              key={`draft-snip-${idx}`}
+                              className="p-3 rounded-xl border bg-white border-slate-200 flex items-center justify-between gap-3 transition-all hover:border-indigo-300"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <span className="font-bold text-slate-900">{snippet.header}:</span>
+                                <span className="text-slate-600 ml-1.5 text-[11px] truncate block">
+                                  {snippet.values?.join(", ")}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingAssetItem({ type: "Structured Snippet", data: snippet })}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center gap-1 cursor-pointer"
+                                  title="Read full structured snippet details"
+                                >
+                                  <Eye className="h-3 w-3 text-slate-500" />
+                                  <span>Read</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSnippetHeaderType(snippet.header || "Types");
+                                    setSnippetValues(snippet.values && snippet.values.length > 0 ? snippet.values : ["", "", ""]);
+                                    setEditingAssetIndex(idx);
+                                    setAssetModalMode("CREATE");
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1 cursor-pointer"
+                                  title="Edit this snippet"
+                                >
+                                  <Edit3 className="h-3 w-3 text-indigo-600" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCampaignState(prev => ({
+                                      ...prev,
+                                      structuredSnippets: (prev.structuredSnippets || []).filter((_, i) => i !== idx)
+                                    }));
+                                    toast.info("Structured snippet removed.");
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 flex items-center gap-1 cursor-pointer"
+                                  title="Delete this snippet"
+                                >
+                                  <Trash2 className="h-3 w-3 text-rose-600" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {!isLoadingDbAssets && dbSnippets.length === 0 && (campaignState.structuredSnippets || []).length === 0 && (
                     <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-3">
-                      <p className="text-slate-500 text-xs">No saved structured snippets yet for this campaign session.</p>
+                      <p className="text-slate-500 text-xs">No saved structured snippets found in Google Ads Account or current session.</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -28015,76 +29247,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         + Create Your First Snippet
                       </button>
                     </div>
-                  ) : (
-                    (campaignState.structuredSnippets || [])
-                      .filter((s: any) => {
-                        if (!assetLibrarySearchQuery.trim()) return true;
-                        const q = assetLibrarySearchQuery.toLowerCase();
-                        return (
-                          (s.header || "").toLowerCase().includes(q) ||
-                          (s.values || []).some((v: string) => v.toLowerCase().includes(q))
-                        );
-                      })
-                      .map((snippet: any, idx: number) => {
-                        return (
-                          <div
-                            key={idx}
-                            className="p-3 rounded-xl border bg-white border-slate-200 flex items-center justify-between gap-3 transition-all hover:border-indigo-300"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <span className="font-bold text-slate-900">{snippet.header}:</span>
-                              <span className="text-slate-600 ml-1.5 text-[11px] truncate block">
-                                {snippet.values?.join(", ")}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {/* Read / View Button */}
-                              <button
-                                type="button"
-                                onClick={() => setViewingAssetItem({ type: "Structured Snippet", data: snippet })}
-                                className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center gap-1 cursor-pointer"
-                                title="Read full structured snippet details"
-                              >
-                                <Eye className="h-3 w-3 text-slate-500" />
-                                <span>Read</span>
-                              </button>
-
-                              {/* Edit Button */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSnippetHeaderType(snippet.header || "Types");
-                                  setSnippetValues(snippet.values && snippet.values.length > 0 ? snippet.values : ["", "", ""]);
-                                  setEditingAssetIndex(idx);
-                                  setAssetModalMode("CREATE");
-                                }}
-                                className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1 cursor-pointer"
-                                title="Edit this snippet"
-                              >
-                                <Edit3 className="h-3 w-3 text-indigo-600" />
-                                <span>Edit</span>
-                              </button>
-
-                              {/* Delete Button */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCampaignState(prev => ({
-                                    ...prev,
-                                    structuredSnippets: (prev.structuredSnippets || []).filter((_, i) => i !== idx)
-                                  }));
-                                  toast.info("Structured snippet removed.");
-                                }}
-                                className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 flex items-center gap-1 cursor-pointer"
-                                title="Delete this snippet"
-                              >
-                                <Trash2 className="h-3 w-3 text-rose-600" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
                   )}
                 </div>
               </div>

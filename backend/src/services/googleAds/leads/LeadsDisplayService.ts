@@ -1326,14 +1326,12 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
       // ── 12. ATOMIC ROLLBACK ON DOWNSTREAM FAILURE ──
       console.error("[Google Ads API Error for Leads Display]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr));
       if (createdCampaignResource) {
-        try {
-          console.warn(`[Rollback] Removing created campaign ${createdCampaignResource}...`);
-          await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
-            operations: [{ remove: createdCampaignResource }]
-          }, { headers });
-        } catch (rollbackErr: any) {
-          console.error("[Rollback Failed for Campaign]:", rollbackErr?.message);
-        }
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          createdCampaignResource,
+          "LeadsDisplayService"
+        );
       }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
       throw new Error(formatted);
