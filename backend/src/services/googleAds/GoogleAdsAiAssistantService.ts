@@ -47,13 +47,22 @@ export interface CampaignState {
   locations?: string[];
   language?: string;
   biddingStrategy?: string;
+  biddingStrategyId?: string;
+  biddingStrategyResourceName?: string;
   targetCpa?: number | null;
   targetRoas?: number | null;
   maxCpcLimit?: number | string | null;
   targetImpressionSharePercent?: number | string | null;
   impressionShareLocation?: string;
+  devices?: Array<"DESKTOP" | "MOBILE" | "TABLET" | "CONNECTED_TV"> | { computers?: boolean; mobile?: boolean; tablets?: boolean; tv?: boolean } | string[];
+  adSchedule?: Array<{ day: string; start: string; end: string }>;
   conversionGoal?: string;
   keywords?: string[];
+  campaignNegativeKeywords?: string[];
+  negativeKeywords?: string[];
+  linkedSharedNegativeSetIds?: string[];
+  keywordIntelligence?: any[];
+  availableSharedNegativeLists?: any[];
   headlines?: string[];
   descriptions?: string[];
   longHeadlines?: string[];
@@ -105,6 +114,8 @@ export interface CampaignState {
   mobileFinalUrl?: string;
   searchThemes?: string[];
   audienceSignals?: Array<{ resourceName: string; name?: string; type?: string }>;
+  audienceSignalIds?: string[];
+  audienceIntelligence?: any[];
   sitelinks?: Array<{ text: string; url: string; desc1?: string; desc2?: string }>;
   callouts?: string[];
   callPhoneNumber?: string;
@@ -161,6 +172,22 @@ export interface AiChatResponse {
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+const YOUTUBE_BACKEND_GOALS = [
+  { id: "Engagements", name: "Engagements" },
+  { id: "YouTube follow-on views", name: "YouTube follow-on views" },
+  { id: "Engagements,YouTube follow-on views", name: "Engagements + YouTube follow-on views" },
+  { id: "phone_leads,Engagements,YouTube follow-on views", name: "Phone call leads + Engagements + YouTube follow-on views" },
+  { id: "phone_leads,Engagements", name: "Phone call leads + Engagements" },
+  { id: "phone_leads,YouTube follow-on views", name: "Phone call leads + YouTube follow-on views" },
+  { id: "contacts,Engagements", name: "Contacts + Engagements" },
+  { id: "contacts,YouTube follow-on views", name: "Contacts + YouTube follow-on views" },
+  { id: "get_directions,Engagements", name: "Get directions + Engagements" },
+  { id: "get_directions,YouTube follow-on views", name: "Get directions + YouTube follow-on views" },
+  { id: "phone_leads,contacts,Engagements,YouTube follow-on views", name: "Phone call leads + Contacts + Engagements + YouTube follow-on views" },
+  { id: "phone_leads,get_directions,Engagements,YouTube follow-on views", name: "Phone call leads + Get directions + Engagements + YouTube follow-on views" },
+  { id: "phone_leads,contacts,get_directions,Engagements,YouTube follow-on views", name: "Phone call leads + Contacts + Get directions + Engagements + YouTube follow-on views" }
+];
+
 // ── MANUAL CREATION COMPATIBILITY MATRICES (SOURCE OF TRUTH) ──
 export const MANUAL_GOALS_BY_OBJECTIVE: Record<string, Array<{ id: string; name: string }>> = {
   SALES: [
@@ -170,7 +197,8 @@ export const MANUAL_GOALS_BY_OBJECTIVE: Record<string, Array<{ id: string; name:
     { id: "phone_leads,contacts", name: "Phone call leads + Contacts" },
     { id: "contacts,get_directions", name: "Contacts + Get directions" },
     { id: "phone_leads,get_directions", name: "Phone call leads + Get directions" },
-    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" }
+    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" },
+    ...YOUTUBE_BACKEND_GOALS
   ],
   LEADS: [
     { id: "phone_leads", name: "Phone call leads" },
@@ -179,7 +207,8 @@ export const MANUAL_GOALS_BY_OBJECTIVE: Record<string, Array<{ id: string; name:
     { id: "phone_leads,contacts", name: "Phone call leads + Contacts" },
     { id: "contacts,get_directions", name: "Contacts + Get directions" },
     { id: "phone_leads,get_directions", name: "Phone call leads + Get directions" },
-    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" }
+    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" },
+    ...YOUTUBE_BACKEND_GOALS
   ],
   WEBSITE_TRAFFIC: [
     { id: "phone_leads", name: "Phone call leads" },
@@ -188,7 +217,8 @@ export const MANUAL_GOALS_BY_OBJECTIVE: Record<string, Array<{ id: string; name:
     { id: "phone_leads,contacts", name: "Phone call leads + Contacts" },
     { id: "contacts,get_directions", name: "Contacts + Get directions" },
     { id: "phone_leads,get_directions", name: "Phone call leads + Get directions" },
-    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" }
+    { id: "phone_leads,contacts,get_directions", name: "Phone call leads + Contacts + Get directions" },
+    ...YOUTUBE_BACKEND_GOALS
   ],
   APP_PROMOTION: [
     { id: "installs", name: "App installs" },
@@ -210,48 +240,55 @@ export const MANUAL_GOALS_BY_OBJECTIVE: Record<string, Array<{ id: string; name:
 
 export function getAvailableCampaignTypesBackend(
   objective?: string,
-  conversionGoals?: string[]
+  conversionGoals?: string[],
+  isYouTubeConnected?: boolean
 ): string[] {
   const obj = objective || "";
   const rawGoal = (conversionGoals && conversionGoals.length > 0) ? conversionGoals.join(",") : "";
   const hasContacts = rawGoal.includes("contacts");
   const hasDirections = rawGoal.includes("get_directions");
 
+  let types: string[] = [];
+
   if (obj === "APP_PROMOTION") {
-    return ["APP"];
-  }
-
-  if (obj === "LOCAL") {
-    return ["PERFORMANCE_MAX"];
-  }
-
-  if (obj === "AWARENESS") {
+    types = ["APP"];
+  } else if (obj === "LOCAL") {
+    types = ["PERFORMANCE_MAX"];
+  } else if (obj === "AWARENESS") {
     const videoGoal = conversionGoals?.[0] || "views";
-    if (videoGoal === "views") return ["VIDEO"];
-    if (videoGoal === "reach") return ["VIDEO", "DISPLAY"];
-    if (videoGoal === "subscriptions") return ["DEMAND_GEN"];
-    return ["VIDEO"];
+    if (videoGoal === "views") types = ["VIDEO"];
+    else if (videoGoal === "reach") types = ["VIDEO", "DISPLAY"];
+    else if (videoGoal === "subscriptions") types = ["DEMAND_GEN"];
+    else types = ["VIDEO"];
+  } else if (obj === "NO_GUIDANCE") {
+    types = ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN", "SHOPPING"];
+  } else if (obj === "WEBSITE_TRAFFIC") {
+    types = ["SEARCH", "PERFORMANCE_MAX", "DEMAND_GEN", "DISPLAY", "SHOPPING", "VIDEO"];
+  } else {
+    // SALES or LEADS
+    const baseTypes = ["PERFORMANCE_MAX", "SEARCH", "DEMAND_GEN", "VIDEO", "DISPLAY", "SHOPPING"];
+    if (hasContacts) {
+      types = ["PERFORMANCE_MAX"];
+    } else if (hasDirections && !hasContacts) {
+      types = ["PERFORMANCE_MAX", "SEARCH", "SHOPPING"];
+    } else {
+      types = baseTypes;
+    }
   }
 
-  if (obj === "NO_GUIDANCE") {
-    return ["PERFORMANCE_MAX", "SEARCH", "DISPLAY", "DEMAND_GEN", "SHOPPING"];
+  // Filter out VIDEO if YouTube is not connected
+  if (isYouTubeConnected === false) {
+    types = types.filter(t => t !== "VIDEO");
+    // If Awareness had only VIDEO and it's disconnected, allow DISPLAY as alternative
+    if (types.length === 0 && obj === "AWARENESS") {
+      types = ["DISPLAY"];
+    }
   }
 
-  if (obj === "WEBSITE_TRAFFIC") {
-    return ["SEARCH", "PERFORMANCE_MAX", "DEMAND_GEN", "DISPLAY", "SHOPPING", "VIDEO"];
-  }
-
-  // SALES or LEADS
-  const baseTypes = ["PERFORMANCE_MAX", "SEARCH", "DEMAND_GEN", "VIDEO", "DISPLAY", "SHOPPING"];
-  if (hasContacts) {
-    return ["PERFORMANCE_MAX"];
-  } else if (hasDirections && !hasContacts) {
-    return ["PERFORMANCE_MAX", "SEARCH", "SHOPPING"];
-  }
-  return baseTypes;
+  return types;
 }
 
-export function reconcileCampaignStateBackend(state: CampaignState): CampaignState {
+export function reconcileCampaignStateBackend(state: CampaignState, isYouTubeConnected?: boolean): CampaignState {
   const updated = { ...state };
   const obj = updated.objective || "";
 
@@ -264,7 +301,7 @@ export function reconcileCampaignStateBackend(state: CampaignState): CampaignSta
     const resolvedGoal = isValid ? rawGoal : "phone_leads";
     updated.conversionGoals = resolvedGoal.split(",");
 
-    const availableTypes = getAvailableCampaignTypesBackend(obj, updated.conversionGoals);
+    const availableTypes = getAvailableCampaignTypesBackend(obj, updated.conversionGoals, isYouTubeConnected);
     if (!updated.campaignType || !availableTypes.includes(updated.campaignType)) {
       updated.campaignType = (availableTypes[0] || "PERFORMANCE_MAX") as any;
     }
@@ -280,9 +317,9 @@ export function reconcileCampaignStateBackend(state: CampaignState): CampaignSta
     const isValid = allowed.some(s => s.id === rawSubtype);
     const resolvedSubtype = isValid ? rawSubtype : "views";
     updated.conversionGoals = [resolvedSubtype];
-    const availableTypes = getAvailableCampaignTypesBackend(obj, updated.conversionGoals);
+    const availableTypes = getAvailableCampaignTypesBackend(obj, updated.conversionGoals, isYouTubeConnected);
     if (!updated.campaignType || !availableTypes.includes(updated.campaignType)) {
-      updated.campaignType = (availableTypes[0] || "VIDEO") as any;
+      updated.campaignType = (availableTypes[0] || (isYouTubeConnected === false ? "DISPLAY" : "VIDEO")) as any;
     }
   } else if (obj === "LOCAL") {
     updated.conversionGoals = [];
@@ -637,11 +674,10 @@ export class GoogleAdsAiAssistantService {
       const candidateModels = preferredModels || (isXaiGrok
         ? ["grok-2-latest", "grok-beta", "grok-vision-beta"]
         : [
-            "groq/compound",
-            "groq/compound-mini",
-            "llama-3.3-70b-versatile",
+            "openai/gpt-oss-120b",
             "openai/gpt-oss-20b",
-            "qwen/qwen3.8-27b"
+            "qwen/qwen3.8-27b",
+            "llama-3.3-70b-versatile"
           ]);
 
       for (const model of candidateModels) {
@@ -905,11 +941,10 @@ export class GoogleAdsAiAssistantService {
       ];
 
       const candidateModels = [
-        "groq/compound",
-        "groq/compound-mini",
+        "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
         "qwen/qwen3.8-27b",
-        "openai/gpt-oss-120b"
+        "llama-3.3-70b-versatile"
       ];
 
       // Safe development-only token diagnostics
@@ -1413,7 +1448,8 @@ export class GoogleAdsAiAssistantService {
       };
 
       // ── ENFORCE 100% COMPATIBILITY WITH MANUAL CREATION (SOURCE OF TRUTH) ──
-      const reconciledMergedState = reconcileCampaignStateBackend(mergedState);
+      const isYtConnected = Boolean(resolvedCustomerProfile?.youtubeConnection?.isConnected);
+      const reconciledMergedState = reconcileCampaignStateBackend(mergedState, isYtConnected);
 
       // ── DYNAMIC STAGE DETERMINATION ──
       const hasBusiness = !!(reconciledMergedState.business?.name || reconciledMergedState.business?.type || reconciledMergedState.businessName);

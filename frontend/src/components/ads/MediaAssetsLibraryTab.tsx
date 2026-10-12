@@ -20,7 +20,6 @@ import {
   Check,
   ChevronRight,
   ExternalLink,
-  Sparkles,
   Filter,
   Edit2,
   RefreshCw
@@ -1677,7 +1676,7 @@ export function MediaAssetsLibraryTab({
               {/* Google Ads Aspect Ratio Specifications Guide */}
               <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100/80 text-xs text-blue-900 space-y-1.5">
                 <div className="flex items-center gap-1.5 font-bold text-blue-950 text-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  <Info className="w-3.5 h-3.5 text-blue-600" />
                   <span>Google Ads Specification Rules</span>
                 </div>
                 {editType === "IMAGE" ? (

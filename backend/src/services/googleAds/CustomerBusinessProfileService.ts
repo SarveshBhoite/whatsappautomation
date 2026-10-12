@@ -134,6 +134,14 @@ export interface ConversionGoalItem {
   additionalNotes?: string;
 }
 
+export interface BrandExclusionItem {
+  id: string;
+  name: string;
+  brands: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface BrandProfileData {
   // Brand Identity
   brandName?: string;
@@ -159,6 +167,9 @@ export interface BrandProfileData {
   discountRules?: string;
   priceRules?: string;
   additionalNotes?: string;
+
+  // Brand Exclusions lists
+  brandExclusions?: BrandExclusionItem[];
 }
 
 export interface CompetitorItem {
@@ -503,6 +514,42 @@ export interface BusinessProfilePayload {
   metadata?: Record<string, any>;
 }
 
+export const PROFILE_DB_SELECT = {
+  id: true,
+  organizationId: true,
+  customerId: true,
+  businessName: true,
+  legalBusinessName: true,
+  industry: true,
+  businessCategory: true,
+  businessDescription: true,
+  targetAudience: true,
+  customerType: true,
+  businessModel: true,
+  businessEmail: true,
+  businessPhone: true,
+  whatsappNumber: true,
+  businessAddress: true,
+  serviceAreas: true,
+  languagesServed: true,
+  primaryWebsite: true,
+  additionalWebsites: true,
+  products: true,
+  services: true,
+  keyOfferings: true,
+  locations: true,
+  hasMerchantAccount: true,
+  merchantCenterId: true,
+  merchantDetails: true,
+  hasAppAccount: true,
+  appDetails: true,
+  isApproved: true,
+  approvedAt: true,
+  metadata: true,
+  createdAt: true,
+  updatedAt: true
+};
+
 export class CustomerBusinessProfileService {
   /**
    * Fetches the saved business profile for a specific organizationId and customerId.
@@ -518,7 +565,8 @@ export class CustomerBusinessProfileService {
             organizationId: orgId,
             customerId: cleanCid
           }
-        }
+        },
+        select: PROFILE_DB_SELECT
       });
       if (profile) {
         const info = profile.metadata?.businessInfo || {};
@@ -536,7 +584,8 @@ export class CustomerBusinessProfileService {
         profile.languagesServed = (profile.languagesServed && Array.isArray(profile.languagesServed) && profile.languagesServed.length > 0)
           ? profile.languagesServed
           : (info.languagesServed || []);
-
+        profile.billingStatus = profile.billingStatus || profile.metadata?.billingStatus || "ACTIVE";
+        profile.googleTagId = profile.googleTagId || profile.metadata?.googleTagId || null;
         // Normalize products if strings exist
         if (Array.isArray(profile.products)) {
           profile.products = profile.products.map((p: any, idx: number): ProductItem =>
@@ -687,7 +736,20 @@ export class CustomerBusinessProfileService {
             promotionalStyle: typeof rawBrand.promotionalStyle === "string" ? rawBrand.promotionalStyle.trim() : "",
             discountRules: typeof rawBrand.discountRules === "string" ? rawBrand.discountRules.trim() : "",
             priceRules: typeof rawBrand.priceRules === "string" ? rawBrand.priceRules.trim() : "",
-            additionalNotes: typeof rawBrand.additionalNotes === "string" ? rawBrand.additionalNotes.trim() : ""
+            additionalNotes: typeof rawBrand.additionalNotes === "string" ? rawBrand.additionalNotes.trim() : "",
+            brandExclusions: Array.isArray(rawBrand.brandExclusions)
+              ? rawBrand.brandExclusions
+                  .filter((be: any) => be && typeof be === "object" && be.name)
+                  .map((be: any, bIdx: number): BrandExclusionItem => ({
+                    id: be.id || `be-${bIdx}`,
+                    name: String(be.name).trim(),
+                    brands: Array.isArray(be.brands)
+                      ? be.brands.map((b: any) => String(b).trim()).filter(Boolean)
+                      : (typeof be.brands === "string" ? be.brands.split(",").map((s: string) => s.trim()).filter(Boolean) : []),
+                    createdAt: be.createdAt || new Date().toISOString(),
+                    updatedAt: be.updatedAt || new Date().toISOString()
+                  }))
+              : []
           };
         } else {
           profile.brandProfile = null;
@@ -1069,7 +1131,18 @@ export class CustomerBusinessProfileService {
         promotionalStyle: typeof b.promotionalStyle === "string" ? b.promotionalStyle.trim() : undefined,
         discountRules: typeof b.discountRules === "string" ? b.discountRules.trim() : undefined,
         priceRules: typeof b.priceRules === "string" ? b.priceRules.trim() : undefined,
-        additionalNotes: typeof b.additionalNotes === "string" ? b.additionalNotes.trim() : undefined
+        additionalNotes: typeof b.additionalNotes === "string" ? b.additionalNotes.trim() : undefined,
+        brandExclusions: Array.isArray(b.brandExclusions)
+          ? b.brandExclusions
+              .filter((be: any) => be && typeof be === "object" && be.name)
+              .map((be: any, bIdx: number): BrandExclusionItem => ({
+                id: be.id || `be-${Date.now()}-${bIdx}`,
+                name: String(be.name).trim(),
+                brands: cleanList(be.brands),
+                createdAt: be.createdAt || new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }))
+          : undefined
       };
     };
 
@@ -1273,12 +1346,12 @@ export class CustomerBusinessProfileService {
       merchantDetails: data.merchantDetails || null,
       hasAppAccount: Boolean(data.hasAppAccount),
       appDetails: data.hasAppAccount ? appDetails : [],
-      billingStatus: data.billingStatus || undefined,
-      googleTagId: data.googleTagId || undefined,
       isApproved: Boolean(isApproved),
       ...(approvedAt ? { approvedAt } : {}),
       metadata: {
         ...(data.metadata || {}),
+        billingStatus: data.billingStatus || "ACTIVE",
+        googleTagId: data.googleTagId || null,
         businessInfo: businessInfoPayload,
         targetAudiences,
         customerPersonas,
@@ -1295,21 +1368,62 @@ export class CustomerBusinessProfileService {
       }
     };
 
-    const profile = await (prisma as any).googleAdsCustomerProfile.upsert({
+    const existingRecord = await (prisma as any).googleAdsCustomerProfile.findFirst({
       where: {
-        organizationId_customerId: {
-          organizationId: orgId,
-          customerId: cleanCid
-        }
-      },
-      update: upsertData,
-      create: {
         organizationId: orgId,
-        customerId: cleanCid,
-        ...upsertData
-      }
+        customerId: cleanCid
+      },
+      select: { id: true }
     });
 
+    let profile: any;
+    if (existingRecord) {
+      profile = await (prisma as any).googleAdsCustomerProfile.update({
+        where: { id: existingRecord.id },
+        data: upsertData,
+        select: PROFILE_DB_SELECT
+      });
+    } else {
+      const generatedId = (data as any).id || `prof-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO "GoogleAdsCustomerProfile" (
+          "id", "organizationId", "customerId", "businessName", "legalBusinessName",
+          "industry", "businessCategory", "businessDescription", "targetAudience",
+          "customerType", "businessModel", "businessEmail", "businessPhone",
+          "whatsappNumber", "businessAddress", "serviceAreas", "languagesServed",
+          "primaryWebsite", "additionalWebsites", "products", "services",
+          "keyOfferings", "locations", "hasMerchantAccount", "merchantCenterId",
+          "merchantDetails", "hasAppAccount", "appDetails", "isApproved",
+          "approvedAt", "metadata", "createdAt", "updatedAt"
+        ) VALUES (
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9,
+          $10, $11, $12, $13,
+          $14, $15, $16::jsonb, $17::jsonb,
+          $18, $19::jsonb, $20::jsonb, $21::jsonb,
+          $22::jsonb, $23::jsonb, $24, $25,
+          $26::jsonb, $27, $28::jsonb, $29,
+          $30, $31::jsonb, NOW(), NOW()
+        );
+      `,
+        generatedId, orgId, cleanCid, upsertData.businessName, upsertData.legalBusinessName,
+        upsertData.industry, upsertData.businessCategory, upsertData.businessDescription, upsertData.targetAudience,
+        upsertData.customerType, upsertData.businessModel, upsertData.businessEmail, upsertData.businessPhone,
+        upsertData.whatsappNumber, upsertData.businessAddress, JSON.stringify(upsertData.serviceAreas || []), JSON.stringify(upsertData.languagesServed || []),
+        upsertData.primaryWebsite, JSON.stringify(upsertData.additionalWebsites || []), JSON.stringify(upsertData.products || []), JSON.stringify(upsertData.services || []),
+        JSON.stringify(upsertData.keyOfferings || []), JSON.stringify(upsertData.locations || []), upsertData.hasMerchantAccount, upsertData.merchantCenterId,
+        upsertData.merchantDetails ? JSON.stringify(upsertData.merchantDetails) : null, upsertData.hasAppAccount, JSON.stringify(upsertData.appDetails || []), upsertData.isApproved,
+        (upsertData as any).approvedAt || null, JSON.stringify(upsertData.metadata || {})
+      );
+
+      profile = await (prisma as any).googleAdsCustomerProfile.findUnique({
+        where: { id: generatedId },
+        select: PROFILE_DB_SELECT
+      });
+    }
+
+    profile.billingStatus = (data.billingStatus || profile.metadata?.billingStatus || "ACTIVE");
+    profile.googleTagId = (data.googleTagId || profile.metadata?.googleTagId || null);
     profile.targetAudiences = targetAudiences;
     profile.customerPersonas = customerPersonas;
     profile.locationRecords = locationRecords;
@@ -1412,6 +1526,155 @@ export class CustomerBusinessProfileService {
     }, Boolean(profile.isApproved));
 
     return item;
+  }
+
+  /**
+   * Lists all saved Brand Exclusion lists for a customer profile.
+   * Also searches past campaigns for historical brand exclusions to provide a complete list.
+   */
+  static async listBrandExclusions(orgId: string, customerId: string): Promise<BrandExclusionItem[]> {
+    const profile = await this.getProfile(orgId, customerId);
+    const savedLists: BrandExclusionItem[] = Array.isArray(profile?.brandProfile?.brandExclusions)
+      ? profile.brandProfile.brandExclusions
+      : [];
+
+    const existingNames = new Set(savedLists.map(l => l.name.toLowerCase().trim()));
+
+    // Also look through past campaigns created by this customer
+    try {
+      const cleanCid = (customerId || "").replace(/-/g, "").trim();
+      const pastCampaigns = await (prisma as any).googleAdCampaign.findMany({
+        where: {
+          organizationId: orgId,
+          customerId: cleanCid
+        },
+        select: {
+          id: true,
+          name: true,
+          geoTargets: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: "desc" },
+        take: 30
+      });
+
+      for (const camp of pastCampaigns) {
+        const geo = camp.geoTargets || {};
+        const campBrandExclusions = geo.brandExclusions || [];
+        if (Array.isArray(campBrandExclusions) && campBrandExclusions.length > 0) {
+          for (const item of campBrandExclusions) {
+            let listName = "";
+            let brands: string[] = [];
+
+            if (typeof item === "string" && item.trim()) {
+              listName = item.trim();
+              brands = [item.trim()];
+            } else if (item && typeof item === "object" && item.name) {
+              listName = String(item.name).trim();
+              brands = Array.isArray(item.brands) ? item.brands : [listName];
+            }
+
+            if (listName && !existingNames.has(listName.toLowerCase())) {
+              existingNames.add(listName.toLowerCase());
+              savedLists.push({
+                id: `camp-be-${camp.id.slice(0, 8)}-${savedLists.length}`,
+                name: listName,
+                brands,
+                createdAt: camp.createdAt ? new Date(camp.createdAt).toISOString() : new Date().toISOString()
+              });
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn("[CustomerBusinessProfileService] listBrandExclusions campaign history fallback warning:", e.message);
+    }
+
+    return savedLists;
+  }
+
+  /**
+   * Adds or updates a Brand Exclusion list in the customer's profile.
+   */
+  static async saveBrandExclusion(
+    orgId: string,
+    customerId: string,
+    list: { id?: string; name: string; brands: string[] }
+  ): Promise<BrandExclusionItem> {
+    const profile = await this.getProfile(orgId, customerId);
+    if (!profile) throw new Error("Customer profile not found");
+
+    const trimmedName = String(list.name || "").trim();
+    if (!trimmedName) throw new Error("Brand exclusion list name is required");
+
+    const cleanBrands = Array.isArray(list.brands)
+      ? Array.from(new Set(list.brands.map(b => String(b).trim()).filter(Boolean)))
+      : [];
+
+    const existingLists: BrandExclusionItem[] = Array.isArray(profile.brandProfile?.brandExclusions)
+      ? [...profile.brandProfile.brandExclusions]
+      : [];
+
+    const nowIso = new Date().toISOString();
+    const targetId = list.id || `be-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const newItem: BrandExclusionItem = {
+      id: targetId,
+      name: trimmedName,
+      brands: cleanBrands,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    };
+
+    const existingIdx = existingLists.findIndex(
+      l => l.id === targetId || l.name.toLowerCase().trim() === trimmedName.toLowerCase()
+    );
+
+    if (existingIdx >= 0) {
+      newItem.createdAt = existingLists[existingIdx].createdAt || nowIso;
+      existingLists[existingIdx] = newItem;
+    } else {
+      existingLists.unshift(newItem);
+    }
+
+    const updatedBrandProfile: BrandProfileData = {
+      ...(profile.brandProfile || {}),
+      brandExclusions: existingLists
+    };
+
+    await this.saveProfile(orgId, customerId, {
+      ...profile,
+      brandProfile: updatedBrandProfile
+    }, Boolean(profile.isApproved));
+
+    return newItem;
+  }
+
+  /**
+   * Deletes a Brand Exclusion list by ID or Name.
+   */
+  static async deleteBrandExclusion(orgId: string, customerId: string, idOrName: string) {
+    const profile = await this.getProfile(orgId, customerId);
+    if (!profile) throw new Error("Customer profile not found");
+
+    const existingLists: BrandExclusionItem[] = Array.isArray(profile.brandProfile?.brandExclusions)
+      ? profile.brandProfile.brandExclusions
+      : [];
+
+    const filtered = existingLists.filter(
+      l => l.id !== idOrName && l.name.toLowerCase().trim() !== idOrName.toLowerCase().trim()
+    );
+
+    const updatedBrandProfile: BrandProfileData = {
+      ...(profile.brandProfile || {}),
+      brandExclusions: filtered
+    };
+
+    await this.saveProfile(orgId, customerId, {
+      ...profile,
+      brandProfile: updatedBrandProfile
+    }, Boolean(profile.isApproved));
+
+    return { success: true, remainingCount: filtered.length };
   }
 
   /**

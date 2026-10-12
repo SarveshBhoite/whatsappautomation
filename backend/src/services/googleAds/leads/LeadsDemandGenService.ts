@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class LeadsDemandGenService extends GoogleAdsBaseService {
@@ -121,6 +122,144 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
       throw new Error(`Language "${trimmed}" could not be resolved to a valid Google Ads language constant.`);
     }
     return null;
+  }
+
+  /**
+   * Helper: Maps minute to Google Ads MinuteOfHour enum
+   */
+  public static mapMinuteToEnum(minStr: string | number): string {
+    const m = parseInt(String(minStr || "0"), 10);
+    if (m >= 45) return "FORTY_FIVE";
+    if (m >= 30) return "THIRTY";
+    if (m >= 15) return "FIFTEEN";
+    return "ZERO";
+  }
+
+  /**
+   * Helper: Builds AdScheduleInfo criterion objects from frontend adSchedule list
+   */
+  public static buildAdScheduleCriteria(schedules: any[]): any[] {
+    if (!Array.isArray(schedules) || schedules.length === 0) return [];
+
+    const dayMap: Record<string, string[]> = {
+      "all days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"],
+      "mondays - fridays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+      "saturdays - sundays": ["SATURDAY", "SUNDAY"],
+      "mondays": ["MONDAY"],
+      "tuesdays": ["TUESDAY"],
+      "wednesdays": ["WEDNESDAY"],
+      "thursdays": ["THURSDAY"],
+      "fridays": ["FRIDAY"],
+      "saturdays": ["SATURDAY"],
+      "sundays": ["SUNDAY"],
+      "monday": ["MONDAY"],
+      "tuesday": ["TUESDAY"],
+      "wednesday": ["WEDNESDAY"],
+      "thursday": ["THURSDAY"],
+      "friday": ["FRIDAY"],
+      "saturday": ["SATURDAY"],
+      "sunday": ["SUNDAY"]
+    };
+
+    // Group intervals per day of week as [startMinutes, endMinutes]
+    const dayIntervals: Record<string, Array<{ startM: number; endM: number }>> = {
+      MONDAY: [],
+      TUESDAY: [],
+      WEDNESDAY: [],
+      THURSDAY: [],
+      FRIDAY: [],
+      SATURDAY: [],
+      SUNDAY: []
+    };
+
+    for (const sched of schedules) {
+      if (!sched || typeof sched !== "object") continue;
+      const rawDay = String(sched.day || sched.dayOfWeek || "All days").trim().toLowerCase();
+      const targetDays = dayMap[rawDay] || [rawDay.toUpperCase()];
+
+      const start = String(sched.start || "00:00").trim();
+      const end = String(sched.end || "00:00").trim();
+
+      let startM = 0;
+      let endM = 1440; // 24 * 60
+
+      if ((start === "00:00" || start === "0:00") && (end === "00:00" || end === "0:00" || end === "24:00" || end === "23:45")) {
+        startM = 0;
+        endM = 1440;
+      } else {
+        const [sh, sm] = start.split(":").map(v => parseInt(v, 10));
+        const [eh, em] = end.split(":").map(v => parseInt(v, 10));
+
+        const sHour = isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh));
+        const sMin = isNaN(sm) ? 0 : Math.max(0, Math.min(59, sm));
+        const eHour = isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh));
+        const eMin = isNaN(em) ? 0 : Math.max(0, Math.min(59, em));
+
+        startM = sHour * 60 + sMin;
+        endM = eHour * 60 + eMin;
+
+        if (endM <= startM && eHour !== 24) {
+          throw new Error(`Invalid ad schedule: End time (${end}) must be after start time (${start}) for ${sched.day || "day"}.`);
+        }
+      }
+
+      for (const d of targetDays) {
+        if (dayIntervals[d]) {
+          dayIntervals[d].push({ startM, endM });
+        }
+      }
+    }
+
+    // Check if every day is 0 to 1440 (all days 24/7). If so, Google Ads defaults to running all the time without criteria.
+    const allDaysFull = Object.keys(dayIntervals).every(d => {
+      const intervals = dayIntervals[d];
+      if (intervals.length === 0) return false;
+      return intervals.some(inv => inv.startM === 0 && inv.endM >= 1440);
+    });
+
+    if (allDaysFull && Object.values(dayIntervals).every(list => list.length <= 1)) {
+      return [];
+    }
+
+    const criteria: any[] = [];
+
+    // For each day, sort intervals and merge overlaps:
+    for (const [day, intervals] of Object.entries(dayIntervals)) {
+      if (intervals.length === 0) continue;
+
+      intervals.sort((a, b) => a.startM - b.startM);
+
+      const merged: Array<{ startM: number; endM: number }> = [];
+      let current = { ...intervals[0] };
+
+      for (let i = 1; i < intervals.length; i++) {
+        const next = intervals[i];
+        if (next.startM <= current.endM) {
+          current.endM = Math.max(current.endM, next.endM);
+        } else {
+          merged.push(current);
+          current = { ...next };
+        }
+      }
+      merged.push(current);
+
+      for (const m of merged) {
+        const sHour = Math.floor(m.startM / 60);
+        const sMin = m.startM % 60;
+        const eHour = Math.floor(m.endM / 60);
+        const eMin = m.endM % 60;
+
+        criteria.push({
+          dayOfWeek: day,
+          startHour: sHour,
+          startMinute: LeadsDemandGenService.mapMinuteToEnum(sMin),
+          endHour: eHour,
+          endMinute: LeadsDemandGenService.mapMinuteToEnum(eMin)
+        });
+      }
+    }
+
+    return criteria;
   }
 
   public static async createCampaign(organizationId: string, customerId: string, payload: any) {
@@ -303,12 +442,17 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
       customParameters = [],
       ipExclusions,
       adSchedule = [],
-      adGroups: inputAdGroups
+      adGroups: inputAdGroups,
+      conversionGoals
     } = payload;
 
     const finalUrl = (inputFinalUrl || website || (isAiGuided ? "" : "https://www.example.com")).trim();
-    const effectiveBudget = Number(dailyBudget !== undefined && dailyBudget !== "" ? dailyBudget : budget || (isAiGuided ? 0 : 1000));
     const isCampaignTotal = String(demandGenBudgetType).toLowerCase().includes("total");
+    const effectiveBudget = Number(
+      isCampaignTotal
+        ? (payload.totalBudget !== undefined && payload.totalBudget !== "" ? payload.totalBudget : (payload.budget !== undefined && payload.budget !== "" ? payload.budget : (dailyBudget || (isAiGuided ? 0 : 1000))))
+        : (dailyBudget !== undefined && dailyBudget !== "" ? dailyBudget : budget || (isAiGuided ? 0 : 1000))
+    );
 
     // ── 3. RESOLVE BIDDING CONFIGURATION ──
     const rawBStrat = (inputBiddingStrategy || (biddingFocus === "Target CPA" ? "TARGET_CPA" : biddingFocus === "Target ROAS" ? "TARGET_ROAS" : biddingFocus === "Clicks" ? "MAXIMIZE_CLICKS" : "MAXIMIZE_CONVERSIONS")).trim().toUpperCase();
@@ -423,6 +567,75 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
       createdCampaignResource = campaignRef;
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
+
+      // ── 5B. ATTACH AD SCHEDULE & DEVICE CRITERIA TO CAMPAIGN ──
+      const campaignCriterionOps: any[] = [];
+
+      // A. Ad Schedule Criteria
+      if (Array.isArray(adSchedule) && adSchedule.length > 0) {
+        const scheduleCriteria = LeadsDemandGenService.buildAdScheduleCriteria(adSchedule);
+        for (const sched of scheduleCriteria) {
+          campaignCriterionOps.push({
+            create: {
+              campaign: campaignRef,
+              adSchedule: sched
+            }
+          });
+        }
+      }
+
+      // B. Device Targeting Criteria
+      if (deviceTargeting === "SPECIFIC" && Array.isArray((payload as any).devices) && (payload as any).devices.length > 0) {
+        const deviceMap: Record<string, string> = {
+          "DESKTOP": "DESKTOP",
+          "COMPUTERS": "DESKTOP",
+          "MOBILE": "HIGH_END_MOBILE",
+          "MOBILE_PHONES": "HIGH_END_MOBILE",
+          "TABLET": "TABLET",
+          "TABLETS": "TABLET",
+          "CONNECTED_TV": "CONNECTED_TV",
+          "TV_SCREENS": "CONNECTED_TV"
+        };
+        for (const dev of (payload as any).devices) {
+          const mapped = deviceMap[String(dev).toUpperCase()];
+          if (mapped) {
+            campaignCriterionOps.push({
+              create: {
+                campaign: campaignRef,
+                device: {
+                  type: mapped
+                }
+              }
+            });
+          }
+        }
+      }
+
+      if (campaignCriterionOps.length > 0) {
+        try {
+          const critRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, {
+            operations: campaignCriterionOps
+          }, { headers });
+          apiResult.campaignCriteriaResourceNames = (critRes.data?.results || []).map((r: any) => r.resourceName);
+        } catch (campCritErr: any) {
+          console.warn("[LeadsDemandGenService] campaignCriteria mutate warning:", campCritErr?.response?.data || campCritErr.message);
+          if (isAiGuided) {
+            throw campCritErr;
+          }
+        }
+      }
+
+      // Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "LeadsDemandGenService"
+        );
+      }
 
       // ── 6. CREATE AD GROUPS & CHANNEL CONTROLS ──
       const adGroupList = (Array.isArray(inputAdGroups) && inputAdGroups.length > 0)
@@ -554,14 +767,21 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
         const allVideos = [...(videos || []), ...(youtubeVideos || [])];
         let resolvedVideoAsset: string | null = null;
         for (const v of allVideos) {
-          const raw = typeof v === "string" ? v : v?.asset || v?.videoId || v?.id || "";
+          const raw = typeof v === "string" ? v : v?.asset || v?.videoId || v?.url || v?.id || "";
           if (raw.startsWith("customers/") && raw.includes("/assets/")) {
             resolvedVideoAsset = raw;
             break;
           }
+          if (raw) {
+            const uploaded = await GoogleAdsBaseService.uploadYouTubeVideoAsset(organizationId, customerId, raw);
+            if (uploaded) {
+              resolvedVideoAsset = uploaded;
+              break;
+            }
+          }
         }
 
-        if (!resolvedVideoAsset && !isAiGuided) {
+        if (!resolvedVideoAsset) {
           // Fallback query for existing video asset in account
           try {
             const vRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:searchStream`, {
@@ -572,7 +792,7 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
         }
 
         if (!resolvedVideoAsset) {
-          throw new Error("A valid YouTube video asset is required for Video Demand Gen ads.");
+          throw new Error("A valid YouTube video asset is required for Video Demand Gen ads. Please provide a valid YouTube video URL or ID.");
         }
         if (!resolvedLogoAsset) {
           throw new Error("A logo image asset is required for Video Demand Gen ads.");
@@ -760,18 +980,17 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
 
     } catch (apiErr: any) {
       // ── 9. ATOMIC ROLLBACK ON ERROR ──
-      console.error("[Google Ads API Error for Leads Demand Gen]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr));
+      const errContext = { organizationId, customerId: cid, currencyCode: (payload as any)?.currencyCode || "INR" };
+      console.error("[Google Ads API Error for Leads Demand Gen]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr, errContext));
       if (createdCampaignResource) {
-        try {
-          console.warn(`[Rollback] Removing created campaign ${createdCampaignResource}...`);
-          await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
-            operations: [{ remove: createdCampaignResource }]
-          }, { headers });
-        } catch (rollbackErr: any) {
-          console.error(`[Rollback Failed for Campaign]:`, rollbackErr?.message);
-        }
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          createdCampaignResource,
+          "LeadsDemandGenService"
+        );
       }
-      const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
+      const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr, errContext);
       throw new Error(formatted);
     }
 
@@ -787,22 +1006,49 @@ export class LeadsDemandGenService extends GoogleAdsBaseService {
       budget: Number(effectiveBudget),
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: startDate ? new Date(String(startDate).split("T")[0]) : null,
+      endDate: endDate ? new Date(String(endDate).split("T")[0]) : null,
       finalUrl,
       headlines,
       descriptions,
+      languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
       geoTargets: {
         locations,
-        languages,
+        languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
         channels,
         audience,
+        searchThemes: Array.isArray(payload.searchThemes) ? payload.searchThemes : [],
+        audienceSignals: Array.isArray(payload.audienceSignals) ? payload.audienceSignals : (Array.isArray(payload.audienceSignal) ? payload.audienceSignal : (payload.audience ? [payload.audience] : [])),
+        demandGenBudgetType: isCampaignTotal ? "Total" : "Daily",
+        callPhoneNumber: payload.callPhoneNumber || null,
+        adName: payload.adName || null,
+        displayPath1: payload.displayPath1 || null,
+        displayPath2: payload.displayPath2 || null,
         brandGuidelines: {
-          mainBrandColor: payload.brandGuidelines?.mainBrandColor || null,
-          accentBrandColor: payload.brandGuidelines?.accentBrandColor || null,
-          brandFont: payload.brandGuidelines?.brandFont || null
+          mainBrandColor: payload.brandGuidelines?.mainBrandColor || payload.mainBrandColor || null,
+          accentBrandColor: payload.brandGuidelines?.accentBrandColor || payload.accentBrandColor || null,
+          brandFont: payload.brandGuidelines?.brandFont || payload.brandFont || null
         },
+        creativeEnhancements: {
+          optAdaptiveLayouts: payload.optAdaptiveLayouts !== false,
+          optAnimatedImages: payload.optAnimatedImages !== false,
+          optGeneratedVideos: payload.optGeneratedVideos !== false,
+          optShorterVideos: Boolean(payload.optShorterVideos),
+          optResizedVideos: payload.optResizedVideos !== false,
+          optLandingPagePreviews: payload.optLandingPagePreviews !== false
+        },
+        includeViewThrough: payload.includeViewThrough !== false,
+        keywords: Array.isArray(payload.keywords) ? payload.keywords : [],
+        callToAction: payload.callToAction || "Automated",
+        demographicExclusions: payload.demographicExclusions || null,
+        brandExclusions: payload.brandExclusions || null,
+        brandInclusions: payload.brandInclusions || null,
+        valueRules: payload.valueRules || null,
+        merchantCenterId: payload.merchantCenterId || payload.merchantId || null,
         deviceTargeting,
+        devices: payload.devices || { computers: true, mobile: true, tablets: true, tv: true },
         adSchedule,
-        objective: "Leads"
+        objective: payload.campaignGoal || payload.objective || "Leads"
       },
       advertisingChannelType: "DEMAND_GEN",
       amountMicros: BigInt(amountMicros),

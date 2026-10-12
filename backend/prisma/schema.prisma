@@ -34,6 +34,8 @@ model Organization {
   googleAdCampaigns   GoogleAdCampaign[]
   googleAdAccounts    GoogleAdAccount[]
   googleAdsCustomerProfiles GoogleAdsCustomerProfile[]
+  googleAdAssets      GoogleAdAsset[]
+  googleAdAssetLinkages GoogleAdAssetLinkage[]
   aiAgentConfigs      AiAgentConfig[]
   aiKnowledgeItems    AiKnowledgeItem[]
   aiCapturedLeads     AiCapturedLead[]
@@ -766,15 +768,15 @@ model GoogleAdsCustomerProfile {
 }
 
 model GoogleAdCampaign {
-  id                     String       @id @default(uuid())
+  id                     String                 @id @default(uuid())
   organizationId         String
-  organization           Organization @relation(fields: [organizationId], references: [id])
+  organization           Organization           @relation(fields: [organizationId], references: [id])
   customerId             String
-  campaignId             String       @default(uuid()) @unique
+  campaignId             String                 @default(uuid()) @unique
   googleAdsCampaignId    String?
   name                   String
-  status                 String       @default("PAUSED")
-  campaignType           String?      @default("SEARCH")
+  status                 String                 @default("PAUSED")
+  campaignType           String?                @default("SEARCH")
   biddingStrategy        String?
   budget                 Float?
   budgetResourceName     String?
@@ -789,63 +791,149 @@ model GoogleAdCampaign {
   searchThemes           Json?
   audienceSignal         Json?
   adSchedule             Json?
-  advertisingChannelType String       @default("SEARCH")
-  amountMicros           BigInt       @default(0)
-  impressions            BigInt       @default(0)
-  clicks                 BigInt       @default(0)
-  costMicros             BigInt       @default(0)
-  conversions            Float        @default(0.0)
-  createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
+  advertisingChannelType String                 @default("SEARCH")
+  amountMicros           BigInt                 @default(0)
+  impressions            BigInt                 @default(0)
+  clicks                 BigInt                 @default(0)
+  costMicros             BigInt                 @default(0)
+  conversions            Float                  @default(0.0)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  adGroups               GoogleAdGroup[]
+  assetLinkages          GoogleAdAssetLinkage[]
+
+  @@index([organizationId, customerId])
+  @@index([googleAdsCampaignId])
 }
 
 model GoogleAdGroup {
-  id               String   @id @default(uuid())
+  id               String                 @id @default(uuid())
   organizationId   String
   customerId       String
   campaignId       String
-  adGroupId        String   @default(uuid()) @unique
-  googleAdGroupId  String?  @unique
+  campaign         GoogleAdCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adGroupId        String                 @default(uuid()) @unique
+  googleAdGroupId  String?                @unique
   googleCampaignId String?
   name             String
-  adGroupType      String?  @default("SEARCH_STANDARD")
-  status           String   @default("ENABLED")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  adGroupType      String?                @default("SEARCH_STANDARD")
+  status           String                 @default("ENABLED")
+  cpcBidMicros     BigInt?
+  cpcBid           Float?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  ads              GoogleAd[]
+  keywords         GoogleAdKeyword[]
+  assetLinkages    GoogleAdAssetLinkage[]
+
+  @@index([organizationId, customerId])
+  @@index([campaignId])
+  @@index([googleAdGroupId])
 }
 
 model GoogleAd {
-  id              String   @id @default(uuid())
+  id              String                 @id @default(uuid())
   organizationId  String
   customerId      String
   adGroupId       String
-  adId            String   @default(uuid()) @unique
+  adGroup         GoogleAdGroup          @relation(fields: [adGroupId], references: [id], onDelete: Cascade)
+  adId            String                 @default(uuid()) @unique
   googleAdId      String?
   googleAdGroupId String?
-  headlines       Json?
-  descriptions    Json?
+  name            String?
+  adType          String?                @default("RESPONSIVE_SEARCH_AD")
+  status          String                 @default("ENABLED")
   finalUrls       Json?
   path1           String?
   path2           String?
-  status          String   @default("ENABLED")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  headlines       Json?
+  descriptions    Json?
+  adStrength      String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  assetLinkages   GoogleAdAssetLinkage[]
+
+  @@index([organizationId, customerId])
+  @@index([adGroupId])
+  @@index([googleAdId])
 }
 
 model GoogleAdKeyword {
-  id              String   @id @default(uuid())
+  id              String                 @id @default(uuid())
   organizationId  String
   customerId      String
   adGroupId       String?
+  adGroup         GoogleAdGroup?         @relation(fields: [adGroupId], references: [id], onDelete: Cascade)
   googleAdGroupId String?
-  keywordId       String   @default(uuid()) @unique
+  keywordId       String                 @default(uuid()) @unique
   googleKeywordId String?
   text            String
-  matchType       String   @default("EXACT")
-  isNegative      Boolean  @default(false)
-  status          String   @default("ENABLED")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  matchType       String                 @default("EXACT")
+  isNegative      Boolean                @default(false)
+  status          String                 @default("ENABLED")
+  cpcBidMicros    BigInt?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([organizationId, customerId])
+  @@index([adGroupId])
+  @@index([googleKeywordId])
+}
+
+model GoogleAdAsset {
+  id                         String                 @id @default(uuid())
+  organizationId             String
+  organization               Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerId                 String?
+  assetType                  String                 // IMAGE, LOGO, VIDEO, CALLOUT, SITELINK, PROMOTION, LEAD_FORM, STRUCTURED_SNIPPET, MESSAGE, PRICE, CALL
+  name                       String?
+  source                     String?                // UPLOAD, ASSET_LIBRARY, GOOGLE_ADS, YOUTUBE
+  mimeType                   String?
+  url                        String?
+  storageKey                 String?
+  googleAdsAssetId           String?
+  googleAdsAssetResourceName String?
+  metadata                   Json?                  // aspect ratio, dimensions, text details, structured data
+  status                     String                 @default("ENABLED")
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+
+  linkages                   GoogleAdAssetLinkage[]
+
+  @@index([organizationId])
+  @@index([organizationId, customerId])
+  @@index([googleAdsAssetId])
+}
+
+model GoogleAdAssetLinkage {
+  id                         String                 @id @default(uuid())
+  organizationId             String
+  organization               Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerId                 String?
+  assetId                    String
+  asset                      GoogleAdAsset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  campaignId                 String?
+  campaign                   GoogleAdCampaign?      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adGroupId                  String?
+  adGroup                    GoogleAdGroup?         @relation(fields: [adGroupId], references: [id], onDelete: Cascade)
+  adId                       String?
+  ad                         GoogleAd?              @relation(fields: [adId], references: [id], onDelete: Cascade)
+  assetFieldType             String                 // HEADLINE, DESCRIPTION, MARKETING_IMAGE, SQUARE_MARKETING_IMAGE, LOGO, YOUTUBE_VIDEO, SITELINK, CALLOUT, CALL, LEAD_FORM, STRUCTURED_SNIPPET, PROMOTION, PRICE, MESSAGE
+  googleAdsFieldType         String?
+  googleAdsLinkResourceName  String?
+  status                     String                 @default("ENABLED")
+  metadata                   Json?
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+
+  @@index([organizationId])
+  @@index([assetId])
+  @@index([campaignId])
+  @@index([adGroupId])
+  @@index([adId])
 }
 
 model GoogleAdExtension {

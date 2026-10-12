@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
@@ -99,50 +100,100 @@ export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
       "sunday": ["SUNDAY"]
     };
 
-    const criteria: any[] = [];
+    // Group intervals per day of week as [startMinutes, endMinutes]
+    const dayIntervals: Record<string, Array<{ startM: number; endM: number }>> = {
+      MONDAY: [],
+      TUESDAY: [],
+      WEDNESDAY: [],
+      THURSDAY: [],
+      FRIDAY: [],
+      SATURDAY: [],
+      SUNDAY: []
+    };
 
     for (const sched of schedules) {
       if (!sched || typeof sched !== "object") continue;
       const rawDay = String(sched.day || sched.dayOfWeek || "All days").trim().toLowerCase();
       const targetDays = dayMap[rawDay] || [rawDay.toUpperCase()];
 
-      let sHour = 0;
-      let sMinStr = "ZERO";
-      let eHour = 24;
-      let eMinStr = "ZERO";
-
       const start = String(sched.start || "00:00").trim();
       const end = String(sched.end || "00:00").trim();
 
+      let startM = 0;
+      let endM = 1440; // 24 * 60
+
       if ((start === "00:00" || start === "0:00") && (end === "00:00" || end === "0:00" || end === "24:00" || end === "23:45")) {
-        sHour = 0;
-        sMinStr = "ZERO";
-        eHour = 24;
-        eMinStr = "ZERO";
+        startM = 0;
+        endM = 1440;
       } else {
         const [sh, sm] = start.split(":").map(v => parseInt(v, 10));
         const [eh, em] = end.split(":").map(v => parseInt(v, 10));
 
-        sHour = isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh));
-        sMinStr = this.mapMinuteToEnum(sm || 0);
+        const sHour = isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh));
+        const sMin = isNaN(sm) ? 0 : Math.max(0, Math.min(59, sm));
+        const eHour = isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh));
+        const eMin = isNaN(em) ? 0 : Math.max(0, Math.min(59, em));
 
-        eHour = isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh));
-        eMinStr = this.mapMinuteToEnum(em || 0);
+        startM = sHour * 60 + sMin;
+        endM = eHour * 60 + eMin;
 
-        const startTotalMinutes = sHour * 60 + (sm || 0);
-        const endTotalMinutes = eHour * 60 + (em || 0);
-        if (endTotalMinutes <= startTotalMinutes && eHour !== 24) {
+        if (endM <= startM && eHour !== 24) {
           throw new Error(`Invalid ad schedule: End time (${end}) must be after start time (${start}) for ${sched.day || "day"}.`);
         }
       }
 
       for (const d of targetDays) {
+        if (dayIntervals[d]) {
+          dayIntervals[d].push({ startM, endM });
+        }
+      }
+    }
+
+    // Check if every day is 0 to 1440 (all days 24/7). If so, Google Ads defaults to running all the time without criteria.
+    const allDaysFull = Object.keys(dayIntervals).every(d => {
+      const intervals = dayIntervals[d];
+      if (intervals.length === 0) return false;
+      return intervals.some(inv => inv.startM === 0 && inv.endM >= 1440);
+    });
+
+    if (allDaysFull && Object.values(dayIntervals).every(list => list.length <= 1)) {
+      return [];
+    }
+
+    const criteria: any[] = [];
+
+    // For each day, sort intervals and merge overlaps:
+    for (const [day, intervals] of Object.entries(dayIntervals)) {
+      if (intervals.length === 0) continue;
+
+      intervals.sort((a, b) => a.startM - b.startM);
+
+      const merged: Array<{ startM: number; endM: number }> = [];
+      let current = { ...intervals[0] };
+
+      for (let i = 1; i < intervals.length; i++) {
+        const next = intervals[i];
+        if (next.startM <= current.endM) {
+          current.endM = Math.max(current.endM, next.endM);
+        } else {
+          merged.push(current);
+          current = { ...next };
+        }
+      }
+      merged.push(current);
+
+      for (const m of merged) {
+        const sHour = Math.floor(m.startM / 60);
+        const sMin = m.startM % 60;
+        const eHour = Math.floor(m.endM / 60);
+        const eMin = m.endM % 60;
+
         criteria.push({
-          dayOfWeek: d,
+          dayOfWeek: day,
           startHour: sHour,
-          startMinute: sMinStr,
+          startMinute: NoGuidanceDemandGenService.mapMinuteToEnum(sMin),
           endHour: eHour,
-          endMinute: eMinStr
+          endMinute: NoGuidanceDemandGenService.mapMinuteToEnum(eMin)
         });
       }
     }
@@ -1026,29 +1077,15 @@ export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
       }
 
       // ── 9B. CONVERSION GOALS CONFIGURATION (campaignConversionGoals:mutate) ──
-      if (Array.isArray(conversionGoals) && conversionGoals.length > 0) {
-        try {
-          const conversionOps: any[] = [];
-          for (const cg of conversionGoals) {
-            const goalResName = cg.resourceName || (cg.category && cg.origin ? `customers/${cid}/campaignConversionGoals/${campaignRef.split("/").pop()}~${cg.category}~${cg.origin}` : null);
-            if (goalResName) {
-              conversionOps.push({
-                update: {
-                  resourceName: goalResName,
-                  biddable: cg.biddable !== undefined ? Boolean(cg.biddable) : true
-                },
-                updateMask: "biddable"
-              });
-            }
-          }
-          if (conversionOps.length > 0) {
-            await axios.post(`${ADS_BASE}/customers/${cid}/campaignConversionGoals:mutate`, {
-              operations: conversionOps
-            }, { headers });
-          }
-        } catch (cgErr: any) {
-          console.warn("[NoGuidanceDemandGenService] campaignConversionGoals mutate warning:", cgErr?.response?.data || cgErr.message);
-        }
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "NoGuidanceDemandGenService"
+        );
       }
 
       // ── 10. UPLOAD ASSETS & PREPARE FORMAT-SPECIFIC AD ──
@@ -1125,14 +1162,21 @@ export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
         const allVideos = [...(videos || []), ...(youtubeVideos || [])];
         let resolvedVideoAsset: string | null = null;
         for (const v of allVideos) {
-          const raw = typeof v === "string" ? v : v?.asset || v?.videoId || v?.id || "";
+          const raw = typeof v === "string" ? v : v?.asset || v?.videoId || v?.url || v?.id || "";
           if (raw.startsWith("customers/") && raw.includes("/assets/")) {
             resolvedVideoAsset = raw;
             break;
           }
+          if (raw) {
+            const uploaded = await GoogleAdsBaseService.uploadYouTubeVideoAsset(organizationId, customerId, raw);
+            if (uploaded) {
+              resolvedVideoAsset = uploaded;
+              break;
+            }
+          }
         }
 
-        if (!resolvedVideoAsset && !isAiGuided) {
+        if (!resolvedVideoAsset) {
           try {
             const vRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:searchStream`, {
               query: "SELECT asset.resource_name FROM asset WHERE asset.type = 'YOUTUBE_VIDEO' LIMIT 1"
@@ -1142,7 +1186,7 @@ export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
         }
 
         if (!resolvedVideoAsset) {
-          throw new Error("A valid YouTube video asset is required for Video Demand Gen ads.");
+          throw new Error("A valid YouTube video asset is required for Video Demand Gen ads. Please provide a valid YouTube video URL or ID.");
         }
 
         const safeLongHeadlines = (validLongHeadlines.length > 0 ? validLongHeadlines : [validHeadlines[0]])
@@ -1326,18 +1370,17 @@ export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
 
     } catch (apiErr: any) {
       // ── 11. ATOMIC ROLLBACK ON ERROR ──
-      console.error("[Google Ads API Error for No Guidance Demand Gen]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr));
+      const errContext = { organizationId, customerId: cid, currencyCode: (payload as any)?.currencyCode || "INR" };
+      console.error("[Google Ads API Error for No Guidance Demand Gen]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr, errContext));
       if (createdCampaignResource) {
-        try {
-          console.warn(`[Rollback] Removing created campaign ${createdCampaignResource}...`);
-          await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
-            operations: [{ remove: createdCampaignResource }]
-          }, { headers });
-        } catch (rollbackErr: any) {
-          console.error(`[Rollback Failed for Campaign]:`, rollbackErr?.message);
-        }
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          createdCampaignResource,
+          "NoGuidanceDemandGenService"
+        );
       }
-      const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
+      const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr, errContext);
       throw new Error(formatted);
     }
 
@@ -1353,13 +1396,16 @@ export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
       budget: Number(effectiveBudget),
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: startDate ? new Date(String(startDate).split("T")[0]) : null,
+      endDate: endDate ? new Date(String(endDate).split("T")[0]) : null,
       finalUrl,
       headlines,
       descriptions,
+      languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
       geoTargets: {
         mobileFinalUrl: resolvedMobileFinalUrl,
         locations,
-        languages,
+        languages: (Array.isArray(languages) && languages.length > 0) ? languages : ["All languages"],
         channels,
         audience,
         brandGuidelines: {
@@ -1371,14 +1417,33 @@ export class NoGuidanceDemandGenService extends GoogleAdsBaseService {
         devices,
         adSchedule,
         ipExclusions,
-        customerAcquisitionMode,
-        optimizedTargeting,
+        demandGenBudgetType: String(payload.demandGenBudgetType || payload.budgetType || "Daily"),
+        callPhoneNumber: payload.callPhoneNumber || null,
+        adName: payload.adName || null,
+        keywords: Array.isArray(payload.keywords) ? payload.keywords : [],
+        searchThemes: Array.isArray(payload.searchThemes) ? payload.searchThemes : [],
+        audienceSignals: Array.isArray(payload.audienceSignals) ? payload.audienceSignals : (Array.isArray(payload.audienceSignal) ? payload.audienceSignal : (payload.audience ? [payload.audience] : [])),
+        callToAction: payload.callToAction || "Automated",
+        demographicExclusions: payload.demographicExclusions || null,
+        merchantCenterId: payload.merchantCenterId || payload.merchantId || null,
+        brandExclusions: payload.brandExclusions || null,
+        brandInclusions: payload.brandInclusions || null,
+        valueRules: payload.valueRules || null,
+        creativeEnhancements: {
+          optAdaptiveLayouts: payload.optAdaptiveLayouts !== false,
+          optAnimatedImages: payload.optAnimatedImages !== false,
+          optGeneratedVideos: payload.optGeneratedVideos !== false,
+          optShorterVideos: Boolean(payload.optShorterVideos),
+          optResizedVideos: payload.optResizedVideos !== false,
+          optLandingPagePreviews: payload.optLandingPagePreviews !== false
+        },
+        includeViewThrough: payload.includeViewThrough !== false,
         sitelinks,
         callouts,
         structuredSnippets,
         promotions,
         conversionGoals,
-        objective: "No Guidance"
+        objective: payload.campaignGoal || payload.objective || "No Guidance"
       },
       advertisingChannelType: "DEMAND_GEN",
       amountMicros: BigInt(amountMicros),

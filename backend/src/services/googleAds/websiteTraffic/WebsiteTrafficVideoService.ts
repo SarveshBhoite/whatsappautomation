@@ -1,23 +1,81 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
+import { YouTubeService } from "../../youtubeService";
 import axios from "axios";
 
 export class WebsiteTrafficVideoService extends GoogleAdsBaseService {
   public static async createCampaign(organizationId: string, customerId: string, payload: any) {
+    if (organizationId) {
+      const ytStatus = await YouTubeService.getOrganizationConnectionStatus(organizationId);
+      if (!ytStatus.isConnected) {
+        throw new Error("YouTube account is not authenticated for this organization. Please connect YouTube before launching a Video campaign.");
+      }
+    }
+
     const {
       campaignName = "Website Traffic Video",
       finalUrl = "https://www.example.com",
-      biddingFocus = "Maximize conversions",
+      campaignSubtype = "VIDEO_ACTION",
+      biddingStrategy = "MAXIMIZE_CONVERSIONS",
+      biddingFocus,
       targetCpa = 25,
       locations = ["India"],
       languages = ["English"],
+      youtubeVideos = [],
+      videos = [],
       headlines = [],
       descriptions = [],
-      dailyBudget = 1000
+      dailyBudget = 1000,
+      budget,
+      startDate,
+      endDate,
+      euPolitical = "NO",
+      keywords = [],
+      searchThemes = [],
+      audienceSignal,
+      audienceSignals = [],
+      adSchedule = [],
+      deviceTargeting = "ALL",
+      devices = [],
+      brandFont,
+      mainBrandColor,
+      accentBrandColor,
+      brandGuidelines,
+      channels = ["YouTube Shorts", "YouTube In-feed", "Discover", "Gmail"],
+      conversionGoals
     } = payload;
+
+    const allVideoList = [...(videos || []), ...(youtubeVideos || [])];
+    const resolvedVideoUrls: string[] = allVideoList.map((v: any) => {
+      if (typeof v === "string") return v.trim();
+      return v?.url || v?.videoId || v?.asset || "";
+    }).filter(Boolean);
+
+    console.log(`\n==================== 🎬 [WEBSITE TRAFFIC VIDEO CAMPAIGN LAUNCH] ====================`);
+    console.log(`Campaign Name:        ${campaignName}`);
+    console.log(`Customer ID:          ${customerId}`);
+    console.log(`Targeting Channels:   ${channels.join(", ")}`);
+    console.log(`🎬 YouTube Video Links (${resolvedVideoUrls.length}):`);
+    if (resolvedVideoUrls.length > 0) {
+      resolvedVideoUrls.forEach((url, i) => console.log(`   [${i + 1}] ${url}`));
+    } else {
+      console.log(`   ⚠️ No direct YouTube video links provided in payload.`);
+    }
+    console.log(`🎨 Brand Guidelines:`);
+    console.log(`   • Main Color:   ${mainBrandColor || brandGuidelines?.mainColor || "Default (#3b82f6)"}`);
+    console.log(`   • Accent Color: ${accentBrandColor || brandGuidelines?.accentColor || "Default (#10b981)"}`);
+    console.log(`   • Font:         ${brandFont || brandGuidelines?.font || "Any font"}`);
+    console.log(`📱 Device Targeting:   ${deviceTargeting}`);
+    console.log(`⏰ Ad Schedule:        ${Array.isArray(adSchedule) && adSchedule.length > 0 ? JSON.stringify(adSchedule) : "24/7 All days"}`);
+    console.log(`🔑 Keywords (${keywords.length}):     ${keywords.join(", ") || "None"}`);
+    console.log(`🎯 Search Themes (${searchThemes.length}): ${searchThemes.join(", ") || "None"}`);
+    console.log(`====================================================================================\n`);
 
     if (!finalUrl) throw new Error("Final URL is required.");
 
-    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const rawBudget = dailyBudget !== undefined && dailyBudget !== "" ? dailyBudget : budget;
+    const effectiveBudget = Number(rawBudget) || 1000;
+    const amountMicros = Math.round(effectiveBudget * 1_000_000);
     const targetCpaMicros = targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
     const cid = (customerId || "").replace(/-/g, "").trim();
 
@@ -26,12 +84,12 @@ export class WebsiteTrafficVideoService extends GoogleAdsBaseService {
     try {
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: amountMicros / 1_000_000
+        amountPerDay: effectiveBudget
       });
       apiResult.budgetResourceName = budgetRef;
 
       const { headers } = await this.getAdsHeaders(organizationId, customerId);
-      const euPoliticalValue = (payload.euPolitical === "YES" || payload.euPoliticalAds === "YES")
+      const euPoliticalValue = (euPolitical === "YES" || payload.euPoliticalAds === "YES")
         ? "CONTAINS_EU_POLITICAL_ADVERTISING"
         : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING";
 
@@ -56,6 +114,18 @@ export class WebsiteTrafficVideoService extends GoogleAdsBaseService {
       apiResult.campaignResourceName = campaignRef;
       apiResult.campaignId = campaignRef.split("/").pop();
       
+      // Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "WebsiteTrafficVideoService"
+        );
+      }
+
       try {
         const adGroupPayload = {
           operations: [{
@@ -72,6 +142,14 @@ export class WebsiteTrafficVideoService extends GoogleAdsBaseService {
          console.warn("[Google Ads API fallback for Website Traffic Video Ad Group]:", err.message);
       }
     } catch (apiErr: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "WebsiteTrafficVideoService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
       console.error("[Google Ads API Error for Website Traffic Video]:", formatted);
       throw new Error(formatted);
@@ -84,13 +162,34 @@ export class WebsiteTrafficVideoService extends GoogleAdsBaseService {
       name: campaignName,
       campaignType: "VIDEO",
       biddingStrategy: biddingFocus === "Target CPA" ? "TARGET_CPA" : "MAXIMIZE_CONVERSIONS",
-      budget: Number(dailyBudget),
+      budget: Number(effectiveBudget),
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: startDate ? new Date(String(startDate).split("T")[0]) : null,
+      endDate: endDate ? new Date(String(endDate).split("T")[0]) : null,
       finalUrl,
       headlines,
       descriptions,
-      geoTargets: { objective: "Website Traffic", locations, languages },
+      keywords,
+      searchThemes,
+      audienceSignal: audienceSignal ? (typeof audienceSignal === "object" ? JSON.stringify(audienceSignal) : String(audienceSignal)) : null,
+      adSchedule,
+      geoTargets: {
+        locations,
+        languages,
+        channels: payload.channels || channels || [],
+        audience: payload.audience || audienceSignal || null,
+        brandGuidelines: {
+          mainBrandColor: mainBrandColor || payload.brandGuidelines?.mainBrandColor || null,
+          accentBrandColor: accentBrandColor || payload.brandGuidelines?.accentBrandColor || null,
+          brandFont: brandFont || payload.brandGuidelines?.brandFont || null
+        },
+        deviceTargeting: payload.deviceTargeting || deviceTargeting || "ALL",
+        devices: payload.devices || devices || [],
+        adSchedule: payload.adSchedule || adSchedule || [],
+        videoUrls: resolvedVideoUrls,
+        objective: "Website Traffic"
+      },
       advertisingChannelType: "VIDEO",
       amountMicros: BigInt(amountMicros),
       costMicros: BigInt(0),

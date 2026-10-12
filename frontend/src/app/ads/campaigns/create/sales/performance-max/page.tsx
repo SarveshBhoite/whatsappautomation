@@ -1871,6 +1871,82 @@ function SalesPerformanceMaxContent() {
                     </div>
                   )}
 
+                  {/* Merchant Details Row */}
+                  {activeEditSetting === "MERCHANT_DETAILS" ? (
+                    <div className="p-6 bg-white space-y-4 animate-in fade-in duration-150 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <span className="font-bold text-slate-800">Merchant Center details</span>
+                        <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg cursor-pointer">Save</button>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <label className="flex items-center gap-2 cursor-pointer font-semibold text-xs text-slate-800">
+                          <input
+                            type="radio"
+                            name="pmaxMerchantRadioOption"
+                            checked={merchantCenterEnabled}
+                            onChange={() => setMerchantCenterEnabled(true)}
+                            className="text-primary focus:ring-primary h-4 w-4"
+                          />
+                          <span>Yes (Advertise products from Merchant Center)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer font-semibold text-xs text-slate-800">
+                          <input
+                            type="radio"
+                            name="pmaxMerchantRadioOption"
+                            checked={!merchantCenterEnabled}
+                            onChange={() => {
+                              setMerchantCenterEnabled(false);
+                              setMerchantCenterId("");
+                            }}
+                            className="text-primary focus:ring-primary h-4 w-4"
+                          />
+                          <span>No (Exclude Merchant Center)</span>
+                        </label>
+                      </div>
+                      {merchantCenterEnabled ? (
+                        <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/70 space-y-3">
+                          <p className="text-[11px] text-amber-900 leading-relaxed">
+                            Ensure your Final URL domain matches your verified domain in Google Merchant Center.
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] text-slate-700 font-bold mb-1">Merchant Center ID</label>
+                              <input
+                                type="text"
+                                value={merchantCenterId}
+                                onChange={(e) => setMerchantCenterId(e.target.value.trim())}
+                                placeholder="e.g. 5840531233"
+                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-slate-700 font-bold mb-1">Feed Label / Country</label>
+                              <input
+                                type="text"
+                                value={feedLabel}
+                                onChange={(e) => setFeedLabel(e.target.value.trim())}
+                                placeholder="e.g. IN"
+                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500">
+                          Merchant Center data will not be sent with this campaign. You can use any valid website landing page URL.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div onClick={() => setActiveEditSetting("MERCHANT_DETAILS")} className="p-4 hover:bg-slate-50 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
+                      <div className="w-1/3 text-slate-500 font-semibold">Merchant Center details</div>
+                      <div className="w-2/3 text-slate-800 font-bold pr-8">
+                        {merchantCenterEnabled && merchantCenterId ? `Yes (ID: ${merchantCenterId})` : "No (Not linked)"}
+                      </div>
+                      <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
+                    </div>
+                  )}
+
                   {/* Brand exclusions Row */}
                   {activeEditSetting === "BRAND_EXCLUSIONS" ? (
                     <div className="p-6 bg-white space-y-4 animate-in fade-in duration-150 text-xs">

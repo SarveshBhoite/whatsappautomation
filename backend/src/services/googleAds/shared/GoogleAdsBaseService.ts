@@ -12,7 +12,7 @@ export class GoogleAdsBaseService {
 
   private static headersCache: Map<string, { data: any, expiresAt: number }> = new Map();
 
-  protected static async getAdsHeaders(organizationId: string, customerId?: string) {
+  public static async getAdsHeaders(organizationId: string, customerId?: string) {
     const cacheKey = `${organizationId}_${customerId || 'default'}`;
     const cached = this.headersCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
@@ -175,7 +175,10 @@ export class GoogleAdsBaseService {
       .filter((p): p is { key: string; value: string } => p !== null && p.key.length > 0);
   }
 
-  public static formatGoogleAdsError(error: any): string {
+  public static formatGoogleAdsError(
+    error: any,
+    context?: { organizationId?: string; customerId?: string; currencyCode?: string }
+  ): string {
     if (error?.response?.data) {
       const data = error.response.data;
       const details = data.details || data.error?.details || [];
@@ -196,7 +199,36 @@ export class GoogleAdsBaseService {
                 }
               }
             } else if (err.errorCode?.campaignBudgetError === "BUDGET_BELOW_PER_DAY_MINIMUM") {
-              extractedErrors.push(`Daily budget is below Google's minimum requirement (min ₹416/day).`);
+              const bDetails =
+                err.details?.budgetPerDayMinimumErrorDetails ||
+                err.details?.budget_per_day_minimum_error_details;
+              const minMicros =
+                bDetails?.minimumBudgetAmountMicros ||
+                bDetails?.minimum_budget_amount_micros ||
+                bDetails?.minimumBugdetAmountMicros ||
+                bDetails?.minimum_bugdet_amount_micros;
+              if (minMicros && !isNaN(Number(minMicros))) {
+                const minUnits = (Number(minMicros) / 1_000_000).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                });
+                try {
+                  const { DemandGenMinimumService } = require("./DemandGenMinimumService");
+                  DemandGenMinimumService.recordObservedMinimum(
+                    context?.organizationId || "",
+                    context?.customerId || "",
+                    context?.currencyCode || "INR",
+                    minMicros
+                  );
+                } catch {}
+                extractedErrors.push(
+                  `Daily budget is below Google Ads' required per-day minimum for this campaign type (minimum required: ${minUnits}/day in your account currency).`
+                );
+              } else {
+                extractedErrors.push(
+                  `Daily budget is below Google Ads' required per-day minimum for this campaign type. Please increase your daily budget.`
+                );
+              }
             } else if (err.message) {
               const fieldPath = err.location?.fieldPathElements?.map((f: any) => f.fieldName).join(".") || "";
               const trigger = err.trigger?.stringValue || "";
@@ -218,21 +250,120 @@ export class GoogleAdsBaseService {
     return error.message || "An unexpected Google Ads API error occurred.";
   }
 
+  /**
+   * Specifically inspects an error for BUDGET_BELOW_PER_DAY_MINIMUM and returns
+   * structured metadata including the exact minimum amount in micros, units, and currency code.
+   * Also asynchronously persists the observed minimum via DemandGenMinimumService.
+   */
+  public static parseGoogleAdsBudgetError(
+    error: any,
+    context?: { organizationId?: string; customerId?: string; currencyCode?: string }
+  ): {
+    isBudgetBelowMinimum: boolean;
+    errorCode?: string;
+    minimumBudgetAmountMicros?: string;
+    minimumBudgetUnits?: number;
+    currencyCode?: string;
+    message?: string;
+  } | null {
+    if (!error?.response?.data) return null;
+    const data = error.response.data;
+    const details = data.details || data.error?.details || [];
+
+    for (const detail of details) {
+      if (Array.isArray(detail.errors)) {
+        for (const err of detail.errors) {
+          if (err.errorCode?.campaignBudgetError === "BUDGET_BELOW_PER_DAY_MINIMUM") {
+            const bDetails =
+              err.details?.budgetPerDayMinimumErrorDetails ||
+              err.details?.budget_per_day_minimum_error_details;
+            const minMicros =
+              bDetails?.minimumBudgetAmountMicros ||
+              bDetails?.minimum_budget_amount_micros ||
+              bDetails?.minimumBugdetAmountMicros ||
+              bDetails?.minimum_bugdet_amount_micros;
+
+            const curr = (context?.currencyCode || "INR").toUpperCase();
+            let minUnits: number | undefined;
+
+            if (minMicros && !isNaN(Number(minMicros))) {
+              minUnits = Math.round((Number(minMicros) / 1_000_000) * 100) / 100;
+              try {
+                const { DemandGenMinimumService } = require("./DemandGenMinimumService");
+                DemandGenMinimumService.recordObservedMinimum(
+                  context?.organizationId || "",
+                  context?.customerId || "",
+                  curr,
+                  minMicros
+                );
+              } catch {}
+            }
+
+            const formattedUnits = minUnits
+              ? minUnits.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : "";
+
+            return {
+              isBudgetBelowMinimum: true,
+              errorCode: "DEMAND_GEN_BUDGET_BELOW_MINIMUM",
+              minimumBudgetAmountMicros: minMicros ? String(minMicros) : undefined,
+              minimumBudgetUnits: minUnits,
+              currencyCode: curr,
+              message: minUnits
+                ? `Your daily budget is below Google's current minimum. Minimum required: ${curr} ${formattedUnits}/day.`
+                : `Your daily budget is below Google Ads' required per-day minimum. Please increase your daily budget.`
+            };
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+
   protected static async createBudget(organizationId: string, customerId: string, params: {
-    name: string; amountPerDay: number; deliveryMethod?: string; shared?: boolean;
+    name: string;
+    amountPerDay: number;
+    deliveryMethod?: string;
+    shared?: boolean;
+    period?: "DAILY" | "CUSTOM_PERIOD";
+    totalAmount?: number;
   }) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
-    // Respect user's specified amount (min 1 INR / 1 unit)
-    const safeAmountPerDay = Math.max(Number(params.amountPerDay) || 1, 1);
-    const amountMicros = Math.round(safeAmountPerDay * 1_000_000);
+    const isCustomPeriod = params.period === "CUSTOM_PERIOD" && params.totalAmount && Number(params.totalAmount) > 0;
+    
+    let budgetCreateObj: any;
+    if (isCustomPeriod) {
+      const safeTotal = Math.min(Math.max(Number(params.totalAmount), 1), 100_000_000);
+      const totalAmountMicros = String(Math.round(safeTotal * 1_000_000));
+      budgetCreateObj = {
+        name: params.name || `Total Budget ${safeTotal} (${Date.now()})`,
+        period: "CUSTOM_PERIOD",
+        totalAmountMicros,
+        deliveryMethod: params.deliveryMethod || "STANDARD",
+        explicitlyShared: false
+      };
+    } else {
+      // Respect user's specified amount (min 1 INR / 1 unit, max 10,000,000 INR)
+      let rawAmount = Number(params.amountPerDay);
+      if (isNaN(rawAmount) || !isFinite(rawAmount) || rawAmount <= 0) {
+        rawAmount = 500;
+      }
+      // Cap to reasonable maximum to avoid scientific notation or int64 overflow
+      const safeAmountPerDay = Math.min(Math.max(rawAmount, 1), 10_000_000);
+      const amountMicros = String(Math.round(safeAmountPerDay * 1_000_000));
+      budgetCreateObj = {
+        name: params.name || `Budget ${safeAmountPerDay}/day (${Date.now()})`,
+        amountMicros,
+        deliveryMethod: params.deliveryMethod || "STANDARD",
+        explicitlyShared: params.shared || false
+      };
+    }
+
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignBudgets:mutate`, {
       operations: [{
-        create: {
-          name: params.name || `Budget ₹${safeAmountPerDay}/day (${Date.now()})`,
-          amountMicros,
-          deliveryMethod: params.deliveryMethod || "STANDARD",
-          explicitlyShared: params.shared || false
-        }
+        create: budgetCreateObj
       }]
     }, { headers });
     return res.data.results?.[0]?.resourceName;
@@ -301,6 +432,46 @@ export class GoogleAdsBaseService {
       return res.data?.results?.[0]?.resourceName || null;
     } catch (err: any) {
       console.error(`[GoogleAdsBaseService] uploadImageAsset error for "${name}":`, JSON.stringify(err?.response?.data || err?.message, null, 2));
+      return null;
+    }
+  }
+
+  public static extractYouTubeVideoId(urlOrId: string): string | null {
+    if (!urlOrId || typeof urlOrId !== "string") return null;
+    const str = urlOrId.trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(str)) {
+      return str;
+    }
+    const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([a-zA-Z0-9_-]{11})/i);
+    return match ? match[1] : null;
+  }
+
+  public static async uploadYouTubeVideoAsset(
+    organizationId: string,
+    customerId: string,
+    videoUrlOrId: string
+  ): Promise<string | null> {
+    try {
+      const videoId = this.extractYouTubeVideoId(videoUrlOrId);
+      if (!videoId) return null;
+      const { headers } = await this.getAdsHeaders(organizationId, customerId);
+      const cid = (customerId || "").replace(/-/g, "").trim();
+
+      const res = await axios.post(`${ADS_BASE}/customers/${cid}/assets:mutate`, {
+        operations: [{
+          create: {
+            name: `YouTube Video: ${videoId}`,
+            type: "YOUTUBE_VIDEO",
+            youtubeVideoAsset: {
+              youtubeVideoId: videoId
+            }
+          }
+        }]
+      }, { headers });
+
+      return res.data?.results?.[0]?.resourceName || null;
+    } catch (err: any) {
+      console.error(`[GoogleAdsBaseService] uploadYouTubeVideoAsset notice for "${videoUrlOrId}":`, err?.response?.data || err?.message);
       return null;
     }
   }
@@ -403,7 +574,7 @@ export class GoogleAdsBaseService {
       if (locationInput.id && /^\d+$/.test(String(locationInput.id))) {
         return String(locationInput.id);
       }
-      targetStr = (locationInput.canonicalName || locationInput.name || "").trim();
+      targetStr = (locationInput.canonicalName || locationInput.name || locationInput.locationName || "").trim();
     }
 
     if (!targetStr || targetStr.toUpperCase() === "ALL" || targetStr.toLowerCase() === "all countries and territories" || targetStr.toLowerCase() === "all countries") {
@@ -418,7 +589,7 @@ export class GoogleAdsBaseService {
       return this.GEO_TARGET_CONSTANT_MAP[lower];
     }
 
-    // 1. Try Google Ads GeoTargetConstants:suggest API with full string
+    // 1. Try Google Ads GeoTargetConstants:suggest API with full string (e.g. "Pune, Maharashtra, India")
     try {
       const suggestRes = await axios.get(`${ADS_BASE}/geoTargetConstants:suggest`, {
         params: { "location_names.names": targetStr, locale },
@@ -433,17 +604,13 @@ export class GoogleAdsBaseService {
       console.warn(`[GoogleAdsBaseService] GeoTargetConstants:suggest notice for "${targetStr}":`, suggestErr?.response?.data || suggestErr.message);
     }
 
-    // 2. Try individual parts / segments (e.g. for "Wai, Maharashtra, India" -> "Wai", "Maharashtra", "India")
+    // 2. Try suggest with leading segment (city / district name, e.g. "Pune" from "Pune, Maharashtra, India")
     const parts = targetStr.split(",").map(p => p.trim()).filter(Boolean);
-    for (const part of parts) {
-      const partLower = part.toLowerCase();
-      if (this.GEO_TARGET_CONSTANT_MAP[partLower]) {
-        return this.GEO_TARGET_CONSTANT_MAP[partLower];
-      }
-    }
-
-    // 3. Try suggest with leading segment (city / district name)
     if (parts.length > 1) {
+      const leadingPartLower = parts[0].toLowerCase();
+      if (this.GEO_TARGET_CONSTANT_MAP[leadingPartLower]) {
+        return this.GEO_TARGET_CONSTANT_MAP[leadingPartLower];
+      }
       try {
         const leadRes = await axios.get(`${ADS_BASE}/geoTargetConstants:suggest`, {
           params: { "location_names.names": parts[0], locale },
@@ -457,6 +624,78 @@ export class GoogleAdsBaseService {
       } catch (e: any) {
         // Continue fallback
       }
+    }
+
+    // 3. Fallback: check map for any part in order
+    for (const part of parts) {
+      const partLower = part.toLowerCase();
+      if (this.GEO_TARGET_CONSTANT_MAP[partLower]) {
+        return this.GEO_TARGET_CONSTANT_MAP[partLower];
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolves an audience signal input (string name, id, or object) into a valid Google Ads
+   * Audience resource name: "customers/{customerId}/audiences/{audienceId}".
+   * If the input is not a valid audience or cannot be found, returns null so campaign creation does not fail.
+   */
+  public static async resolveAudienceResource(
+    organizationId: string,
+    customerId: string,
+    audInput: any,
+    headers?: any
+  ): Promise<string | null> {
+    if (!audInput) return null;
+    const cid = customerId.replace(/-/g, "").trim();
+    const rawVal = typeof audInput === "string" ? audInput.trim() : (audInput.resourceName || audInput.id || audInput.name || "").trim();
+    if (!rawVal) return null;
+
+    // 1. If already in correct customers/{cid}/audiences/{id} format
+    const audiencePattern = /^customers\/\d+\/audiences\/\d+$/;
+    if (audiencePattern.test(rawVal)) {
+      return rawVal;
+    }
+
+    // 2. If it's a numeric audience ID
+    if (/^\d+$/.test(rawVal)) {
+      return `customers/${cid}/audiences/${rawVal}`;
+    }
+
+    // 3. If rawVal contains /audiences/
+    if (rawVal.includes("/audiences/")) {
+      const parts = rawVal.split("/audiences/");
+      const audId = parts[1].trim();
+      if (/^\d+$/.test(audId)) {
+        return `customers/${cid}/audiences/${audId}`;
+      }
+    }
+
+    // 4. Try querying Google Ads by audience.name or user_list / custom_audience
+    try {
+      const reqHeaders = headers || (await this.getAdsHeaders(organizationId, customerId)).headers;
+      const cleanAudName = rawVal.replace(/👥|\*|[\r\n]/g, "").trim().replace(/'/g, "\\'");
+      if (!cleanAudName) return null;
+
+      const query = `
+        SELECT audience.id, audience.resource_name, audience.name, audience.status
+        FROM audience
+        WHERE audience.status = 'ENABLED' AND audience.name = '${cleanAudName}'
+        LIMIT 1
+      `;
+      const searchRes = await axios.post(
+        `${ADS_BASE}/customers/${cid}/googleAds:search`,
+        { query },
+        { headers: reqHeaders, timeout: 5000 }
+      );
+      const rows = searchRes.data?.results || [];
+      if (rows.length > 0 && rows[0]?.audience?.resourceName) {
+        return rows[0].audience.resourceName;
+      }
+    } catch (e: any) {
+      console.warn(`[GoogleAdsBaseService] resolveAudienceResource search notice for "${rawVal}":`, e?.response?.data || e.message);
     }
 
     return null;
@@ -480,6 +719,11 @@ export class GoogleAdsBaseService {
     const headers = params.headers || (await this.getAdsHeaders(organizationId, customerId)).headers;
     const operations: any[] = [];
 
+    // Track structured details for reporting & logging
+    const parsedLocationsReport: any[] = [];
+    const geoTargetsReport: string[] = [];
+    const proximityTargetsReport: string[] = [];
+
     // 1. Process Locations
     const locList = Array.isArray(params.locations) ? params.locations : [params.locations].filter(Boolean);
     for (const rawLoc of locList) {
@@ -488,33 +732,36 @@ export class GoogleAdsBaseService {
       let loc = rawLoc;
       const isNegative = typeof loc === "object" && Boolean(loc.isExcluded);
 
-      // Support radius patterns in string format (e.g. "20 km around Mumbai, Maharashtra, India" or "10 mi around New York")
+      // Support radius patterns in string format (e.g. "20 km around Mumbai, Maharashtra, India" or "25 km around Bengaluru, Karnataka, India")
       if (typeof loc === "string") {
         const radiusMatch = loc.match(/^(\d+(?:\.\d+)?)\s*(km|mi|miles|kilometers)\s+(?:around|radius\s+of)\s+(.+)$/i);
         if (radiusMatch) {
           loc = {
+            type: "PROXIMITY",
             mode: "RADIUS",
             radius: Number(radiusMatch[1]),
-            radiusUnit: radiusMatch[2].toLowerCase().startsWith("mi") ? "mi" : "km",
+            radiusUnit: radiusMatch[2].toLowerCase().startsWith("mi") ? "MILES" : "KILOMETERS",
+            locationName: radiusMatch[3].trim(),
             name: radiusMatch[3].trim(),
             canonicalName: radiusMatch[3].trim()
           };
         }
       }
 
-      const isRadiusMode = typeof loc === "object" && (loc.mode === "RADIUS" || (loc.radius && (loc.lat !== undefined && loc.lng !== undefined)));
+      // Proximity / Radius Mode
+      const isProximityObject = typeof loc === "object" && (loc.type === "PROXIMITY" || loc.mode === "RADIUS" || (loc.radius && (loc.lat !== undefined && loc.lng !== undefined)));
 
-      if (isRadiusMode) {
-        // Radius Targeting -> CampaignCriterion.proximity (ProximityInfo)
+      if (isProximityObject) {
         const radiusVal = Number(loc.radius) || 20;
-        const radiusUnits = (loc.radiusUnit || "km").toLowerCase().startsWith("mi") ? "MILES" : "KILOMETERS";
+        const radiusUnits = (String(loc.radiusUnit || "KM")).toUpperCase().startsWith("MI") ? "MILES" : "KILOMETERS";
+        const centerName = loc.locationName || loc.name || loc.canonicalName || "";
         let lat = Number(loc.lat);
         let lng = Number(loc.lng);
 
-        // If lat/lng missing, try resolving via Google Places details/geocoding or Nominatim/known city coordinates
+        // If lat/lng missing, try resolving via Google Places details/geocoding or known city coordinates
         if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
           const placesApiKey = process.env.GOOGLE_PLACES_API_KEY;
-          const queryStr = loc.placeId || loc.canonicalName || loc.name;
+          const queryStr = loc.placeId || centerName;
           if (placesApiKey && queryStr) {
             try {
               const geoUrl = loc.placeId
@@ -532,8 +779,8 @@ export class GoogleAdsBaseService {
           }
 
           // Fallback geocode for well-known Indian / Global metro centers if geocoding API was unreachable
-          if ((isNaN(lat) || isNaN(lng)) && (loc.name || loc.canonicalName)) {
-            const lowerName = String(loc.name || loc.canonicalName).toLowerCase();
+          if ((isNaN(lat) || isNaN(lng)) && centerName) {
+            const lowerName = String(centerName).toLowerCase();
             const knownCoords: Record<string, [number, number]> = {
               "mumbai": [19.0760, 72.8777],
               "delhi": [28.6139, 77.2090],
@@ -584,18 +831,21 @@ export class GoogleAdsBaseService {
             }
           };
 
-          if (loc.name || loc.canonicalName) {
+          if (centerName) {
             proximityOp.proximity.address = {
-              streetAddress: (loc.name || loc.canonicalName || "").slice(0, 100)
+              streetAddress: centerName.slice(0, 100)
             };
           }
 
           operations.push({ create: proximityOp });
+          parsedLocationsReport.push({ type: "PROXIMITY", locationName: centerName, radius: radiusVal, radiusUnit: radiusUnits, lat, lng });
+          proximityTargetsReport.push(`${radiusVal} ${radiusUnits} around ${centerName} (lat: ${lat}, lng: ${lng})`);
           continue;
         }
       }
 
       // Standard Location Targeting -> CampaignCriterion.location (LocationInfo)
+      const locLabel = typeof loc === "string" ? loc : (loc.name || loc.canonicalName || loc.locationName || "");
       const constantId = await this.resolveGeoTargetConstant(loc, headers);
       if (constantId) {
         operations.push({
@@ -607,8 +857,10 @@ export class GoogleAdsBaseService {
             }
           }
         });
+        parsedLocationsReport.push({ type: "LOCATION", name: locLabel, geoTargetConstantId: constantId });
+        geoTargetsReport.push(`${locLabel} -> geoTargetConstants/${constantId}`);
       } else if (typeof loc === "object" && (loc.lat || loc.lng || loc.placeId)) {
-        // Fallback for very granular village / locality lacking GeoTargetConstant: use ProximityInfo with small 10km circle
+        // Fallback for very granular village / locality lacking GeoTargetConstant: use ProximityInfo with 10km circle
         let lat = Number(loc.lat);
         let lng = Number(loc.lng);
         if (isNaN(lat) || isNaN(lng)) {
@@ -637,6 +889,8 @@ export class GoogleAdsBaseService {
               }
             }
           });
+          parsedLocationsReport.push({ type: "PROXIMITY", locationName: locLabel, radius: 10, radiusUnit: "KILOMETERS", lat, lng });
+          proximityTargetsReport.push(`10 KILOMETERS around ${locLabel} (lat: ${lat}, lng: ${lng})`);
         }
       }
     }
@@ -669,13 +923,23 @@ export class GoogleAdsBaseService {
       }
     }
 
+    console.log(`\n==================== 📍 [AI GUIDED LOCATION MAPPING] ====================`);
+    console.log(`Received Locations:          ${JSON.stringify(params.locations || [])}`);
+    console.log(`Parsed Locations:            ${JSON.stringify(parsedLocationsReport, null, 2)}`);
+    console.log(`Geo Targets:                 ${geoTargetsReport.length > 0 ? geoTargetsReport.join(", ") : "None"}`);
+    console.log(`Proximity Targets:           ${proximityTargetsReport.length > 0 ? proximityTargetsReport.join(", ") : "None"}`);
+    console.log(`Google Ads Criteria Operations Count: ${operations.length}`);
+    console.log(`=========================================================================\n`);
+
     if (operations.length === 0) return [];
 
     try {
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaignCriteria:mutate`, {
         operations
       }, { headers });
-      return res.data?.results || [];
+      const createdCriteria = res.data?.results || [];
+      console.log(`[AI GUIDED LOCATION MAPPING] Google Ads Criteria Created: ${createdCriteria.length}`);
+      return createdCriteria;
     } catch (critErr: any) {
       console.warn(`[GoogleAdsBaseService] campaignCriteria:mutate warning:`, critErr?.response?.data || critErr.message);
       return [];
@@ -732,6 +996,17 @@ export class GoogleAdsBaseService {
 
       // Check if full day schedule (00:00 -> 00:00 or 00:00 -> 24:00)
       if ((start === "00:00" || start === "0:00") && (end === "00:00" || end === "0:00" || end === "24:00")) {
+        // If there are other schedules for the same day with specific hours, skip this 00:00 - 00:00 row to prevent overlap conflict
+        const hasSpecificSameDay = schedules.some(other => {
+          if (!other || other === sched) return false;
+          const oDay = String(other.day || other.dayOfWeek || "").trim().toLowerCase();
+          const oStart = String(other.start || "00:00").trim();
+          const oEnd = String(other.end || "00:00").trim();
+          return oDay === rawDay && !( (oStart === "00:00" || oStart === "0:00") && (oEnd === "00:00" || oEnd === "0:00" || oEnd === "24:00") );
+        });
+        if (hasSpecificSameDay) {
+          continue;
+        }
         sHour = 0;
         sMinStr = "ZERO";
         eHour = 24;
@@ -1043,10 +1318,497 @@ export class GoogleAdsBaseService {
       }
     }
 
-    if (data?.mobileFinalUrl && sanitizedData.geoTargets && typeof sanitizedData.geoTargets === "object") {
-      sanitizedData.geoTargets.mobileFinalUrl = data.mobileFinalUrl;
+    // Preserve startDate and endDate as valid Date objects if provided as strings or dates
+    if (sanitizedData.startDate !== undefined) {
+      if (sanitizedData.startDate === null || sanitizedData.startDate === "") {
+        sanitizedData.startDate = null;
+      } else if (typeof sanitizedData.startDate === "string" || typeof sanitizedData.startDate === "number") {
+        sanitizedData.startDate = new Date(String(sanitizedData.startDate).split("T")[0]);
+      }
+    } else if (data?.startDate) {
+      sanitizedData.startDate = new Date(String(data.startDate).split("T")[0]);
     }
 
-    return await prisma.googleAdCampaign.create({ data: sanitizedData });
+    if (sanitizedData.endDate !== undefined) {
+      if (sanitizedData.endDate === null || sanitizedData.endDate === "") {
+        sanitizedData.endDate = null;
+      } else if (typeof sanitizedData.endDate === "string" || typeof sanitizedData.endDate === "number") {
+        sanitizedData.endDate = new Date(String(sanitizedData.endDate).split("T")[0]);
+      }
+    } else if (data?.endDate) {
+      sanitizedData.endDate = new Date(String(data.endDate).split("T")[0]);
+    }
+
+    // Preserve languages explicitly if provided
+    if (sanitizedData.languages === undefined && data?.languages !== undefined) {
+      sanitizedData.languages = data.languages;
+    }
+
+    let savedCampaign: any = null;
+
+    if (sanitizedData.googleAdsCampaignId) {
+      const existing = await prisma.googleAdCampaign.findFirst({
+        where: {
+          organizationId: sanitizedData.organizationId,
+          googleAdsCampaignId: sanitizedData.googleAdsCampaignId
+        }
+      });
+      if (existing) {
+        savedCampaign = await prisma.googleAdCampaign.update({
+          where: { id: existing.id },
+          data: sanitizedData
+        });
+      }
+    }
+
+    if (!savedCampaign && sanitizedData.organizationId && sanitizedData.name) {
+      const existingByName = await prisma.googleAdCampaign.findFirst({
+        where: {
+          organizationId: sanitizedData.organizationId,
+          name: sanitizedData.name,
+          status: { in: ["PAUSED", "ENABLED", "REMOVED"] }
+        },
+        orderBy: { createdAt: "desc" }
+      });
+      if (existingByName && (!existingByName.googleAdsCampaignId || existingByName.googleAdsCampaignId.startsWith("mock-") || existingByName.status === "REMOVED")) {
+        savedCampaign = await prisma.googleAdCampaign.update({
+          where: { id: existingByName.id },
+          data: sanitizedData
+        });
+      }
+    }
+
+    if (!savedCampaign) {
+      savedCampaign = await prisma.googleAdCampaign.create({ data: sanitizedData });
+    }
+
+    // ── PERSIST AD GROUPS, ADS, KEYWORDS & ASSET LINKAGES HIERARCHICALLY ──
+    try {
+      const campaignId = savedCampaign.id;
+      const orgId = savedCampaign.organizationId;
+      const customerId = savedCampaign.customerId;
+
+      // Extract raw ad groups from data or geoTargets
+      const rawAdGroups = Array.isArray(data?.adGroups) && data.adGroups.length > 0
+        ? data.adGroups
+        : (Array.isArray(data?.geoTargets?.adGroups) && data.geoTargets.adGroups.length > 0
+            ? data.geoTargets.adGroups
+            : []);
+
+      if (rawAdGroups.length > 0) {
+        for (let agIdx = 0; agIdx < rawAdGroups.length; agIdx++) {
+          const ag = rawAdGroups[agIdx];
+          const agName = ag.name || `${savedCampaign.name} Ad Group ${agIdx + 1}`;
+          const agStatus = ag.status || "ENABLED";
+          const agType = ag.type || ag.adGroupType || "SEARCH_STANDARD";
+          const agCpcBid = ag.cpcBid !== undefined && ag.cpcBid !== null ? Number(ag.cpcBid) : null;
+          const agCpcBidMicros = ag.cpcBidMicros !== undefined && ag.cpcBidMicros !== null
+            ? BigInt(ag.cpcBidMicros)
+            : (agCpcBid ? BigInt(Math.round(agCpcBid * 1_000_000)) : null);
+          const googleAdGroupId = ag.googleAdGroupId || ag.id && !String(ag.id).includes("-") ? String(ag.id) : null;
+
+          // Upsert or find AdGroup
+          let savedAg: any = null;
+          if (googleAdGroupId) {
+            savedAg = await prisma.googleAdGroup.findFirst({
+              where: { organizationId: orgId, googleAdGroupId }
+            });
+          }
+          if (!savedAg) {
+            savedAg = await prisma.googleAdGroup.findFirst({
+              where: { organizationId: orgId, campaignId, name: agName }
+            });
+          }
+
+          if (savedAg) {
+            savedAg = await prisma.googleAdGroup.update({
+              where: { id: savedAg.id },
+              data: {
+                name: agName,
+                status: agStatus,
+                adGroupType: agType,
+                cpcBid: agCpcBid,
+                cpcBidMicros: agCpcBidMicros,
+                googleAdGroupId: googleAdGroupId || savedAg.googleAdGroupId
+              }
+            });
+          } else {
+            savedAg = await prisma.googleAdGroup.create({
+              data: {
+                organizationId: orgId,
+                customerId,
+                campaignId,
+                name: agName,
+                status: agStatus,
+                adGroupType: agType,
+                cpcBid: agCpcBid,
+                cpcBidMicros: agCpcBidMicros,
+                googleAdGroupId: googleAdGroupId || undefined
+              }
+            });
+          }
+
+          // Persist Keywords for this AdGroup
+          const agKeywords = Array.isArray(ag.keywords) ? ag.keywords : (agIdx === 0 && Array.isArray(data.keywords) ? data.keywords : []);
+          for (const kw of agKeywords) {
+            const kwText = typeof kw === "string" ? kw.trim() : (kw.text || "").trim();
+            if (!kwText) continue;
+            let matchType = typeof kw === "object" && kw.matchType ? kw.matchType : "BROAD";
+            let cleanText = kwText;
+            if (cleanText.startsWith("[") && cleanText.endsWith("]")) {
+              matchType = "EXACT";
+              cleanText = cleanText.slice(1, -1).trim();
+            } else if (cleanText.startsWith('"') && cleanText.endsWith('"')) {
+              matchType = "PHRASE";
+              cleanText = cleanText.slice(1, -1).trim();
+            }
+            const isNegative = typeof kw === "object" ? Boolean(kw.isNegative) : false;
+
+            const existingKw = await prisma.googleAdKeyword.findFirst({
+              where: { organizationId: orgId, adGroupId: savedAg.id, text: cleanText }
+            });
+            if (!existingKw) {
+              await prisma.googleAdKeyword.create({
+                data: {
+                  organizationId: orgId,
+                  customerId,
+                  adGroupId: savedAg.id,
+                  googleAdGroupId: savedAg.googleAdGroupId,
+                  text: cleanText,
+                  matchType,
+                  isNegative,
+                  status: "ENABLED"
+                }
+              }).catch(() => {});
+            }
+          }
+
+          // Persist Negative Keywords for this AdGroup / Campaign
+          const agNegatives = Array.isArray(ag.negativeKeywords) ? ag.negativeKeywords : (agIdx === 0 && Array.isArray(data.negativeKeywords) ? data.negativeKeywords : []);
+          for (const nkw of agNegatives) {
+            const nkwText = typeof nkw === "string" ? nkw.trim() : (nkw.text || "").trim();
+            if (!nkwText) continue;
+            let matchType = typeof nkw === "object" && nkw.matchType ? nkw.matchType : "BROAD";
+            let cleanText = nkwText;
+            if (cleanText.startsWith("[") && cleanText.endsWith("]")) {
+              matchType = "EXACT";
+              cleanText = cleanText.slice(1, -1).trim();
+            } else if (cleanText.startsWith('"') && cleanText.endsWith('"')) {
+              matchType = "PHRASE";
+              cleanText = cleanText.slice(1, -1).trim();
+            }
+
+            const existingNeg = await prisma.googleAdKeyword.findFirst({
+              where: { organizationId: orgId, adGroupId: savedAg.id, text: cleanText, isNegative: true }
+            });
+            if (!existingNeg) {
+              await prisma.googleAdKeyword.create({
+                data: {
+                  organizationId: orgId,
+                  customerId,
+                  adGroupId: savedAg.id,
+                  googleAdGroupId: savedAg.googleAdGroupId,
+                  text: cleanText,
+                  matchType,
+                  isNegative: true,
+                  status: "ENABLED"
+                }
+              }).catch(() => {});
+            }
+          }
+
+          // Persist Ads in this AdGroup
+          const agAds = Array.isArray(ag.ads) && ag.ads.length > 0
+            ? ag.ads
+            : (agIdx === 0 && Array.isArray(data.headlines) && data.headlines.length > 0
+                ? [{
+                    name: `${agName} Ad 1`,
+                    adType: "RESPONSIVE_SEARCH_AD",
+                    headlines: data.headlines,
+                    descriptions: data.descriptions,
+                    finalUrls: data.finalUrl ? [data.finalUrl] : [],
+                    path1: data.path1 || data.displayPath1,
+                    path2: data.path2 || data.displayPath2,
+                    status: agStatus
+                  }]
+                : []);
+
+          for (let adIdx = 0; adIdx < agAds.length; adIdx++) {
+            const ad = agAds[adIdx];
+            const adName = ad.name || `${agName} Ad ${adIdx + 1}`;
+            const adType = ad.adType || ad.type || "RESPONSIVE_SEARCH_AD";
+            const adStatus = ad.status || "ENABLED";
+            const headlines = Array.isArray(ad.headlines) ? ad.headlines : (data.headlines || []);
+            const descriptions = Array.isArray(ad.descriptions) ? ad.descriptions : (data.descriptions || []);
+            const finalUrls = Array.isArray(ad.finalUrls) ? ad.finalUrls : (ad.finalUrl ? [ad.finalUrl] : (data.finalUrl ? [data.finalUrl] : []));
+            const path1 = ad.path1 || ad.displayPath1 || data.path1 || data.displayPath1 || null;
+            const path2 = ad.path2 || ad.displayPath2 || data.path2 || data.displayPath2 || null;
+            const googleAdId = ad.googleAdId || ad.id && !String(ad.id).includes("-") ? String(ad.id) : null;
+
+            let savedAd: any = null;
+            if (googleAdId) {
+              savedAd = await prisma.googleAd.findFirst({
+                where: { organizationId: orgId, googleAdId }
+              });
+            }
+            if (!savedAd) {
+              savedAd = await prisma.googleAd.findFirst({
+                where: { organizationId: orgId, adGroupId: savedAg.id, name: adName }
+              });
+            }
+
+            if (savedAd) {
+              await prisma.googleAd.update({
+                where: { id: savedAd.id },
+                data: {
+                  name: adName,
+                  adType,
+                  status: adStatus,
+                  headlines,
+                  descriptions,
+                  finalUrls,
+                  path1,
+                  path2,
+                  googleAdId: googleAdId || savedAd.googleAdId,
+                  googleAdGroupId: savedAg.googleAdGroupId || savedAd.googleAdGroupId
+                }
+              });
+            } else {
+              await prisma.googleAd.create({
+                data: {
+                  organizationId: orgId,
+                  customerId,
+                  adGroupId: savedAg.id,
+                  name: adName,
+                  adType,
+                  status: adStatus,
+                  headlines,
+                  descriptions,
+                  finalUrls,
+                  path1,
+                  path2,
+                  googleAdId: googleAdId || undefined,
+                  googleAdGroupId: savedAg.googleAdGroupId || undefined
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // Persist Reusable Media Assets (Images, Logos, Videos) and Linkages
+      const assetImages = Array.isArray(data?.images) ? data.images : [];
+      for (const img of assetImages) {
+        const imgUrl = typeof img === "string" ? img : img.url || img.data;
+        if (!imgUrl) continue;
+        const imgName = typeof img === "object" && img.name ? img.name : `Image - ${Date.now()}`;
+        const assetId = typeof img === "object" && img.id ? img.id : undefined;
+
+        let dbAsset = await prisma.googleAdAsset.findFirst({
+          where: { organizationId: orgId, url: imgUrl }
+        });
+        if (!dbAsset) {
+          dbAsset = await prisma.googleAdAsset.create({
+            data: {
+              organizationId: orgId,
+              customerId,
+              assetType: "IMAGE",
+              name: imgName,
+              url: imgUrl,
+              source: "UPLOAD",
+              status: "ENABLED"
+            }
+          }).catch(async (err: any) => {
+            if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+              return await prisma.googleAdAsset.findFirst({
+                where: { organizationId: orgId, url: imgUrl }
+              });
+            }
+            throw err;
+          });
+        }
+
+        if (dbAsset) {
+          const existingLink = await prisma.googleAdAssetLinkage.findFirst({
+            where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+          });
+          if (!existingLink) {
+            await prisma.googleAdAssetLinkage.create({
+              data: {
+                organizationId: orgId,
+                customerId,
+                assetId: dbAsset.id,
+                campaignId,
+                assetFieldType: "MARKETING_IMAGE",
+                status: "ENABLED"
+              }
+            }).catch(async (err: any) => {
+              if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+                return await prisma.googleAdAssetLinkage.findFirst({
+                  where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+                });
+              }
+              throw err;
+            });
+          }
+        }
+      }
+
+      const assetLogos = Array.isArray(data?.logos) ? data.logos : [];
+      for (const logo of assetLogos) {
+        const logoUrl = typeof logo === "string" ? logo : logo.url || logo.data;
+        if (!logoUrl) continue;
+        const logoName = typeof logo === "object" && logo.name ? logo.name : `Logo - ${Date.now()}`;
+
+        let dbAsset = await prisma.googleAdAsset.findFirst({
+          where: { organizationId: orgId, url: logoUrl }
+        });
+        if (!dbAsset) {
+          dbAsset = await prisma.googleAdAsset.create({
+            data: {
+              organizationId: orgId,
+              customerId,
+              assetType: "LOGO",
+              name: logoName,
+              url: logoUrl,
+              source: "UPLOAD",
+              status: "ENABLED"
+            }
+          }).catch(async (err: any) => {
+            if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+              return await prisma.googleAdAsset.findFirst({
+                where: { organizationId: orgId, url: logoUrl }
+              });
+            }
+            throw err;
+          });
+        }
+
+        if (dbAsset) {
+          const existingLink = await prisma.googleAdAssetLinkage.findFirst({
+            where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+          });
+          if (!existingLink) {
+            await prisma.googleAdAssetLinkage.create({
+              data: {
+                organizationId: orgId,
+                customerId,
+                assetId: dbAsset.id,
+                campaignId,
+                assetFieldType: "LOGO",
+                status: "ENABLED"
+              }
+            }).catch(async (err: any) => {
+              if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+                return await prisma.googleAdAssetLinkage.findFirst({
+                  where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+                });
+              }
+              throw err;
+            });
+          }
+        }
+      }
+
+      const assetVideos = Array.isArray(data?.videos) ? data.videos : [];
+      for (const vid of assetVideos) {
+        const vidUrl = typeof vid === "string" ? vid : vid.url || vid.data;
+        if (!vidUrl) continue;
+        const vidName = typeof vid === "object" && vid.name ? vid.name : `Video - ${Date.now()}`;
+
+        let dbAsset = await prisma.googleAdAsset.findFirst({
+          where: { organizationId: orgId, url: vidUrl }
+        });
+        if (!dbAsset) {
+          dbAsset = await prisma.googleAdAsset.create({
+            data: {
+              organizationId: orgId,
+              customerId,
+              assetType: "VIDEO",
+              name: vidName,
+              url: vidUrl,
+              source: "YOUTUBE",
+              status: "ENABLED"
+            }
+          }).catch(async (err: any) => {
+            if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+              return await prisma.googleAdAsset.findFirst({
+                where: { organizationId: orgId, url: vidUrl }
+              });
+            }
+            throw err;
+          });
+        }
+
+        if (dbAsset) {
+          const existingLink = await prisma.googleAdAssetLinkage.findFirst({
+            where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+          });
+          if (!existingLink) {
+            await prisma.googleAdAssetLinkage.create({
+              data: {
+                organizationId: orgId,
+                customerId,
+                assetId: dbAsset.id,
+                campaignId,
+                assetFieldType: "YOUTUBE_VIDEO",
+                status: "ENABLED"
+              }
+            }).catch(async (err: any) => {
+              if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+                return await prisma.googleAdAssetLinkage.findFirst({
+                  where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+                });
+              }
+              throw err;
+            });
+          }
+        }
+      }
+    } catch (hierarchyErr: any) {
+      console.warn("[saveCampaignToDatabase] Hierarchy child persistence warning:", hierarchyErr.message);
+    }
+
+    return savedCampaign;
+  }
+
+  /**
+   * Immediately remove/delete a partially created campaign shell in Google Ads if downstream steps fail.
+   * Sends both REMOVED status update and remove operation to guarantee it never stays as an incomplete campaign in Google Ads console.
+   */
+  public static async rollbackGoogleAdsCampaign(organizationId: string, customerId: string, campaignResourceName: string, serviceName = "GoogleAdsBaseService") {
+    if (!campaignResourceName || campaignResourceName.includes("mock-")) return;
+    try {
+      const cid = (customerId || "").replace(/-/g, "").trim();
+      const { headers } = await this.getAdsHeaders(organizationId, customerId);
+      const ADS_BASE = "https://googleads.googleapis.com/v24";
+
+      console.warn(`[${serviceName}] Rolling back and REMOVING incomplete campaign from Google Ads: ${campaignResourceName}...`);
+      
+      // Step 1: Remove via remove operation
+      try {
+        await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
+          operations: [{
+            remove: campaignResourceName
+          }]
+        }, { headers });
+        console.warn(`[${serviceName}] Successfully removed incomplete campaign ${campaignResourceName} from Google Ads.`);
+        return;
+      } catch (removeErr: any) {
+        // Fallback: update status to REMOVED
+        await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, {
+          operations: [{
+            update: {
+              resourceName: campaignResourceName,
+              status: "REMOVED"
+            },
+            updateMask: "status"
+          }]
+        }, { headers });
+        console.warn(`[${serviceName}] Successfully marked incomplete campaign ${campaignResourceName} as REMOVED in Google Ads.`);
+      }
+    } catch (cleanupErr: any) {
+      console.error(`[${serviceName}] Rollback removal failed for ${campaignResourceName}:`, cleanupErr?.response?.data || cleanupErr?.message);
+    }
   }
 }

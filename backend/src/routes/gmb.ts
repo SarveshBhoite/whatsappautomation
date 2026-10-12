@@ -12,6 +12,7 @@ import {
   logGmbRequest
 } from "../services/gmbSyncService";
 import { syncGmailThreads } from "../services/gmailService";
+import { CustomerBusinessProfileService, PROFILE_DB_SELECT } from "../services/googleAds/CustomerBusinessProfileService";
 
 import { validateAccountOwnership } from "../utils/accountResolver";
 
@@ -635,7 +636,7 @@ router.get("/oauth/callback", async (req, res) => {
               where: { organizationId: orgId, isManager: true }
             });
             const loginCustomerId = managerAccount?.customerId?.replace(/-/g, "") || cleanCid;
-            const gaqlQuery = `SELECT asset.id, asset.name, asset.type, asset.app_asset.app_id, asset.app_asset.app_store FROM asset WHERE asset.type = 'MOBILE_APP' LIMIT 50`;
+            const gaqlQuery = `SELECT asset.id, asset.name, asset.type, asset.mobile_app_asset.app_id, asset.mobile_app_asset.app_store FROM asset WHERE asset.type = 'MOBILE_APP' LIMIT 50`;
             const gaqlRes = await axios.post(
               `https://googleads.googleapis.com/v24/customers/${cleanCid}/googleAds:search`,
               { query: gaqlQuery },
@@ -651,10 +652,10 @@ router.get("/oauth/callback", async (req, res) => {
             const gaqlResults = gaqlRes.data?.results || [];
             for (const row of gaqlResults) {
               const a = row.asset;
-              const aId = a?.appAsset?.appId;
+              const aId = a?.mobileAppAsset?.appId || a?.appAsset?.appId;
               if (aId && !seenAppIds.has(String(aId).toLowerCase())) {
                 seenAppIds.add(String(aId).toLowerCase());
-                const store = a?.appAsset?.appStore;
+                const store = a?.mobileAppAsset?.appStore || a?.appAsset?.appStore;
                 const isIos = store === "APPLE_APP_STORE" || /^\d+$/.test(String(aId));
                 discoveredApps.push({
                   id: `live-asset-${a.id}`,
@@ -671,41 +672,33 @@ router.get("/oauth/callback", async (req, res) => {
           }
         }
 
-        const updateData: any = {};
-        const createData: any = {
-          organizationId: orgId,
-          customerId: cleanCid
-        };
-
+        const profilePatch: any = {};
         if (discoveredMerchantId) {
-          updateData.hasMerchantAccount = true;
-          updateData.merchantCenterId = String(discoveredMerchantId);
-          updateData.merchantDetails = {
+          profilePatch.hasMerchantAccount = true;
+          profilePatch.merchantCenterId = String(discoveredMerchantId);
+          profilePatch.merchantDetails = {
             storeName: discoveredStoreName || `Merchant Account ${discoveredMerchantId}`,
             connectedViaOAuth: true,
             connectedAt: new Date().toISOString()
           };
-          createData.hasMerchantAccount = true;
-          createData.merchantCenterId = String(discoveredMerchantId);
-          createData.merchantDetails = updateData.merchantDetails;
         }
 
         if (discoveredApps.length > 0) {
-          updateData.hasAppAccount = true;
-          updateData.appDetails = discoveredApps;
-          createData.hasAppAccount = true;
-          createData.appDetails = discoveredApps;
+          profilePatch.hasAppAccount = true;
+          profilePatch.appDetails = discoveredApps;
         }
 
-        if (Object.keys(updateData).length > 0) {
-          await (prisma as any).googleAdsCustomerProfile.upsert({
-            where: {
-              organizationId_customerId: { organizationId: orgId, customerId: cleanCid }
-            },
-            update: updateData,
-            create: createData
+        if (Object.keys(profilePatch).length > 0) {
+          const currentProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+          await CustomerBusinessProfileService.saveProfile(orgId, cleanCid, {
+            ...(currentProfile || {}),
+            ...profilePatch,
+            appDetails: [
+              ...(currentProfile?.appDetails || []),
+              ...(profilePatch.appDetails || [])
+            ].filter((v, i, a) => a.findIndex(t => t.appId?.toLowerCase() === v.appId?.toLowerCase()) === i)
           });
-          console.log(`[OAuth - Ads Page] Auto-connected profile for ${cleanCid}: Merchant=${Boolean(updateData.hasMerchantAccount)}, Apps=${Boolean(updateData.hasAppAccount)}`);
+          console.log(`[OAuth - Ads Page] Auto-connected profile for ${cleanCid}: Merchant=${Boolean(profilePatch.hasMerchantAccount)}, Apps=${Boolean(profilePatch.hasAppAccount)}`);
         }
 
       } catch (profErr: any) {
@@ -716,26 +709,54 @@ router.get("/oauth/callback", async (req, res) => {
       if (discoveredYoutubeLinks.length > 0) {
         try {
           // Find existing profile to merge youtube links (avoid overwriting previously added links)
-          const existingProfile = await (prisma as any).googleAdsCustomerProfile.findFirst({
-            where: { organizationId: orgId, customerId: cleanCid }
-          });
+          const existingProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
           const existingLinks: string[] = existingProfile?.metadata?.youtubeLinks || [];
           const mergedLinks = Array.from(new Set([...existingLinks, ...discoveredYoutubeLinks]));
-          await (prisma as any).googleAdsCustomerProfile.upsert({
-            where: {
-              organizationId_customerId: { organizationId: orgId, customerId: cleanCid }
-            },
-            update: {
-              metadata: {
-                ...(existingProfile?.metadata || {}),
-                youtubeLinks: mergedLinks,
-                youtubeChannels: discoveredYoutubeChannels
-              }
-            },
-            create: {
-              organizationId: orgId,
-              customerId: cleanCid,
-              metadata: { youtubeLinks: mergedLinks, youtubeChannels: discoveredYoutubeChannels }
+          // Auto-add default YouTube conversion goals if YouTube channels are connected, preserving existing goals
+          const currentGoals = Array.isArray(existingProfile?.conversionGoals) ? [...existingProfile.conversionGoals] : [];
+          const hasEngagements = currentGoals.some((g: any) =>
+            (g.goalName || g.name || "").toLowerCase().includes("engagement") ||
+            g.conversionType === "Engagements"
+          );
+          const hasYtViews = currentGoals.some((g: any) =>
+            (g.goalName || g.name || "").toLowerCase().includes("follow-on") ||
+            (g.goalName || g.name || "").toLowerCase().includes("youtube view") ||
+            g.conversionType === "YouTube follow-on views"
+          );
+
+          if (!hasEngagements) {
+            currentGoals.push({
+              id: `goal-yt-eng-${Date.now()}`,
+              goalName: "Engagements (account default)",
+              conversionType: "Engagements",
+              source: "YouTube hosted",
+              description: "Engagements (account default) YouTube hosted 1 action",
+              isPrimary: true,
+              isActive: true,
+              currency: "INR"
+            });
+          }
+
+          if (!hasYtViews) {
+            currentGoals.push({
+              id: `goal-yt-views-${Date.now() + 1}`,
+              goalName: "YouTube follow-on views (account default)",
+              conversionType: "YouTube follow-on views",
+              source: "YouTube hosted",
+              description: "YouTube follow-on views (account default) YouTube hosted 1 action",
+              isPrimary: true,
+              isActive: true,
+              currency: "INR"
+            });
+          }
+
+          await CustomerBusinessProfileService.saveProfile(orgId, cleanCid, {
+            ...(existingProfile || {}),
+            conversionGoals: currentGoals,
+            metadata: {
+              ...(existingProfile?.metadata || {}),
+              youtubeLinks: mergedLinks,
+              youtubeChannels: discoveredYoutubeChannels
             }
           });
           console.log(`[OAuth] Saved ${mergedLinks.length} YouTube channel link(s) into profile for ${cleanCid}`);

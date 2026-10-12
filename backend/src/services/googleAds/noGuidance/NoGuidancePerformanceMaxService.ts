@@ -1,4 +1,6 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
+import { CampaignNormalizationService } from "../shared/CampaignNormalizationService";
 import axios from "axios";
 
 export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
@@ -82,6 +84,8 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       images = [],
       dailyBudget,
       budget,
+      budgetType,
+      totalBudget,
       startDate,
       endDate,
       euPolitical = "NO",
@@ -111,7 +115,8 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       structuredSnippets = [],
       adSchedule = [],
       devices,
-      demographicExclusions
+      demographicExclusions,
+      conversionGoals
     } = payload;
 
     // Final URL Validation
@@ -249,13 +254,11 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       };
     }
 
-    // Customer Acquisition Setting
+    // Customer Acquisition Setting (Google Ads API: customerAcquisitionSetting.optimizationMode)
     let customerAcquisitionSetting: any = undefined;
     if (customerAcquisitionMode) {
-      const normAcq = String(customerAcquisitionMode).toUpperCase();
-      if (normAcq === "BID_ONLY_FOR_NEW_CUSTOMERS" || normAcq === "BID_HIGHER_FOR_NEW_CUSTOMERS" || normAcq === "TARGET_ALL_EQUALLY") {
-        customerAcquisitionSetting = { optimizationMode: normAcq };
-      }
+      const normAcq = CampaignNormalizationService.normalizeCustomerAcquisitionMode(customerAcquisitionMode);
+      customerAcquisitionSetting = { optimizationMode: normAcq };
     }
 
     // Geo Target Type Setting
@@ -279,9 +282,12 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
 
     try {
       // 1. Create Budget
+      const isCustomPeriod = String(budgetType).toUpperCase() === "TOTAL" && Number(totalBudget) > 0 && Boolean(startDate && endDate);
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: effectiveBudget
+        amountPerDay: effectiveBudget,
+        period: isCustomPeriod ? "CUSTOM_PERIOD" : "DAILY",
+        totalAmount: isCustomPeriod ? Number(totalBudget) : undefined
       });
       apiResult.budgetResourceName = budgetRef;
 
@@ -300,7 +306,6 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
         if (formattedStartDate) createOp.startDateTime = `${formattedStartDate} 00:00:00`;
         if (formattedEndDate) createOp.endDateTime = `${formattedEndDate} 23:59:59`;
         if (shoppingSetting) createOp.shoppingSetting = shoppingSetting;
-        if (customerAcquisitionSetting) createOp.customerAcquisitionSetting = customerAcquisitionSetting;
         if (geoTargetTypeSetting) createOp.geoTargetTypeSetting = geoTargetTypeSetting;
         const cleanTrack = GoogleAdsBaseService.cleanTrackingTemplate(trackingTemplate);
         if (cleanTrack) createOp.trackingUrlTemplate = cleanTrack;
@@ -503,31 +508,39 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
           assetGroupOperation: {
             create: assetGroupCreate
           }
-        },
-        {
-          assetGroupAssetOperation: {
-            create: {
-              assetGroup: tempAssetGroupResourceName,
-              asset: businessNameAssetRef,
-              fieldType: "BUSINESS_NAME",
-              status: "ENABLED"
-            }
-          }
         }
       ];
 
-      logoRefs.forEach((asset: string) => {
-        mutateOperations.push({
-          assetGroupAssetOperation: {
-            create: {
-              assetGroup: tempAssetGroupResourceName,
-              asset,
-              fieldType: "LOGO",
-              status: "ENABLED"
+      // Brand Guidelines Rule (Google Ads API v21+ / v24):
+      // When brandGuidelinesEnabled is true, brand assets (BUSINESS_NAME, LOGO) are linked at the CAMPAIGN level via CampaignAsset.
+      // When brandGuidelinesEnabled is false, brand assets are linked at the ASSET_GROUP level via AssetGroupAsset.
+      if (!brandGuidelinesEnabled) {
+        if (businessNameAssetRef) {
+          mutateOperations.push({
+            assetGroupAssetOperation: {
+              create: {
+                assetGroup: tempAssetGroupResourceName,
+                asset: businessNameAssetRef,
+                fieldType: "BUSINESS_NAME",
+                status: "ENABLED"
+              }
             }
-          }
+          });
+        }
+
+        logoRefs.forEach((asset: string) => {
+          mutateOperations.push({
+            assetGroupAssetOperation: {
+              create: {
+                assetGroup: tempAssetGroupResourceName,
+                asset,
+                fieldType: "LOGO",
+                status: "ENABLED"
+              }
+            }
+          });
         });
-      });
+      }
 
       headlineRefs.forEach((asset: string) => {
         mutateOperations.push({
@@ -595,7 +608,11 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       });
 
       // Asset Group Signals (Search Themes and Audience Signals)
+      const seenSearchThemes = new Set<string>();
       validSearchThemes.forEach((theme: string) => {
+        const cleanTheme = String(theme).trim().toLowerCase();
+        if (!cleanTheme || seenSearchThemes.has(cleanTheme)) return;
+        seenSearchThemes.add(cleanTheme);
         mutateOperations.push({
           assetGroupSignalOperation: {
             create: {
@@ -607,19 +624,21 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
       });
 
       const validAudiences = Array.isArray(audienceSignals) ? audienceSignals : [];
-      validAudiences.forEach((aud: any) => {
-        const audResource = typeof aud === "string" ? aud : aud?.resourceName;
-        if (audResource && String(audResource).trim()) {
+      const seenAudienceRefs = new Set<string>();
+      for (const aud of validAudiences) {
+        const resolvedAudRef = await GoogleAdsBaseService.resolveAudienceResource(organizationId, customerId, aud, headers);
+        if (resolvedAudRef && !seenAudienceRefs.has(resolvedAudRef)) {
+          seenAudienceRefs.add(resolvedAudRef);
           mutateOperations.push({
             assetGroupSignalOperation: {
               create: {
                 assetGroup: tempAssetGroupResourceName,
-                audience: { audience: String(audResource).trim() }
+                audience: { audience: resolvedAudRef }
               }
             }
           });
         }
-      });
+      }
 
       const mutateRes = await axios.post(`${ADS_BASE}/customers/${cid}/googleAds:mutate`, { mutateOperations }, { headers });
       const results = mutateRes.data.mutateOperationResponses;
@@ -652,9 +671,35 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
         }
       }
 
-      // 8. Attach Campaign Extension Assets (Sitelinks, Callouts, Promotions, Prices, Call, Snippets)
+      // 8. Attach Campaign Extension Assets (Brand Guidelines, Sitelinks, Callouts, Promotions, Prices, Call, Snippets)
       try {
         const campaignAssetOperations: any[] = [];
+
+        // Brand Guidelines (Google Ads API v21+ / v24):
+        // When brandGuidelinesEnabled is true, BUSINESS_NAME and LOGO must be linked as CampaignAsset
+        if (brandGuidelinesEnabled) {
+          if (businessNameAssetRef) {
+            campaignAssetOperations.push({
+              create: {
+                campaign: campaignRef,
+                asset: businessNameAssetRef,
+                fieldType: "BUSINESS_NAME",
+                status: "ENABLED"
+              }
+            });
+          }
+
+          logoRefs.forEach((asset: string) => {
+            campaignAssetOperations.push({
+              create: {
+                campaign: campaignRef,
+                asset,
+                fieldType: "LOGO",
+                status: "ENABLED"
+              }
+            });
+          });
+        }
 
         // Sitelinks
         const validSitelinks = Array.isArray(sitelinks) ? sitelinks.filter((s: any) => s && s.text && s.url) : [];
@@ -773,7 +818,27 @@ export class NoGuidancePerformanceMaxService extends GoogleAdsBaseService {
         console.warn("[PMax Extension Assets Warning]:", extErr?.response?.data || extErr.message);
       }
 
+      // Campaign Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "NoGuidancePerformanceMaxService"
+        );
+      }
+
     } catch (err: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "NoGuidancePerformanceMaxService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(err);
       console.error("[Google Ads API error for No Guidance Performance Max]:", formatted);
       throw new Error(formatted);

@@ -68,8 +68,10 @@ export class GoogleAdsImageGenService {
     bizName: string,
     bizDesc: string,
     website: string,
-    mode: "IMAGE_ONLY" | "LOGO_ONLY" | "ALL"
+    mode: "IMAGE_ONLY" | "LOGO_ONLY" | "ALL",
+    campaignType?: string
   ) {
+    const isDisplay = (campaignType || "").toUpperCase() === "DISPLAY";
     const brand = bizName || "our brand";
     const context = bizDesc ? `${bizDesc}. ` : "";
     const siteContext = website ? `Official website: ${website}. ` : "";
@@ -97,6 +99,78 @@ export class GoogleAdsImageGenService {
       "Dynamic social-ready marketing graphic, modern aesthetic, bright engaging lighting, premium commercial feel"
     ];
     const selectedSquareStyle = squareStyles[Math.floor(Math.random() * squareStyles.length)];
+
+    if (isDisplay) {
+      // DISPLAY-SPECIFIC PROMPT REQUIREMENTS:
+      // - Professional advertising creative
+      // - Product/service clearly visible, clean composition
+      // - High quality commercial photography
+      // - Keep important content in safe central area
+      // - Avoid excessive text, fake CTA buttons, borders, collages, separate overlay logos
+      const displayCreativeGuidance = "Professional advertising creative, product/service clearly visible, clean composition, high-quality commercial photography, safe central area content, no excessive text, no fake CTA buttons, no borders, no collages, no separate logo overlay.";
+
+      if (mode === "LOGO_ONLY") {
+        return [
+          {
+            aspectRatio: "1:1" as const,
+            dimensions: { width: 1200, height: 1200 },
+            fieldType: "LOGO" as const,
+            suffix: "Display Square Logo — 1:1",
+            prompt: `Google Ads Display compliant square brand logo for "${brand}". 1200x1200 px, 1:1 ratio. ${context}${siteContext}${selectedLogoStyle}, centered emblem mark and text inside safe area, clean solid background, sharp vector readability at small sizes, no fake UI elements.`
+          },
+          {
+            aspectRatio: "4:1" as const,
+            dimensions: { width: 1200, height: 300 },
+            fieldType: "LOGO" as const,
+            suffix: "Display Landscape Logo — 4:1",
+            prompt: `Google Ads Display compliant horizontal landscape brand logo for "${brand}". 1200x300 px, 4:1 ratio. ${context}${siteContext}Horizontal layout, centered text and icon inside safe area, transparent or clean crisp background, highly readable at small scale, no distortion.`
+          }
+        ];
+      }
+
+      if (mode === "IMAGE_ONLY") {
+        return [
+          {
+            aspectRatio: "1.91:1" as const,
+            dimensions: { width: 1200, height: 628 },
+            fieldType: "MARKETING_IMAGE" as const,
+            suffix: "Display Landscape — 1.91:1",
+            prompt: `Google Display responsive ad landscape marketing image for "${brand}". 1200x628 px, 1.91:1 aspect ratio. ${context}${siteContext}${selectedLandscapeStyle}. ${displayCreativeGuidance}`
+          },
+          {
+            aspectRatio: "1:1" as const,
+            dimensions: { width: 1200, height: 1200 },
+            fieldType: "SQUARE_MARKETING_IMAGE" as const,
+            suffix: "Display Square — 1:1",
+            prompt: `Google Display responsive ad square marketing image for "${brand}". 1200x1200 px, 1:1 aspect ratio. ${context}${siteContext}${selectedSquareStyle}. ${displayCreativeGuidance}`
+          }
+        ];
+      }
+
+      return [
+        {
+          aspectRatio: "1.91:1" as const,
+          dimensions: { width: 1200, height: 628 },
+          fieldType: "MARKETING_IMAGE" as const,
+          suffix: "Display Landscape — 1.91:1",
+          prompt: `Google Display responsive ad landscape marketing image for "${brand}". 1200x628 px, 1.91:1 aspect ratio. ${context}${siteContext}${selectedLandscapeStyle}. ${displayCreativeGuidance}`
+        },
+        {
+          aspectRatio: "1:1" as const,
+          dimensions: { width: 1200, height: 1200 },
+          fieldType: "SQUARE_MARKETING_IMAGE" as const,
+          suffix: "Display Square — 1:1",
+          prompt: `Google Display responsive ad square marketing image for "${brand}". 1200x1200 px, 1:1 aspect ratio. ${context}${siteContext}${selectedSquareStyle}. ${displayCreativeGuidance}`
+        },
+        {
+          aspectRatio: "1:1" as const,
+          dimensions: { width: 1200, height: 1200 },
+          fieldType: "LOGO" as const,
+          suffix: "Display Square Logo — 1:1",
+          prompt: `Google Ads Display compliant square brand logo for "${brand}". 1200x1200 px, 1:1 ratio. ${context}${siteContext}${selectedLogoStyle}, centered emblem mark and text inside safe area, clean solid background, sharp vector readability.`
+        }
+      ];
+    }
 
     if (mode === "LOGO_ONLY") {
       return [
@@ -182,7 +256,7 @@ export class GoogleAdsImageGenService {
     const bizDesc = (state.business?.description || (state as any).productOverview || "").trim();
     const website = (state.website || state.business?.website || "").trim();
 
-    const promptConfigs = this.buildVisualPrompts(bizName, bizDesc, website, mode);
+    const promptConfigs = this.buildVisualPrompts(bizName, bizDesc, website, mode, state.campaignType);
     const results: GeneratedCreativeImage[] = [];
 
     const grokKey = process.env.GROK_API_KEY || process.env.XAI_API_KEY || "";

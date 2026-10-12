@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class SalesDisplayService extends GoogleAdsBaseService {
@@ -21,7 +22,8 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       dailyBudget,
       budget,
       startDate,
-      endDate
+      endDate,
+      conversionGoals
     } = payload;
 
     if (!finalUrl) {
@@ -38,7 +40,12 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       validDescriptions.push("Explore our top rated solutions with fast delivery and great support.");
     }
 
-    const effectiveBudget = Math.max(Number(dailyBudget || budget || 1000), 416);
+    const rawBudget = dailyBudget !== undefined && dailyBudget !== "" ? dailyBudget : budget;
+    const parsedBudget = Number(rawBudget);
+    if (rawBudget === undefined || rawBudget === null || isNaN(parsedBudget) || !isFinite(parsedBudget) || parsedBudget <= 0) {
+      throw new Error("A valid positive daily budget greater than 0 is required for Display campaigns.");
+    }
+    const effectiveBudget = parsedBudget;
     const amountMicros = Math.round(effectiveBudget * 1_000_000);
     const targetCpaMicros = targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
 
@@ -128,6 +135,18 @@ export class SalesDisplayService extends GoogleAdsBaseService {
         );
       } catch (critErr: any) {
         console.warn("[SalesDisplayService] mutateCampaignGeoAndLanguageCriteria warning:", critErr?.message || critErr);
+      }
+
+      // Conversion Goals Configuration (campaignConversionGoals:mutate)
+      if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+        await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+          organizationId,
+          customerId,
+          campaignRef,
+          conversionGoals,
+          headers,
+          "SalesDisplayService"
+        );
       }
 
       // 3. Create Standard Display Ad Group
@@ -341,6 +360,14 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       }
 
     } catch (apiErr: any) {
+      if (apiResult?.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "SalesDisplayService"
+        );
+      }
       const formatted = GoogleAdsBaseService.formatGoogleAdsError(apiErr);
       console.error("[Google Ads API Error for Sales Display]:", formatted);
       throw new Error(formatted);

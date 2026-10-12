@@ -1,4 +1,5 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class SalesShoppingService extends GoogleAdsBaseService {
@@ -14,8 +15,13 @@ export class SalesShoppingService extends GoogleAdsBaseService {
       targetRoas,
       dailyBudget,
       budget,
+      budgetType,
+      totalBudget,
+      startDate,
+      endDate,
       euPolitical = "NO",
-      shoppingSetting
+      shoppingSetting,
+      conversionGoals
     } = payload;
 
     const rawBudget = dailyBudget !== undefined && dailyBudget !== null && dailyBudget !== ""
@@ -41,9 +47,12 @@ export class SalesShoppingService extends GoogleAdsBaseService {
     const cid = (customerId || "").replace(/-/g, "").trim();
 
     try {
+      const isCustomPeriod = String(budgetType).toUpperCase() === "TOTAL" && Number(totalBudget) > 0 && Boolean(startDate && endDate);
       const budgetRef = await this.createBudget(organizationId, customerId, {
         name: `${campaignName} Budget - ${Date.now()}`,
-        amountPerDay: amountMicros / 1_000_000
+        amountPerDay: effectiveBudget,
+        period: isCustomPeriod ? "CUSTOM_PERIOD" : "DAILY",
+        totalAmount: isCustomPeriod ? Number(totalBudget) : undefined
       });
       apiResult.budgetResourceName = budgetRef;
 
@@ -109,6 +118,13 @@ export class SalesShoppingService extends GoogleAdsBaseService {
         ...biddingConfig
       };
 
+      if (payload.startDate) {
+        baseCampaignObj.startDateTime = `${String(payload.startDate).split("T")[0]} 00:00:00`;
+      }
+      if (payload.endDate) {
+        baseCampaignObj.endDateTime = `${String(payload.endDate).split("T")[0]} 23:59:59`;
+      }
+
       let res;
       try {
         const campaignPayload = {
@@ -134,8 +150,39 @@ export class SalesShoppingService extends GoogleAdsBaseService {
       if (campaignRef) {
         apiResult.campaignResourceName = campaignRef;
         apiResult.campaignId = campaignRef.split("/").pop();
+
+        // Mutate Campaign Geo Locations and Language Criteria in Google Ads API
+        try {
+          await this.mutateCampaignGeoAndLanguageCriteria(organizationId, customerId, campaignRef, {
+            locations: Array.isArray(locations) ? locations : [locations].filter(Boolean),
+            languages: Array.isArray(payload.languages) ? payload.languages : [payload.languages].filter(Boolean),
+            headers
+          });
+        } catch (geoLangErr: any) {
+          console.warn("[SalesShoppingService] Geo/Language criteria warning:", geoLangErr.message);
+        }
+
+        // Campaign Conversion Goals Configuration (campaignConversionGoals:mutate)
+        if (conversionGoals && (Array.isArray(conversionGoals) ? conversionGoals.length > 0 : true)) {
+          await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+            organizationId,
+            customerId,
+            campaignRef,
+            conversionGoals,
+            headers,
+            "SalesShoppingService"
+          );
+        }
       }
     } catch (apiErr: any) {
+      if (apiResult.campaignResourceName) {
+        await GoogleAdsBaseService.rollbackGoogleAdsCampaign(
+          organizationId,
+          customerId,
+          apiResult.campaignResourceName,
+          "SalesShoppingService"
+        );
+      }
       console.error("[Google Ads API Error for Sales Shopping]:", GoogleAdsBaseService.formatGoogleAdsError(apiErr));
       console.error("[Google Ads API Raw Error Data]:", JSON.stringify(apiErr?.response?.data || apiErr.message, null, 2));
       throw new Error(GoogleAdsBaseService.formatGoogleAdsError(apiErr));
@@ -158,9 +205,29 @@ export class SalesShoppingService extends GoogleAdsBaseService {
       finalUrl: payload.finalUrl || payload.website || null,
       headlines: Array.isArray(payload.headlines) ? payload.headlines : [],
       descriptions: Array.isArray(payload.descriptions) ? payload.descriptions : [],
+      startDate: payload.startDate ? new Date(payload.startDate) : undefined,
+      endDate: payload.endDate ? new Date(payload.endDate) : undefined,
+      keywords: Array.isArray(payload.keywords) ? payload.keywords : [],
+      languages: Array.isArray(payload.languages) ? payload.languages : ["All languages"],
+      searchThemes: Array.isArray(payload.searchThemes) ? payload.searchThemes : [],
+      audienceSignal: payload.audienceSignal || payload.audienceSignals || payload.audience || null,
+      adSchedule: Array.isArray(payload.adSchedule) ? payload.adSchedule : [],
       geoTargets: {
         locations,
-        objective: "Sales"
+        languages: Array.isArray(payload.languages) ? payload.languages : ["All languages"],
+        keywords: Array.isArray(payload.keywords) ? payload.keywords : [],
+        searchThemes: Array.isArray(payload.searchThemes) ? payload.searchThemes : [],
+        audienceSignal: payload.audienceSignal || payload.audienceSignals || payload.audience || null,
+        endDate: payload.endDate || null,
+        objective: "Sales",
+        merchantCenterId: String(mId),
+        salesCountry: country,
+        feedLabel: label,
+        campaignPriority: payload.campaignPriority || shoppingSetting?.campaignPriority || "LOW",
+        localProducts: Boolean(payload.localProducts || shoppingSetting?.enableLocalProducts),
+        productGroupFilter: payload.productGroupFilter || "Use all products",
+        productGroupSelectBy: payload.productGroupSelectBy,
+        adSchedule: Array.isArray(payload.adSchedule) ? payload.adSchedule : []
       },
       advertisingChannelType: "SHOPPING",
       amountMicros: BigInt(amountMicros),

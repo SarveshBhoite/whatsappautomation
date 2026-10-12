@@ -5,6 +5,7 @@ import { SalesDemandGenService } from "../../services/googleAds/sales/SalesDeman
 import { SalesVideoService } from "../../services/googleAds/sales/SalesVideoService";
 import { SalesDisplayService } from "../../services/googleAds/sales/SalesDisplayService";
 import { SalesShoppingService } from "../../services/googleAds/sales/SalesShoppingService";
+import { GoogleAdsBaseService } from "../../services/googleAds/shared/GoogleAdsBaseService";
 
 const router = Router();
 
@@ -67,11 +68,26 @@ router.post("/demand-gen", validatePayload, async (req, res) => {
     const result = await SalesDemandGenService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
-    if (error?.response?.data) {
-      console.error("[Sales Demand Gen] Google Ads API Error:", JSON.stringify(error.response.data, null, 2));
-      return res.status(400).json({ error: JSON.stringify(error.response.data, null, 2) });
+    const { customerId, ...payload } = req.body;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const budgetErr = GoogleAdsBaseService.parseGoogleAdsBudgetError(error, {
+      organizationId: orgId,
+      customerId: (customerId || "").replace(/-/g, "").trim(),
+      currencyCode: payload.currencyCode || "INR"
+    });
+    if (budgetErr && budgetErr.isBudgetBelowMinimum) {
+      return res.status(422).json({
+        success: false,
+        errorCode: budgetErr.errorCode,
+        error: budgetErr.message,
+        message: budgetErr.message,
+        minimumBudgetAmountMicros: budgetErr.minimumBudgetAmountMicros,
+        minimumBudgetUnits: budgetErr.minimumBudgetUnits,
+        currencyCode: budgetErr.currencyCode
+      });
     }
-    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
+    res.status(500).json({ error: formattedError || error?.response?.data?.error?.message || error.message });
   }
 });
 

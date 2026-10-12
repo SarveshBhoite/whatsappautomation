@@ -7,15 +7,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   X, HelpCircle, ArrowRight, Check, CheckCircle, CheckCircle2, Plus, Trash2, PhoneCall,
   Sparkles, Layers, Target, Search, Video, LayoutGrid, ShoppingBag,
-  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, SlidersHorizontal, BarChart3, Link as LinkIcon, Building2, ExternalLink
+  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, SlidersHorizontal, BarChart3, Link as LinkIcon, Building2, ExternalLink, TrendingUp, Store, PlaySquare
 } from "lucide-react";
 import { GoogleAdsProfileModal } from "@/components/ads/GoogleAdsProfileModal";
+import { GoogleCampaignChannelIcons } from "@/components/ads/GoogleCampaignChannelIcons";
 
 interface ObjectiveOption {
   id: string;
   title: string;
   desc: string;
   badge?: string;
+  icon?: any;
+  iconBg?: string;
+  iconColor?: string;
 }
 
 const OBJECTIVES: ObjectiveOption[] = [
@@ -23,37 +27,58 @@ const OBJECTIVES: ObjectiveOption[] = [
     id: "SALES",
     title: "Sales",
     desc: "Drive sales online, in app, by phone, or in store",
+    icon: TrendingUp,
+    iconBg: "bg-blue-50 text-blue-600 border-blue-200",
+    iconColor: "text-blue-600",
   },
   {
     id: "LEADS",
     title: "Leads",
     desc: "Get leads and other conversions by encouraging customers to take action",
+    icon: Users,
+    iconBg: "bg-emerald-50 text-emerald-600 border-emerald-200",
+    iconColor: "text-emerald-600",
   },
   {
     id: "WEBSITE_TRAFFIC",
     title: "Website traffic",
     desc: "Get the right people to visit your website",
+    icon: Globe,
+    iconBg: "bg-indigo-50 text-indigo-600 border-indigo-200",
+    iconColor: "text-indigo-600",
   },
   {
     id: "APP_PROMOTION",
     title: "App promotion",
     desc: "Get more installs, engagement and pre-registration for your app",
+    icon: Smartphone,
+    iconBg: "bg-purple-50 text-purple-600 border-purple-200",
+    iconColor: "text-purple-600",
   },
   {
     id: "AWARENESS",
     title: "YouTube reach, views, and engagements",
     desc: "Drive awareness and consideration of your product or brand",
     badge: 'Previously known as "Awareness and consideration"',
+    icon: PlaySquare,
+    iconBg: "bg-rose-50 text-rose-600 border-rose-200",
+    iconColor: "text-rose-600",
   },
   {
     id: "LOCAL",
     title: "Local store visits and promotions",
     desc: "Drive visits to local stores, including restaurants and dealerships.",
+    icon: Store,
+    iconBg: "bg-amber-50 text-amber-600 border-amber-200",
+    iconColor: "text-amber-600",
   },
   {
     id: "NO_GUIDANCE",
     title: "Create a campaign without guidance",
     desc: "You'll choose a campaign next",
+    icon: SlidersHorizontal,
+    iconBg: "bg-slate-100 text-slate-700 border-slate-200",
+    iconColor: "text-slate-700",
   },
 ];
 
@@ -799,8 +824,14 @@ export default function CampaignCreatePage() {
   const [showAddGoalModal, setShowAddGoalModal] = useState(false);
   const [openGoalMenuId, setOpenGoalMenuId] = useState<string | null>(null);
 
+  const isYouTubeConnected = Boolean(customerProfile?.youtubeConnection?.isConnected);
+
   const ALL_CONVERSION_GOALS = [
     { id: "phone_leads", name: "Phone call leads (account default)", source: "Call from Ads", count: "1 action", icon: PhoneCall },
+    ...(isYouTubeConnected ? [
+      { id: "Engagements", name: "Engagements (account default)", source: "YouTube hosted", count: "1 action", icon: Video },
+      { id: "YouTube follow-on views", name: "YouTube follow-on views (account default)", source: "YouTube hosted", count: "1 action", icon: Video }
+    ] : []),
     { id: "contacts", name: "Contacts", source: "Website / Form", count: "1 action", icon: Users },
     { id: "get_directions", name: "Get directions", source: "Google Maps / Location", count: "1 action", icon: Target }
   ];
@@ -838,6 +869,26 @@ export default function CampaignCreatePage() {
               } else {
                 setAppPlatformState("ANDROID");
               }
+            }
+
+            // Auto-populate default YouTube conversion goals if YouTube channel is connected
+            if (prof.youtubeConnection?.isConnected) {
+              setConversionGoals(prev => {
+                const hasPhoneLeads = prev.some(g => g.id === "phone_leads");
+                const hasEngagements = prev.some(g => g.id === "Engagements");
+                const hasYtViews = prev.some(g => g.id === "YouTube follow-on views");
+                const updated = [...prev];
+                if (!hasPhoneLeads) {
+                  updated.unshift({ id: "phone_leads", name: "Phone call leads (account default)", source: "Call from Ads", count: "1 action", icon: PhoneCall });
+                }
+                if (!hasEngagements) {
+                  updated.push({ id: "Engagements", name: "Engagements (account default)", source: "YouTube hosted", count: "1 action", icon: Video });
+                }
+                if (!hasYtViews) {
+                  updated.push({ id: "YouTube follow-on views", name: "YouTube follow-on views (account default)", source: "YouTube hosted", count: "1 action", icon: Video });
+                }
+                return updated;
+              });
             }
           }
         })
@@ -913,70 +964,78 @@ export default function CampaignCreatePage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ────────────────── */}
-      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
-        <div className="flex items-center gap-4">
+      <header className="min-h-14 py-2 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 sm:px-6 flex flex-wrap items-center justify-between gap-2 shrink-0 sticky top-0 z-50 shadow-xs">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setShowDraftModal(true)}
-            className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
+            className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer shrink-0"
             title="Close"
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-            <span className="text-sm font-semibold text-slate-900">New Campaign</span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-2 sm:pl-3">
+            <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 shadow-xs flex items-center justify-center p-0.5 shrink-0">
+              <img src="/jdsai.png" alt="JDS AI" className="w-full h-full object-contain rounded-md" />
+            </div>
+            <span className="text-sm font-bold text-slate-900 whitespace-nowrap">New Campaign</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 hidden md:inline-flex items-center gap-1 shrink-0">
+              <img src="/jdsai.png" alt="JDS AI" className="h-3 w-3 object-contain rounded-xs" />
+              <span>JDS AI</span>
+            </span>
           </div>
         </div>
 
         {/* Creation Mode Toggle (Manual vs AI) */}
-        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
+        <div className="flex items-center gap-1 bg-slate-100/80 p-0.5 sm:p-1 rounded-xl border border-slate-200 shrink-0">
           <button
             onClick={() => setCreationMode("MANUAL")}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${creationMode === "MANUAL"
-                ? "bg-blue-600 text-white shadow"
-                : "text-slate-500 hover:text-slate-900"
-              }`}
+            className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+              creationMode === "MANUAL"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+            }`}
           >
-            Manual Creation
+            Manual
           </button>
           <button
             onClick={() => {
               router.push(`/ads/campaigns/create/ai-guided${customerId ? `?customerId=${customerId}` : ""}`);
             }}
-            className="px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
+            className="px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 text-slate-600 hover:text-slate-900 hover:bg-white/60 cursor-pointer"
           >
-            <Sparkles className="h-3.5 w-3.5" />
-            AI Guided
+            <img src="/jdsai.png" alt="JDS AI" className="w-3.5 h-3.5 object-contain rounded-xs" />
+            <span className="hidden xs:inline">AI Guided</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="font-mono">
-            {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}
+        <div className="flex items-center gap-2 sm:gap-3 text-xs text-slate-500 shrink-0">
+          <span className="font-mono text-[11px] sm:text-xs text-slate-600 max-w-[120px] sm:max-w-[200px] truncate" title={accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}>
+            {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads"}
           </span>
           {(customerId || accountInfo?.customerId) && (
             <button
               type="button"
               onClick={() => router.push(`/ads/profile?customerId=${customerId || accountInfo?.customerId || ""}`)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-all cursor-pointer shadow-2xs"
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-all cursor-pointer shadow-2xs"
               title="View Google Ads Profile and Merchant/App Settings"
             >
               <Building2 className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-              <span>Google Ads Profile</span>
+              <span className="hidden sm:inline">Profile</span>
             </button>
           )}
-          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
+          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-slate-700" />
         </div>
       </header>
 
       {/* ── Main Content Area ───────────────────────────────────────── */}
       {wizardStep === "BIDDING" ? (
-        <div className="flex-1 flex w-full pb-20">
+        <div className="flex-1 flex w-full pb-48">
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                Performance Max
+              <div className="flex items-center gap-2 text-xs text-slate-700 font-semibold">
+                <GoogleCampaignChannelIcons campaignType={selectedType || "PERFORMANCE_MAX"} iconClassName="w-3.5 h-3.5 shrink-0" />
+                <span>{selectedType === "SEARCH" ? "Search" : "Performance Max"}</span>
               </div>
             </div>
 
@@ -1197,9 +1256,9 @@ export default function CampaignCreatePage() {
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                Performance Max
+              <div className="flex items-center gap-2 text-xs text-slate-700 font-semibold">
+                <GoogleCampaignChannelIcons campaignType={selectedType || "PERFORMANCE_MAX"} iconClassName="w-3.5 h-3.5 shrink-0" />
+                <span>{selectedType === "SEARCH" ? "Search" : "Performance Max"}</span>
               </div>
             </div>
 
@@ -3836,9 +3895,9 @@ export default function CampaignCreatePage() {
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                Performance Max
+              <div className="flex items-center gap-2 text-xs text-slate-700 font-semibold">
+                <GoogleCampaignChannelIcons campaignType={selectedType || "PERFORMANCE_MAX"} iconClassName="w-3.5 h-3.5 shrink-0" />
+                <span>{selectedType === "SEARCH" ? "Search" : "Performance Max"}</span>
               </div>
             </div>
 
@@ -3886,8 +3945,8 @@ export default function CampaignCreatePage() {
             {/* Top Ad Strength Bar */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent animate-spin flex items-center justify-center">
-                  <Sparkles className="h-4 w-4 text-blue-600" />
+                <div className="p-1 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center">
+                  <GoogleCampaignChannelIcons campaignType={selectedType || "PERFORMANCE_MAX"} iconClassName="w-4 h-4 shrink-0" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -4448,7 +4507,7 @@ export default function CampaignCreatePage() {
                     {uploadedAnimatedClips.map((clip, idx) => (
                       <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-2 space-y-1">
                         <div className="h-16 bg-white rounded flex items-center justify-center text-blue-600 text-xs font-bold">
-                          ✨ CLIP
+                          CLIP
                         </div>
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="text-slate-900 font-medium truncate max-w-[100px]">{clip.name}</span>
@@ -4926,12 +4985,10 @@ export default function CampaignCreatePage() {
         <div className="flex-1 flex w-full pb-20">
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                Performance Max
+              <div className="flex items-center gap-2 text-xs text-slate-700 font-semibold">
+                <GoogleCampaignChannelIcons campaignType={selectedType || "PERFORMANCE_MAX"} iconClassName="w-3.5 h-3.5 shrink-0" />
+                <span>{selectedType === "SEARCH" ? "Search" : "Performance Max"}</span>
               </div>
-            </div>
 
             <nav className="space-y-4 text-xs">
               <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
@@ -5301,9 +5358,9 @@ export default function CampaignCreatePage() {
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                Performance Max
+              <div className="flex items-center gap-2 text-xs text-slate-700 font-semibold">
+                <GoogleCampaignChannelIcons campaignType={selectedType || "PERFORMANCE_MAX"} iconClassName="w-3.5 h-3.5 shrink-0" />
+                <span>{selectedType === "SEARCH" ? "Search" : "Performance Max"}</span>
               </div>
             </div>
 
@@ -5683,25 +5740,26 @@ export default function CampaignCreatePage() {
           </aside>
         </div>
       ) : (
-        <main className="flex-1 max-w-5xl w-full mx-auto p-6 md:p-10 space-y-10 pb-36">
+        <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 md:p-10 space-y-8 pb-48">
 
         {/* Step Header */}
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">What's your campaign objective?</h1>
-          <p className="text-sm text-slate-500">
+        <div className="space-y-1.5">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">What's your campaign objective?</h1>
+          <p className="text-xs sm:text-sm text-slate-500">
             Select an objective to tailor your experience to the goals and settings that will work best for your campaign
           </p>
         </div>
 
         {/* Objective Grid */}
         <div className="space-y-3">
-          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
             Select the goal that would make this campaign successful to you
           </label>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {OBJECTIVES.map((obj) => {
               const isSelected = selectedObjective === obj.id;
+              const IconComponent = obj.icon;
               return (
                 <div
                   key={obj.id}
@@ -5709,18 +5767,28 @@ export default function CampaignCreatePage() {
                     setSelectedObjective(obj.id);
                     setSelectedType(""); // Reset campaign type on objective change
                   }}
-                  className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between min-h-[120px] ${isSelected
-                      ? "bg-blue-50/80 border-blue-500 shadow-md shadow-primary/10 ring-1 ring-primary"
-                      : "bg-white border-slate-200 hover:border-slate-200 hover:bg-slate-50"
-                    }`}
+                  className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between min-h-[140px] text-left group ${
+                    isSelected
+                      ? "bg-blue-50/90 border-blue-600 shadow-md shadow-blue-500/10 ring-2 ring-blue-500/30"
+                      : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/70 hover:shadow-xs"
+                  }`}
                 >
                   {isSelected && (
-                    <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                    <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs">
                       <Check className="h-3 w-3 text-white stroke-[3]" />
                     </div>
                   )}
                   <div>
-                    <h3 className={`text-sm font-semibold mb-1 pr-5 ${isSelected ? "text-blue-600" : "text-slate-900"}`}>
+                    {IconComponent && (
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 border ${
+                        isSelected 
+                          ? "bg-blue-600 text-white border-blue-600 shadow-xs" 
+                          : obj.iconBg || "bg-slate-100 text-slate-700 border-slate-200"
+                      } transition-colors`}>
+                        <IconComponent className="h-4 w-4" />
+                      </div>
+                    )}
+                    <h3 className={`text-sm font-bold mb-1 pr-6 tracking-tight ${isSelected ? "text-blue-700" : "text-slate-900"}`}>
                       {obj.title}
                     </h3>
                     <p className="text-xs text-slate-500 leading-relaxed">
@@ -5728,7 +5796,7 @@ export default function CampaignCreatePage() {
                     </p>
                   </div>
                   {obj.badge && (
-                    <span className="mt-3 text-[10px] text-slate-500 italic block">
+                    <span className="mt-3 text-[10px] text-slate-400 font-medium italic block border-t border-slate-100 pt-1.5">
                       {obj.badge}
                     </span>
                   )}
@@ -5954,6 +6022,7 @@ export default function CampaignCreatePage() {
               const hasContacts = conversionGoals.some(g => g.id === "contacts");
               const hasDirections = conversionGoals.some(g => g.id === "get_directions");
               const isMerchConnected = Boolean(customerProfile?.hasMerchantAccount) && Boolean(customerProfile?.merchantCenterId);
+              const isYouTubeConnected = Boolean(customerProfile?.youtubeConnection?.isConnected);
 
               let baseCampaignTypes = CAMPAIGN_TYPES_SALES;
               if (selectedObjective === "LEADS") baseCampaignTypes = CAMPAIGN_TYPES_LEADS;
@@ -6012,7 +6081,13 @@ export default function CampaignCreatePage() {
                 }
               }
 
-              const isOverride = (selectedObjective !== "APP_PROMOTION" && selectedObjective !== "AWARENESS" && selectedObjective !== "LOCAL" && selectedObjective !== "NO_GUIDANCE") && (conversionGoals.length > 1 || !conversionGoals.every(g => g.id === "phone_leads"));
+              const defaultGoalIds = isYouTubeConnected
+                ? ["phone_leads", "Engagements", "YouTube follow-on views"]
+                : ["phone_leads"];
+              const isGoalsMatchingDefault =
+                conversionGoals.length === defaultGoalIds.length &&
+                conversionGoals.every(g => defaultGoalIds.includes(g.id));
+              const isOverride = (selectedObjective !== "APP_PROMOTION" && selectedObjective !== "AWARENESS" && selectedObjective !== "LOCAL" && selectedObjective !== "NO_GUIDANCE") && !isGoalsMatchingDefault;
               const prefix = selectedObjective === "LEADS" ? "Leads" : selectedObjective === "WEBSITE_TRAFFIC" ? "Website traffic" : selectedObjective === "APP_PROMOTION" ? "App promotion" : selectedObjective === "AWARENESS" ? "YouTube reach" : selectedObjective === "LOCAL" ? "Local store" : selectedObjective === "NO_GUIDANCE" ? "Campaign" : "Sales";
 
               return (
@@ -6034,48 +6109,70 @@ export default function CampaignCreatePage() {
                       <p className="text-xs text-slate-500">Choose how you want to reach potential buyers</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
                       {visibleCampaignTypes.map((type) => {
-                        const Icon = type.icon;
                         const isSelected = selectedType === type.id;
                         const isShopping = type.id === "SHOPPING";
+                        const isVideo = type.id === "VIDEO";
                         const shoppingDisconnected = isShopping && !isMerchConnected;
+                        const videoDisconnected = isVideo && !isYouTubeConnected;
+                        const isCardDisabled = videoDisconnected;
                         return (
                           <div
                             key={type.id}
-                            onClick={() => setSelectedType(type.id)}
-                            className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                            onClick={() => {
+                              if (videoDisconnected) {
+                                alert("Requires an authenticated YouTube channel");
+                                return;
+                              }
+                              setSelectedType(type.id);
+                            }}
+                            title={videoDisconnected ? "Requires an authenticated YouTube channel" : undefined}
+                            className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between min-h-[160px] ${
                               isSelected
-                                ? "bg-blue-50/80 border-blue-500 ring-1 ring-primary"
+                                ? "bg-white border-blue-600 ring-2 ring-blue-500/20 shadow-sm"
                                 : shoppingDisconnected
-                                ? "bg-amber-50/30 border-amber-200 hover:border-amber-300 hover:bg-amber-50"
-                                : "bg-white border-slate-200 hover:border-slate-200 hover:bg-slate-50"
+                                ? "bg-amber-50/20 border-amber-200 hover:border-amber-300 hover:bg-amber-50/40"
+                                : videoDisconnected
+                                ? "bg-amber-50/20 border-amber-200 hover:border-amber-300 hover:bg-amber-50/40 opacity-75 cursor-not-allowed"
+                                : "bg-white border-slate-300 hover:border-slate-400 hover:shadow-2xs"
                             }`}
                           >
                             {isSelected && (
-                              <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                                <Check className="h-3 w-3 text-white stroke-[3]" />
+                              <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                                <Check className="h-2.5 w-2.5 text-white stroke-[3]" />
                               </div>
                             )}
                             {shoppingDisconnected && !isSelected && (
-                              <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                              <div className="absolute top-3 right-3 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
                                 Not Connected
                               </div>
                             )}
-                            <div>
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${
-                                shoppingDisconnected ? "bg-amber-50 text-amber-600" : "bg-blue-50/80 text-blue-600"
-                              }`}>
-                                <Icon className="h-4 w-4" />
+                            {videoDisconnected && !isSelected && (
+                              <div className="absolute top-3 right-3 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200" title="Requires an authenticated YouTube channel">
+                                Requires YouTube
                               </div>
-                              <h3 className={`text-sm font-semibold mb-1 ${
-                                isSelected ? "text-blue-600" : shoppingDisconnected ? "text-amber-800" : "text-slate-900"
-                              }`}>
-                                {type.title}
-                              </h3>
-                              <p className="text-xs text-slate-500 leading-relaxed">
-                                {type.desc}
-                              </p>
+                            )}
+                            <div className="space-y-2.5">
+                              {/* Authentic Google network channel icons matching official Google Ads */}
+                              <div className="flex items-center gap-2 min-h-[20px]">
+                                <GoogleCampaignChannelIcons campaignType={type.id} iconClassName="w-4 h-4 shrink-0" />
+                              </div>
+                              <div>
+                                <h3 className={`text-[13px] font-bold mb-1 tracking-tight ${
+                                  isSelected ? "text-blue-600" : (shoppingDisconnected || videoDisconnected) ? "text-amber-900" : "text-slate-900"
+                                }`}>
+                                  {type.title}
+                                </h3>
+                                <p className="text-[11px] text-slate-600 leading-relaxed">
+                                  {type.desc}
+                                </p>
+                                {videoDisconnected && (
+                                  <p className="text-[10px] text-amber-700 font-medium mt-1">
+                                    Requires an authenticated YouTube channel
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -6528,6 +6625,53 @@ export default function CampaignCreatePage() {
                   {/* 4. VIDEO */}
                   {selectedType === "VIDEO" && (
                     <div className="mt-6 space-y-6 animate-in fade-in duration-200">
+                      {/* YouTube Connection Status Banner */}
+                      {!isYouTubeConnected ? (
+                        <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-3">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 rounded-lg bg-amber-100 text-amber-700 shrink-0 mt-0.5">
+                                <Video className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <h4 className="text-sm font-bold text-amber-900">YouTube Channel Not Authenticated</h4>
+                                <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                                  To create a Video campaign, you must link and authenticate your YouTube account via OAuth in your Google Ads Profile.
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=channel`)}
+                              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
+                            >
+                              <span>Connect YouTube</span>
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-amber-800/80 pl-11">
+                            Go to Google Ads Profile &gt; <strong>YouTube Channel</strong> tab to authorize and connect your channel.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/60 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <span className="text-xs font-bold text-emerald-900">
+                              YouTube Channel Connected ({customerProfile?.youtubeConnection?.channelTitle || "Authenticated"})
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/ads/profile?customerId=${customerId}&tab=channel`)}
+                            className="text-[11px] font-semibold text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>Manage in Profile</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+
                       {/* Upgrade Banner Notice matching prompt text */}
                       <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-start gap-3 shadow-md">
                         <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
@@ -6993,7 +7137,7 @@ export default function CampaignCreatePage() {
       )}
 
       {/* ── Fixed Footer Action Bar ──────────────────────────────────── */}
-      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 px-8 flex items-center justify-between z-40">
+      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 sm:px-8 flex items-center justify-between z-40 shadow-lg">
         <button
           onClick={() => {
             if (wizardStep === "SUMMARY") {
@@ -7019,6 +7163,11 @@ export default function CampaignCreatePage() {
           disabled={(wizardStep === "OBJECTIVE" && (!selectedObjective || !selectedType)) || isPublishing}
           onClick={async () => {
             if (wizardStep === "OBJECTIVE" && selectedObjective && selectedType) {
+              if (selectedType === "VIDEO" && !Boolean(customerProfile?.youtubeConnection?.isConnected)) {
+                alert("Connect an authenticated YouTube channel before creating a Video campaign.");
+                return;
+              }
+
               const objSlugMap: Record<string, string> = {
                 SALES: "sales",
                 LEADS: "leads",

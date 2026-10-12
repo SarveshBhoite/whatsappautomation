@@ -180,10 +180,12 @@ export type ConversionType =
   | "App Purchase"
   | "Store Visit"
   | "Get Directions"
+  | "Engagements"
+  | "YouTube follow-on views"
   | "Other"
   | string;
 
-export type ConversionSource = "Website" | "Phone" | "App" | "Store" | "Other" | string;
+export type ConversionSource = "Website" | "Phone" | "App" | "Store" | "YouTube hosted" | "Call from Ads" | "Other" | string;
 
 export interface ConversionGoalItem {
   id: string;
@@ -357,6 +359,12 @@ export interface CustomerProfileData {
   primaryWebsite?: string | null;
   additionalWebsites?: WebsiteEntry[];
   youtubeLinks?: string[];
+  youtubeConnection?: {
+    isConnected: boolean;
+    channelId?: string;
+    channelTitle?: string;
+    thumbnail?: string;
+  };
   businessDescription?: string | null;
   industry?: string | null;
   products?: (ProductItem | string)[];
@@ -663,6 +671,12 @@ export function GoogleAdsProfileModal({
   const [additionalWebsites, setAdditionalWebsites] = useState<WebsiteEntry[]>([]);
   const [newWebsiteInput, setNewWebsiteInput] = useState("");
   const [youtubeLinks, setYoutubeLinks] = useState<string[]>([]);
+  const [youtubeConnection, setYoutubeConnection] = useState<{
+    isConnected: boolean;
+    channelId?: string;
+    channelTitle?: string;
+    thumbnail?: string;
+  } | null>(null);
   const [newYoutubeInput, setNewYoutubeInput] = useState("");
   const [youtubeInputError, setYoutubeInputError] = useState<string | null>(null);
   const [analyzingUrl, setAnalyzingUrl] = useState<string | null>(null);
@@ -990,6 +1004,12 @@ export function GoogleAdsProfileModal({
           setPrimaryWebsite(data.primaryWebsite || "");
           setAdditionalWebsites(Array.isArray(data.additionalWebsites) ? data.additionalWebsites : []);
           setYoutubeLinks(Array.isArray(data.youtubeLinks) ? data.youtubeLinks : []);
+          setYoutubeConnection(data.youtubeConnection ? {
+            isConnected: Boolean(data.youtubeConnection.isConnected),
+            channelId: data.youtubeConnection.channelId || undefined,
+            channelTitle: data.youtubeConnection.channelTitle || undefined,
+            thumbnail: data.youtubeConnection.thumbnail || undefined
+          } : { isConnected: false });
 
           setHasMerchantAccount(Boolean(data.hasMerchantAccount));
           setMerchantCenterId(data.merchantCenterId || "");
@@ -1333,7 +1353,7 @@ export function GoogleAdsProfileModal({
         const conflictCount = newSuggestions.filter((s) => s.status === "conflict").length;
         if (autofilledCount > 0) {
           setSuggestionSuccessMsg(
-            `✨ Grok AI analyzed ${targetUrl}! Autofilled ${autofilledCount} fields (Email, Phone, WhatsApp, Address, Services, Products, etc.) and discovered ${newSuggestions.length} suggestions (${newCount} new, ${conflictCount} potential conflicts).`
+            `Grok AI analyzed ${targetUrl}! Autofilled ${autofilledCount} fields (Email, Phone, WhatsApp, Address, Services, Products, etc.) and discovered ${newSuggestions.length} suggestions (${newCount} new, ${conflictCount} potential conflicts).`
           );
         } else {
           setSuggestionSuccessMsg(
@@ -1343,7 +1363,7 @@ export function GoogleAdsProfileModal({
         setTimeout(() => setSuggestionSuccessMsg(null), 8000);
       } else {
         if (autofilledCount > 0) {
-          setSaveSuccessMsg(`✨ Grok AI analyzed ${targetUrl}! Autofilled ${autofilledCount} profile fields and discovered ${subPages.length} relevant sub-pages!`);
+          setSaveSuccessMsg(`Grok AI analyzed ${targetUrl}! Autofilled ${autofilledCount} profile fields and discovered ${subPages.length} relevant sub-pages!`);
         } else {
           setSaveSuccessMsg(`AI analyzed ${targetUrl} and discovered ${subPages.length} relevant sub-pages!`);
         }
@@ -3704,11 +3724,15 @@ export function GoogleAdsProfileModal({
                             (Channels, Videos, or Shorts for video ads &amp; reach)
                           </span>
                         </label>
-                        {youtubeLinks.length > 0 && (
-                          <span className="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
-                            {youtubeLinks.length} {youtubeLinks.length === 1 ? "Link" : "Links"} connected
-                          </span>
-                        )}
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
+                          youtubeConnection?.isConnected
+                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                            : "text-slate-500 bg-slate-50 border-slate-200"
+                        }`}>
+                          {youtubeConnection?.isConnected
+                            ? "Connected (OAuth)"
+                            : (youtubeLinks.length > 0 ? `${youtubeLinks.length} URLs (Not Connected)` : "Not Connected")}
+                        </span>
                       </div>
 
                       {youtubeLinks.length > 0 ? (
@@ -6796,6 +6820,8 @@ export function GoogleAdsProfileModal({
                             <option value="App Purchase">App Purchase</option>
                             <option value="Store Visit">Store Visit</option>
                             <option value="Get Directions">Get Directions</option>
+                            <option value="Engagements">Engagements (YouTube hosted)</option>
+                            <option value="YouTube follow-on views">YouTube follow-on views</option>
                             <option value="Other">Other</option>
                           </select>
                         </div>
@@ -6809,6 +6835,8 @@ export function GoogleAdsProfileModal({
                           >
                             <option value="Website">Website</option>
                             <option value="Phone">Phone</option>
+                            <option value="Call from Ads">Call from Ads</option>
+                            <option value="YouTube hosted">YouTube hosted</option>
                             <option value="App">App</option>
                             <option value="Store">Store</option>
                             <option value="Other">Other</option>
@@ -9535,19 +9563,72 @@ export function GoogleAdsProfileModal({
                   </div>
 
                   {/* YouTube Channel & Video Links Card */}
-                  <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-4 shadow-2xs">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <Youtube className="w-4 h-4 text-red-600" />
                         <span className="text-xs font-bold text-slate-900">YouTube Channel &amp; Video Links</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
-                          {youtubeLinks.length} {youtubeLinks.length === 1 ? "Link" : "Links"}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          loading
+                            ? "bg-slate-100 text-slate-500 border-slate-200"
+                            : youtubeConnection?.isConnected
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            : "bg-slate-100 text-slate-500 border-slate-200"
+                        }`}>
+                          {loading
+                            ? "Checking..."
+                            : youtubeConnection?.isConnected
+                            ? "Connected (OAuth)"
+                            : "Not Connected"}
                         </span>
                       </div>
-                      <span className="text-[11px] text-slate-500">
-                        Essential for Google Video Campaigns &amp; Demand Gen ads
-                      </span>
+                      
+                      {/* Canonical YouTube OAuth Connect Button */}
+                      <a
+                        href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/youtube/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=youtube_channel`)}`}
+                        className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                        title="Connect YouTube account with official Google OAuth to enable Video & Demand Gen campaigns"
+                      >
+                        <Youtube className="w-3.5 h-3.5 text-red-500" />
+                        <span>
+                          {loading
+                            ? "Checking..."
+                            : youtubeConnection?.isConnected
+                            ? "Re-connect YouTube"
+                            : "Connect YouTube"}
+                        </span>
+                      </a>
                     </div>
+
+                    {/* Authenticated YouTube Channel Card */}
+                    {youtubeConnection?.isConnected && (
+                      <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {youtubeConnection.thumbnail ? (
+                            <img
+                              src={youtubeConnection.thumbnail}
+                              alt="Channel"
+                              className="w-8 h-8 rounded-lg object-cover border border-emerald-300 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center shrink-0">
+                              <Youtube className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 truncate">
+                              {youtubeConnection.channelTitle || "Authenticated Channel"}
+                            </p>
+                            <p className="text-[10px] font-mono text-slate-500 truncate">
+                              Channel ID: {youtubeConnection.channelId || "Connected"}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-semibold text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
+                          Verified for Video Ads
+                        </span>
+                      </div>
+                    )}
 
                     {youtubeLinks.length === 0 ? (
                       <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
@@ -9769,34 +9850,23 @@ export function GoogleAdsProfileModal({
                     )}
 
                     {hasMerchantAccount ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-emerald-200/60 animate-fadeIn">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                            <span>Merchant Center Account ID</span>
-                            <span className="text-[11px] font-normal text-slate-400 font-mono">Numeric ID</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={merchantCenterId}
-                            onChange={(e) => setMerchantCenterId(e.target.value)}
-                            placeholder="e.g. 123456789"
-                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-mono focus:border-emerald-500 focus:outline-none"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                            <span>Primary Feed / Store Name</span>
-                            <span className="text-[11px] font-normal text-slate-400">Store / Product Catalog</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={merchantStoreName}
-                            onChange={(e) => setMerchantStoreName(e.target.value)}
-                            placeholder="e.g. Main Online Store Feed"
-                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:border-emerald-500 focus:outline-none"
-                          />
-                        </div>
+                      <div className="pt-3 border-t border-emerald-200/60 animate-fadeIn space-y-3">
+                        {merchantCenterId ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="p-3 rounded-xl bg-white border border-emerald-200 shadow-2xs">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Merchant Center Account ID</span>
+                              <span className="text-xs font-mono font-bold text-emerald-950 mt-0.5 block">{merchantCenterId}</span>
+                            </div>
+                            <div className="p-3 rounded-xl bg-white border border-emerald-200 shadow-2xs">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Primary Store / Feed Name</span>
+                              <span className="text-xs font-semibold text-slate-900 mt-0.5 block">{merchantStoreName || "Default Product Feed"}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 italic p-3 rounded-xl bg-white border border-slate-200">
+                            No Merchant Center account detected yet. Click &quot;Live Sync&quot; above to auto-detect and sync your Google Merchant Center account.
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <p className="text-[11px] text-slate-400 italic pt-2 border-t border-slate-100">
@@ -9955,7 +10025,7 @@ export function GoogleAdsProfileModal({
 
                           {appDetails.length === 0 ? (
                             <p className="text-xs text-slate-400 italic p-3 rounded-xl bg-white border border-slate-200">
-                              No apps added yet. Add your Android or iOS app below.
+                              No connected mobile apps detected yet. Click &quot;Live Sync Apps&quot; above to auto-discover mobile apps linked to your Google Ads account.
                             </p>
                           ) : (
                             appDetails.map((app, aIdx) => (
@@ -10007,63 +10077,6 @@ export function GoogleAdsProfileModal({
                               </div>
                             ))
                           )}
-                        </div>
-
-                        {/* Add Mobile App Sub-form */}
-                        <div className="p-3.5 rounded-2xl bg-white border border-blue-200 space-y-3">
-                          <span className="text-xs font-bold text-slate-800 block">Add New Application</span>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-semibold text-slate-600">Platform</label>
-                              <select
-                                value={newAppPlatform}
-                                onChange={(e) => setNewAppPlatform(e.target.value as "ANDROID" | "IOS")}
-                                className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50"
-                              >
-                                <option value="ANDROID">Google Play (Android)</option>
-                                <option value="IOS">Apple App Store (iOS)</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-semibold text-slate-600">App ID / Package</label>
-                              <input
-                                type="text"
-                                value={newAppId}
-                                onChange={(e) => setNewAppId(e.target.value)}
-                                placeholder={newAppPlatform === "ANDROID" ? "com.example.app" : "123456789"}
-                                className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 font-mono"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-semibold text-slate-600">App Display Name</label>
-                              <input
-                                type="text"
-                                value={newAppName}
-                                onChange={(e) => setNewAppName(e.target.value)}
-                                placeholder="e.g. MyBrand Pro"
-                                className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-1">
-                            <input
-                              type="url"
-                              value={newAppUrl}
-                              onChange={(e) => setNewAppUrl(e.target.value)}
-                              placeholder="Direct store link (optional)..."
-                              className="flex-1 mr-3 px-3 py-1.5 text-xs rounded-xl border border-slate-200 text-slate-700"
-                            />
-                            <button
-                              type="button"
-                              onClick={handleAddApp}
-                              className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5" /> Add App
-                            </button>
-                          </div>
                         </div>
                       </div>
                     )}
