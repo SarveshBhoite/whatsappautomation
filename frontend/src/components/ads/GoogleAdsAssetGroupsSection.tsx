@@ -23,7 +23,10 @@ import {
   Link,
   Sliders,
   Check,
-  Building2
+  Building2,
+  Clock,
+  Play,
+  Pause
 } from "lucide-react";
 
 export interface AssetGroupListItem {
@@ -143,9 +146,45 @@ export function GoogleAdsAssetGroupsSection({
   const [assetToRemove, setAssetToRemove] = useState<AssetGroupAssetItem | null>(null);
   const [removingAsset, setRemovingAsset] = useState(false);
 
+  // Multi-Select and Bulk Task Progress State (same UX as Campaigns and Ad Groups)
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedResourceNames, setSelectedResourceNames] = useState<string[]>([]);
+  const [isBulkOperating, setIsBulkOperating] = useState(false);
+  const [bulkTaskProgress, setBulkTaskProgress] = useState<{
+    isOpen: boolean;
+    title: string;
+    total: number;
+    current: number;
+    successCount: number;
+    failCount: number;
+    currentName: string;
+    elapsedSeconds: number;
+    isCompleted: boolean;
+    actionType: "DELETE" | "STATUS";
+    failureReasons?: Array<{ name: string; reason: string }>;
+  } | null>(null);
+
+  // Quick single edit modal state (when editing from the main table)
+  const [quickEditAg, setQuickEditAg] = useState<AssetGroupListItem | null>(null);
+
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
+  };
+
+  const toggleSelectAssetGroup = (resName: string) => {
+    setSelectedResourceNames(prev =>
+      prev.includes(resName) ? prev.filter(r => r !== resName) : [...prev, resName]
+    );
+  };
+
+  const toggleSelectAll = (visibleList: AssetGroupListItem[]) => {
+    const visibleNames = visibleList.map(g => g.resourceName);
+    if (selectedResourceNames.length === visibleNames.length && visibleNames.length > 0) {
+      setSelectedResourceNames([]);
+    } else {
+      setSelectedResourceNames(visibleNames);
+    }
   };
 
   // ── Fetch Asset Groups ──────────────────────────────────────────────────────
@@ -211,6 +250,280 @@ export function GoogleAdsAssetGroupsSection({
     setSelectedAssetGroup(ag);
     setIsEditingAg(false);
     fetchDetail(ag.resourceName);
+  };
+
+  // ── Single Delete Asset Group ─────────────────────────────────────────────
+  const handleDeleteSingleAssetGroup = async (ag: AssetGroupListItem) => {
+    if (!confirm(`⚠️ Remove/Delete Asset Group "${ag.name}" from Google Ads? This will delete the creative group.`)) return;
+
+    setIsBulkOperating(true);
+    const startTime = Date.now();
+    setBulkTaskProgress({
+      isOpen: true,
+      title: "Delete Asset Group",
+      total: 1,
+      current: 1,
+      successCount: 0,
+      failCount: 0,
+      currentName: ag.name,
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "DELETE",
+      failureReasons: []
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    try {
+      const res = await fetch(
+        `${BACKEND}/api/ads/asset-groups?customerId=${cleanCid}&resourceName=${encodeURIComponent(ag.resourceName)}`,
+        {
+          method: "DELETE",
+          headers: { "x-organization-id": orgId }
+        }
+      );
+      clearInterval(timerInterval);
+      const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+      if (res.ok) {
+        setBulkTaskProgress(prev => prev ? {
+          ...prev,
+          isCompleted: true,
+          successCount: 1,
+          elapsedSeconds: finalElapsed,
+          currentName: `Successfully removed ${ag.name}`
+        } : null);
+        showToast(`Asset Group "${ag.name}" removed from Google Ads ✓`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        const reason = errData.error || errData.message || `HTTP ${res.status}: Failed to delete Asset Group`;
+        setBulkTaskProgress(prev => prev ? {
+          ...prev,
+          isCompleted: true,
+          failCount: 1,
+          elapsedSeconds: finalElapsed,
+          currentName: `Failed: ${reason}`,
+          failureReasons: [{ name: ag.name, reason }]
+        } : null);
+        showToast(`Failed: ${reason}`);
+      }
+    } catch (err: any) {
+      clearInterval(timerInterval);
+      const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+      const reason = err.message || "Network / Request failed";
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        isCompleted: true,
+        failCount: 1,
+        elapsedSeconds: finalElapsed,
+        currentName: `Error: ${reason}`,
+        failureReasons: [{ name: ag.name, reason }]
+      } : null);
+      showToast(`Error: ${reason}`);
+    } finally {
+      setIsBulkOperating(false);
+      fetchAssetGroups();
+      if (selectedAssetGroup?.resourceName === ag.resourceName) {
+        setSelectedAssetGroup(null);
+      }
+    }
+  };
+
+  // ── Bulk Delete Asset Groups ──────────────────────────────────────────────
+  const handleBulkDeleteAssetGroups = async () => {
+    if (selectedResourceNames.length === 0) {
+      showToast("Please select at least one Asset Group.");
+      return;
+    }
+    if (!confirm(`⚠️ Remove/Delete ${selectedResourceNames.length} selected Asset Group(s) from Google Ads? This cannot be undone.`)) return;
+
+    setIsBulkOperating(true);
+    let successCount = 0;
+    let failCount = 0;
+    const total = selectedResourceNames.length;
+    const startTime = Date.now();
+    const failureReasons: Array<{ name: string; reason: string }> = [];
+
+    setBulkTaskProgress({
+      isOpen: true,
+      title: "Delete Asset Groups",
+      total,
+      current: 0,
+      successCount: 0,
+      failCount: 0,
+      currentName: "Starting deletion...",
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "DELETE",
+      failureReasons: []
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    for (let i = 0; i < selectedResourceNames.length; i++) {
+      const resName = selectedResourceNames[i];
+      const targetAg = assetGroups.find(g => g.resourceName === resName);
+      const agName = targetAg?.name || `Asset Group ${resName}`;
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        current: i + 1,
+        currentName: agName
+      } : null);
+
+      try {
+        const res = await fetch(
+          `${BACKEND}/api/ads/asset-groups?customerId=${cleanCid}&resourceName=${encodeURIComponent(resName)}`,
+          {
+            method: "DELETE",
+            headers: { "x-organization-id": orgId }
+          }
+        );
+        if (res.ok) {
+          successCount++;
+        } else {
+          failCount++;
+          const errData = await res.json().catch(() => ({}));
+          const reason = errData.error || errData.message || `HTTP ${res.status}: Failed to delete Asset Group`;
+          failureReasons.push({ name: agName, reason });
+        }
+      } catch (err: any) {
+        failCount++;
+        failureReasons.push({ name: agName, reason: err.message || "Network / Request failed" });
+      }
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        successCount,
+        failCount,
+        failureReasons: [...failureReasons]
+      } : null);
+    }
+
+    clearInterval(timerInterval);
+    const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+    setBulkTaskProgress(prev => prev ? {
+      ...prev,
+      isCompleted: true,
+      elapsedSeconds: finalElapsed,
+      currentName: `Completed: ${successCount} removed${failCount > 0 ? `, ${failCount} failed` : ""}`,
+      failureReasons: [...failureReasons]
+    } : null);
+
+    setIsBulkOperating(false);
+    showToast(`Asset Groups deleted: ${successCount} removed in ${finalElapsed}s${failCount > 0 ? `, ${failCount} failed` : ""}`);
+    setSelectedResourceNames([]);
+    fetchAssetGroups();
+  };
+
+  // ── Bulk Status Toggle (ENABLE / PAUSE) ───────────────────────────────────
+  const handleBulkToggleAssetGroupStatus = async (targetStatus: "ENABLED" | "PAUSED") => {
+    if (selectedResourceNames.length === 0) {
+      showToast("Please select at least one Asset Group.");
+      return;
+    }
+    const actionLabel = targetStatus === "ENABLED" ? "Enable" : "Pause";
+    if (!confirm(`${actionLabel} ${selectedResourceNames.length} selected Asset Group(s)?`)) return;
+
+    setIsBulkOperating(true);
+    let successCount = 0;
+    let failCount = 0;
+    const total = selectedResourceNames.length;
+    const startTime = Date.now();
+    const failureReasons: Array<{ name: string; reason: string }> = [];
+
+    setBulkTaskProgress({
+      isOpen: true,
+      title: `${actionLabel} Asset Groups`,
+      total,
+      current: 0,
+      successCount: 0,
+      failCount: 0,
+      currentName: `Starting ${actionLabel.toLowerCase()}...`,
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "STATUS",
+      failureReasons: []
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    for (let i = 0; i < selectedResourceNames.length; i++) {
+      const resName = selectedResourceNames[i];
+      const targetAg = assetGroups.find(g => g.resourceName === resName);
+      const agName = targetAg?.name || `Asset Group ${resName}`;
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        current: i + 1,
+        currentName: agName
+      } : null);
+
+      try {
+        const res = await fetch(`${BACKEND}/api/ads/asset-groups`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "x-organization-id": orgId
+          },
+          body: JSON.stringify({
+            customerId: cleanCid,
+            resourceName: resName,
+            status: targetStatus
+          })
+        });
+        if (res.ok) {
+          successCount++;
+        } else {
+          failCount++;
+          const errData = await res.json().catch(() => ({}));
+          const reason = errData.error || errData.message || `HTTP ${res.status}: Failed to update status`;
+          failureReasons.push({ name: agName, reason });
+        }
+      } catch (err: any) {
+        failCount++;
+        failureReasons.push({ name: agName, reason: err.message || "Network / Request failed" });
+      }
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        successCount,
+        failCount,
+        failureReasons: [...failureReasons]
+      } : null);
+    }
+
+    clearInterval(timerInterval);
+    const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+    setBulkTaskProgress(prev => prev ? {
+      ...prev,
+      isCompleted: true,
+      elapsedSeconds: finalElapsed,
+      currentName: `Completed: ${successCount} ${targetStatus === "ENABLED" ? "enabled" : "paused"}${failCount > 0 ? `, ${failCount} failed` : ""}`,
+      failureReasons: [...failureReasons]
+    } : null);
+
+    setIsBulkOperating(false);
+    showToast(`Asset Groups updated: ${successCount} ${targetStatus === "ENABLED" ? "enabled" : "paused"} in ${finalElapsed}s`);
+    setSelectedResourceNames([]);
+    fetchAssetGroups();
   };
 
   // ── Save Asset Group Updates ────────────────────────────────────────────────
@@ -436,6 +749,29 @@ export function GoogleAdsAssetGroupsSection({
 
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
+              onClick={() => {
+                setIsSelectionMode(prev => {
+                  if (prev) setSelectedResourceNames([]);
+                  return !prev;
+                });
+              }}
+              className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                isSelectionMode
+                  ? "bg-blue-50 text-blue-700 border-blue-300 ring-2 ring-blue-500/20"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              }`}
+              title="Toggle multi-select mode to edit, pause, or remove asset groups"
+            >
+              <Sliders className="h-3.5 w-3.5 text-blue-600" />
+              <span>{isSelectionMode ? "Exit Select" : "Edit Groups"}</span>
+              {selectedResourceNames.length > 0 && (
+                <span className="px-1.5 py-0.2 bg-blue-600 text-white rounded-full text-[10px] font-bold">
+                  {selectedResourceNames.length}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => fetchAssetGroups()}
               disabled={loading}
               className="px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold hover:bg-slate-100 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
@@ -455,6 +791,59 @@ export function GoogleAdsAssetGroupsSection({
             </button>
           </div>
         </div>
+
+        {/* Multi-Select Floating Bulk Actions Bar for Asset Groups */}
+        {isSelectionMode && (
+          <div className="mt-4 p-3.5 rounded-2xl bg-slate-900 text-white flex items-center justify-between gap-4 flex-wrap shadow-md animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-xs font-bold cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={filteredGroups.length > 0 && selectedResourceNames.length === filteredGroups.length}
+                  onChange={() => toggleSelectAll(filteredGroups)}
+                  className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500 cursor-pointer"
+                />
+                <span>Select All ({selectedResourceNames.length}/{filteredGroups.length})</span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => handleBulkToggleAssetGroupStatus("ENABLED")}
+                disabled={isBulkOperating || selectedResourceNames.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+              >
+                <Play className="h-3.5 w-3.5" />
+                <span>Enable ({selectedResourceNames.length})</span>
+              </button>
+
+              <button
+                onClick={() => handleBulkToggleAssetGroupStatus("PAUSED")}
+                disabled={isBulkOperating || selectedResourceNames.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+              >
+                <Pause className="h-3.5 w-3.5" />
+                <span>Pause ({selectedResourceNames.length})</span>
+              </button>
+
+              <button
+                onClick={handleBulkDeleteAssetGroups}
+                disabled={isBulkOperating || selectedResourceNames.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+              >
+                {isBulkOperating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                <span>Delete ({selectedResourceNames.length})</span>
+              </button>
+
+              <button
+                onClick={() => setSelectedResourceNames([])}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all cursor-pointer"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Campaign Filter & Search Bar */}
         <div className="mt-5 pt-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -531,6 +920,16 @@ export function GoogleAdsAssetGroupsSection({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                  {isSelectionMode && (
+                    <th className="px-3 py-3.5 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={filteredGroups.length > 0 && selectedResourceNames.length === filteredGroups.length}
+                        onChange={() => toggleSelectAll(filteredGroups)}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
+                  )}
                   <th className="px-5 py-3.5">Asset Group Name</th>
                   <th className="px-4 py-3.5">Status</th>
                   <th className="px-4 py-3.5">Campaign</th>
@@ -542,8 +941,24 @@ export function GoogleAdsAssetGroupsSection({
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {filteredGroups.map(ag => {
                   const isEnabled = ag.status === "ENABLED";
+                  const isSelected = selectedResourceNames.includes(ag.resourceName);
                   return (
-                    <tr key={ag.resourceName} className="hover:bg-slate-50/80 transition-all group">
+                    <tr
+                      key={ag.resourceName}
+                      className={`hover:bg-slate-50/80 transition-all group ${
+                        isSelected ? "bg-blue-50/40" : ""
+                      }`}
+                    >
+                      {isSelectionMode && (
+                        <td className="px-3 py-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectAssetGroup(ag.resourceName)}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
+                      )}
                       <td className="px-5 py-4">
                         <div className="space-y-0.5">
                           <button
@@ -602,12 +1017,35 @@ export function GoogleAdsAssetGroupsSection({
                         )}
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <button
-                          onClick={() => handleOpenDetail(ag)}
-                          className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 text-slate-700 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
-                        >
-                          Manage Assets
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => {
+                              setQuickEditAg(ag);
+                              setEditName(ag.name);
+                              setEditStatus((ag.status as any) === "PAUSED" ? "PAUSED" : "ENABLED");
+                              setEditFinalUrl(ag.finalUrls?.[0] || "");
+                              setEditPath1(ag.path1 || "");
+                              setEditPath2(ag.path2 || "");
+                            }}
+                            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition-all cursor-pointer"
+                            title="Edit Asset Group Settings"
+                          >
+                            <Sliders className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenDetail(ag)}
+                            className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 text-slate-700 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+                          >
+                            Manage Assets
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSingleAssetGroup(ag)}
+                            className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 transition-all cursor-pointer"
+                            title={`Delete Asset Group "${ag.name}"`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1178,6 +1616,304 @@ export function GoogleAdsAssetGroupsSection({
               >
                 {removingAsset ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                 Confirm Remove Association
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Quick Edit Asset Group Settings Modal ──────────────────────────── */}
+      {quickEditAg && (
+        <div className="fixed inset-0 z-[260] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 space-y-4 shadow-2xl animate-fadeIn">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+                  <Sliders className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Edit Asset Group Settings</h3>
+                  <p className="text-[11px] text-slate-500">Update Google Ads Asset Group</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setQuickEditAg(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Asset Group Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Status</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold cursor-pointer">
+                    <input
+                      type="radio"
+                      name="quickEditStatus"
+                      value="ENABLED"
+                      checked={editStatus === "ENABLED"}
+                      onChange={() => setEditStatus("ENABLED")}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Enabled</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold cursor-pointer">
+                    <input
+                      type="radio"
+                      name="quickEditStatus"
+                      value="PAUSED"
+                      checked={editStatus === "PAUSED"}
+                      onChange={() => setEditStatus("PAUSED")}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Paused</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Final Landing URL</label>
+                <input
+                  type="url"
+                  value={editFinalUrl}
+                  onChange={e => setEditFinalUrl(e.target.value)}
+                  placeholder="https://example.com/landing"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Display Path 1</label>
+                  <input
+                    type="text"
+                    maxLength={15}
+                    value={editPath1}
+                    onChange={e => setEditPath1(e.target.value)}
+                    placeholder="e.g. deals"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Display Path 2</label>
+                  <input
+                    type="text"
+                    maxLength={15}
+                    value={editPath2}
+                    onChange={e => setEditPath2(e.target.value)}
+                    placeholder="e.g. summer"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setQuickEditAg(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!editName.trim()) {
+                    showToast("Name cannot be empty");
+                    return;
+                  }
+                  setSavingEdit(true);
+                  try {
+                    const res = await fetch(`${BACKEND}/api/ads/asset-groups`, {
+                      method: "PATCH",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "x-organization-id": orgId
+                      },
+                      body: JSON.stringify({
+                        customerId: cleanCid,
+                        resourceName: quickEditAg.resourceName,
+                        name: editName.trim(),
+                        status: editStatus,
+                        finalUrls: editFinalUrl ? [editFinalUrl.trim()] : undefined,
+                        path1: editPath1.trim(),
+                        path2: editPath2.trim()
+                      })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                      showToast(`Asset Group "${editName}" updated successfully ✓`);
+                      setQuickEditAg(null);
+                      fetchAssetGroups();
+                    } else {
+                      showToast(data.error || "Failed to update Asset Group");
+                    }
+                  } catch (err: any) {
+                    showToast(err.message || "Error saving Asset Group");
+                  } finally {
+                    setSavingEdit(false);
+                  }
+                }}
+                disabled={savingEdit}
+                className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {savingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Live Bulk Task Execution & Timer Modal ────────────────────────── */}
+      {bulkTaskProgress?.isOpen && (
+        <div className="fixed inset-0 z-[350] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-2.5 rounded-2xl ${
+                    bulkTaskProgress.isCompleted
+                      ? "bg-emerald-100 text-emerald-700"
+                      : bulkTaskProgress.actionType === "DELETE"
+                      ? "bg-rose-100 text-rose-700"
+                      : "bg-blue-100 text-blue-700"
+                  }`}
+                >
+                  {bulkTaskProgress.isCompleted ? (
+                    <CheckCircle2 className="h-5 w-5" />
+                  ) : (
+                    <Clock className="h-5 w-5 animate-pulse" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">{bulkTaskProgress.title}</h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {bulkTaskProgress.isCompleted ? "All tasks completed" : "Executing in Google Ads..."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Timer Pill */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white font-mono text-xs font-bold shadow-xs">
+                <Clock className="h-3.5 w-3.5 text-amber-400" />
+                <span>
+                  {Math.floor(bulkTaskProgress.elapsedSeconds / 60)}:
+                  {(bulkTaskProgress.elapsedSeconds % 60).toString().padStart(2, "0")}
+                </span>
+              </div>
+            </div>
+
+            {/* Body / Live Progress */}
+            <div className="p-6 space-y-4">
+              {/* Progress Count & Percentage */}
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-700">
+                  {bulkTaskProgress.isCompleted
+                    ? "Final Status"
+                    : `Processing ${bulkTaskProgress.current} of ${bulkTaskProgress.total}`}
+                </span>
+                <span className="font-mono font-bold text-blue-600">
+                  {Math.round((bulkTaskProgress.current / Math.max(bulkTaskProgress.total, 1)) * 100)}%
+                </span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    bulkTaskProgress.isCompleted
+                      ? "bg-emerald-500"
+                      : bulkTaskProgress.actionType === "DELETE"
+                      ? "bg-rose-500"
+                      : "bg-blue-600"
+                  }`}
+                  style={{
+                    width: `${Math.max(
+                      5,
+                      Math.round((bulkTaskProgress.current / Math.max(bulkTaskProgress.total, 1)) * 100)
+                    )}%`
+                  }}
+                />
+              </div>
+
+              {/* Active Item Card */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-2.5">
+                {!bulkTaskProgress.isCompleted && (
+                  <Loader2 className="h-4 w-4 text-blue-600 animate-spin shrink-0" />
+                )}
+                <p className="text-xs text-slate-700 truncate font-medium flex-1">
+                  {bulkTaskProgress.currentName}
+                </p>
+              </div>
+
+              {/* Success / Fail Counters */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-emerald-800">Successful</span>
+                  <span className="text-xs font-bold text-emerald-700 font-mono">
+                    {bulkTaskProgress.successCount}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-rose-800">Failed</span>
+                  <span className="text-xs font-bold text-rose-700 font-mono">
+                    {bulkTaskProgress.failCount}
+                  </span>
+                </div>
+              </div>
+
+              {/* Detailed Failure Reasons List */}
+              {bulkTaskProgress.failureReasons && bulkTaskProgress.failureReasons.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      Failure Reasons ({bulkTaskProgress.failureReasons.length})
+                    </span>
+                    <span className="text-[10px] text-slate-400">Google Ads API responses</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto rounded-2xl border border-rose-200 bg-rose-50/40 p-2.5 space-y-2 divide-y divide-rose-100 text-xs">
+                    {bulkTaskProgress.failureReasons.map((item, idx) => (
+                      <div key={idx} className={`${idx > 0 ? "pt-2" : ""} space-y-0.5`}>
+                        <div className="flex items-center justify-between gap-2 font-semibold text-slate-900 text-[11px]">
+                          <span className="truncate">{item.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-rose-100 text-rose-700 font-mono shrink-0">
+                            FAILED
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-rose-800 leading-relaxed font-mono break-words bg-white/70 p-1.5 rounded-lg border border-rose-100/80">
+                          {item.reason}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
+              <button
+                onClick={() => setBulkTaskProgress(null)}
+                disabled={!bulkTaskProgress.isCompleted && isBulkOperating}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-40 cursor-pointer"
+              >
+                {bulkTaskProgress.isCompleted ? "Done" : "Processing..."}
               </button>
             </div>
           </div>

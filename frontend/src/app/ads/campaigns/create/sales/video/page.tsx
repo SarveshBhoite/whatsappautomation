@@ -6275,7 +6275,7 @@ export default function SalesVideoPage() {
                         ...adCustomParams.filter(p => p.name && p.value)
                       ],
                       ipExclusions: ipExclusionsInput.trim() || undefined,
-                      conversionGoals: []
+                      conversionGoals: ["purchase"]
                     };
 
                     const res = await fetch(`${BACKEND}/api/ads/campaigns/sales/video`, {

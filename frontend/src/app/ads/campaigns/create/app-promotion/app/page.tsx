@@ -3423,7 +3423,8 @@ export default function AppPromotionWizard() {
                       euPolitical: euPoliticalAds,
                       startDate: startDate || undefined,
                       endDate: endDateOption === "SELECT" && endDate ? endDate : undefined,
-                      images: base64Images
+                      images: base64Images,
+                      conversionGoals: ["installs"]
                     })
                   });
                   const data = await res.json();

@@ -3424,7 +3424,7 @@ export default function WebsiteTrafficDisplayPage() {
                     useDynamicFeed,
                     euPolitical: euPoliticalAds,
                     sitelinks: [],
-                    conversionGoals: []
+                    conversionGoals: ["phone_leads", "contacts"]
                   };
 
                   console.log("[WebsiteTraffic -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));

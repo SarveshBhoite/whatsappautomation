@@ -1456,6 +1456,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   // More Asset Types Modals & Forms State (100% Parity with Manual Sales Performance Max & Search)
   const [activeAssetModal, setActiveAssetModal] = useState<"PROMOTIONS" | "PRICES" | "APPS" | "APP_ASSET" | "SNIPPETS" | "LEAD_FORMS" | "BRAND_GUIDELINES" | null>(null);
   const [assetModalMode, setAssetModalMode] = useState<"CREATE" | "OLD">("CREATE");
+  const [activeAssetTargetAgId, setActiveAssetTargetAgId] = useState<string | null>(null);
+  const [recentlyAppliedAssetType, setRecentlyAppliedAssetType] = useState<string | null>(null);
 
   // App Asset Modal State
   const [appPlatform, setAppPlatform] = useState<"Android" | "iOS">("Android");
@@ -1725,6 +1727,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       setEditingAssetIndex(null);
     }
 
+    // Trigger visual pop animation across all 7 asset types
+    if (assetType) {
+      setRecentlyAppliedAssetType(assetType);
+      setTimeout(() => {
+        setRecentlyAppliedAssetType(prev => (prev === assetType ? null : prev));
+      }, 2500);
+      toast.success(`✨ Applied AI suggestion to ${assetType.replace(/_/g, " ").toLowerCase()}!`);
+    }
+
     setPreviewingAiSuggestion(null);
   };
 
@@ -1940,15 +1951,28 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     <span>Edit</span>
                   </button>
 
-                  {/* Apply to Form Button */}
+                  {/* Apply to Form Button with lively animation */}
                   <button
                     type="button"
                     onClick={() => handleApplySuggestion(sug, modalType)}
-                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs cursor-pointer transition-all"
+                    className={`px-3 py-1.5 rounded-lg text-white font-bold text-[11px] flex items-center gap-1 shadow-xs cursor-pointer transition-all transform duration-200 active:scale-95 ${
+                      recentlyAppliedAssetType === modalType
+                        ? "bg-gradient-to-r from-emerald-600 to-teal-600 scale-105 ring-2 ring-emerald-400 ring-offset-1 animate-pulse"
+                        : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 hover:scale-102"
+                    }`}
                     title="Apply this strategy to the form fields"
                   >
-                    <Zap className="h-3 w-3" />
-                    <span>Apply</span>
+                    {recentlyAppliedAssetType === modalType ? (
+                      <>
+                        <Check className="h-3 w-3 animate-bounce" />
+                        <span>Applied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-3 w-3" />
+                        <span>Apply</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1974,6 +1998,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     structuredSnippets?: any[];
     leadForms?: any[];
     messages?: any[];
+    app?: any;
     ads: Array<{
       id: string;
       name: string;
@@ -2030,6 +2055,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     structuredSnippets?: any[];
     leadForms?: any[];
     messages?: any[];
+    app?: any;
     ads: Array<{
       id: string;
       name: string;
@@ -17683,12 +17709,21 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
                       {/* SUB-TAB 4: MORE ASSET TYPES */}
                       {activeAdGroupSubTab === "MORE_ASSETS" && (() => {
-                        const agCallouts = currentAg.callouts || [];
-                        const agPromotions = currentAg.promotions || [];
-                        const agPrices = currentAg.prices || [];
-                        const agSnippets = currentAg.structuredSnippets || [];
-                        const agLeadForms = currentAg.leadForms || [];
-                        const agMessages = currentAg.messages || [];
+                        const agCallouts = (currentAg.callouts && currentAg.callouts.length > 0) ? currentAg.callouts : (campaignState.callouts || []);
+                        const agPromotions = (currentAg.promotions && currentAg.promotions.length > 0) ? currentAg.promotions : (campaignState.promotions || []);
+                        const agPrices = (currentAg.prices && currentAg.prices.length > 0) ? currentAg.prices : (campaignState.prices || []);
+                        const agSnippets = (currentAg.structuredSnippets && currentAg.structuredSnippets.length > 0) ? currentAg.structuredSnippets : (campaignState.structuredSnippets || []);
+                        const agLeadForms = (currentAg.leadForms && currentAg.leadForms.length > 0) ? currentAg.leadForms : (campaignState.leadForms || []);
+                        const agMessages = (currentAg.messages && currentAg.messages.length > 0) ? currentAg.messages : (campaignState.messages || []);
+                        const hasApp = Boolean(currentAg.app || campaignState.appName || campaignState.appId);
+                        const appDisplay = currentAg.app?.appName || campaignState.appName || campaignState.appId;
+
+                        const openAssetModalForAdGroup = (modal: "PROMOTIONS" | "PRICES" | "APPS" | "SNIPPETS" | "LEAD_FORMS" | "BRAND_GUIDELINES" | "APP_ASSET") => {
+                          setActiveAssetTargetAgId(currentAg.id);
+                          setActiveAssetModal(modal);
+                        };
+
+                        const hasAnyAssets = agCallouts.length > 0 || agSnippets.length > 0 || agPromotions.length > 0 || agPrices.length > 0 || agMessages.length > 0 || agLeadForms.length > 0 || hasApp;
 
                         return (
                           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs animate-in fade-in duration-150">
@@ -17709,17 +17744,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             <p className="text-[11px] text-slate-500">
-                              Attach group-level promotions, prices, structured snippets, lead forms, callouts, and messages to enhance performance for {currentAg.name}.
+                              Attach group-level promotions, prices, structured snippets, lead forms, callouts, messages, and app links to enhance performance for {currentAg.name}.
                             </p>
 
-                            {/* 6 Modal Trigger Buttons */}
+                            {/* All 7 Modal Trigger Buttons */}
                             <div className="flex flex-wrap gap-1.5 pt-1">
+                              {/* 1. Promotions */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("PROMOTIONS")}
+                                onClick={() => openAssetModalForAdGroup("PROMOTIONS")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agPromotions.length > 0
-                                    ? "bg-amber-50 border-amber-300 text-amber-900 shadow-2xs"
+                                    ? "bg-amber-50 border-amber-300 text-amber-900 shadow-2xs ring-1 ring-amber-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17731,12 +17767,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 )}
                               </button>
 
+                              {/* 2. Prices */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("PRICES")}
+                                onClick={() => openAssetModalForAdGroup("PRICES")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agPrices.length > 0
-                                    ? "bg-emerald-50 border-emerald-300 text-emerald-900 shadow-2xs"
+                                    ? "bg-emerald-50 border-emerald-300 text-emerald-900 shadow-2xs ring-1 ring-emerald-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17748,12 +17785,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 )}
                               </button>
 
+                              {/* 3. Messages */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("APPS")}
+                                onClick={() => openAssetModalForAdGroup("APPS")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agMessages.length > 0
-                                    ? "bg-sky-50 border-sky-300 text-sky-900 shadow-2xs"
+                                    ? "bg-sky-50 border-sky-300 text-sky-900 shadow-2xs ring-1 ring-sky-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17765,12 +17803,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 )}
                               </button>
 
+                              {/* 4. Structured Snippets */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("SNIPPETS")}
+                                onClick={() => openAssetModalForAdGroup("SNIPPETS")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agSnippets.length > 0
-                                    ? "bg-purple-50 border-purple-300 text-purple-900 shadow-2xs"
+                                    ? "bg-purple-50 border-purple-300 text-purple-900 shadow-2xs ring-1 ring-purple-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17782,12 +17821,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 )}
                               </button>
 
+                              {/* 5. Lead Forms */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("LEAD_FORMS")}
+                                onClick={() => openAssetModalForAdGroup("LEAD_FORMS")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agLeadForms.length > 0
-                                    ? "bg-rose-50 border-rose-300 text-rose-900 shadow-2xs"
+                                    ? "bg-rose-50 border-rose-300 text-rose-900 shadow-2xs ring-1 ring-rose-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17799,12 +17839,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 )}
                               </button>
 
+                              {/* 6. Callouts */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("BRAND_GUIDELINES")}
+                                onClick={() => openAssetModalForAdGroup("BRAND_GUIDELINES")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agCallouts.length > 0
-                                    ? "bg-teal-50 border-teal-300 text-teal-900 shadow-2xs"
+                                    ? "bg-teal-50 border-teal-300 text-teal-900 shadow-2xs ring-1 ring-teal-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17815,11 +17856,30 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   </span>
                                 )}
                               </button>
+
+                              {/* 7. App Link */}
+                              <button
+                                type="button"
+                                onClick={() => openAssetModalForAdGroup("APP_ASSET")}
+                                className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                  hasApp
+                                    ? "bg-cyan-50 border-cyan-300 text-cyan-900 shadow-2xs ring-1 ring-cyan-200/50"
+                                    : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
+                                }`}
+                              >
+                                <span>+ Apps</span>
+                                {hasApp && (
+                                  <span className="bg-cyan-200 text-cyan-900 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
+                                    1
+                                  </span>
+                                )}
+                              </button>
                             </div>
 
-                            {/* Quick Display Badges of Configured Extension Assets */}
-                            {(agCallouts.length > 0 || agSnippets.length > 0 || agPromotions.length > 0 || agPrices.length > 0) && (
-                              <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                            {/* Quick Display Badges of All 7 Configured Extension Assets */}
+                            {hasAnyAssets && (
+                              <div className="pt-2 border-t border-slate-200 space-y-2">
+                                {/* 1. Callouts */}
                                 {agCallouts.length > 0 && (
                                   <div className="flex flex-wrap gap-1">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Callouts:</span>
@@ -17831,8 +17891,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                           onClick={() => {
                                             const nextCo = agCallouts.filter((_, i) => i !== idx);
                                             setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, callouts: nextCo } : g));
+                                            setCampaignState(p => ({ ...p, callouts: nextCo }));
                                           }}
                                           className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove callout"
                                         >
                                           <X className="h-2.5 w-2.5" />
                                         </button>
@@ -17841,19 +17903,22 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   </div>
                                 )}
 
+                                {/* 2. Snippets */}
                                 {agSnippets.length > 0 && (
                                   <div className="flex flex-wrap gap-1">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Snippets:</span>
                                     {agSnippets.map((sn, idx) => (
                                       <span key={idx} className="px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-800 text-[10px] flex items-center gap-1 font-medium">
-                                        <span><strong>{sn.header}:</strong> {sn.values.join(", ")}</span>
+                                        <span><strong>{sn.header}:</strong> {Array.isArray(sn.values) ? sn.values.join(", ") : sn.values}</span>
                                         <button
                                           type="button"
                                           onClick={() => {
                                             const nextSn = agSnippets.filter((_, i) => i !== idx);
                                             setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, structuredSnippets: nextSn } : g));
+                                            setCampaignState(p => ({ ...p, structuredSnippets: nextSn }));
                                           }}
                                           className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove snippet"
                                         >
                                           <X className="h-2.5 w-2.5" />
                                         </button>
@@ -17862,24 +17927,120 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   </div>
                                 )}
 
+                                {/* 3. Deals / Promotions */}
                                 {agPromotions.length > 0 && (
                                   <div className="flex flex-wrap gap-1">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Deals:</span>
                                     {agPromotions.map((pr, idx) => (
                                       <span key={idx} className="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] flex items-center gap-1 font-medium">
-                                        <span>{pr.promotionTarget} ({pr.percentOff ? `${pr.percentOff}% off` : pr.moneyAmountOff ? `₹${pr.moneyAmountOff} off` : "Discount"})</span>
+                                        <span>🏷️ {pr.promotionTarget} ({pr.percentOff ? `${pr.percentOff}% off` : pr.moneyAmountOff ? `₹${pr.moneyAmountOff} off` : "Discount"})</span>
                                         <button
                                           type="button"
                                           onClick={() => {
                                             const nextPr = agPromotions.filter((_, i) => i !== idx);
                                             setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, promotions: nextPr } : g));
+                                            setCampaignState(p => ({ ...p, promotions: nextPr }));
                                           }}
                                           className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove promotion"
                                         >
                                           <X className="h-2.5 w-2.5" />
                                         </button>
                                       </span>
                                     ))}
+                                  </div>
+                                )}
+
+                                {/* 4. Prices */}
+                                {agPrices.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Prices:</span>
+                                    {agPrices.map((pItem, idx) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] flex items-center gap-1 font-medium">
+                                        <span>💰 {pItem.header || `Tier ${idx + 1}`}: ₹{pItem.amount || "0"}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const nextPrices = agPrices.filter((_, i) => i !== idx);
+                                            setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, prices: nextPrices } : g));
+                                            setCampaignState(p => ({ ...p, prices: nextPrices }));
+                                          }}
+                                          className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove price"
+                                        >
+                                          <X className="h-2.5 w-2.5" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* 5. Messages */}
+                                {agMessages.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Messages:</span>
+                                    {agMessages.map((m, idx) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-800 text-[10px] flex items-center gap-1 font-medium">
+                                        <span>💬 {m.platform}: {m.customUrlName || m.starterMessage || "Chat active"}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const nextMsgs = agMessages.filter((_, i) => i !== idx);
+                                            setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, messages: nextMsgs } : g));
+                                            setCampaignState(p => ({ ...p, messages: nextMsgs }));
+                                          }}
+                                          className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove message"
+                                        >
+                                          <X className="h-2.5 w-2.5" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* 6. Lead Forms */}
+                                {agLeadForms.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Leads:</span>
+                                    {agLeadForms.map((lf, idx) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-[10px] flex items-center gap-1 font-medium">
+                                        <span>📋 {lf.headline || lf.businessName || "Lead Form"}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const nextForms = agLeadForms.filter((_, i) => i !== idx);
+                                            setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, leadForms: nextForms } : g));
+                                            setCampaignState(p => ({ ...p, leadForms: nextForms }));
+                                          }}
+                                          className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove lead form"
+                                        >
+                                          <X className="h-2.5 w-2.5" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* 7. App Link */}
+                                {hasApp && (
+                                  <div className="flex flex-wrap gap-1">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">App:</span>
+                                    <span className="px-2 py-0.5 rounded-md bg-cyan-50 border border-cyan-200 text-cyan-800 text-[10px] flex items-center gap-1 font-medium">
+                                      <span>📱 {appDisplay} ({campaignState.platform || "Android"})</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, app: undefined } : g));
+                                          setCampaignState(p => ({ ...p, appName: undefined, appId: undefined, app: undefined }));
+                                        }}
+                                        className="text-slate-400 hover:text-rose-600 transition-colors"
+                                        title="Remove app link"
+                                      >
+                                        <X className="h-2.5 w-2.5" />
+                                      </button>
+                                    </span>
                                   </div>
                                 )}
                               </div>
@@ -29045,8 +29206,20 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           }
                           return { ...prev, promotions: [...current, newPromo].slice(0, 15) };
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const current = [...(ag.promotions || [])];
+                            if (editingAssetIndex !== null && current[editingAssetIndex]) {
+                              current[editingAssetIndex] = newPromo;
+                              return { ...ag, promotions: current };
+                            }
+                            return { ...ag, promotions: [...current, newPromo].slice(0, 15) };
+                          }));
+                        }
                         setEditingAssetIndex(null);
                         setActiveAssetModal(null);
+                        setActiveAssetTargetAgId(null);
                       }}
                       className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                     >
@@ -29659,9 +29832,22 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           const combined = [...current, ...validItems];
                           return { ...prev, prices: combined.slice(0, 15) };
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const current = [...(ag.prices || [])];
+                            if (editingAssetIndex !== null && current[editingAssetIndex]) {
+                              current[editingAssetIndex] = validItems[0];
+                              return { ...ag, prices: current.slice(0, 15) };
+                            }
+                            const combined = [...current, ...validItems];
+                            return { ...ag, prices: combined.slice(0, 15) };
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >
@@ -30164,9 +30350,22 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           const combined = [...current, newMsg as any];
                           return { ...prev, messages: combined.slice(0, 15) };
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const current = [...(ag.messages || [])];
+                            if (editingAssetIndex !== null && current[editingAssetIndex]) {
+                              current[editingAssetIndex] = newMsg as any;
+                              return { ...ag, messages: current.slice(0, 15) };
+                            }
+                            const combined = [...current, newMsg as any];
+                            return { ...ag, messages: combined.slice(0, 15) };
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >
@@ -30636,9 +30835,23 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             return { ...prev, structuredSnippets: combined.slice(0, 15) };
                           }
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const cur = [...(ag.structuredSnippets || [])];
+                            if (editingAssetIndex !== null && editingAssetIndex >= 0 && editingAssetIndex < cur.length) {
+                              cur[editingAssetIndex] = updatedSnippet;
+                              return { ...ag, structuredSnippets: cur.slice(0, 15) };
+                            } else {
+                              const combined = [...cur, updatedSnippet];
+                              return { ...ag, structuredSnippets: combined.slice(0, 15) };
+                            }
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >
@@ -31011,9 +31224,23 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             return { ...prev, leadForms: combined.slice(0, 15) };
                           }
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const cur = [...(ag.leadForms || [])];
+                            if (editingAssetIndex !== null && editingAssetIndex >= 0 && editingAssetIndex < cur.length) {
+                              cur[editingAssetIndex] = newLeadForm;
+                              return { ...ag, leadForms: cur.slice(0, 15) };
+                            } else {
+                              const combined = [...cur, newLeadForm];
+                              return { ...ag, leadForms: combined.slice(0, 15) };
+                            }
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >
@@ -31348,11 +31575,25 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             };
                           }
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const cur = [...(ag.callouts || [])];
+                            if (editingAssetIndex !== null && editingAssetIndex >= 0 && editingAssetIndex < cur.length && finalCallouts[0]) {
+                              cur[editingAssetIndex] = finalCallouts[0];
+                              return { ...ag, callouts: cur.slice(0, 15) };
+                            } else {
+                              const combined = Array.from(new Set([...cur, ...finalCallouts]));
+                              return { ...ag, callouts: combined.slice(0, 15) };
+                            }
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setModalCalloutTexts([]);
                       setNewCalloutInput("");
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >
@@ -32129,21 +32370,30 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     type="button"
                     onClick={() => {
                       if (appNameInput.trim()) {
+                        const appObj = {
+                          appId: appNameInput.trim(),
+                          appName: appNameInput.trim(),
+                          appStore: appPlatform === "iOS" ? "APPLE_APP_STORE" : "GOOGLE_PLAY_STORE",
+                          linkText: appLinkText.trim() || "Download App",
+                          url: `https://store.example.com/${appNameInput.trim()}`
+                        };
                         setCampaignState(prev => ({
                           ...prev,
                           appName: appNameInput.trim(),
                           appId: appNameInput.trim(),
                           platform: appPlatform === "iOS" ? "IOS" : "ANDROID",
-                          app: {
-                            appId: appNameInput.trim(),
-                            appStore: appPlatform === "iOS" ? "APPLE_APP_STORE" : "GOOGLE_PLAY_STORE",
-                            linkText: appLinkText.trim() || "Download App",
-                            url: `https://store.example.com/${appNameInput.trim()}`
-                          }
+                          app: appObj
                         }));
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            return { ...ag, app: appObj };
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >

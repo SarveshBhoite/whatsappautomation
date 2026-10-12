@@ -3423,7 +3423,8 @@ export default function SalesDisplayPage() {
                     ],
                     locations: selectedLocation === "INDIA" ? ["India"] : ["All countries and territories"],
                     languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
-                    euPolitical: euPoliticalAds
+                    euPolitical: euPoliticalAds,
+                    conversionGoals: ["purchase"]
                   };
 
                   console.log("[Sales -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));

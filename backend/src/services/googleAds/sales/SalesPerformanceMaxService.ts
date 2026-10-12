@@ -1,5 +1,6 @@
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
 import { CampaignNormalizationService } from "../shared/CampaignNormalizationService";
+import { GoogleAdsConversionGoalMapper } from "../shared/GoogleAdsConversionGoalMapper";
 import axios from "axios";
 
 export class SalesPerformanceMaxService extends GoogleAdsBaseService {
@@ -572,79 +573,20 @@ export class SalesPerformanceMaxService extends GoogleAdsBaseService {
       }
 
       // 7c. Campaign Conversion Goals Configuration (campaignConversionGoals:mutate or customer-level inheritance)
-      let appliedGoals: string[] = [];
-      let skippedGoals: string[] = [];
-      let skipReason: string | null = null;
+      const goalMappingResult = await GoogleAdsConversionGoalMapper.applyCampaignConversionGoals(
+        organizationId,
+        customerId,
+        campaignRef,
+        rawGoalsList,
+        headers,
+        "SalesPerformanceMaxService"
+      );
 
-      // Goal category/origin mapping dictionary
-      const goalMappingDict: Record<string, { category: string; origin: string }> = {
-        "phone_leads": { category: "PHONE_CALL_LEAD", origin: "WEBSITE" },
-        "phone call leads": { category: "PHONE_CALL_LEAD", origin: "WEBSITE" },
-        "contacts": { category: "CONTACT", origin: "WEBSITE" },
-        "get_directions": { category: "GET_DIRECTIONS", origin: "GOOGLE_HOSTED" },
-        "get directions": { category: "GET_DIRECTIONS", origin: "GOOGLE_HOSTED" },
-        "engagements": { category: "ENGAGEMENT", origin: "YOUTUBE_HOSTED" },
-        "youtube follow-on views": { category: "ENGAGEMENT", origin: "YOUTUBE_HOSTED" },
-        "purchase": { category: "PURCHASE", origin: "WEBSITE" },
-        "purchases": { category: "PURCHASE", origin: "WEBSITE" },
-        "submit_lead_form": { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE" },
-        "lead": { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE" },
-        "leads": { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE" },
-        "sign_up": { category: "SIGNUP", origin: "WEBSITE" }
-      };
-
-      for (const rg of rawGoalsList) {
-        if (!rg) continue;
-        const normKey = String(rg).trim().toLowerCase();
-        if (goalMappingDict[normKey]) {
-          mappedGoogleAdsGoals.push({
-            category: goalMappingDict[normKey].category,
-            origin: goalMappingDict[normKey].origin,
-            biddable: true
-          });
-          appliedGoals.push(`${rg} -> ${goalMappingDict[normKey].category} (${goalMappingDict[normKey].origin})`);
-        } else if (typeof rg === "object" && rg.category && rg.origin) {
-          mappedGoogleAdsGoals.push({
-            category: rg.category,
-            origin: rg.origin,
-            biddable: rg.biddable !== undefined ? Boolean(rg.biddable) : true
-          });
-          appliedGoals.push(`${rg.category} (${rg.origin})`);
-        } else {
-          skippedGoals.push(String(rg));
-        }
-      }
-
-      if (mappedGoogleAdsGoals.length > 0) {
-        try {
-          const conversionOps: any[] = [];
-          for (const cg of mappedGoogleAdsGoals) {
-            const goalResName = `customers/${cid}/campaignConversionGoals/${campaignRef.split("/").pop()}~${cg.category}~${cg.origin}`;
-            conversionOps.push({
-              update: {
-                resourceName: goalResName,
-                biddable: cg.biddable
-              },
-              updateMask: "biddable"
-            });
-          }
-          if (conversionOps.length > 0) {
-            await axios.post(`${ADS_BASE}/customers/${cid}/campaignConversionGoals:mutate`, {
-              operations: conversionOps
-            }, { headers });
-            goalConfigLevel = "CAMPAIGN_LEVEL";
-          }
-        } catch (cgErr: any) {
-          goalConfigLevel = "CUSTOMER_LEVEL (Inherited)";
-          skipReason = cgErr?.response?.data?.error?.message || cgErr?.message || "Campaign inherits account-level conversion goal settings";
-          console.warn("[SalesPerformanceMaxService] campaignConversionGoals mutate notice (inheriting customer-level goals):", skipReason);
-        }
-      } else {
-        goalConfigLevel = "CUSTOMER_LEVEL (Inherited)";
-        if (rawGoalsList.length === 0) {
-          skipReason = "No campaign-level conversion goal overrides specified; inheriting customer-level conversion goals";
-        }
-      }
+      const mappedGoogleAdsGoals = goalMappingResult.mappedGoals;
+      const appliedGoals = goalMappingResult.appliedDescriptions;
+      const skippedGoals = goalMappingResult.skippedGoals;
+      const goalConfigLevel = goalMappingResult.goalConfigLevel;
+      const skipReason = goalMappingResult.skipReason;
 
       console.log(`\n==================== 🎯 [AI GUIDED CONVERSION GOALS] ====================`);
       console.log(`Objective:                   Sales`);

@@ -574,12 +574,13 @@ export class GoogleAdsService {
 
   public static async listAdGroups(organizationId: string, customerId: string, campaignId?: string) {
     const whereClause = campaignId
-      ? `WHERE ad_group.campaign = 'customers/${customerId}/campaigns/${campaignId}' AND ad_group.status != 'REMOVED'`
-      : `WHERE ad_group.status != 'REMOVED'`;
+      ? `WHERE ad_group.campaign = 'customers/${customerId}/campaigns/${campaignId}' AND ad_group.status != 'REMOVED' AND campaign.status != 'REMOVED'`
+      : `WHERE ad_group.status != 'REMOVED' AND campaign.status != 'REMOVED'`;
 
     const rows = await this.gaqlSearch(organizationId, customerId, `
       SELECT ad_group.id, ad_group.name, ad_group.status, ad_group.type,
              ad_group.cpc_bid_micros, ad_group.campaign, ad_group.resource_name,
+             campaign.id, campaign.name, campaign.status,
              metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions
       FROM ad_group ${whereClause}
       ORDER BY metrics.impressions DESC
@@ -651,8 +652,8 @@ export class GoogleAdsService {
 
   public static async listAds(organizationId: string, customerId: string, adGroupId?: string) {
     const whereClause = adGroupId
-      ? `WHERE ad_group.id = ${adGroupId} AND ad_group_ad.status != 'REMOVED'`
-      : `WHERE ad_group_ad.status != 'REMOVED'`;
+      ? `WHERE ad_group.id = ${adGroupId} AND ad_group_ad.status != 'REMOVED' AND ad_group.status != 'REMOVED' AND campaign.status != 'REMOVED'`
+      : `WHERE ad_group_ad.status != 'REMOVED' AND ad_group.status != 'REMOVED' AND campaign.status != 'REMOVED'`;
 
     const rows = await this.gaqlSearch(organizationId, customerId, `
       SELECT ad_group_ad.ad.id, ad_group_ad.ad.name, ad_group_ad.status,
@@ -662,7 +663,8 @@ export class GoogleAdsService {
              ad_group_ad.ad.responsive_search_ad.path1,
              ad_group_ad.ad.responsive_search_ad.path2,
              ad_group_ad.ad_strength, ad_group_ad.ad.resource_name,
-             ad_group.id, ad_group.name,
+             ad_group.id, ad_group.name, ad_group.status,
+             campaign.id, campaign.name, campaign.status,
              metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.ctr, metrics.conversions
       FROM ad_group_ad ${whereClause}
     `);

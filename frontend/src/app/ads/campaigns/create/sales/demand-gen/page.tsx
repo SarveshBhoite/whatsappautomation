@@ -6242,7 +6242,7 @@ export default function SalesDemandGenPage() {
                         ...adCustomParams.filter(p => p.name && p.value)
                       ],
                       ipExclusions: ipExclusionsInput.trim() || undefined,
-                      conversionGoals: []
+                      conversionGoals: ["purchase"]
                     })
                   });
 

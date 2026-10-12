@@ -6307,7 +6307,7 @@ export default function AwarenessVideoPage() {
                     trackingTemplate: trackingTemplate || agTrackingTemplate || adTrackingTemplate || undefined,
                     finalUrlSuffix: finalUrlSuffix || agFinalUrlSuffix || adFinalUrlSuffix || undefined,
                     euPolitical: euPoliticalAds,
-                    conversionGoals: []
+                    conversionGoals: ["views"]
                   };
 
                   console.log("[VIDEO DEBUG] BEFORE LAUNCH FETCH", payloadToLaunch);

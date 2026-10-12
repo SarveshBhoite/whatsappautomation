@@ -5070,7 +5070,8 @@ function WebsiteTrafficPerformanceMaxContent() {
                     leadFormWebhook: lfWebhookUrl ? { url: lfWebhookUrl, key: lfWebhookKey } : undefined,
                     adSchedule: adScheduleList,
                     budgetType: budgetType,
-                    dailyBudget: Number(dailyBudgetValue)
+                    dailyBudget: Number(dailyBudgetValue),
+                    conversionGoals: ["phone_leads", "contacts"]
                   };
                   const res = await fetch(`${BACKEND}/api/ads/campaigns/website-traffic/performance-max`, {
                     method: "POST",

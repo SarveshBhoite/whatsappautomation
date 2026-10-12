@@ -138,7 +138,11 @@ export class GoogleAdsAssetGroupService extends GoogleAdsBaseService {
   ): Promise<{ assetGroups: AssetGroupListItem[]; campaignInfo?: any }> {
     const { headers, customerId: cid } = await this.getAdsHeaders(organizationId, customerId);
 
-    let whereClauses: string[] = ["campaign.advertising_channel_type = 'PERFORMANCE_MAX'"];
+    let whereClauses: string[] = [
+      "campaign.advertising_channel_type = 'PERFORMANCE_MAX'",
+      "asset_group.status != 'REMOVED'",
+      "campaign.status != 'REMOVED'"
+    ];
 
     if (campaignIdOrResource) {
       if (campaignIdOrResource.startsWith("customers/")) {
@@ -163,6 +167,7 @@ export class GoogleAdsAssetGroupService extends GoogleAdsBaseService {
         asset_group.resource_name,
         campaign.id,
         campaign.name,
+        campaign.status,
         campaign.advertising_channel_type
       FROM asset_group
       WHERE ${whereClauses.join(" AND ")}
@@ -507,6 +512,36 @@ export class GoogleAdsAssetGroupService extends GoogleAdsBaseService {
           {
             update: assetGroupPayload,
             updateMask: updateMask.join(",")
+          }
+        ]
+      },
+      { headers }
+    );
+
+    const resourceName = res.data.results?.[0]?.resourceName || assetGroupResourceName;
+    return { resourceName };
+  }
+
+  /**
+   * Remove/Delete an Asset Group using assetGroups:mutate remove operation.
+   */
+  public static async removeAssetGroup(
+    organizationId: string,
+    customerId: string,
+    assetGroupResourceName: string
+  ): Promise<{ resourceName: string }> {
+    const { headers, customerId: cid } = await this.getAdsHeaders(organizationId, customerId);
+
+    if (!assetGroupResourceName) {
+      throw new Error("assetGroupResourceName is required to remove an Asset Group.");
+    }
+
+    const res = await axios.post(
+      `${this.ADS_BASE}/customers/${cid}/assetGroups:mutate`,
+      {
+        operations: [
+          {
+            remove: assetGroupResourceName
           }
         ]
       },

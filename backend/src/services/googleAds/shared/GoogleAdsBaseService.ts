@@ -1344,6 +1344,17 @@ export class GoogleAdsBaseService {
       sanitizedData.languages = data.languages;
     }
 
+    // Preserve conversionGoals inside geoTargets JSON metadata
+    if (data?.conversionGoals !== undefined) {
+      const existingGeo = (typeof sanitizedData.geoTargets === "object" && sanitizedData.geoTargets !== null)
+        ? sanitizedData.geoTargets
+        : (typeof data?.geoTargets === "object" && data?.geoTargets !== null ? data.geoTargets : {});
+      sanitizedData.geoTargets = {
+        ...existingGeo,
+        conversionGoals: data.conversionGoals
+      };
+    }
+
     let savedCampaign: any = null;
 
     if (sanitizedData.googleAdsCampaignId) {

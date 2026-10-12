@@ -1142,6 +1142,7 @@ export default function GoogleAdsPage() {
     elapsedSeconds: number;
     isCompleted: boolean;
     actionType: "DELETE" | "STATUS" | "BUDGET";
+    failureReasons?: Array<{ name: string; reason: string }>;
   } | null>(null);
   const [showBulkBudgetModal, setShowBulkBudgetModal] = useState(false);
   const [bulkBudgetVal, setBulkBudgetVal] = useState<number | string>("");
@@ -1697,6 +1698,8 @@ export default function GoogleAdsPage() {
     const total = selectedCampaignIds.length;
     let startTime = Date.now();
 
+    const failureReasons: Array<{ name: string; reason: string }> = [];
+
     setBulkTaskProgress({
       isOpen: true,
       title: "Delete Campaigns",
@@ -1707,7 +1710,8 @@ export default function GoogleAdsPage() {
       currentName: "Starting deletion...",
       elapsedSeconds: 0,
       isCompleted: false,
-      actionType: "DELETE"
+      actionType: "DELETE",
+      failureReasons: []
     });
 
     const timerInterval = setInterval(() => {
@@ -1734,15 +1738,20 @@ export default function GoogleAdsPage() {
           successCount++;
         } else {
           failCount++;
+          const errData = await res.json().catch(() => ({}));
+          const reason = errData.error || errData.message || `HTTP ${res.status}: Failed to delete campaign`;
+          failureReasons.push({ name: campName, reason });
         }
-      } catch {
+      } catch (err: any) {
         failCount++;
+        failureReasons.push({ name: campName, reason: err.message || "Network / Request failed" });
       }
 
       setBulkTaskProgress(prev => prev ? {
         ...prev,
         successCount,
-        failCount
+        failCount,
+        failureReasons: [...failureReasons]
       } : null);
     }
 
@@ -1753,7 +1762,8 @@ export default function GoogleAdsPage() {
       ...prev,
       isCompleted: true,
       elapsedSeconds: finalElapsed,
-      currentName: `Completed: ${successCount} removed${failCount > 0 ? `, ${failCount} failed` : ""}`
+      currentName: `Completed: ${successCount} removed${failCount > 0 ? `, ${failCount} failed` : ""}`,
+      failureReasons: [...failureReasons]
     } : null);
 
     setIsBulkOperating(false);
@@ -1880,8 +1890,40 @@ export default function GoogleAdsPage() {
     setIsBulkOperating(true);
     let successCount = 0;
     let failCount = 0;
+    const total = selectedAdGroupIds.length;
+    let startTime = Date.now();
 
-    for (const agId of selectedAdGroupIds) {
+    setBulkTaskProgress({
+      isOpen: true,
+      title: `${actionName} Ad Groups`,
+      total,
+      current: 0,
+      successCount: 0,
+      failCount: 0,
+      currentName: "Starting task...",
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "STATUS"
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    for (let i = 0; i < selectedAdGroupIds.length; i++) {
+      const agId = selectedAdGroupIds[i];
+      const targetAg = adGroups.find(g => g.id === agId);
+      const agName = targetAg?.name || `Ad Group ID ${agId}`;
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        current: i + 1,
+        currentName: agName
+      } : null);
+
       try {
         const res = await api(`/ad-groups/${agId}`, {
           method: "PUT",
@@ -1897,10 +1939,26 @@ export default function GoogleAdsPage() {
       } catch {
         failCount++;
       }
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        successCount,
+        failCount
+      } : null);
     }
 
+    clearInterval(timerInterval);
+    const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+    setBulkTaskProgress(prev => prev ? {
+      ...prev,
+      isCompleted: true,
+      elapsedSeconds: finalElapsed,
+      currentName: `Completed: ${successCount} ${targetStatus === "ENABLED" ? "enabled" : "paused"}${failCount > 0 ? `, ${failCount} failed` : ""}`
+    } : null);
+
     setIsBulkOperating(false);
-    showToast(`Ad Groups updated: ${successCount} ${targetStatus === "ENABLED" ? "enabled" : "paused"}${failCount > 0 ? `, ${failCount} failed` : ""}`);
+    showToast(`Ad Groups updated: ${successCount} ${targetStatus === "ENABLED" ? "enabled" : "paused"} in ${finalElapsed}s${failCount > 0 ? `, ${failCount} failed` : ""}`);
     setSelectedAdGroupIds([]);
     loadAdGroups(selectedCustomerId);
   };
@@ -1910,26 +1968,232 @@ export default function GoogleAdsPage() {
       showToast("Please select at least one ad group.");
       return;
     }
-    if (!confirm(`⚠️ Remove/Delete ${selectedAdGroupIds.length} selected ad group(s) from Google Ads?`)) return;
+    if (!confirm(`⚠️ Remove/Delete ${selectedAdGroupIds.length} selected ad group(s) from Google Ads? This action cannot be undone.`)) return;
 
     setIsBulkOperating(true);
     let successCount = 0;
     let failCount = 0;
+    const total = selectedAdGroupIds.length;
+    let startTime = Date.now();
 
-    for (const agId of selectedAdGroupIds) {
+    const failureReasons: Array<{ name: string; reason: string }> = [];
+
+    setBulkTaskProgress({
+      isOpen: true,
+      title: "Delete Ad Groups",
+      total,
+      current: 0,
+      successCount: 0,
+      failCount: 0,
+      currentName: "Starting deletion...",
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "DELETE",
+      failureReasons: []
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    for (let i = 0; i < selectedAdGroupIds.length; i++) {
+      const agId = selectedAdGroupIds[i];
+      const targetAg = adGroups.find(g => g.id === agId);
+      const agName = targetAg?.name || `Ad Group ID ${agId}`;
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        current: i + 1,
+        currentName: agName
+      } : null);
+
       try {
         const res = await api(`/ad-groups/${agId}?orgId=${orgId}&customerId=${selectedCustomerId}`, { method: "DELETE" });
-        if (res.ok) successCount++;
-        else failCount++;
-      } catch {
+        if (res.ok) {
+          successCount++;
+        } else {
+          failCount++;
+          const errData = await res.json().catch(() => ({}));
+          const reason = errData.error || errData.message || `HTTP ${res.status}: Failed to delete ad group`;
+          failureReasons.push({ name: agName, reason });
+        }
+      } catch (err: any) {
         failCount++;
+        failureReasons.push({ name: agName, reason: err.message || "Network / Request failed" });
       }
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        successCount,
+        failCount,
+        failureReasons: [...failureReasons]
+      } : null);
     }
 
+    clearInterval(timerInterval);
+    const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+    setBulkTaskProgress(prev => prev ? {
+      ...prev,
+      isCompleted: true,
+      elapsedSeconds: finalElapsed,
+      currentName: `Completed: ${successCount} removed${failCount > 0 ? `, ${failCount} failed` : ""}`,
+      failureReasons: [...failureReasons]
+    } : null);
+
     setIsBulkOperating(false);
-    showToast(`Ad Groups removed: ${successCount} deleted${failCount > 0 ? `, ${failCount} failed` : ""}`);
+    showToast(`Ad Groups deleted: ${successCount} removed in ${finalElapsed}s${failCount > 0 ? `, ${failCount} failed` : ""}`);
     setSelectedAdGroupIds([]);
     loadAdGroups(selectedCustomerId);
+    loadAds(selectedCustomerId);
+  };
+
+  const handleDeleteSingleAdGroup = async (ag: any) => {
+    if (!confirm(`⚠️ Remove/Delete Ad Group "${ag.name || ag.id}" from Google Ads? This will also remove all ads inside it.`)) return;
+
+    setIsBulkOperating(true);
+    let startTime = Date.now();
+    setBulkTaskProgress({
+      isOpen: true,
+      title: "Delete Ad Group",
+      total: 1,
+      current: 1,
+      successCount: 0,
+      failCount: 0,
+      currentName: ag.name || `Ad Group ID ${ag.id}`,
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "DELETE"
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    try {
+      const res = await api(`/ad-groups/${ag.id}?orgId=${orgId}&customerId=${selectedCustomerId}`, { method: "DELETE" });
+      clearInterval(timerInterval);
+      const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+      if (res.ok) {
+        setBulkTaskProgress(prev => prev ? {
+          ...prev,
+          isCompleted: true,
+          successCount: 1,
+          elapsedSeconds: finalElapsed,
+          currentName: `Successfully removed ${ag.name || ag.id}`
+        } : null);
+        showToast(`Ad Group "${ag.name}" removed from Google Ads ✓`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        const reason = errData.error || errData.message || `HTTP ${res.status}: Could not delete ad group`;
+        setBulkTaskProgress(prev => prev ? {
+          ...prev,
+          isCompleted: true,
+          failCount: 1,
+          elapsedSeconds: finalElapsed,
+          currentName: `Failed: ${reason}`,
+          failureReasons: [{ name: ag.name || `Ad Group ${ag.id}`, reason }]
+        } : null);
+        showToast(`Failed: ${reason}`);
+      }
+    } catch (err: any) {
+      clearInterval(timerInterval);
+      const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+      const reason = err.message || "Unknown error";
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        isCompleted: true,
+        failCount: 1,
+        elapsedSeconds: finalElapsed,
+        currentName: `Error: ${reason}`,
+        failureReasons: [{ name: ag.name || `Ad Group ${ag.id}`, reason }]
+      } : null);
+      showToast(`Error: ${reason}`);
+    } finally {
+      setIsBulkOperating(false);
+      loadAdGroups(selectedCustomerId);
+      loadAds(selectedCustomerId);
+    }
+  };
+
+  const handleDeleteSingleAd = async (ad: any) => {
+    const adTitle = ad.headlines?.[0]?.text || ad.headlines?.[0] || ad.name || `Ad ID ${ad.id}`;
+    if (!confirm(`⚠️ Remove/Delete Ad "${adTitle}" from Google Ads?`)) return;
+
+    setIsBulkOperating(true);
+    let startTime = Date.now();
+    setBulkTaskProgress({
+      isOpen: true,
+      title: "Delete Ad Creative",
+      total: 1,
+      current: 1,
+      successCount: 0,
+      failCount: 0,
+      currentName: adTitle,
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "DELETE",
+      failureReasons: []
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    try {
+      const res = await api(`/ads/${ad.id}?orgId=${orgId}&customerId=${selectedCustomerId}`, { method: "DELETE" });
+      clearInterval(timerInterval);
+      const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+      if (res.ok) {
+        setBulkTaskProgress(prev => prev ? {
+          ...prev,
+          isCompleted: true,
+          successCount: 1,
+          elapsedSeconds: finalElapsed,
+          currentName: `Successfully removed ${adTitle}`
+        } : null);
+        showToast(`Ad removed from Google Ads ✓`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        const reason = errData.error || errData.message || `HTTP ${res.status}: Could not delete ad`;
+        setBulkTaskProgress(prev => prev ? {
+          ...prev,
+          isCompleted: true,
+          failCount: 1,
+          elapsedSeconds: finalElapsed,
+          currentName: `Failed: ${reason}`,
+          failureReasons: [{ name: adTitle, reason }]
+        } : null);
+        showToast(`Failed: ${reason}`);
+      }
+    } catch (err: any) {
+      clearInterval(timerInterval);
+      const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+      const reason = err.message || "Unknown error";
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        isCompleted: true,
+        failCount: 1,
+        elapsedSeconds: finalElapsed,
+        currentName: `Error: ${reason}`,
+        failureReasons: [{ name: adTitle, reason }]
+      } : null);
+      showToast(`Error: ${reason}`);
+    } finally {
+      setIsBulkOperating(false);
+      loadAds(selectedCustomerId);
+    }
   };
 
   async function deleteKeyword(kw: any) {
@@ -3087,6 +3351,14 @@ export default function GoogleAdsPage() {
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                       <Pill status={ag.status} />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteSingleAdGroup(ag)}
+                                        className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all cursor-pointer"
+                                        title={`Delete Ad Group "${ag.name}"`}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
                                     </div>
                                   </div>
 
@@ -3162,13 +3434,23 @@ export default function GoogleAdsPage() {
                                                 <Pill status={ad.status} />
                                                 <span className="text-[10px] font-mono text-slate-500">{ad.adType?.replace(/_/g, " ") || "RESPONSIVE SEARCH"}</span>
                                               </div>
-                                              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
-                                                ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" :
-                                                ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" :
-                                                "text-slate-600 border-slate-200 bg-slate-100"
-                                              }`}>
-                                                Strength: {ad.adStrength || "—"}
-                                              </span>
+                                              <div className="flex items-center gap-1.5">
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
+                                                  ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" :
+                                                  ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" :
+                                                  "text-slate-600 border-slate-200 bg-slate-100"
+                                                }`}>
+                                                  Strength: {ad.adStrength || "—"}
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDeleteSingleAd(ad)}
+                                                  className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all cursor-pointer"
+                                                  title="Delete this Ad"
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </button>
+                                              </div>
                                             </div>
 
                                             {/* Mobile Headlines */}
@@ -3233,7 +3515,7 @@ export default function GoogleAdsPage() {
                                     />
                                   </th>
                                 )}
-                                {["Ad Group", "Status", "Type", "CPC Bid", "Ads Count", "Impressions", "Clicks", "Spend", "Conv."].map(h => <th key={h} className="p-4 whitespace-nowrap">{h}</th>)}
+                                {["Ad Group", "Status", "Type", "CPC Bid", "Ads Count", "Impressions", "Clicks", "Spend", "Conv.", "Actions"].map(h => <th key={h} className="p-4 whitespace-nowrap">{h}</th>)}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -3293,12 +3575,22 @@ export default function GoogleAdsPage() {
                                         <td className="p-4 font-semibold text-slate-900">{Number(ag.clicks || 0).toLocaleString()}</td>
                                         <td className="p-4 font-bold text-emerald-700">₹{ag.cost || "0.00"}</td>
                                         <td className="p-4 font-semibold text-purple-700">{Number(ag.conversions || 0).toFixed(1)}</td>
+                                        <td className="p-4">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteSingleAdGroup(ag)}
+                                            className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all cursor-pointer"
+                                            title={`Delete Ad Group "${ag.name}"`}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        </td>
                                       </tr>
 
                                       {/* Desktop Expanded Nested Ads */}
                                       {isExpanded && (
                                         <tr className="bg-slate-50/90 border-y border-slate-200">
-                                          <td colSpan={isAdGroupSelectionMode ? 11 : 10} className="p-4 pl-12">
+                                          <td colSpan={isAdGroupSelectionMode ? 12 : 11} className="p-4 pl-12">
                                             <div className="space-y-3">
                                               <div className="flex items-center justify-between">
                                                 <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
@@ -3320,13 +3612,23 @@ export default function GoogleAdsPage() {
                                                           <Pill status={ad.status} />
                                                           <span className="text-[11px] font-mono text-slate-500">{ad.adType?.replace(/_/g, " ")}</span>
                                                         </div>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
-                                                          ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" :
-                                                          ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" :
-                                                          "text-slate-600 border-slate-200 bg-slate-100"
-                                                        }`}>
-                                                          Ad Strength: {ad.adStrength || "—"}
-                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
+                                                            ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" :
+                                                            ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" :
+                                                            "text-slate-600 border-slate-200 bg-slate-100"
+                                                          }`}>
+                                                            Ad Strength: {ad.adStrength || "—"}
+                                                          </span>
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteSingleAd(ad)}
+                                                            className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all cursor-pointer"
+                                                            title="Delete this Ad"
+                                                          >
+                                                            <Trash2 className="h-3 w-3" />
+                                                          </button>
+                                                        </div>
                                                       </div>
 
                                                       <div>
@@ -6686,7 +6988,7 @@ export default function GoogleAdsPage() {
       {/* Live Bulk Task Execution & Timer Modal */}
       {bulkTaskProgress?.isOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -6771,6 +7073,32 @@ export default function GoogleAdsPage() {
                   <span className="text-xs font-bold text-rose-700 font-mono">{bulkTaskProgress.failCount}</span>
                 </div>
               </div>
+
+              {/* Detailed Failure Reasons List */}
+              {bulkTaskProgress.failureReasons && bulkTaskProgress.failureReasons.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      Failure Reasons ({bulkTaskProgress.failureReasons.length})
+                    </span>
+                    <span className="text-[10px] text-slate-400">Google Ads API responses</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto rounded-2xl border border-rose-200 bg-rose-50/40 p-2.5 space-y-2 divide-y divide-rose-100 text-xs">
+                    {bulkTaskProgress.failureReasons.map((item, idx) => (
+                      <div key={idx} className={`${idx > 0 ? "pt-2" : ""} space-y-0.5`}>
+                        <div className="flex items-center justify-between gap-2 font-semibold text-slate-900 text-[11px]">
+                          <span className="truncate">{item.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-rose-100 text-rose-700 font-mono shrink-0">FAILED</span>
+                        </div>
+                        <p className="text-[11px] text-rose-800 leading-relaxed font-mono break-words bg-white/70 p-1.5 rounded-lg border border-rose-100/80">
+                          {item.reason}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}

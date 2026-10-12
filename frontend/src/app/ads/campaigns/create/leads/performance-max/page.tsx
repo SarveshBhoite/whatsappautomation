@@ -5011,7 +5011,8 @@ function LeadsPerformanceMaxContent() {
                     leadFormWebhook: lfWebhookUrl ? { url: lfWebhookUrl, key: lfWebhookKey } : undefined,
                     adSchedule: adScheduleList,
                     budgetType: budgetType,
-                    dailyBudget: Number(dailyBudgetValue)
+                    dailyBudget: Number(dailyBudgetValue),
+                    conversionGoals: ["submit_lead_form"]
                   };
 
                   const res = await fetch(`${BACKEND}/api/ads/campaigns/leads/performance-max`, {

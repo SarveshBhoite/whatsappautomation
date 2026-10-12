@@ -6275,7 +6275,7 @@ export default function LeadsVideoPage() {
                         ...adCustomParams.filter(p => p.name && p.value)
                       ],
                       ipExclusions: ipExclusionsInput.trim() || undefined,
-                      conversionGoals: []
+                      conversionGoals: ["submit_lead_form"]
                     };
 
                     const res = await fetch(`${BACKEND}/api/ads/campaigns/leads/video`, {

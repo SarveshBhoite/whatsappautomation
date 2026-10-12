@@ -446,6 +446,67 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
     expect(op.amountMicros).toBe("2519000000");
     expect(op.totalAmountMicros).toBeUndefined();
   });
+
+  it("SalesPerformanceMaxService: dispatches campaignConversionGoals:mutate with PURCHASE category", async () => {
+    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "getAdsHeaders").mockResolvedValue({
+      headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
+    });
+    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "createBudget").mockResolvedValue(`customers/${cid}/campaignBudgets/bud-pmax-1`);
+    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "uploadImageAsset").mockResolvedValue(`customers/${cid}/assets/img-1`);
+    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "mutateCampaignGeoAndLanguageCriteria").mockResolvedValue([]);
+    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "saveCampaignToDatabase").mockResolvedValue({
+      id: "local-camp-pmax",
+      amountMicros: BigInt(2000000000),
+      costMicros: BigInt(0),
+      impressions: BigInt(0),
+      clicks: BigInt(0)
+    });
+
+    mockedAxios.post.mockImplementation((url: string) => {
+      if (url.includes("campaigns:mutate")) {
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/campaigns/camp-pmax-1` }] } });
+      }
+      if (url.includes("assets:mutate")) {
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/assets/asset-1` }] } });
+      }
+      if (url.includes("googleAds:mutate")) {
+        return Promise.resolve({ data: { mutateOperationResponses: [{ assetGroupResult: { resourceName: `customers/${cid}/assetGroups/ag-1` } }] } });
+      }
+      if (url.includes("campaignConversionGoals:mutate")) {
+        return Promise.resolve({ data: { results: [{ resourceName: `customers/${cid}/campaignConversionGoals/camp-pmax-1~PURCHASE~WEBSITE` }] } });
+      }
+      return Promise.resolve({ data: { results: [] } });
+    });
+
+    await SalesPerformanceMaxService.createCampaign(orgId, customerId, {
+      campaignName: "Test Sales PMax Conversion Goals",
+      dailyBudget: 2000,
+      businessName: "Test PMax Biz",
+      finalUrl: "https://example.com",
+      headlines: ["Headline 1"],
+      descriptions: ["Description 1"],
+      conversionGoals: ["purchase"]
+    });
+
+    const conversionCall = mockedAxios.post.mock.calls.find(call =>
+      String(call[0]).includes("campaignConversionGoals:mutate")
+    );
+
+    expect(conversionCall).toBeDefined();
+    expect(conversionCall![0]).toBe(`https://googleads.googleapis.com/v24/customers/${cid}/campaignConversionGoals:mutate`);
+    expect(conversionCall![1]).toEqual({
+      operations: [
+        {
+          update: {
+            resourceName: `customers/${cid}/campaignConversionGoals/camp-pmax-1~PURCHASE~WEBSITE`,
+            biddable: true
+          },
+          updateMask: "biddable"
+        }
+      ]
+    });
+  });
 });
+
 
 

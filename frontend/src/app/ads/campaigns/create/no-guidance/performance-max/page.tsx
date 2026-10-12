@@ -5107,7 +5107,8 @@ function NoGuidancePerformanceMaxContent() {
                     leadFormWebhook: lfWebhookUrl ? { url: lfWebhookUrl, key: lfWebhookKey } : undefined,
                     adSchedule: adScheduleList,
                     budgetType: budgetType,
-                    dailyBudget: Number(dailyBudgetValue)
+                    dailyBudget: Number(dailyBudgetValue),
+                    conversionGoals: ["phone_leads", "purchase", "submit_lead_form"]
                   };
 
                   const res = await fetch(`${BACKEND}/api/ads/campaigns/no-guidance/performance-max`, {

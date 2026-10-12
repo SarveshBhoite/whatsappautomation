@@ -6242,7 +6242,7 @@ export default function LeadsDemandGenPage() {
                         ...adCustomParams.filter(p => p.name && p.value)
                       ],
                       ipExclusions: ipExclusionsInput.trim() || undefined,
-                      conversionGoals: []
+                      conversionGoals: ["submit_lead_form"]
                     })
                   });
 

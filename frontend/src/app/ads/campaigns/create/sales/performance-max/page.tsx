@@ -4377,6 +4377,7 @@ function SalesPerformanceMaxContent() {
                     adSchedule: adScheduleList,
                     budgetType: budgetType,
                     dailyBudget: Number(dailyBudgetValue),
+                    conversionGoals: ["purchase"],
                     objective: "Sales"
                   };
 

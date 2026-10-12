@@ -459,7 +459,7 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
               targetContentNetwork: payload.networkDisplay !== undefined ? Boolean(payload.networkDisplay) : false,
               targetPartnerSearchNetwork: false
             },
-            adRotationMode: payload.adRotationMode === "DO_NOT_OPTIMIZE" ? "DO_NOT_OPTIMIZE" : "OPTIMIZE",
+            adServingOptimizationStatus: payload.adRotationMode === "DO_NOT_OPTIMIZE" ? "ROTATE_INDEFINITELY" : "OPTIMIZE",
             ...(payload.trackingTemplate ? { trackingUrlTemplate: String(payload.trackingTemplate).trim() } : {}),
             ...(payload.finalUrlSuffix ? { finalUrlSuffix: String(payload.finalUrlSuffix).trim() } : {}),
             ...(Array.isArray(payload.customParameters) && payload.customParameters.length > 0 ? {

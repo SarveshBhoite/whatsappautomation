@@ -6257,7 +6257,7 @@ export default function NoGuidanceDemandGenPage() {
                       sitelinks: Array.isArray(adSitelinks) && adSitelinks.length > 0
                         ? adSitelinks.map((s: any) => typeof s === "string" ? { text: s, url: adFinalUrl.trim() } : s)
                         : [],
-                      conversionGoals: []
+                      conversionGoals: demandGenGoal === "YouTube engagements" ? ["engagements"] : ["phone_leads", "purchase"]
                     })
                   });
 

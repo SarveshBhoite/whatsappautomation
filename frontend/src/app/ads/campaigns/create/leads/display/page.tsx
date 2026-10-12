@@ -3424,7 +3424,7 @@ export default function LeadsDisplayPage() {
                     useDynamicFeed,
                     euPolitical: euPoliticalAds,
                     sitelinks: [],
-                    conversionGoals: []
+                    conversionGoals: ["submit_lead_form"]
                   };
 
                   console.log("[Leads -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));

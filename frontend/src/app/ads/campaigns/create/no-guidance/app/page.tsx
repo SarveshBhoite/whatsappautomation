@@ -3112,6 +3112,7 @@ export default function  NoGuidanceAppPage()  {
                       dailyBudget: budgetNum,
                       images: imageBase64Array,
                       youtubeVideoIds: youtubeIds,
+                      conversionGoals: ["installs"]
                     }),
                   });
                   const data = await res.json();

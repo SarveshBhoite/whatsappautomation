@@ -6356,7 +6356,7 @@ export default function DemandGenCampaignCreatePage() {
                       sitelinks: Array.isArray(adSitelinks) && adSitelinks.length > 0
                         ? adSitelinks.map((s: any) => typeof s === "string" ? { text: s, url: adFinalUrl.trim() } : s)
                         : [],
-                      conversionGoals: []
+                      conversionGoals: ["engagements"]
                     })
                   });
 

@@ -1421,7 +1421,8 @@ router.get("/campaigns", async (req, res) => {
       amountMicros: c.amountMicros != null ? Number(c.amountMicros) : 0,
       costMicros: c.costMicros != null ? Number(c.costMicros) : 0,
       impressions: c.impressions != null ? Number(c.impressions) : 0,
-      clicks: c.clicks != null ? Number(c.clicks) : 0
+      clicks: c.clicks != null ? Number(c.clicks) : 0,
+      conversionGoals: c.geoTargets?.conversionGoals?.selectedConversionGoals || c.geoTargets?.conversionGoals || null
     });
 
     if (!cleanCid) return res.status(200).json(localCampaigns.map(serializeCamp));
@@ -2011,6 +2012,7 @@ router.get("/campaigns/:id", async (req, res) => {
       descriptions: allDescriptions,
       keywords: allKeywords,
       geoTargets: campaign?.geoTargets || liveGeoTargets,
+      conversionGoals: campaign?.geoTargets?.conversionGoals?.selectedConversionGoals || campaign?.geoTargets?.conversionGoals || null,
       languages: campaign?.languages || ["English"],
       searchThemes: campaign?.searchThemes || [],
       audienceSignal: campaign?.audienceSignal || null,
@@ -2230,12 +2232,28 @@ router.delete("/campaigns/:id", async (req, res) => {
     if (campaign.googleAdsCampaignId) {
       const resourceName = `customers/${cid}/campaigns/${campaign.googleAdsCampaignId}`;
       await GoogleAdsService.removeCampaign(orgId, cid, resourceName);
+
+      // Clean up orphaned local ad groups for this deleted campaign
+      await prisma.googleAdGroup.deleteMany({
+        where: {
+          organizationId: orgId,
+          OR: [
+            { campaignId: campaign.id },
+            { googleCampaignId: campaign.googleAdsCampaignId }
+          ]
+        }
+      }).catch(() => null);
     }
 
     await prisma.googleAdCampaign.delete({ where: { id: req.params.id } });
     res.status(200).json({ message: "Campaign removed" });
   } catch (error: any) {
-    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
+    console.error("[DELETE /api/ads/campaigns/:id Error]:", formattedError, error?.response?.data || error.message);
+    res.status(500).json({
+      error: formattedError || error?.response?.data?.error?.message || error.message,
+      details: error?.response?.data
+    });
   }
 });
 
@@ -2279,6 +2297,29 @@ router.get("/ad-groups", async (req, res) => {
           });
         }
       } catch { /* skip */ }
+    }
+
+    // Sync and prune local DB
+    const activeGoogleAdGroupIds = adGroups.map(ag => ag.id);
+
+    // Prune stale ad groups in local DB that were deleted/removed in Google Ads
+    if (!campaignId) {
+      await prisma.googleAdGroup.deleteMany({
+        where: {
+          organizationId: orgId,
+          customerId,
+          googleAdGroupId: { notIn: activeGoogleAdGroupIds }
+        }
+      }).catch(() => null);
+    } else {
+      await prisma.googleAdGroup.deleteMany({
+        where: {
+          organizationId: orgId,
+          customerId,
+          googleCampaignId: campaignId,
+          googleAdGroupId: { notIn: activeGoogleAdGroupIds }
+        }
+      }).catch(() => null);
     }
 
     res.status(200).json(adGroups);
@@ -2353,17 +2394,53 @@ router.delete("/ad-groups/:id", async (req, res) => {
   try {
     const orgId = getOrgId(req);
     const customerId = getCustomerId(req);
-    const localAg = await prisma.googleAdGroup.findFirst({ where: { id: req.params.id, organizationId: orgId } });
-    if (!localAg) return res.status(404).json({ error: "Ad Group not found" });
+    const idParam = req.params.id;
 
-    const cid = customerId || localAg.customerId;
-    if (localAg.googleAdGroupId) {
-      await GoogleAdsService.removeAdGroup(orgId, cid, `customers/${cid}/adGroups/${localAg.googleAdGroupId}`);
+    const localAg = await prisma.googleAdGroup.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { id: idParam },
+          { googleAdGroupId: idParam }
+        ]
+      }
+    });
+
+    const cid = customerId || localAg?.customerId;
+    const targetGoogleAdGroupId = localAg?.googleAdGroupId || idParam;
+
+    if (cid && targetGoogleAdGroupId) {
+      try {
+        await GoogleAdsService.removeAdGroup(orgId, cid, `customers/${cid}/adGroups/${targetGoogleAdGroupId}`);
+      } catch (err: any) {
+        // If already removed or not found in Google Ads (e.g. parent campaign was deleted), ignore error and clean up locally
+        const errMsg = err?.response?.data?.error?.message || err?.message || "";
+        const isAlreadyRemoved = /CANNOT_REMOVE_ALREADY_REMOVED|RESOURCE_NOT_FOUND|NOT_FOUND|does not exist/i.test(errMsg);
+        if (!isAlreadyRemoved) {
+          throw err;
+        }
+      }
     }
-    await prisma.googleAdGroup.delete({ where: { id: req.params.id } });
+
+    if (localAg) {
+      await prisma.googleAdGroup.delete({ where: { id: localAg.id } }).catch(() => null);
+    } else if (idParam) {
+      await prisma.googleAdGroup.deleteMany({
+        where: {
+          organizationId: orgId,
+          googleAdGroupId: idParam
+        }
+      }).catch(() => null);
+    }
+
     res.status(200).json({ message: "Ad Group removed" });
   } catch (error: any) {
-    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
+    console.error("[DELETE /api/ads/ad-groups/:id Error]:", formattedError, error?.response?.data || error.message);
+    res.status(500).json({
+      error: formattedError || error?.response?.data?.error?.message || error.message,
+      details: error?.response?.data
+    });
   }
 });
 
@@ -5723,8 +5800,56 @@ router.patch("/asset-groups", async (req, res) => {
 
     res.status(200).json({ success: true, ...result });
   } catch (error: any) {
-    console.error("[PATCH /api/ads/asset-groups] error:", error?.response?.data || error.message);
-    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to update Asset Group" });
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
+    console.error("[PATCH /api/ads/asset-groups] error:", formattedError, error?.response?.data || error.message);
+    res.status(500).json({ error: formattedError || error?.response?.data?.error?.message || error.message || "Failed to update Asset Group" });
+  }
+});
+
+/**
+ * DELETE /api/ads/asset-groups
+ * Delete/Remove an Asset Group using resourceName or assetGroupId.
+ */
+router.delete("/asset-groups", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const resourceNameParam = (req.query.resourceName || req.body?.resourceName) as string;
+    const idParam = (req.query.id || req.body?.id) as string;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const targetResourceName = resourceNameParam || (idParam ? `customers/${customerId}/assetGroups/${idParam.replace(/\D/g, "")}` : "");
+    if (!targetResourceName) {
+      return res.status(400).json({ error: "resourceName or id is required to delete an Asset Group." });
+    }
+
+    try {
+      await GoogleAdsAssetGroupService.removeAssetGroup(orgId, customerId, targetResourceName);
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error?.message || err?.message || "";
+      const isAlreadyRemoved = /CANNOT_REMOVE_ALREADY_REMOVED|RESOURCE_NOT_FOUND|NOT_FOUND|does not exist/i.test(errMsg);
+      if (!isAlreadyRemoved) {
+        throw err;
+      }
+    }
+
+    res.status(200).json({ success: true, message: "Asset Group removed successfully" });
+  } catch (error: any) {
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
+    console.error("[DELETE /api/ads/asset-groups] error:", formattedError, error?.response?.data || error.message);
+    res.status(500).json({
+      error: formattedError || error?.response?.data?.error?.message || error.message || "Failed to remove Asset Group",
+      details: error?.response?.data
+    });
   }
 });
 
