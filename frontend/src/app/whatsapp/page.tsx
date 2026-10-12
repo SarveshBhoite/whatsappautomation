@@ -361,6 +361,9 @@ export default function Dashboard() {
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
+  const [chatPage, setChatPage] = useState(1);
+  const [chatTotalPages, setChatTotalPages] = useState(1);
+  const [totalChatCount, setTotalChatCount] = useState<number | null>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -865,23 +868,37 @@ export default function Dashboard() {
   }, [selectedWaAccountId, waAccounts]);
 
   // 2. HTTP API Calls
-  const fetchConversations = async (targetPhoneId?: string) => {
+  const fetchConversations = async (targetPhoneId?: string, pageNumber: number = 1) => {
     try {
+      setLoadingConversations(true);
       const activeAcc = waAccounts.find(a => a.id === selectedWaAccountId) || waAccounts.find(a => a.isDefault);
       const phoneIdParam = targetPhoneId || activeAcc?.phoneNumberId || "";
-      const url = `${BACKEND_URL}/api/admin/conversations?platform=whatsapp${phoneIdParam ? `&phoneNumberId=${phoneIdParam}` : ""}`;
+      const url = `${BACKEND_URL}/api/admin/conversations?platform=whatsapp&page=${pageNumber}&limit=50${phoneIdParam ? `&phoneNumberId=${phoneIdParam}` : ""}`;
       const res = await fetch(url, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (!res.ok) return;
       const data = await res.json();
+      
+      let convList: Conversation[] = [];
       if (Array.isArray(data)) {
+        convList = data;
         setConversations(data);
-        // Clear active conversation if it does not belong to the newly fetched account list
-        if (activeConv && !data.some((c: any) => c.id === activeConv.id)) {
-          setActiveConv(null);
-          setMessages([]);
-        }
+        setTotalChatCount(data.length);
+        setChatPage(1);
+        setChatTotalPages(1);
+      } else if (data && Array.isArray(data.conversations)) {
+        convList = data.conversations;
+        setConversations(data.conversations);
+        setTotalChatCount(typeof data.total === "number" ? data.total : data.conversations.length);
+        setChatPage(data.page || pageNumber);
+        setChatTotalPages(data.totalPages || 1);
+      }
+
+      // Clear active conversation if it does not belong to the newly fetched account list
+      if (activeConv && !convList.some((c: any) => c.id === activeConv.id)) {
+        setActiveConv(null);
+        setMessages([]);
       }
     } catch (err) {
       console.warn("Could not fetch conversations:", err);
@@ -1326,7 +1343,7 @@ export default function Dashboard() {
                   <h2 className="font-bold text-base text-slate-900 flex items-center gap-2">
                     {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
                     <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isInstagramTab ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-                      {filteredConversations.length} active
+                      {(totalChatCount !== null ? totalChatCount : filteredConversations.length)} active
                     </span>
                     {(() => {
                       const totalUnread = filteredConversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
@@ -1437,6 +1454,45 @@ export default function Dashboard() {
                     })
                   )}
                 </div>
+
+                {/* Pagination Controls at Bottom of Sidebar */}
+                {chatTotalPages > 1 && (
+                  <div className="p-3 border-t border-slate-200/80 bg-slate-50/90 flex items-center justify-between text-xs text-slate-600 shrink-0 select-none">
+                    <span className="font-medium text-[11px] text-slate-500">
+                      Page <strong className="text-slate-800 font-semibold">{chatPage}</strong> of <strong className="text-slate-800 font-semibold">{chatTotalPages}</strong> ({totalChatCount || 0} total)
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={chatPage <= 1 || loadingConversations}
+                        onClick={() => {
+                          const prev = Math.max(1, chatPage - 1);
+                          setChatPage(prev);
+                          fetchConversations(undefined, prev);
+                        }}
+                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs transition-colors flex items-center justify-center cursor-pointer"
+                        title="Previous 50 chats"
+                        aria-label="Previous Page"
+                      >
+                        <ChevronLeft className="h-4 w-4 text-slate-700" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={chatPage >= chatTotalPages || loadingConversations}
+                        onClick={() => {
+                          const next = Math.min(chatTotalPages, chatPage + 1);
+                          setChatPage(next);
+                          fetchConversations(undefined, next);
+                        }}
+                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs transition-colors flex items-center justify-center cursor-pointer"
+                        title="Next 50 chats"
+                        aria-label="Next Page"
+                      >
+                        <ChevronRight className="h-4 w-4 text-slate-700" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Chat Conversation Pane — full screen on mobile when chat open */}

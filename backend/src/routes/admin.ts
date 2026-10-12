@@ -506,7 +506,7 @@ router.post("/config", async (req: Request, res: Response) => {
 router.get("/conversations", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { phoneNumberId, instagramAccountId, platform, accountId } = req.query;
+    const { phoneNumberId, instagramAccountId, platform, accountId, page, limit } = req.query;
 
     const whereClause: any = { organizationId };
 
@@ -574,35 +574,53 @@ router.get("/conversations", async (req: Request, res: Response) => {
       }
     }
 
-    const conversations = await prisma.conversation.findMany({
-      where: whereClause,
-      select: {
-        id: true,
-        customerPhone: true,
-        customerName: true,
-        platform: true,
-        phoneNumberId: true,
-        accountHandle: true,
-        isBotPaused: true,
-        updatedAt: true,
-        messages: {
-          orderBy: { createdAt: "desc" },
-          take: 1, // Only last message for sidebar preview
-          select: {
-            id: true,
-            content: true,
-            createdAt: true,
-            direction: true,
-            status: true,
-            messageType: true,
+    const pageNum = page ? Math.max(1, parseInt(page as string, 10)) : 1;
+    const pageSize = limit ? Math.max(1, parseInt(limit as string, 10)) : (page ? 50 : undefined);
+    const skip = pageSize ? (pageNum - 1) * pageSize : undefined;
+
+    // Run count and conversations find in parallel
+    const [totalCount, conversations] = await Promise.all([
+      prisma.conversation.count({ where: whereClause }),
+      prisma.conversation.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          customerPhone: true,
+          customerName: true,
+          platform: true,
+          phoneNumberId: true,
+          accountHandle: true,
+          isBotPaused: true,
+          updatedAt: true,
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1, // Only last message for sidebar preview
+            select: {
+              id: true,
+              content: true,
+              createdAt: true,
+              direction: true,
+              status: true,
+              messageType: true,
+            },
           },
         },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 100, // Safe high limit for instantaneous rendering
-    });
+        orderBy: { updatedAt: "desc" },
+        ...(skip !== undefined ? { skip } : {}),
+        ...(pageSize !== undefined ? { take: pageSize } : {}),
+      }),
+    ]);
 
     if (conversations.length === 0) {
+      if (page || limit) {
+        return res.status(200).json({
+          conversations: [],
+          total: totalCount,
+          page: pageNum,
+          limit: pageSize || 50,
+          totalPages: pageSize ? Math.ceil(totalCount / pageSize) : 1,
+        });
+      }
       return res.status(200).json([]);
     }
 
@@ -629,6 +647,16 @@ router.get("/conversations", async (req: Request, res: Response) => {
       ...conv,
       unreadCount: unreadMap.get(conv.id) || 0,
     }));
+
+    if (page || limit) {
+      return res.status(200).json({
+        conversations: conversationsWithUnread,
+        total: totalCount,
+        page: pageNum,
+        limit: pageSize || 50,
+        totalPages: pageSize ? Math.ceil(totalCount / pageSize) : 1,
+      });
+    }
 
     return res.status(200).json(conversationsWithUnread);
   } catch (error: any) {
