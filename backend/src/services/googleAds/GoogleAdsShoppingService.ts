@@ -157,34 +157,58 @@ export class GoogleAdsShoppingService extends GoogleAdsBaseService {
     const limit = filters.limit ? Math.min(filters.limit, 100) : 50;
 
     try {
-      const url = `${this.MC_BASE}/${merchantId}/productstatuses?maxResults=${limit}${
-        filters.pageToken ? `&pageToken=${encodeURIComponent(filters.pageToken)}` : ""
-      }`;
-
-      const res = await axios.get(url, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-
-      const resources = res.data?.resources || [];
-      const nextPageToken = res.data?.nextPageToken || null;
-
-      // Also fetch live product details (prices, images, brand, availability, condition, categories)
+      let resources: any[] = [];
+      let nextPageToken: string | null = null;
       let productsDetailMap = new Map<string, any>();
+
+      // Attempt 1: Merchant API v1
       try {
-        const prodRes = await axios.get(
-          `${this.MC_BASE}/${merchantId}/products?maxResults=${limit}`,
-          { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 8000 }
+        const v1Res = await axios.get(
+          `https://merchantapi.googleapis.com/products/v1beta/accounts/${merchantId}/products?pageSize=${limit}${
+            filters.pageToken ? `&pageToken=${encodeURIComponent(filters.pageToken)}` : ""
+          }`,
+          { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 6000 }
         );
-        const prodItems = prodRes.data?.resources || [];
-        for (const pi of prodItems) {
-          const key = pi.id || pi.offerId || "";
-          if (key) productsDetailMap.set(key, pi);
-          if (pi.offerId) productsDetailMap.set(pi.offerId, pi);
-          const rawId = (pi.id || "").split(":").pop();
-          if (rawId) productsDetailMap.set(rawId, pi);
+        const v1Products = v1Res.data?.products || [];
+        nextPageToken = v1Res.data?.nextPageToken || null;
+        for (const p of v1Products) {
+          const attrs = p.attributes || p;
+          const key = p.name || p.id || p.offerId || "";
+          if (key) productsDetailMap.set(key, { ...attrs, id: key });
         }
-      } catch (pErr: any) {
-        console.warn("[listProductDiagnostics] products detail fetch notice:", pErr?.message);
+      } catch (_v1Err: any) {
+        // Attempt 2: Content API fallback
+        try {
+          const prodRes = await axios.get(
+            `${this.MC_BASE}/${merchantId}/products?maxResults=${limit}`,
+            { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 6000 }
+          );
+          const prodItems = prodRes.data?.resources || [];
+          for (const pi of prodItems) {
+            const key = pi.id || pi.offerId || "";
+            if (key) productsDetailMap.set(key, pi);
+            if (pi.offerId) productsDetailMap.set(pi.offerId, pi);
+            const rawId = (pi.id || "").split(":").pop();
+            if (rawId) productsDetailMap.set(rawId, pi);
+          }
+        } catch (_pErr: any) {
+          // Content API fallback ignored
+        }
+      }
+
+      // Query product statuses from Content API if still accessible
+      try {
+        const url = `${this.MC_BASE}/${merchantId}/productstatuses?maxResults=${limit}${
+          filters.pageToken ? `&pageToken=${encodeURIComponent(filters.pageToken)}` : ""
+        }`;
+        const res = await axios.get(url, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 5000
+        });
+        resources = res.data?.resources || [];
+        if (res.data?.nextPageToken) nextPageToken = res.data.nextPageToken;
+      } catch (_statErr: any) {
+        // Legacy sunset 410 or status not found
       }
 
       let approvedCount = 0;

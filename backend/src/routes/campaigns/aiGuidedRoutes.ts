@@ -170,7 +170,7 @@ router.get("/user-profile", async (req, res) => {
       ? savedProfile.products.filter((p: any) => typeof p === "string" || p.isActive !== false)
       : [];
 
-    // Auto-fetch products from Google Merchant Center Content API if Merchant Center is connected
+    // Auto-fetch products from Google Merchant API v1 / Shopping API if Merchant Center is connected
     const merchantId = (savedProfile?.merchantCenterId || "").trim();
     if (Boolean(savedProfile?.hasMerchantAccount) && merchantId) {
       try {
@@ -181,32 +181,78 @@ router.get("/user-profile", async (req, res) => {
           const clientId = process.env.GOOGLE_CLIENT_ID || "";
           const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
           const accessToken = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
-          const prodRes = await axios.get(
-            `https://shoppingcontent.googleapis.com/content/v2.1/${merchantId}/products?maxResults=50`,
-            { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 8000 }
-          );
-          const items = prodRes.data?.resources || [];
-          if (Array.isArray(items) && items.length > 0) {
-            const mcProducts = items.map((p: any) => ({
-              id: p.id || p.offerId || `mc-${Math.random().toString(36).slice(2, 7)}`,
-              name: p.title || "Untitled Product",
-              title: p.title || "Untitled Product",
-              description: p.description || "",
-              productUrl: p.link || "",
-              link: p.link || "",
-              imageLink: p.imageLink || "",
-              price: p.price ? `${p.price.currency || "INR"} ${p.price.value || "0.00"}` : undefined,
-              currency: p.price?.currency || "INR",
-              brand: p.brand || "",
-              availability: p.availability || "in stock",
-              channel: p.channel || "online",
-              condition: p.condition || "new",
-              category: p.googleProductCategory || "",
-              isActive: true,
-              isMerchantFeedItem: true
-            }));
 
-            // Merge with existing products: preserve manual products not in Merchant Center, avoid duplicates by name/id
+          let mcProducts: any[] = [];
+
+          // Attempt 1: Merchant API v1 (New Standard)
+          try {
+            const merchantApiRes = await axios.get(
+              `https://merchantapi.googleapis.com/products/v1beta/accounts/${merchantId}/products?pageSize=50`,
+              { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 6000 }
+            );
+            const v1Items = merchantApiRes.data?.products || [];
+            if (Array.isArray(v1Items) && v1Items.length > 0) {
+              mcProducts = v1Items.map((p: any) => {
+                const attrs = p.attributes || p;
+                const priceObj = attrs.price || {};
+                const priceMicros = priceObj.amountMicros ? (Number(priceObj.amountMicros) / 1000000).toFixed(2) : (priceObj.value || "0.00");
+                return {
+                  id: p.name || p.id || p.offerId || `mc-${Math.random().toString(36).slice(2, 7)}`,
+                  name: attrs.title || "Untitled Product",
+                  title: attrs.title || "Untitled Product",
+                  description: attrs.description || "",
+                  productUrl: attrs.link || "",
+                  link: attrs.link || "",
+                  imageLink: attrs.imageLink || "",
+                  price: priceObj.currencyCode ? `${priceObj.currencyCode} ${priceMicros}` : undefined,
+                  currency: priceObj.currencyCode || "INR",
+                  brand: attrs.brand || "",
+                  availability: attrs.availability || "in stock",
+                  channel: attrs.channel || "online",
+                  condition: attrs.condition || "new",
+                  category: attrs.googleProductCategory || "",
+                  isActive: true,
+                  isMerchantFeedItem: true
+                };
+              });
+            }
+          } catch (_v1Err: any) {
+            // Attempt 2: Legacy Content API fallback
+            if (mcProducts.length === 0) {
+              try {
+                const prodRes = await axios.get(
+                  `https://shoppingcontent.googleapis.com/content/v2.1/${merchantId}/products?maxResults=50`,
+                  { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 5000 }
+                );
+                const items = prodRes.data?.resources || [];
+                if (Array.isArray(items) && items.length > 0) {
+                  mcProducts = items.map((p: any) => ({
+                    id: p.id || p.offerId || `mc-${Math.random().toString(36).slice(2, 7)}`,
+                    name: p.title || "Untitled Product",
+                    title: p.title || "Untitled Product",
+                    description: p.description || "",
+                    productUrl: p.link || "",
+                    link: p.link || "",
+                    imageLink: p.imageLink || "",
+                    price: p.price ? `${p.price.currency || "INR"} ${p.price.value || "0.00"}` : undefined,
+                    currency: p.price?.currency || "INR",
+                    brand: p.brand || "",
+                    availability: p.availability || "in stock",
+                    channel: p.channel || "online",
+                    condition: p.condition || "new",
+                    category: p.googleProductCategory || "",
+                    isActive: true,
+                    isMerchantFeedItem: true
+                  }));
+                }
+              } catch (_legacyErr: any) {
+                // Graceful fallback to customer profile products
+              }
+            }
+          }
+
+          // Merge with existing products: preserve manual products not in Merchant Center, avoid duplicates by name/id
+          if (mcProducts.length > 0) {
             const existingNames = new Set(mcProducts.map((mp: any) => mp.name.toLowerCase().trim()));
             const nonDuplicateManual = activeProducts.filter((p: any) => {
               const name = typeof p === "string" ? p : p.name;

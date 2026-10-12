@@ -964,6 +964,7 @@ export class SalesSearchService extends GoogleAdsBaseService {
         languages: cleanLanguages,
         objective: payload?.objective || "Sales",
         devices: payload?.devices || ["DESKTOP", "MOBILE", "TABLET", "CONNECTED_TV"],
+        adGroups: (Array.isArray(payload.adGroups) && payload.adGroups.length > 0) ? payload.adGroups : undefined,
         callouts: callouts || [],
         structuredSnippets: structuredSnippets || [],
         promotions: promotions || [],

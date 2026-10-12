@@ -948,6 +948,7 @@ export class LeadsSearchService extends GoogleAdsBaseService {
         brandExclusions: payload.brandExclusions || [],
         locationsOfInterest: payload.locationsOfInterest || [],
         urlInclusions: payload.urlInclusions || [],
+        adGroups: (Array.isArray(payload.adGroups) && payload.adGroups.length > 0) ? payload.adGroups : undefined,
         sitelinks: payload.sitelinks || [],
         callouts: payload.callouts || [],
         structuredSnippets: payload.structuredSnippets || [],

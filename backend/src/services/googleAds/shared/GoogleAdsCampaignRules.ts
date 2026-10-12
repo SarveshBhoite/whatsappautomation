@@ -526,10 +526,35 @@ export class SearchCampaignRules {
       });
     }
 
-    // Headlines
-    const headlines = (state.headlines || [])
+    // Extract ad groups if present
+    const adGroups = Array.isArray(state.adGroups) && state.adGroups.length > 0
+      ? state.adGroups
+      : (Array.isArray(state.geoTargets?.adGroups) && state.geoTargets.adGroups.length > 0
+          ? state.geoTargets.adGroups
+          : []);
+
+    // Headlines validation (Check top-level or from adGroups)
+    let headlines: string[] = (state.headlines || [])
       .map((h: any) => (typeof h === "string" ? h.trim() : (h?.text || "").trim()))
       .filter((h: string) => h.length > 0);
+
+    if (headlines.length === 0 && adGroups.length > 0) {
+      for (const ag of adGroups) {
+        if (Array.isArray(ag.ads)) {
+          for (const ad of ag.ads) {
+            const adHls = (ad.headlines || [])
+              .map((h: any) => (typeof h === "string" ? h.trim() : (h?.text || "").trim()))
+              .filter((h: string) => h.length > 0);
+            if (adHls.length > 0) {
+              headlines = adHls;
+              break;
+            }
+          }
+        }
+        if (headlines.length > 0) break;
+      }
+    }
+
     if (headlines.length < 3) {
       errors.push({
         code: "SEARCH_INSUFFICIENT_HEADLINES",
@@ -550,10 +575,28 @@ export class SearchCampaignRules {
       }
     }
 
-    // Descriptions
-    const descriptions = (state.descriptions || [])
+    // Descriptions validation (Check top-level or from adGroups)
+    let descriptions: string[] = (state.descriptions || [])
       .map((d: any) => (typeof d === "string" ? d.trim() : (d?.text || "").trim()))
       .filter((d: string) => d.length > 0);
+
+    if (descriptions.length === 0 && adGroups.length > 0) {
+      for (const ag of adGroups) {
+        if (Array.isArray(ag.ads)) {
+          for (const ad of ag.ads) {
+            const adDescs = (ad.descriptions || [])
+              .map((d: any) => (typeof d === "string" ? d.trim() : (d?.text || "").trim()))
+              .filter((d: string) => d.length > 0);
+            if (adDescs.length > 0) {
+              descriptions = adDescs;
+              break;
+            }
+          }
+        }
+        if (descriptions.length > 0) break;
+      }
+    }
+
     if (descriptions.length < 2) {
       errors.push({
         code: "SEARCH_INSUFFICIENT_DESCRIPTIONS",
@@ -574,11 +617,24 @@ export class SearchCampaignRules {
       }
     }
 
-    // Keywords
+    // Keywords validation (Check top-level or from adGroups)
     const rawKeywords = state.keywords || [];
-    const validKeywords = rawKeywords
+    let validKeywords = rawKeywords
       .map((k: any) => (typeof k === "string" ? k.trim() : (k?.keyword || k?.text || "").trim()))
       .filter((k: string) => k.length > 0);
+
+    if (validKeywords.length === 0 && adGroups.length > 0) {
+      for (const ag of adGroups) {
+        const agKws = (ag.keywords || [])
+          .map((k: any) => (typeof k === "string" ? k.trim() : (k?.keyword || k?.text || "").trim()))
+          .filter((k: string) => k.length > 0);
+        if (agKws.length > 0) {
+          validKeywords = agKws;
+          break;
+        }
+      }
+    }
+
     if (validKeywords.length < 1) {
       errors.push({
         code: "SEARCH_MISSING_KEYWORDS",
@@ -586,6 +642,21 @@ export class SearchCampaignRules {
         message: "At least 1 targeted keyword is required for Search campaigns.",
         severity: "BLOCKING"
       });
+    }
+
+    // Validate CPC bids if adGroups have them
+    for (const ag of adGroups) {
+      if (ag.cpcBid !== undefined && ag.cpcBid !== null) {
+        const numBid = Number(ag.cpcBid);
+        if (isNaN(numBid) || numBid < 0) {
+          errors.push({
+            code: "SEARCH_INVALID_CPC_BID",
+            field: "cpcBid",
+            message: `Ad Group "${ag.name || 'Unnamed'}" has an invalid CPC bid. Must be non-negative.`,
+            severity: "BLOCKING"
+          });
+        }
+      }
     }
 
     return errors;

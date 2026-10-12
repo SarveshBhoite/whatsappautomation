@@ -35,6 +35,7 @@ import { GoogleAdsEnhancedConversionsSection } from "@/components/ads/GoogleAdsE
 import { GoogleAdsAttributionSection } from "@/components/ads/GoogleAdsAttributionSection";
 import { GoogleAdsSharedNegativeListsSection } from "@/components/ads/GoogleAdsSharedNegativeListsSection";
 import { GoogleCampaignsTableSection } from "@/components/ads/GoogleCampaignsTableSection";
+import { GoogleAdsCampaignHierarchySection } from "@/components/ads/GoogleAdsCampaignHierarchySection";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -4341,6 +4342,9 @@ export default function GoogleAdsPage() {
             {/* TAB 2: Copy & Creative Assets */}
             {activeDetailsTab === "assets" && (
               <div className="space-y-5 max-h-[65vh] overflow-y-auto pr-1">
+                {/* Hierarchical Ad Groups -> Ads -> Media & Assets View */}
+                <GoogleAdsCampaignHierarchySection campaign={selectedCampaignDetails} />
+
                 {/* Final URL & Display Paths */}
                 <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200 text-xs space-y-3">
                   <div className="flex items-center justify-between">

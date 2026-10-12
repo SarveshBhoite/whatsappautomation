@@ -1116,6 +1116,7 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
         brandExclusions: payload.brandExclusions || brandExclusions,
         locationsOfInterest: payload.locationsOfInterest || [],
         urlInclusions: payload.urlInclusions || [],
+        adGroups: (Array.isArray(payload.adGroups) && payload.adGroups.length > 0) ? payload.adGroups : undefined,
         sitelinks: payload.sitelinks || sitelinks,
         callouts: payload.callouts || callouts,
         structuredSnippets: payload.structuredSnippets || structuredSnippets,

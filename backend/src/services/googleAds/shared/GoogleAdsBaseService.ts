@@ -1344,7 +1344,8 @@ export class GoogleAdsBaseService {
       sanitizedData.languages = data.languages;
     }
 
-    // Prevent ghost/duplicate entries: If a record with this googleAdsCampaignId or same org+name already exists, update it instead of creating duplicates
+    let savedCampaign: any = null;
+
     if (sanitizedData.googleAdsCampaignId) {
       const existing = await prisma.googleAdCampaign.findFirst({
         where: {
@@ -1353,14 +1354,14 @@ export class GoogleAdsBaseService {
         }
       });
       if (existing) {
-        return await prisma.googleAdCampaign.update({
+        savedCampaign = await prisma.googleAdCampaign.update({
           where: { id: existing.id },
           data: sanitizedData
         });
       }
     }
 
-    if (sanitizedData.organizationId && sanitizedData.name) {
+    if (!savedCampaign && sanitizedData.organizationId && sanitizedData.name) {
       const existingByName = await prisma.googleAdCampaign.findFirst({
         where: {
           organizationId: sanitizedData.organizationId,
@@ -1369,16 +1370,406 @@ export class GoogleAdsBaseService {
         },
         orderBy: { createdAt: "desc" }
       });
-      // If an existing campaign with identical name exists and was created recently (e.g. failed attempt or draft), update it
       if (existingByName && (!existingByName.googleAdsCampaignId || existingByName.googleAdsCampaignId.startsWith("mock-") || existingByName.status === "REMOVED")) {
-        return await prisma.googleAdCampaign.update({
+        savedCampaign = await prisma.googleAdCampaign.update({
           where: { id: existingByName.id },
           data: sanitizedData
         });
       }
     }
 
-    return await prisma.googleAdCampaign.create({ data: sanitizedData });
+    if (!savedCampaign) {
+      savedCampaign = await prisma.googleAdCampaign.create({ data: sanitizedData });
+    }
+
+    // ── PERSIST AD GROUPS, ADS, KEYWORDS & ASSET LINKAGES HIERARCHICALLY ──
+    try {
+      const campaignId = savedCampaign.id;
+      const orgId = savedCampaign.organizationId;
+      const customerId = savedCampaign.customerId;
+
+      // Extract raw ad groups from data or geoTargets
+      const rawAdGroups = Array.isArray(data?.adGroups) && data.adGroups.length > 0
+        ? data.adGroups
+        : (Array.isArray(data?.geoTargets?.adGroups) && data.geoTargets.adGroups.length > 0
+            ? data.geoTargets.adGroups
+            : []);
+
+      if (rawAdGroups.length > 0) {
+        for (let agIdx = 0; agIdx < rawAdGroups.length; agIdx++) {
+          const ag = rawAdGroups[agIdx];
+          const agName = ag.name || `${savedCampaign.name} Ad Group ${agIdx + 1}`;
+          const agStatus = ag.status || "ENABLED";
+          const agType = ag.type || ag.adGroupType || "SEARCH_STANDARD";
+          const agCpcBid = ag.cpcBid !== undefined && ag.cpcBid !== null ? Number(ag.cpcBid) : null;
+          const agCpcBidMicros = ag.cpcBidMicros !== undefined && ag.cpcBidMicros !== null
+            ? BigInt(ag.cpcBidMicros)
+            : (agCpcBid ? BigInt(Math.round(agCpcBid * 1_000_000)) : null);
+          const googleAdGroupId = ag.googleAdGroupId || ag.id && !String(ag.id).includes("-") ? String(ag.id) : null;
+
+          // Upsert or find AdGroup
+          let savedAg: any = null;
+          if (googleAdGroupId) {
+            savedAg = await prisma.googleAdGroup.findFirst({
+              where: { organizationId: orgId, googleAdGroupId }
+            });
+          }
+          if (!savedAg) {
+            savedAg = await prisma.googleAdGroup.findFirst({
+              where: { organizationId: orgId, campaignId, name: agName }
+            });
+          }
+
+          if (savedAg) {
+            savedAg = await prisma.googleAdGroup.update({
+              where: { id: savedAg.id },
+              data: {
+                name: agName,
+                status: agStatus,
+                adGroupType: agType,
+                cpcBid: agCpcBid,
+                cpcBidMicros: agCpcBidMicros,
+                googleAdGroupId: googleAdGroupId || savedAg.googleAdGroupId
+              }
+            });
+          } else {
+            savedAg = await prisma.googleAdGroup.create({
+              data: {
+                organizationId: orgId,
+                customerId,
+                campaignId,
+                name: agName,
+                status: agStatus,
+                adGroupType: agType,
+                cpcBid: agCpcBid,
+                cpcBidMicros: agCpcBidMicros,
+                googleAdGroupId: googleAdGroupId || undefined
+              }
+            });
+          }
+
+          // Persist Keywords for this AdGroup
+          const agKeywords = Array.isArray(ag.keywords) ? ag.keywords : (agIdx === 0 && Array.isArray(data.keywords) ? data.keywords : []);
+          for (const kw of agKeywords) {
+            const kwText = typeof kw === "string" ? kw.trim() : (kw.text || "").trim();
+            if (!kwText) continue;
+            let matchType = typeof kw === "object" && kw.matchType ? kw.matchType : "BROAD";
+            let cleanText = kwText;
+            if (cleanText.startsWith("[") && cleanText.endsWith("]")) {
+              matchType = "EXACT";
+              cleanText = cleanText.slice(1, -1).trim();
+            } else if (cleanText.startsWith('"') && cleanText.endsWith('"')) {
+              matchType = "PHRASE";
+              cleanText = cleanText.slice(1, -1).trim();
+            }
+            const isNegative = typeof kw === "object" ? Boolean(kw.isNegative) : false;
+
+            const existingKw = await prisma.googleAdKeyword.findFirst({
+              where: { organizationId: orgId, adGroupId: savedAg.id, text: cleanText }
+            });
+            if (!existingKw) {
+              await prisma.googleAdKeyword.create({
+                data: {
+                  organizationId: orgId,
+                  customerId,
+                  adGroupId: savedAg.id,
+                  googleAdGroupId: savedAg.googleAdGroupId,
+                  text: cleanText,
+                  matchType,
+                  isNegative,
+                  status: "ENABLED"
+                }
+              }).catch(() => {});
+            }
+          }
+
+          // Persist Negative Keywords for this AdGroup / Campaign
+          const agNegatives = Array.isArray(ag.negativeKeywords) ? ag.negativeKeywords : (agIdx === 0 && Array.isArray(data.negativeKeywords) ? data.negativeKeywords : []);
+          for (const nkw of agNegatives) {
+            const nkwText = typeof nkw === "string" ? nkw.trim() : (nkw.text || "").trim();
+            if (!nkwText) continue;
+            let matchType = typeof nkw === "object" && nkw.matchType ? nkw.matchType : "BROAD";
+            let cleanText = nkwText;
+            if (cleanText.startsWith("[") && cleanText.endsWith("]")) {
+              matchType = "EXACT";
+              cleanText = cleanText.slice(1, -1).trim();
+            } else if (cleanText.startsWith('"') && cleanText.endsWith('"')) {
+              matchType = "PHRASE";
+              cleanText = cleanText.slice(1, -1).trim();
+            }
+
+            const existingNeg = await prisma.googleAdKeyword.findFirst({
+              where: { organizationId: orgId, adGroupId: savedAg.id, text: cleanText, isNegative: true }
+            });
+            if (!existingNeg) {
+              await prisma.googleAdKeyword.create({
+                data: {
+                  organizationId: orgId,
+                  customerId,
+                  adGroupId: savedAg.id,
+                  googleAdGroupId: savedAg.googleAdGroupId,
+                  text: cleanText,
+                  matchType,
+                  isNegative: true,
+                  status: "ENABLED"
+                }
+              }).catch(() => {});
+            }
+          }
+
+          // Persist Ads in this AdGroup
+          const agAds = Array.isArray(ag.ads) && ag.ads.length > 0
+            ? ag.ads
+            : (agIdx === 0 && Array.isArray(data.headlines) && data.headlines.length > 0
+                ? [{
+                    name: `${agName} Ad 1`,
+                    adType: "RESPONSIVE_SEARCH_AD",
+                    headlines: data.headlines,
+                    descriptions: data.descriptions,
+                    finalUrls: data.finalUrl ? [data.finalUrl] : [],
+                    path1: data.path1 || data.displayPath1,
+                    path2: data.path2 || data.displayPath2,
+                    status: agStatus
+                  }]
+                : []);
+
+          for (let adIdx = 0; adIdx < agAds.length; adIdx++) {
+            const ad = agAds[adIdx];
+            const adName = ad.name || `${agName} Ad ${adIdx + 1}`;
+            const adType = ad.adType || ad.type || "RESPONSIVE_SEARCH_AD";
+            const adStatus = ad.status || "ENABLED";
+            const headlines = Array.isArray(ad.headlines) ? ad.headlines : (data.headlines || []);
+            const descriptions = Array.isArray(ad.descriptions) ? ad.descriptions : (data.descriptions || []);
+            const finalUrls = Array.isArray(ad.finalUrls) ? ad.finalUrls : (ad.finalUrl ? [ad.finalUrl] : (data.finalUrl ? [data.finalUrl] : []));
+            const path1 = ad.path1 || ad.displayPath1 || data.path1 || data.displayPath1 || null;
+            const path2 = ad.path2 || ad.displayPath2 || data.path2 || data.displayPath2 || null;
+            const googleAdId = ad.googleAdId || ad.id && !String(ad.id).includes("-") ? String(ad.id) : null;
+
+            let savedAd: any = null;
+            if (googleAdId) {
+              savedAd = await prisma.googleAd.findFirst({
+                where: { organizationId: orgId, googleAdId }
+              });
+            }
+            if (!savedAd) {
+              savedAd = await prisma.googleAd.findFirst({
+                where: { organizationId: orgId, adGroupId: savedAg.id, name: adName }
+              });
+            }
+
+            if (savedAd) {
+              await prisma.googleAd.update({
+                where: { id: savedAd.id },
+                data: {
+                  name: adName,
+                  adType,
+                  status: adStatus,
+                  headlines,
+                  descriptions,
+                  finalUrls,
+                  path1,
+                  path2,
+                  googleAdId: googleAdId || savedAd.googleAdId,
+                  googleAdGroupId: savedAg.googleAdGroupId || savedAd.googleAdGroupId
+                }
+              });
+            } else {
+              await prisma.googleAd.create({
+                data: {
+                  organizationId: orgId,
+                  customerId,
+                  adGroupId: savedAg.id,
+                  name: adName,
+                  adType,
+                  status: adStatus,
+                  headlines,
+                  descriptions,
+                  finalUrls,
+                  path1,
+                  path2,
+                  googleAdId: googleAdId || undefined,
+                  googleAdGroupId: savedAg.googleAdGroupId || undefined
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // Persist Reusable Media Assets (Images, Logos, Videos) and Linkages
+      const assetImages = Array.isArray(data?.images) ? data.images : [];
+      for (const img of assetImages) {
+        const imgUrl = typeof img === "string" ? img : img.url || img.data;
+        if (!imgUrl) continue;
+        const imgName = typeof img === "object" && img.name ? img.name : `Image - ${Date.now()}`;
+        const assetId = typeof img === "object" && img.id ? img.id : undefined;
+
+        let dbAsset = await prisma.googleAdAsset.findFirst({
+          where: { organizationId: orgId, url: imgUrl }
+        });
+        if (!dbAsset) {
+          dbAsset = await prisma.googleAdAsset.create({
+            data: {
+              organizationId: orgId,
+              customerId,
+              assetType: "IMAGE",
+              name: imgName,
+              url: imgUrl,
+              source: "UPLOAD",
+              status: "ENABLED"
+            }
+          }).catch(async (err: any) => {
+            if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+              return await prisma.googleAdAsset.findFirst({
+                where: { organizationId: orgId, url: imgUrl }
+              });
+            }
+            throw err;
+          });
+        }
+
+        if (dbAsset) {
+          const existingLink = await prisma.googleAdAssetLinkage.findFirst({
+            where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+          });
+          if (!existingLink) {
+            await prisma.googleAdAssetLinkage.create({
+              data: {
+                organizationId: orgId,
+                customerId,
+                assetId: dbAsset.id,
+                campaignId,
+                assetFieldType: "MARKETING_IMAGE",
+                status: "ENABLED"
+              }
+            }).catch(async (err: any) => {
+              if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+                return await prisma.googleAdAssetLinkage.findFirst({
+                  where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+                });
+              }
+              throw err;
+            });
+          }
+        }
+      }
+
+      const assetLogos = Array.isArray(data?.logos) ? data.logos : [];
+      for (const logo of assetLogos) {
+        const logoUrl = typeof logo === "string" ? logo : logo.url || logo.data;
+        if (!logoUrl) continue;
+        const logoName = typeof logo === "object" && logo.name ? logo.name : `Logo - ${Date.now()}`;
+
+        let dbAsset = await prisma.googleAdAsset.findFirst({
+          where: { organizationId: orgId, url: logoUrl }
+        });
+        if (!dbAsset) {
+          dbAsset = await prisma.googleAdAsset.create({
+            data: {
+              organizationId: orgId,
+              customerId,
+              assetType: "LOGO",
+              name: logoName,
+              url: logoUrl,
+              source: "UPLOAD",
+              status: "ENABLED"
+            }
+          }).catch(async (err: any) => {
+            if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+              return await prisma.googleAdAsset.findFirst({
+                where: { organizationId: orgId, url: logoUrl }
+              });
+            }
+            throw err;
+          });
+        }
+
+        if (dbAsset) {
+          const existingLink = await prisma.googleAdAssetLinkage.findFirst({
+            where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+          });
+          if (!existingLink) {
+            await prisma.googleAdAssetLinkage.create({
+              data: {
+                organizationId: orgId,
+                customerId,
+                assetId: dbAsset.id,
+                campaignId,
+                assetFieldType: "LOGO",
+                status: "ENABLED"
+              }
+            }).catch(async (err: any) => {
+              if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+                return await prisma.googleAdAssetLinkage.findFirst({
+                  where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+                });
+              }
+              throw err;
+            });
+          }
+        }
+      }
+
+      const assetVideos = Array.isArray(data?.videos) ? data.videos : [];
+      for (const vid of assetVideos) {
+        const vidUrl = typeof vid === "string" ? vid : vid.url || vid.data;
+        if (!vidUrl) continue;
+        const vidName = typeof vid === "object" && vid.name ? vid.name : `Video - ${Date.now()}`;
+
+        let dbAsset = await prisma.googleAdAsset.findFirst({
+          where: { organizationId: orgId, url: vidUrl }
+        });
+        if (!dbAsset) {
+          dbAsset = await prisma.googleAdAsset.create({
+            data: {
+              organizationId: orgId,
+              customerId,
+              assetType: "VIDEO",
+              name: vidName,
+              url: vidUrl,
+              source: "YOUTUBE",
+              status: "ENABLED"
+            }
+          }).catch(async (err: any) => {
+            if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+              return await prisma.googleAdAsset.findFirst({
+                where: { organizationId: orgId, url: vidUrl }
+              });
+            }
+            throw err;
+          });
+        }
+
+        if (dbAsset) {
+          const existingLink = await prisma.googleAdAssetLinkage.findFirst({
+            where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+          });
+          if (!existingLink) {
+            await prisma.googleAdAssetLinkage.create({
+              data: {
+                organizationId: orgId,
+                customerId,
+                assetId: dbAsset.id,
+                campaignId,
+                assetFieldType: "YOUTUBE_VIDEO",
+                status: "ENABLED"
+              }
+            }).catch(async (err: any) => {
+              if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+                return await prisma.googleAdAssetLinkage.findFirst({
+                  where: { organizationId: orgId, assetId: dbAsset.id, campaignId }
+                });
+              }
+              throw err;
+            });
+          }
+        }
+      }
+    } catch (hierarchyErr: any) {
+      console.warn("[saveCampaignToDatabase] Hierarchy child persistence warning:", hierarchyErr.message);
+    }
+
+    return savedCampaign;
   }
 
   /**

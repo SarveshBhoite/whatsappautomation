@@ -943,23 +943,7 @@ router.get("/merchant-accounts", async (req, res) => {
 
     const accessToken = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
 
-    // Call Google Shopping Content API: authinfo endpoint
-    let accountIdentifiers: Array<{ merchantId?: string; aggregatorId?: string }> = [];
-    try {
-      const authRes = await axios.get("https://shoppingcontent.googleapis.com/content/v2.1/accounts/authinfo", {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-      accountIdentifiers = authRes.data?.accountIdentifiers || [];
-    } catch (apiErr: any) {
-      console.warn("[merchant-accounts] authinfo query failed:", apiErr?.response?.data || apiErr.message);
-      return res.status(200).json({
-        success: true,
-        connected: true,
-        accounts: [],
-        message: "No Google Merchant Center accounts associated with this Google connection, or permissions pending."
-      });
-    }
-
+    // Discover Merchant Center accounts (Merchant API v1 or Content API authinfo)
     const accounts: Array<{
       merchantId: string;
       name: string;
@@ -968,29 +952,64 @@ router.get("/merchant-accounts", async (req, res) => {
       adultContent?: boolean;
     }> = [];
 
-    // Query details for each discovered merchantId
-    for (const item of accountIdentifiers) {
-      const mId = item.merchantId || item.aggregatorId;
-      if (!mId) continue;
+    let accountIdentifiers: Array<{ merchantId?: string; aggregatorId?: string }> = [];
 
+    // Attempt 1: Merchant API v1beta accounts
+    try {
+      const v1AccountsRes = await axios.get("https://merchantapi.googleapis.com/accounts/v1beta/accounts", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 5000
+      });
+      const v1Accs = v1AccountsRes.data?.accounts || [];
+      for (const a of v1Accs) {
+        const rawId = (a.name || "").replace(/^accounts\//, "") || a.accountId || "";
+        if (rawId) {
+          accounts.push({
+            merchantId: String(rawId),
+            name: a.accountName || `Merchant Center (${rawId})`,
+            sellerUrl: a.homepageUri || "",
+            websiteUrl: a.homepageUri || "",
+            adultContent: Boolean(a.adultContent)
+          });
+        }
+      }
+    } catch (_v1Err: any) {
+      // Fall through to Content API attempt
+    }
+
+    // Attempt 2: Content API authinfo fallback if v1 accounts were empty
+    if (accounts.length === 0) {
       try {
-        const detailRes = await axios.get(`https://shoppingcontent.googleapis.com/content/v2.1/${mId}/accounts/${mId}`, {
-          headers: { Authorization: `Bearer ${accessToken}` }
+        const authRes = await axios.get("https://shoppingcontent.googleapis.com/content/v2.1/accounts/authinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 5000
         });
-        const d = detailRes.data;
-        accounts.push({
-          merchantId: String(mId),
-          name: d?.name || `Merchant Center (${mId})`,
-          sellerUrl: d?.sellerUrl || d?.websiteUrl || "",
-          websiteUrl: d?.websiteUrl || "",
-          adultContent: Boolean(d?.adultContent)
-        });
-      } catch (detErr: any) {
-        // Fallback with minimal info if sub-account fetch fails
-        accounts.push({
-          merchantId: String(mId),
-          name: `Merchant Center (${mId})`
-        });
+        accountIdentifiers = authRes.data?.accountIdentifiers || [];
+        for (const item of accountIdentifiers) {
+          const mId = item.merchantId || item.aggregatorId;
+          if (!mId) continue;
+          try {
+            const detailRes = await axios.get(`https://shoppingcontent.googleapis.com/content/v2.1/${mId}/accounts/${mId}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+              timeout: 4000
+            });
+            const d = detailRes.data;
+            accounts.push({
+              merchantId: String(mId),
+              name: d?.name || `Merchant Center (${mId})`,
+              sellerUrl: d?.sellerUrl || d?.websiteUrl || "",
+              websiteUrl: d?.websiteUrl || "",
+              adultContent: Boolean(d?.adultContent)
+            });
+          } catch (_detErr: any) {
+            accounts.push({
+              merchantId: String(mId),
+              name: `Merchant Center (${mId})`
+            });
+          }
+        }
+      } catch (_apiErr: any) {
+        // Handled below
       }
     }
 
@@ -1038,36 +1057,73 @@ router.get("/merchant-products", async (req, res) => {
       googleProductCategory?: string;
     }> = [];
 
-    // 1. Try querying Google Shopping Content API
+    // 1. Try querying Google Merchant API v1 / Shopping API
     if (config?.googleRefreshToken && merchantId) {
       try {
         const clientId = process.env.GOOGLE_CLIENT_ID || "";
         const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
         const accessToken = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
 
-        const prodRes = await axios.get(
-          `https://shoppingcontent.googleapis.com/content/v2.1/${merchantId}/products?maxResults=50`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
+        // Attempt 1a: Google Merchant API v1 (New Standard)
+        try {
+          const merchantApiRes = await axios.get(
+            `https://merchantapi.googleapis.com/products/v1beta/accounts/${merchantId}/products?pageSize=50`,
+            { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 6000 }
+          );
 
-        const items = prodRes.data?.resources || [];
-        if (Array.isArray(items) && items.length > 0) {
-          liveProducts = items.map((p: any) => ({
-            id: p.id || p.offerId || `prod-${Math.random().toString(36).slice(2, 7)}`,
-            title: p.title || "Untitled Product",
-            description: p.description || "",
-            link: p.link || "",
-            imageLink: p.imageLink || "",
-            price: p.price ? `${p.price.currency || "INR"} ${p.price.value || "0.00"}` : undefined,
-            availability: p.availability || "in stock",
-            brand: p.brand || "",
-            channel: p.channel || "online",
-            condition: p.condition || "new",
-            googleProductCategory: p.googleProductCategory || ""
-          }));
+          const items = merchantApiRes.data?.products || [];
+          if (Array.isArray(items) && items.length > 0) {
+            liveProducts = items.map((p: any) => {
+              const attrs = p.attributes || p;
+              const priceObj = attrs.price || {};
+              const priceMicros = priceObj.amountMicros ? (Number(priceObj.amountMicros) / 1000000).toFixed(2) : (priceObj.value || "0.00");
+              return {
+                id: p.name || p.id || p.offerId || `prod-${Math.random().toString(36).slice(2, 7)}`,
+                title: attrs.title || "Untitled Product",
+                description: attrs.description || "",
+                link: attrs.link || "",
+                imageLink: attrs.imageLink || "",
+                price: priceObj.currencyCode ? `${priceObj.currencyCode} ${priceMicros}` : undefined,
+                availability: attrs.availability || "in stock",
+                brand: attrs.brand || "",
+                channel: attrs.channel || "online",
+                condition: attrs.condition || "new",
+                googleProductCategory: attrs.googleProductCategory || ""
+              };
+            });
+          }
+        } catch (_v1Err: any) {
+          // Attempt 1b: Fallback to Content API v2.1 if v1 is not provisioned or returns error
+          if (liveProducts.length === 0) {
+            try {
+              const prodRes = await axios.get(
+                `https://shoppingcontent.googleapis.com/content/v2.1/${merchantId}/products?maxResults=50`,
+                { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 6000 }
+              );
+
+              const items = prodRes.data?.resources || [];
+              if (Array.isArray(items) && items.length > 0) {
+                liveProducts = items.map((p: any) => ({
+                  id: p.id || p.offerId || `prod-${Math.random().toString(36).slice(2, 7)}`,
+                  title: p.title || "Untitled Product",
+                  description: p.description || "",
+                  link: p.link || "",
+                  imageLink: p.imageLink || "",
+                  price: p.price ? `${p.price.currency || "INR"} ${p.price.value || "0.00"}` : undefined,
+                  availability: p.availability || "in stock",
+                  brand: p.brand || "",
+                  channel: p.channel || "online",
+                  condition: p.condition || "new",
+                  googleProductCategory: p.googleProductCategory || ""
+                }));
+              }
+            } catch (_contentErr: any) {
+              // Ignore legacy sunset 410 or permission errors and fall back gracefully to customer profile catalog
+            }
+          }
         }
       } catch (apiErr: any) {
-        console.warn("[merchant-products] Content API query notice:", apiErr?.response?.data || apiErr.message);
+        // Quiet fallback to profile
       }
     }
 
@@ -1645,8 +1701,8 @@ router.get("/campaigns/:id", async (req, res) => {
     const paramId = req.params.id;
     const cleanGoogleId = paramId.startsWith("google-") ? paramId.replace("google-", "") : paramId;
 
-    // Lookup by id, campaignId, or googleAdsCampaignId
-    let campaign = await prisma.googleAdCampaign.findFirst({
+    // Lookup by id, campaignId, or googleAdsCampaignId with full hierarchy relations
+    let campaign = await (prisma.googleAdCampaign as any).findFirst({
       where: {
         organizationId: orgId,
         OR: [
@@ -1655,8 +1711,37 @@ router.get("/campaigns/:id", async (req, res) => {
           { googleAdsCampaignId: paramId },
           { googleAdsCampaignId: cleanGoogleId }
         ]
+      },
+      include: {
+        adGroups: {
+          include: {
+            ads: true,
+            keywords: true,
+            assetLinkages: {
+              include: {
+                asset: true
+              }
+            }
+          }
+        },
+        assetLinkages: {
+          include: {
+            asset: true
+          }
+        }
       }
     });
+
+    // Also fetch standalone assets and linkages for this organization/customerId if any
+    let dbAssets: any[] = [];
+    try {
+      dbAssets = await (prisma as any).googleAdAsset.findMany({
+        where: {
+          organizationId: orgId,
+          ...(campaign?.customerId ? { OR: [{ customerId: campaign.customerId }, { customerId: null }] } : {})
+        }
+      });
+    } catch { /* skip */ }
 
     const rawCid = (req.query.customerId as string) || campaign?.customerId || "";
     const cid = rawCid ? rawCid.replace(/-/g, "") : "";
@@ -1865,6 +1950,48 @@ router.get("/campaigns/:id", async (req, res) => {
       ? liveGoogleDetails.budgetDailyAmount
       : (campaign?.budget != null ? Number(campaign.budget) : (campaign?.amountMicros ? Number(campaign.amountMicros) / 1_000_000 : 0));
 
+    // Format database ad groups and asset linkages
+    const dbAdGroups = (campaign?.adGroups || []).map((ag: any) => ({
+      id: ag.id,
+      campaignId: ag.campaignId,
+      googleAdGroupId: ag.googleAdGroupId,
+      name: ag.name,
+      status: ag.status,
+      type: ag.adGroupType,
+      cpcBid: ag.cpcBid ?? (ag.cpcBidMicros ? Number(ag.cpcBidMicros) / 1_000_000 : null),
+      cpcBidMicros: ag.cpcBidMicros ? Number(ag.cpcBidMicros) : null,
+      keywords: (ag.keywords || []).filter((k: any) => !k.isNegative).map((k: any) => k.text),
+      negativeKeywords: (ag.keywords || []).filter((k: any) => k.isNegative).map((k: any) => k.text),
+      ads: (ag.ads || []).map((ad: any) => ({
+        id: ad.id,
+        adGroupId: ad.adGroupId,
+        googleAdId: ad.googleAdId,
+        name: ad.name || `${ag.name} Ad`,
+        adType: ad.adType || "RESPONSIVE_SEARCH_AD",
+        status: ad.status,
+        finalUrls: Array.isArray(ad.finalUrls) ? ad.finalUrls : [],
+        path1: ad.path1 || "",
+        path2: ad.path2 || "",
+        headlines: Array.isArray(ad.headlines) ? ad.headlines : [],
+        descriptions: Array.isArray(ad.descriptions) ? ad.descriptions : [],
+        adStrength: ad.adStrength,
+        media: {
+          images: (ad.assetLinkages || [])
+            .filter((l: any) => l.assetFieldType?.includes("IMAGE") && l.asset?.url)
+            .map((l: any) => ({ id: l.asset.id, name: l.asset.name, url: l.asset.url })),
+          logos: (ad.assetLinkages || [])
+            .filter((l: any) => l.assetFieldType?.includes("LOGO") && l.asset?.url)
+            .map((l: any) => ({ id: l.asset.id, name: l.asset.name, url: l.asset.url })),
+          videos: (ad.assetLinkages || [])
+            .filter((l: any) => l.assetFieldType?.includes("VIDEO") && l.asset?.url)
+            .map((l: any) => ({ id: l.asset.id, name: l.asset.name, url: l.asset.url }))
+        }
+      }))
+    }));
+
+    // Merge DB ad groups and live ad groups
+    const finalAdGroups = dbAdGroups.length > 0 ? dbAdGroups : liveAdGroups;
+
     res.status(200).json({
       id: campaign?.id || `google-${effectiveGoogleAdsCampaignId}`,
       organizationId: orgId,
@@ -1897,6 +2024,9 @@ router.get("/campaigns/:id", async (req, res) => {
       conversions: liveGoogleDetails?.metrics?.conversions || Number(campaign?.conversions || 0),
       createdAt: campaign?.createdAt || new Date(),
       updatedAt: campaign?.updatedAt || new Date(),
+      adGroups: finalAdGroups,
+      assets: dbAssets,
+      assetLinkages: campaign?.assetLinkages || [],
       live: liveGoogleDetails,
       liveAdGroups,
       liveKeywords,
