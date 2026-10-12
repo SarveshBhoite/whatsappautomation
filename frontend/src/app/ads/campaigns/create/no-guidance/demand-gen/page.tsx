@@ -6278,7 +6278,7 @@ export default function NoGuidanceDemandGenPage() {
                         ...prev,
                         demandGenBudgetAmount: `Daily Budget must be at least ${minText} for Demand Gen.`
                       }));
-                      setCurrentStep("CAMPAIGN_SETTINGS");
+                      setDemandGenStep("CAMPAIGN_SETTINGS");
                     } else {
                       setSubmitError(errData.message || errData.error || "Failed to publish Demand Gen campaign.");
                     }
