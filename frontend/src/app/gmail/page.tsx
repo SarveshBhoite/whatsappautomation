@@ -626,6 +626,7 @@ export default function GmailDashboard() {
           "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
+          accountId: selectedGmailAccountId || undefined,
           name: campaignName,
           subject: campaignSubject,
           bodyTemplate: campaignBody,
@@ -743,10 +744,19 @@ export default function GmailDashboard() {
       console.log("Campaign progress update:", data);
       setCampaigns(prev => prev.map(c => {
         if (c.id === data.campaignId) {
-          return { ...c, sentCount: data.sentCount, failedCount: data.failedCount };
+          const isDone = data.status === "COMPLETED" || ((data.sentCount + data.failedCount) >= c.totalRecipients && c.totalRecipients > 0);
+          return {
+            ...c,
+            sentCount: data.sentCount !== undefined ? data.sentCount : c.sentCount,
+            failedCount: data.failedCount !== undefined ? data.failedCount : c.failedCount,
+            status: data.status || (isDone ? "COMPLETED" : c.status)
+          };
         }
         return c;
       }));
+      if (data.status === "COMPLETED") {
+        fetchCampaigns();
+      }
     });
 
     const handleAccountChange = (e: any) => {

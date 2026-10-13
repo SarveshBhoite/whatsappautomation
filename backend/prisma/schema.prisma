@@ -45,6 +45,8 @@ model Organization {
   apiKeys             ApiKey[]
   googleCalendarConfigs GoogleCalendarConfig[]
   appointments        Appointment[]
+  gmailBulkCampaigns  GmailBulkCampaign[]
+  gmailEmailTemplates GmailEmailTemplate[]
 }
 
 model User {
@@ -843,9 +845,11 @@ model GoogleAdKeyword {
 model GmailBulkCampaign {
   id              String                   @id @default(uuid())
   organizationId  String
+  organization    Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  gmailConfigId   String?
   name            String
   subject         String
-  bodyTemplate    String
+  bodyTemplate    String                   @db.Text
   status          String                   @default("DRAFT")
   scheduledAt     DateTime?
   totalRecipients Int                      @default(0)
@@ -857,6 +861,7 @@ model GmailBulkCampaign {
   updatedAt       DateTime                 @updatedAt
   recipients      GmailCampaignRecipient[]
 
+  @@index([organizationId])
   @@map("gmail_bulk_campaigns")
 }
 
@@ -868,24 +873,29 @@ model GmailCampaignRecipient {
   name         String?
   company      String?
   designation  String?
-  customData   String?
+  customData   String?           @db.Text
   status       String            @default("PENDING")
-  errorMessage String?
+  errorMessage String?           @db.Text
   sentAt       DateTime?
   createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @default(now()) @updatedAt
 
+  @@index([campaignId])
+  @@index([email])
   @@map("gmail_campaign_recipients")
 }
 
 model GmailEmailTemplate {
   id             String       @id @default(uuid())
   organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name           String
   subject        String
-  body           String
+  body           String       @db.Text
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  @@index([organizationId])
   @@map("gmail_email_templates")
 }
 
@@ -1471,4 +1481,3 @@ model Appointment {
   @@index([customerPhone])
   @@map("appointments")
 }
-

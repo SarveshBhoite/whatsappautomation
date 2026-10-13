@@ -862,10 +862,20 @@ router.get("/campaigns/:id", async (req: Request, res: Response) => {
 router.post("/campaigns", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { name, subject, bodyTemplate, recipients, delaySeconds = 3, scheduledAt } = req.body;
+    const { name, subject, bodyTemplate, recipients, delaySeconds = 3, scheduledAt, accountId } = req.body;
 
     if (!name || !subject || !bodyTemplate || !Array.isArray(recipients) || recipients.length === 0) {
       return res.status(400).json({ error: "Name, subject, message body, and at least one recipient are required." });
+    }
+
+    // Determine target Gmail account
+    let targetGmailConfigId = accountId;
+    if (!targetGmailConfigId) {
+      const activeAcc = await prisma.gmailConfig.findFirst({
+        where: { organizationId, isActive: true },
+        orderBy: { isDefault: "desc" }
+      });
+      targetGmailConfigId = activeAcc?.id;
     }
 
     const initialStatus = scheduledAt ? "SCHEDULED" : "SENDING";
@@ -876,6 +886,7 @@ router.post("/campaigns", async (req: Request, res: Response) => {
       campaign = await prisma.gmailBulkCampaign.create({
         data: {
           organizationId,
+          gmailConfigId: targetGmailConfigId || null,
           name,
           subject,
           bodyTemplate,
@@ -899,8 +910,8 @@ router.post("/campaigns", async (req: Request, res: Response) => {
     } else {
       // Raw SQL Fallback if Prisma Client runtime hasn't reloaded the model dynamically
       const rawCampaigns: any[] = await prisma.$queryRawUnsafe(`
-        INSERT INTO "gmail_bulk_campaigns" ("id", "organizationId", "name", "subject", "bodyTemplate", "delaySeconds", "scheduledAt", "status", "totalRecipients", "sentCount", "failedCount", "skippedCount", "createdAt", "updatedAt")
-        VALUES (gen_random_uuid(), '${organizationId}', '${name.replace(/'/g, "''")}', '${subject.replace(/'/g, "''")}', '${bodyTemplate.replace(/'/g, "''")}', ${Number(delaySeconds) || 3}, ${scheduledAt ? `'${new Date(scheduledAt).toISOString()}'` : 'NULL'}, '${initialStatus}', ${recipients.length}, 0, 0, 0, NOW(), NOW())
+        INSERT INTO "gmail_bulk_campaigns" ("id", "organizationId", "gmailConfigId", "name", "subject", "bodyTemplate", "delaySeconds", "scheduledAt", "status", "totalRecipients", "sentCount", "failedCount", "skippedCount", "createdAt", "updatedAt")
+        VALUES (gen_random_uuid(), '${organizationId}', ${targetGmailConfigId ? `'${targetGmailConfigId}'` : 'NULL'}, '${name.replace(/'/g, "''")}', '${subject.replace(/'/g, "''")}', '${bodyTemplate.replace(/'/g, "''")}', ${Number(delaySeconds) || 3}, ${scheduledAt ? `'${new Date(scheduledAt).toISOString()}'` : 'NULL'}, '${initialStatus}', ${recipients.length}, 0, 0, 0, NOW(), NOW())
         RETURNING *
       `);
       campaign = rawCampaigns[0];
@@ -914,7 +925,7 @@ router.post("/campaigns", async (req: Request, res: Response) => {
     }
 
     if (!scheduledAt) {
-      runCampaignSendingProcess(campaign.id, organizationId).catch(console.error);
+      runCampaignSendingProcess(campaign.id, organizationId, targetGmailConfigId).catch(console.error);
     }
 
     return res.status(200).json(campaign);
@@ -1063,7 +1074,7 @@ router.delete("/templates/:id", async (req: Request, res: Response) => {
 });
 
 // ─── HELPER: Background Campaign Executor with Anti-Spam Delays ───────────────
-async function runCampaignSendingProcess(campaignId: string, orgId: string) {
+async function runCampaignSendingProcess(campaignId: string, orgId: string, accountId?: string) {
   activeCampaignTasks.set(campaignId, { status: "SENDING" });
 
   const campaign = await prisma.gmailBulkCampaign.findUnique({
@@ -1073,6 +1084,7 @@ async function runCampaignSendingProcess(campaignId: string, orgId: string) {
 
   if (!campaign) return;
 
+  const targetAccId = accountId || campaign.gmailConfigId || undefined;
   const pendingRecipients = campaign.recipients.filter(r => r.status === "PENDING");
   let sentCount = campaign.sentCount;
   let failedCount = campaign.failedCount;
@@ -1112,7 +1124,7 @@ async function runCampaignSendingProcess(campaignId: string, orgId: string) {
     });
 
     try {
-      await sendSingleBulkEmail(orgId, recipient.email, personalizedSubject, personalizedBody);
+      await sendSingleBulkEmail(orgId, recipient.email, personalizedSubject, personalizedBody, targetAccId);
       sentCount++;
 
       if (prisma.gmailCampaignRecipient && typeof prisma.gmailCampaignRecipient.update === "function") {
@@ -1194,6 +1206,19 @@ async function runCampaignSendingProcess(campaignId: string, orgId: string) {
       WHERE "id" = '${campaignId}'
     `);
   }
+
+  try {
+    const globalIo = (global as any).io;
+    if (globalIo) {
+      globalIo.to(orgId).emit("gmail-campaign-progress", {
+        campaignId,
+        sentCount,
+        failedCount,
+        totalRecipients: campaign.totalRecipients,
+        status: "COMPLETED"
+      });
+    }
+  } catch (e) {}
 
   activeCampaignTasks.delete(campaignId);
 }

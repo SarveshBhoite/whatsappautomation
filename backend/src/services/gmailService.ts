@@ -699,13 +699,19 @@ export async function sendSingleBulkEmail(
   orgId: string, 
   toEmail: string, 
   subject: string, 
-  bodyText: string
+  bodyText: string,
+  accountId?: string
 ): Promise<any> {
-  const token = await getGmailAccessToken(orgId);
+  const { token, config } = await getGmailAccessToken(orgId, false, accountId);
+
+  const senderEmail = config.emailAddress || "me";
+  const fromHeader = config.displayName ? `"${config.displayName}" <${senderEmail}>` : senderEmail;
 
   const emailParts = [
+    `From: ${fromHeader}`,
     `To: ${toEmail}`,
-    `Subject: ${subject}`,
+    `Subject: =?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`,
+    `Date: ${new Date().toUTCString()}`,
     `Content-Type: text/html; charset="UTF-8"`,
     `MIME-Version: 1.0`,
     "",
@@ -738,6 +744,7 @@ export async function sendSingleBulkEmail(
     const upsertedThread = await prisma.gmailThread.upsert({
       where: { threadId: sentThreadId },
       update: {
+        gmailConfigId: config.id,
         subject,
         sender: `To: ${toEmail}`,
         snippet: bodyText.substring(0, 100),
@@ -747,6 +754,7 @@ export async function sendSingleBulkEmail(
       create: {
         threadId: sentThreadId,
         organizationId: orgId,
+        gmailConfigId: config.id,
         subject,
         sender: `To: ${toEmail}`,
         snippet: bodyText.substring(0, 100),
@@ -758,11 +766,12 @@ export async function sendSingleBulkEmail(
     await prisma.gmailMessage.create({
       data: {
         threadId: upsertedThread.id,
+        gmailConfigId: config.id,
         messageId: sentMessageId,
         direction: "outbound",
         content: bodyText,
         bodyText: bodyText,
-        sender: "Me (Bulk Campaign)",
+        sender: fromHeader,
         organizationId: orgId,
         createdAt: new Date(),
         internalDate: new Date(),
@@ -774,3 +783,4 @@ export async function sendSingleBulkEmail(
 
   return response.data;
 }
+
