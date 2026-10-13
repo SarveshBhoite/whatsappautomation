@@ -5276,19 +5276,42 @@ export default function CampaignCreatePage() {
 
                 {/* 2. Campaign Total Budget */}
                 <div className="space-y-3 pt-2 border-t border-slate-200">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="budgetTypeRadio"
-                      checked={budgetType === "TOTAL"}
-                      onChange={() => setBudgetType("TOTAL")}
-                      className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
-                    />
-                    <div className="space-y-0.5">
-                      <span className="text-xs font-semibold text-slate-900 block">Campaign total budget</span>
-                      <span className="text-[11px] text-slate-500 block">Set a budget for the duration of your campaign</span>
+                  {selectedType === "APP" || selectedType === "MULTI_CHANNEL" ? (
+                    <div className="flex items-start gap-3 opacity-60 cursor-not-allowed p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <input
+                        type="radio"
+                        name="budgetTypeRadio"
+                        checked={false}
+                        disabled
+                        className="mt-0.5 text-slate-400 h-4 w-4 cursor-not-allowed"
+                      />
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-700 block">Campaign total budget</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            Not Supported for App Campaigns
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-500 block">
+                          Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.
+                        </span>
+                      </div>
                     </div>
-                  </label>
+                  ) : (
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="budgetTypeRadio"
+                        checked={budgetType === "TOTAL"}
+                        onChange={() => setBudgetType("TOTAL")}
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                      />
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-semibold text-slate-900 block">Campaign total budget</span>
+                        <span className="text-[11px] text-slate-500 block">Set a budget for the duration of your campaign</span>
+                      </div>
+                    </label>
+                  )}
 
                   {budgetType === "TOTAL" && (
                     <div className="ml-7 space-y-4 animate-in fade-in duration-200">
@@ -7206,9 +7229,17 @@ export default function CampaignCreatePage() {
             } else if (wizardStep === "ASSET_GROUP") {
               setWizardStep("BUDGET");
             } else if (wizardStep === "BUDGET") {
+              if ((selectedType === "APP" || selectedType === "MULTI_CHANNEL") && budgetType === "TOTAL") {
+                alert("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+                return;
+              }
               setWizardStep("SUMMARY");
             } else {
               // Save & Publish Campaign Action
+              if ((selectedType === "APP" || selectedType === "MULTI_CHANNEL") && budgetType === "TOTAL") {
+                alert("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+                return;
+              }
               setIsPublishing(true);
               try {
                 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";

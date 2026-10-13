@@ -3524,7 +3524,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       campaignName: camp.name || campaignState.campaignName,
       campaignType: resolvedType,
       objective: extractedObjective as any,
-      budgetType: camp.budgetType || campaignState.budgetType || "DAILY",
+      budgetType: resolvedType === "APP" ? "DAILY" : (camp.budgetType || campaignState.budgetType || "DAILY"),
       dailyBudget: parsedBudget || campaignState.dailyBudget,
       website: extractedWebsite || campaignState.website,
       business: {
@@ -3911,7 +3911,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
   // Real-time Budget Validator (Daily Budget vs Campaign Total Budget)
   const validateDailyBudget = (val?: string | number, targetCampaignType?: string, currentBudgetType?: string): string | null => {
+    const effectiveType = targetCampaignType || campaignState.campaignType;
     const isTotal = (currentBudgetType || tempEditValues.budgetType || campaignState.budgetType) === "TOTAL";
+    if (effectiveType === "APP" && isTotal) {
+      return "Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.";
+    }
     const label = isTotal ? "Campaign total budget" : "Daily budget";
     if (val === undefined || val === null || String(val).trim() === "") {
       return `${label} is required.`;
@@ -3939,7 +3943,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     if (num > 10_000_000) {
       return `${label} cannot exceed the maximum allowed limit of ${curSymbol}10,000,000.`;
     }
-    const effectiveType = targetCampaignType || campaignState.campaignType;
     if (effectiveType === "DEMAND_GEN") {
       if (num <= 0) {
         return `Demand Gen budget must be greater than ${curSymbol}0.`;
@@ -4157,7 +4160,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     if (cType === "APP") {
       const hasAppId = !!(state.appId && state.appId.trim());
       const hasTargetCpa = state.targetCpa !== undefined && state.targetCpa !== null && !isNaN(Number(state.targetCpa)) && Number(state.targetCpa) > 0;
-      return Boolean(hasAppId && hasBizName && hasTargetCpa && validHeadlines.length >= 1 && validDescriptions.length >= 1 && hasBudget);
+      const isBudgetSupportedForApp = state.budgetType !== "TOTAL";
+      return Boolean(hasAppId && hasBizName && hasTargetCpa && validHeadlines.length >= 1 && validDescriptions.length >= 1 && hasBudget && isBudgetSupportedForApp);
     }
 
     if (cType === "SHOPPING") {
@@ -4194,6 +4198,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         label: "Valid Website Landing Page URL (http:// or https://) is required",
         field: "website",
         fixAction: () => startFieldEdit("website")
+      });
+    }
+
+    if (cType === "APP" && state.budgetType === "TOTAL") {
+      missing.push({
+        label: "Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns. Switch to Daily Budget.",
+        field: "dailyBudget",
+        fixAction: () => {
+          setCampaignState(prev => ({ ...prev, budgetType: "DAILY" }));
+          setTempEditValues(prev => ({ ...prev, budgetType: "DAILY" }));
+        }
       });
     }
 
@@ -4546,9 +4561,20 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         return;
       }
     } else if (editingField === "dailyBudget") {
-      const err = validateDailyBudget(tempEditValues.dailyBudget, tempEditValues.campaignType || campaignState.campaignType);
+      const err = validateDailyBudget(tempEditValues.dailyBudget, tempEditValues.campaignType || campaignState.campaignType, tempEditValues.budgetType || campaignState.budgetType);
       if (err) {
         setFieldError(err);
+        return;
+      }
+    } else if (editingField === "budgetType") {
+      if ((tempEditValues.campaignType || campaignState.campaignType) === "APP" && tempEditValues.budgetType === "TOTAL") {
+        setFieldError("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+        return;
+      }
+    } else if (editingField === "appTargetCpa") {
+      const cpaNum = Number(tempEditValues.targetCpa);
+      if (!tempEditValues.targetCpa || isNaN(cpaNum) || cpaNum <= 0) {
+        setFieldError("Please enter a valid Target CPA greater than ₹0.");
         return;
       }
     } else if (editingField === "biddingStrategy") {
@@ -4832,6 +4858,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       } else if (editingField === "campaignType") {
         updated = reconcileCampaignStateWithManualFlow(updated, "campaignType", profSource);
         newCampaignType = updated.campaignType;
+        if (updated.campaignType === "APP" && updated.budgetType === "TOTAL") {
+          updated.budgetType = "DAILY";
+        }
       }
 
       // Check if user explicitly edited campaignName field directly
@@ -4874,6 +4903,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       }
 
       if (editingField === "budgetType" && tempEditValues.budgetType !== undefined) {
+        if ((updated.campaignType === "APP" || campaignState.campaignType === "APP") && tempEditValues.budgetType === "TOTAL") {
+          setFieldError("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+          return;
+        }
         updated.budgetType = tempEditValues.budgetType;
         if (tempEditValues.budgetType === "TOTAL" && (!updated.endDate || !String(updated.endDate).trim())) {
           const baseStart = updated.startDate || todayIso;
@@ -4912,6 +4945,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         } else {
           updated.targetCpa = null;
           updated.targetRoas = null;
+        }
+      }
+
+      if (editingField === "appTargetCpa" && tempEditValues.targetCpa !== undefined) {
+        const parsedCpa = parseFloat(String(tempEditValues.targetCpa));
+        if (!isNaN(parsedCpa) && parsedCpa > 0) {
+          updated.targetCpa = parsedCpa;
         }
       }
 
@@ -5182,6 +5222,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     setTimeout(() => inputRef.current?.focus(), 150);
   }, [messages, isLoading]);
 
+  useEffect(() => {
+    if (campaignState.campaignType === "APP" && campaignState.budgetType === "TOTAL") {
+      setCampaignState(prev => ({
+        ...prev,
+        budgetType: "DAILY"
+      }));
+      setTempEditValues(prev => ({
+        ...prev,
+        budgetType: "DAILY"
+      }));
+    }
+  }, [campaignState.campaignType, campaignState.budgetType]);
+
   // Analyze URL helper
   const handleAnalyzeUrl = async (urlStr: string) => {
     setIsAnalyzingUrl(true);
@@ -5261,7 +5314,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           name: resolvedBizName,
           website: proposed.website || prev.website
         },
-        budgetType: proposed.budgetType || prev.budgetType || "DAILY",
+        budgetType: (proposed.campaignType || prev.campaignType) === "APP" ? "DAILY" : (proposed.budgetType || prev.budgetType || "DAILY"),
         startDate: proposed.startDate || prev.startDate || todayIso,
         endDate: proposed.endDate || prev.endDate,
         images: (proposed.images && proposed.images.length > 0) ? proposed.images : prev.images,
@@ -6846,7 +6899,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             website: returnedCs.website || returnedCs.business?.website || prev.website,
             objective: returnedCs.objective || prev.objective,
             campaignType: returnedCs.campaignType || prev.campaignType,
-            budgetType: returnedCs.budgetType || prev.budgetType,
+            budgetType: (returnedCs.campaignType || prev.campaignType) === "APP" ? "DAILY" : (returnedCs.budgetType || prev.budgetType),
             dailyBudget: returnedCs.dailyBudget !== undefined ? returnedCs.dailyBudget : prev.dailyBudget,
             biddingStrategy: returnedCs.biddingStrategy || prev.biddingStrategy,
             locations: (returnedCs.locations && returnedCs.locations.length > 0) ? returnedCs.locations : prev.locations,
@@ -7015,6 +7068,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         if (c === "INR") return "₹";
         return `${c} `;
       })();
+
+      if (effectiveState.campaignType === "APP" && isTotalBudget) {
+        startFieldEdit("dailyBudget");
+        throw new Error("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+      }
+
       if (!effectiveState.dailyBudget || isNaN(budgetNum) || !isFinite(budgetNum) || budgetNum <= 0) {
         startFieldEdit("dailyBudget");
         throw new Error(`${isTotalBudget ? "Campaign Total Budget" : "Daily Budget"} is required and must be greater than ${curSymbol}0. Please set a budget in chat or the Live Cockpit.`);
@@ -7538,10 +7597,91 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           throw new Error("At least 1 YouTube video URL/asset is required for Video campaigns. Please enter a YouTube video URL or switch to Image format.");
         }
       } else if (cType === "APP") {
-        if (!effectiveState.appId || !effectiveState.appId.trim()) {
+        // Strict Validation and Preparation for APP Campaigns
+        const cleanAppId = String(effectiveState.appId || campaignState.appId || "").trim();
+        if (!cleanAppId) {
           startFieldEdit("appId");
-          throw new Error("App ID / Package Name is required for App campaigns.");
+          throw new Error("Mobile App package name (Android) or App Store ID (iOS) is required before this campaign can be published.");
         }
+        
+        const plat = String(effectiveState.platform || campaignState.platform || "ANDROID").toUpperCase().includes("IOS") ? "IOS" : "ANDROID";
+        if (plat === "ANDROID" && !cleanAppId.includes(".")) {
+          startFieldEdit("appId");
+          throw new Error(`Invalid Android package name: "${cleanAppId}". Real Google Play packages contain dot format (e.g. 'com.example.app').`);
+        }
+        effectiveState.appId = cleanAppId;
+        effectiveState.platform = plat;
+        effectiveState.appStore = plat === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE";
+
+        const rawCpa = Number(effectiveState.targetCpa || campaignState.targetCpa);
+        if (!rawCpa || isNaN(rawCpa) || rawCpa <= 0) {
+          startFieldEdit("appTargetCpa");
+          throw new Error("A valid Target CPA greater than ₹0 is required for App install campaigns.");
+        }
+        effectiveState.targetCpa = rawCpa;
+
+        const appHeadlines = (effectiveState.headlines && effectiveState.headlines.length > 0)
+          ? effectiveState.headlines
+          : (campaignState.headlines && campaignState.headlines.length > 0)
+          ? campaignState.headlines
+          : [];
+        const cleanHeadlines = appHeadlines
+          .map((h: any) => typeof h === "string" ? h.trim() : (h?.text ? String(h.text).trim() : ""))
+          .filter((h: string) => h.length > 0)
+          .slice(0, 5);
+        if (cleanHeadlines.length === 0) {
+          throw new Error("At least 1 headline is required for App promotion campaigns (max 5, 30 chars each).");
+        }
+        effectiveState.headlines = cleanHeadlines;
+
+        const appDescriptions = (effectiveState.descriptions && effectiveState.descriptions.length > 0)
+          ? effectiveState.descriptions
+          : (campaignState.descriptions && campaignState.descriptions.length > 0)
+          ? campaignState.descriptions
+          : [];
+        const cleanDescriptions = appDescriptions
+          .map((d: any) => typeof d === "string" ? d.trim() : (d?.text ? String(d.text).trim() : ""))
+          .filter((d: string) => d.length > 0)
+          .slice(0, 5);
+        if (cleanDescriptions.length === 0) {
+          throw new Error("At least 1 description is required for App promotion campaigns (max 5, 90 chars each).");
+        }
+        effectiveState.descriptions = cleanDescriptions;
+
+        const appStoreUrl = plat === "IOS"
+          ? `https://apps.apple.com/app/id${cleanAppId}`
+          : `https://play.google.com/store/apps/details?id=${cleanAppId}`;
+        effectiveState.finalUrl = (effectiveState.website && effectiveState.website.startsWith("http") && effectiveState.website !== "https://example.com")
+          ? effectiveState.website
+          : (effectiveState.finalUrl && effectiveState.finalUrl.startsWith("http") && effectiveState.finalUrl !== "https://example.com")
+          ? effectiveState.finalUrl
+          : appStoreUrl;
+
+        effectiveState.objective = "APP_PROMOTION";
+        effectiveState.biddingStrategy = "OPTIMIZE_INSTALLS_TARGET_INSTALL_COST";
+        effectiveState.budgetType = "DAILY";
+
+        const resolvedLocs = (effectiveState.locations && effectiveState.locations.length > 0)
+          ? effectiveState.locations
+          : (campaignState.locations && campaignState.locations.length > 0)
+          ? campaignState.locations
+          : ["India"];
+        const resolvedLangs = (effectiveState.languages && effectiveState.languages.length > 0)
+          ? effectiveState.languages
+          : (effectiveState.language ? [effectiveState.language] : (campaignState.language ? [campaignState.language] : ["English"]));
+        effectiveState.locations = resolvedLocs;
+        effectiveState.languages = resolvedLangs;
+
+        effectiveState.geoTargets = {
+          locations: resolvedLocs,
+          languages: resolvedLangs,
+          platform: plat,
+          appId: cleanAppId,
+          appName: effectiveState.appName || campaignState.appName || undefined,
+          businessName: effectiveState.businessName || campaignState.businessName || undefined,
+          targetCpa: rawCpa,
+          objective: "App Promotion"
+        };
       } else if (cType === "SHOPPING") {
         const mId = effectiveState.merchantCenterId || (campaignState as any).merchantCenterId || (campaignState as any).merchantId;
         if (!mId || !/^\d+$/.test(String(mId).trim())) {
@@ -7582,6 +7722,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
       // 8. Explicitly ensure Budget, Media Assets, Brand Controls, Device Targeting, Extensions, and Merchant Center are synchronized
       const isTotalBudgetType = (effectiveState.budgetType || campaignState.budgetType || "").toUpperCase() === "TOTAL";
+      if (effectiveState.campaignType === "APP" && isTotalBudgetType) {
+        startFieldEdit("dailyBudget");
+        throw new Error("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+      }
       if (isTotalBudgetType) {
         effectiveState.budgetType = "TOTAL";
         effectiveState.totalBudget = Number(effectiveState.dailyBudget || (effectiveState as any).totalBudget || campaignState.totalBudget || campaignState.dailyBudget);
@@ -11912,7 +12056,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                               <button
                                 key={type.id}
                                 type="button"
-                                onClick={() => setTempEditValues({ ...tempEditValues, campaignType: type.id })}
+                                onClick={() => setTempEditValues({
+                                  ...tempEditValues,
+                                  campaignType: type.id,
+                                  budgetType: type.id === "APP" ? "DAILY" : tempEditValues.budgetType
+                                })}
                                 className={`w-full text-left p-2.5 rounded-xl border text-[11px] transition-all flex flex-col gap-1.5 cursor-pointer ${
                                   isSelected
                                     ? "bg-blue-50/95 border-blue-500 shadow-xs ring-1 ring-blue-400"
@@ -12320,30 +12468,47 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <DollarSign className="w-3 h-3 text-emerald-600" />
                       <span>Daily Budget</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const baseStart = campaignState.startDate || todayIso;
-                        const d = new Date(baseStart);
-                        d.setDate(d.getDate() + 30);
-                        const autoEndDate = campaignState.endDate || d.toISOString().split("T")[0];
-                        setCampaignState(prev => ({
-                          ...prev,
-                          budgetType: "TOTAL",
-                          endDate: autoEndDate
-                        }));
-                        setTempEditValues(prev => ({ ...prev, budgetType: "TOTAL", endDate: autoEndDate }));
-                      }}
-                      className={`flex-1 py-1 px-2 rounded-lg text-[10.5px] font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                        campaignState.budgetType === "TOTAL"
-                          ? "bg-white text-emerald-800 shadow-xs border border-emerald-300 font-bold"
-                          : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-                      }`}
-                    >
-                      <Layers className="w-3 h-3 text-emerald-600" />
-                      <span>Total Budget</span>
-                    </button>
+                    {(campaignState.campaignType as string) === "APP" ? (
+                      <div
+                        className="flex-1 py-1 px-2 rounded-lg text-[10.5px] font-medium flex items-center justify-center gap-1 bg-slate-200/60 text-slate-400 border border-slate-200 cursor-not-allowed select-none"
+                        title="Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX."
+                      >
+                        <Layers className="w-3 h-3 text-slate-400" />
+                        <span>Total Budget</span>
+                        <span className="text-[9px] text-amber-600 font-semibold ml-0.5">(Unsupported)</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const baseStart = campaignState.startDate || todayIso;
+                          const d = new Date(baseStart);
+                          d.setDate(d.getDate() + 30);
+                          const autoEndDate = campaignState.endDate || d.toISOString().split("T")[0];
+                          setCampaignState(prev => ({
+                            ...prev,
+                            budgetType: "TOTAL",
+                            endDate: autoEndDate
+                          }));
+                          setTempEditValues(prev => ({ ...prev, budgetType: "TOTAL", endDate: autoEndDate }));
+                        }}
+                        className={`flex-1 py-1 px-2 rounded-lg text-[10.5px] font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                          campaignState.budgetType === "TOTAL"
+                            ? "bg-white text-emerald-800 shadow-xs border border-emerald-300 font-bold"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                        }`}
+                      >
+                        <Layers className="w-3 h-3 text-emerald-600" />
+                        <span>Total Budget</span>
+                      </button>
+                    )}
                   </div>
+                  {(campaignState.campaignType as string) === "APP" && (
+                    <div className="mt-1.5 text-[10px] text-amber-700 bg-amber-50 border border-amber-200/80 rounded-lg p-1.5 flex items-start gap-1">
+                      <AlertCircle className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
+                      <span>Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Field 7b: Budget Amount (Display with Edit Pen Icon -> Inline Editor on Click) */}
@@ -21876,13 +22041,54 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
                     {/* Target CPA */}
                     <div className="flex justify-between items-center py-1">
-                      <span className="text-slate-500">Target CPA:</span>
-                      <span className="font-semibold text-slate-800">
-                        {campaignState.targetCpa ? `₹${campaignState.targetCpa}` : (
-                          <span className="text-rose-500 font-semibold">Required</span>
-                        )}
-                      </span>
+                      <div className="flex items-center gap-1 text-slate-500">
+                        <span>Target CPA:</span>
+                        <button
+                          type="button"
+                          onClick={() => (editingField === "appTargetCpa" ? cancelFieldEdit() : startFieldEdit("appTargetCpa"))}
+                          className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                          title="Edit Target CPA"
+                        >
+                          <Edit3 className="h-3 w-3" />
+                        </button>
+                      </div>
+                      {editingField === "appTargetCpa" ? (
+                        <div className="flex items-center gap-1 max-w-[160px]">
+                          <span className="text-slate-500 font-bold">₹</span>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={tempEditValues.targetCpa ?? ""}
+                            onChange={(e) => setTempEditValues({ ...tempEditValues, targetCpa: e.target.value })}
+                            onKeyDown={handleKeyDownSave}
+                            placeholder="e.g. 50"
+                            className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
+                            autoFocus
+                          />
+                          <button type="button" onClick={saveFieldEdit} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">
+                            <Check className="h-3 w-3" />
+                          </button>
+                          <button type="button" onClick={cancelFieldEdit} className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="font-semibold text-slate-800">
+                          {campaignState.targetCpa ? `₹${campaignState.targetCpa}` : (
+                            <span className="text-rose-500 font-semibold flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" /> Required (&gt; ₹0)
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </div>
+                    {editingField === "appTargetCpa" && fieldError && (
+                      <div className="text-[10px] text-rose-600 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-2.5 w-2.5 shrink-0" />
+                        <span>{fieldError}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Missing App ID alert */}
@@ -22424,6 +22630,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         (campaignState.targetCpa && Number(campaignState.targetCpa) > 0) &&
                         (campaignState.headlines?.length || 0) >= 1 &&
                         (campaignState.descriptions?.length || 0) >= 1 &&
+                        campaignState.budgetType !== "TOTAL" &&
                         (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
                       ) ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
                         {Boolean(
@@ -22431,6 +22638,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           (campaignState.targetCpa && Number(campaignState.targetCpa) > 0) &&
                           (campaignState.headlines?.length || 0) >= 1 &&
                           (campaignState.descriptions?.length || 0) >= 1 &&
+                          campaignState.budgetType !== "TOTAL" &&
                           (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
                         ) ? "Complete ✓" : "Required items missing"}
                       </span>
@@ -22462,8 +22670,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
                         <span>Daily Budget (≥ ₹100):</span>
-                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
+                        <span className={campaignState.budgetType === "TOTAL" ? "text-rose-500 font-medium" : (campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {campaignState.budgetType === "TOTAL"
+                            ? "Total Budget unsupported ✗"
+                            : (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
+                            ? `₹${campaignState.dailyBudget}/day ✓`
+                            : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
                         </span>
                       </div>
                     </div>

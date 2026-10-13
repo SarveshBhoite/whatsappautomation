@@ -13,7 +13,7 @@ import { YoutubeVideoService } from "../src/services/googleAds/youtubeReach/Yout
 import { AppPromotionAppService } from "../src/services/googleAds/appPromotion/AppPromotionAppService";
 
 jest.mock("axios");
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+const mockedAxios = axios as any;
 
 describe("End-to-End Service Level Conversion Goal Mutation Verification", () => {
   const orgId = "org-test-verify";
@@ -23,13 +23,13 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
   beforeEach(() => {
     jest.clearAllMocks();
     // Default mock headers resolution
-    jest.spyOn<any, any>(SalesSearchService as any, "getAdsHeaders").mockResolvedValue({
+    (jest.spyOn as any)(SalesSearchService as any, "getAdsHeaders").mockResolvedValue({
       headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
     });
-    jest.spyOn<any, any>(SalesSearchService as any, "createBudget").mockResolvedValue(
+    (jest.spyOn as any)(SalesSearchService as any, "createBudget").mockResolvedValue(
       `customers/${cid}/campaignBudgets/bud-1`
     );
-    jest.spyOn<any, any>(SalesSearchService as any, "saveCampaignToDatabase").mockResolvedValue({
+    (jest.spyOn as any)(SalesSearchService as any, "saveCampaignToDatabase").mockResolvedValue({
       id: "local-camp-1",
       amountMicros: BigInt(1000000),
       costMicros: BigInt(0),
@@ -65,7 +65,7 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
       conversionGoals: ["purchase"]
     });
 
-    const conversionCall = mockedAxios.post.mock.calls.find(call =>
+    const conversionCall = mockedAxios.post.mock.calls.find((call: any) =>
       String(call[0]).includes("campaignConversionGoals:mutate")
     );
 
@@ -85,11 +85,11 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
   });
 
   it("LeadsSearchService: dispatches campaignConversionGoals:mutate with SUBMIT_LEAD_FORM category", async () => {
-    jest.spyOn<any, any>(LeadsSearchService as any, "getAdsHeaders").mockResolvedValue({
+    (jest.spyOn as any)(LeadsSearchService as any, "getAdsHeaders").mockResolvedValue({
       headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
     });
-    jest.spyOn<any, any>(LeadsSearchService as any, "createBudget").mockResolvedValue(`customers/${cid}/campaignBudgets/bud-1`);
-    jest.spyOn<any, any>(LeadsSearchService as any, "saveCampaignToDatabase").mockResolvedValue({
+    (jest.spyOn as any)(LeadsSearchService as any, "createBudget").mockResolvedValue(`customers/${cid}/campaignBudgets/bud-1`);
+    (jest.spyOn as any)(LeadsSearchService as any, "saveCampaignToDatabase").mockResolvedValue({
       id: "local-camp-1",
       amountMicros: BigInt(1000000),
       costMicros: BigInt(0),
@@ -119,7 +119,7 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
       conversionGoals: ["submit_lead_form"]
     });
 
-    const conversionCall = mockedAxios.post.mock.calls.find(call =>
+    const conversionCall = mockedAxios.post.mock.calls.find((call: any) =>
       String(call[0]).includes("campaignConversionGoals:mutate")
     );
 
@@ -138,13 +138,13 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
   });
 
   it("StoreVisitsPerformanceMaxService: dispatches campaignConversionGoals:mutate with GET_DIRECTIONS and STORE_VISIT", async () => {
-    jest.spyOn<any, any>(StoreVisitsPerformanceMaxService as any, "getAdsHeaders").mockResolvedValue({
+    (jest.spyOn as any)(StoreVisitsPerformanceMaxService as any, "getAdsHeaders").mockResolvedValue({
       headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
     });
-    jest.spyOn<any, any>(StoreVisitsPerformanceMaxService as any, "createBudget").mockResolvedValue(`customers/${cid}/campaignBudgets/bud-1`);
-    jest.spyOn<any, any>(StoreVisitsPerformanceMaxService as any, "uploadImageAsset").mockResolvedValue(`customers/${cid}/assets/img-1`);
-    jest.spyOn<any, any>(StoreVisitsPerformanceMaxService as any, "mutateCampaignGeoAndLanguageCriteria").mockResolvedValue([]);
-    jest.spyOn<any, any>(StoreVisitsPerformanceMaxService as any, "saveCampaignToDatabase").mockResolvedValue({
+    (jest.spyOn as any)(StoreVisitsPerformanceMaxService as any, "createBudget").mockResolvedValue(`customers/${cid}/campaignBudgets/bud-1`);
+    (jest.spyOn as any)(StoreVisitsPerformanceMaxService as any, "uploadImageAsset").mockResolvedValue(`customers/${cid}/assets/img-1`);
+    (jest.spyOn as any)(StoreVisitsPerformanceMaxService as any, "mutateCampaignGeoAndLanguageCriteria").mockResolvedValue([]);
+    (jest.spyOn as any)(StoreVisitsPerformanceMaxService as any, "saveCampaignToDatabase").mockResolvedValue({
       id: "local-camp-1",
       amountMicros: BigInt(1000000),
       costMicros: BigInt(0),
@@ -181,7 +181,7 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
       conversionGoals: ["get_directions", "store_visits"]
     });
 
-    const conversionCall = mockedAxios.post.mock.calls.find(call =>
+    const conversionCall = mockedAxios.post.mock.calls.find((call: any) =>
       String(call[0]).includes("campaignConversionGoals:mutate")
     );
 
@@ -207,11 +207,11 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
   });
 
   it("AppPromotionAppService: sets appCampaignSetting.biddingStrategyGoalType for installs, engagement, preregistration", async () => {
-    jest.spyOn<any, any>(AppPromotionAppService as any, "getAdsHeaders").mockResolvedValue({
+    (jest.spyOn as any)(AppPromotionAppService as any, "getAdsHeaders").mockResolvedValue({
       headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
     });
-    jest.spyOn<any, any>(AppPromotionAppService as any, "createBudget").mockResolvedValue(`customers/${cid}/campaignBudgets/bud-1`);
-    jest.spyOn<any, any>(AppPromotionAppService as any, "saveCampaignToDatabase").mockResolvedValue({
+    (jest.spyOn as any)(AppPromotionAppService as any, "createBudget").mockResolvedValue(`customers/${cid}/campaignBudgets/bud-1`);
+    (jest.spyOn as any)(AppPromotionAppService as any, "saveCampaignToDatabase").mockResolvedValue({
       id: "local-camp-1",
       amountMicros: BigInt(1000000),
       costMicros: BigInt(0),
@@ -282,9 +282,9 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
 
   it("YoutubeVideoService: accurately reports CRM/YouTube asset planning storage rather than fake Google Ads mutation", async () => {
     const { YouTubeService } = require("../src/services/youtubeService");
-    jest.spyOn<any, any>(YouTubeService, "getOrganizationConnectionStatus").mockResolvedValue({ isConnected: true });
-    jest.spyOn<any, any>(YoutubeVideoService as any, "uploadYouTubeVideoAsset").mockResolvedValue(`customers/${cid}/assets/yt-1`);
-    const saveSpy = jest.spyOn<any, any>(YoutubeVideoService as any, "saveCampaignToDatabase").mockResolvedValue({
+    (jest.spyOn as any)(YouTubeService, "getOrganizationConnectionStatus").mockResolvedValue({ isConnected: true });
+    (jest.spyOn as any)(YoutubeVideoService as any, "uploadYouTubeVideoAsset").mockResolvedValue(`customers/${cid}/assets/yt-1`);
+    const saveSpy = (jest.spyOn as any)(YoutubeVideoService as any, "saveCampaignToDatabase").mockResolvedValue({
       id: "local-camp-1",
       amountMicros: BigInt(1000000),
       costMicros: BigInt(0),
@@ -329,7 +329,7 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
     });
 
     // Un-mock createBudget to test actual GoogleAdsBaseService.createBudget execution
-    jest.spyOn<any, any>(SalesSearchService as any, "createBudget").mockRestore?.();
+    (jest.spyOn as any)(SalesSearchService as any, "createBudget").mockRestore?.();
 
     await SalesSearchService.createCampaign(orgId, customerId, {
       campaignName: "Test Total Budget Search",
@@ -371,12 +371,12 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
       return Promise.resolve({ data: { results: [] } });
     });
 
-    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "getAdsHeaders").mockResolvedValue({
+    (jest.spyOn as any)(SalesPerformanceMaxService as any, "getAdsHeaders").mockResolvedValue({
       headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
     });
-    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "uploadImageAsset").mockResolvedValue(`customers/${cid}/assets/img-1`);
-    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "mutateCampaignGeoAndLanguageCriteria").mockResolvedValue([]);
-    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "saveCampaignToDatabase").mockResolvedValue({
+    (jest.spyOn as any)(SalesPerformanceMaxService as any, "uploadImageAsset").mockResolvedValue(`customers/${cid}/assets/img-1`);
+    (jest.spyOn as any)(SalesPerformanceMaxService as any, "mutateCampaignGeoAndLanguageCriteria").mockResolvedValue([]);
+    (jest.spyOn as any)(SalesPerformanceMaxService as any, "saveCampaignToDatabase").mockResolvedValue({
       id: "local-camp-pmax",
       amountMicros: BigInt(68000000000),
       costMicros: BigInt(0),
@@ -417,10 +417,10 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
       return Promise.resolve({ data: { results: [] } });
     });
 
-    jest.spyOn<any, any>(SalesDisplayService as any, "getAdsHeaders").mockResolvedValue({
+    (jest.spyOn as any)(SalesDisplayService as any, "getAdsHeaders").mockResolvedValue({
       headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
     });
-    jest.spyOn<any, any>(SalesDisplayService as any, "saveCampaignToDatabase").mockResolvedValue({
+    (jest.spyOn as any)(SalesDisplayService as any, "saveCampaignToDatabase").mockResolvedValue({
       id: "local-camp-display",
       amountMicros: BigInt(2519000000),
       costMicros: BigInt(0),
@@ -429,7 +429,7 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
     });
 
     // Un-mock createBudget to test actual GoogleAdsBaseService.createBudget execution
-    jest.spyOn<any, any>(SalesDisplayService as any, "createBudget").mockRestore?.();
+    (jest.spyOn as any)(SalesDisplayService as any, "createBudget").mockRestore?.();
 
     await SalesDisplayService.createCampaign(orgId, customerId, {
       campaignName: "Test Sales Display",
@@ -448,13 +448,13 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
   });
 
   it("SalesPerformanceMaxService: dispatches campaignConversionGoals:mutate with PURCHASE category", async () => {
-    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "getAdsHeaders").mockResolvedValue({
+    (jest.spyOn as any)(SalesPerformanceMaxService as any, "getAdsHeaders").mockResolvedValue({
       headers: { Authorization: "Bearer test-token", "developer-token": "dev-token" }
     });
-    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "createBudget").mockResolvedValue(`customers/${cid}/campaignBudgets/bud-pmax-1`);
-    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "uploadImageAsset").mockResolvedValue(`customers/${cid}/assets/img-1`);
-    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "mutateCampaignGeoAndLanguageCriteria").mockResolvedValue([]);
-    jest.spyOn<any, any>(SalesPerformanceMaxService as any, "saveCampaignToDatabase").mockResolvedValue({
+    (jest.spyOn as any)(SalesPerformanceMaxService as any, "createBudget").mockResolvedValue(`customers/${cid}/campaignBudgets/bud-pmax-1`);
+    (jest.spyOn as any)(SalesPerformanceMaxService as any, "uploadImageAsset").mockResolvedValue(`customers/${cid}/assets/img-1`);
+    (jest.spyOn as any)(SalesPerformanceMaxService as any, "mutateCampaignGeoAndLanguageCriteria").mockResolvedValue([]);
+    (jest.spyOn as any)(SalesPerformanceMaxService as any, "saveCampaignToDatabase").mockResolvedValue({
       id: "local-camp-pmax",
       amountMicros: BigInt(2000000000),
       costMicros: BigInt(0),
@@ -488,7 +488,7 @@ describe("End-to-End Service Level Conversion Goal Mutation Verification", () =>
       conversionGoals: ["purchase"]
     });
 
-    const conversionCall = mockedAxios.post.mock.calls.find(call =>
+    const conversionCall = mockedAxios.post.mock.calls.find((call: any) =>
       String(call[0]).includes("campaignConversionGoals:mutate")
     );
 

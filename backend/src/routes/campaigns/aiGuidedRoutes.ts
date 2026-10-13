@@ -4637,30 +4637,53 @@ router.post("/create-campaign", async (req, res) => {
           return res.status(400).json({ error: `Unsupported objective "${objective}" for APP campaigns. Only APP_PROMOTION is supported.` });
         }
         const anyState = state as any;
+        const normPlatform = String(state.platform || anyState.platform || (anyState.appStore === "APPLE_APP_STORE" ? "IOS" : "ANDROID")).toUpperCase().includes("IOS") ? "IOS" : "ANDROID";
+        const cleanAppId = String(state.appId || anyState.appId || "").trim();
+        const appStoreUrl = normPlatform === "IOS"
+          ? `https://apps.apple.com/app/id${cleanAppId}`
+          : `https://play.google.com/store/apps/details?id=${cleanAppId}`;
+        const finalUrl = (state.finalUrl && state.finalUrl.startsWith("http") && state.finalUrl !== "https://example.com")
+          ? state.finalUrl
+          : (state.website && state.website.startsWith("http") && state.website !== "https://example.com")
+          ? state.website
+          : appStoreUrl;
+
+        const effectiveLocations = (Array.isArray(state.locations) && state.locations.length > 0)
+          ? state.locations
+          : (locations && locations.length > 0 ? locations : ["India"]);
+        const effectiveLanguages = (Array.isArray(state.languages) && state.languages.length > 0)
+          ? state.languages
+          : (state.language ? [state.language] : (languages && languages.length > 0 ? languages : ["English"]));
+
+        const effectiveStartDate = state.startDate || normalizedDates.startDate || new Date().toISOString().split("T")[0];
+        const effectiveEndDate = state.endDate || normalizedDates.endDate || undefined;
+
         const payload = {
           source: "AI_GUIDED",
           isAiGuided: true,
           campaignName,
-          platform: state.platform,
-          appId: state.appId,
-          appName: state.appName || undefined,
-          businessName: state.businessName || undefined,
-          locations,
-          languages,
+          campaignType: "APP",
+          platform: normPlatform,
+          appId: cleanAppId,
+          appName: state.appName || anyState.appName || undefined,
+          businessName: state.businessName || anyState.businessName || undefined,
+          locations: effectiveLocations,
+          languages: effectiveLanguages,
           headlines: validHeadlines,
           descriptions: validDescriptions,
-          targetCpa: state.targetCpa,
+          targetCpa: Number(state.targetCpa || anyState.targetCpa || 0),
           dailyBudget,
           budget: dailyBudget,
-          startDate: state.startDate,
-          endDate: state.endDate,
+          startDate: effectiveStartDate,
+          endDate: effectiveEndDate,
+          finalUrl,
           euPolitical: state.euPolitical || "NO",
           images: (state as any).images || (state as any).marketingImages || [],
           videos: (state as any).videos || (state as any).youtubeVideos || [],
           trackingTemplate: state.trackingTemplate || anyState.trackingTemplate || undefined,
           finalUrlSuffix: state.finalUrlSuffix || anyState.finalUrlSuffix || undefined,
           customParameters: anyState.customParameters || anyState.customParamsList || [],
-          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
+          conversionGoals: anyState.conversionGoals || state.conversionGoals || ["installs"]
         };
         result = await AppPromotionAppService.createCampaign(orgId, customerId, payload);
         break;
