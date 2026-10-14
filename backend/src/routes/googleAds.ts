@@ -1644,7 +1644,8 @@ router.get("/campaigns", async (req, res) => {
             name: lp.name || serialized.name,
             status: lp.status || serialized.status,
             budget: liveBudgetNum > 0 ? liveBudgetNum : serialized.budget,
-            startDate: lp.startDate ? lp.startDate : serialized.startDate,
+            startDate: lp.startDate ? lp.startDate : (serialized.startDate || serialized.createdAt || new Date()),
+            endDate: lp.endDate ? lp.endDate : (serialized.endDate || null),
             publishDate: serialized.createdAt || lp.startDate || serialized.startDate || new Date(),
             live: lp,
             impressions: lp.impressions || 0,
@@ -1664,6 +1665,7 @@ router.get("/campaigns", async (req, res) => {
             budget: liveBudgetNum,
             budgetResourceName: lp.budgetResourceName,
             startDate: lp.startDate ? lp.startDate : new Date(),
+            endDate: lp.endDate ? lp.endDate : null,
             publishDate: lp.startDate ? lp.startDate : new Date(),
             status: lp.status,
             amountMicros: lp.budgetAmountMicros ? Number(lp.budgetAmountMicros) : 0,
@@ -1720,6 +1722,7 @@ router.get("/campaigns", async (req, res) => {
                   budget: liveBudgetNum !== undefined ? liveBudgetNum : 0,
                   budgetResourceName: lp.budgetResourceName,
                   startDate: lp.startDate ? new Date(lp.startDate) : new Date(),
+                  endDate: lp.endDate ? new Date(lp.endDate) : null,
                   status: lp.status,
                   headlines: [],
                   descriptions: [],
@@ -1735,6 +1738,12 @@ router.get("/campaigns", async (req, res) => {
             if (lp.budgetResourceName && existing.budgetResourceName !== lp.budgetResourceName) updateData.budgetResourceName = lp.budgetResourceName;
             if (liveBudgetNum !== undefined && liveBudgetNum > 0 && (existing.budget == null || existing.budget === 0 || existing.budget !== liveBudgetNum)) {
               updateData.budget = liveBudgetNum;
+            }
+            if (lp.startDate && (!existing.startDate || new Date(existing.startDate).getTime() !== new Date(lp.startDate).getTime())) {
+              updateData.startDate = new Date(lp.startDate);
+            }
+            if (lp.endDate && (!existing.endDate || new Date(existing.endDate).getTime() !== new Date(lp.endDate).getTime())) {
+              updateData.endDate = new Date(lp.endDate);
             }
 
             if (Object.keys(updateData).length > 0) {

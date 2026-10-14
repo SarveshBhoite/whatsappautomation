@@ -127,50 +127,95 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
       "sunday": ["SUNDAY"]
     };
 
-    const criteria: any[] = [];
+    const dayIntervals: Record<string, Array<{ startM: number; endM: number }>> = {
+      MONDAY: [],
+      TUESDAY: [],
+      WEDNESDAY: [],
+      THURSDAY: [],
+      FRIDAY: [],
+      SATURDAY: [],
+      SUNDAY: []
+    };
 
     for (const sched of schedules) {
       if (!sched || typeof sched !== "object") continue;
       const rawDay = String(sched.day || sched.dayOfWeek || "All days").trim().toLowerCase();
       const targetDays = dayMap[rawDay] || [rawDay.toUpperCase()];
 
-      let sHour = 0;
-      let sMinStr = "ZERO";
-      let eHour = 24;
-      let eMinStr = "ZERO";
-
       const start = String(sched.start || "00:00").trim();
       const end = String(sched.end || "00:00").trim();
 
+      let startM = 0;
+      let endM = 1440;
+
       if ((start === "00:00" || start === "0:00") && (end === "00:00" || end === "0:00" || end === "24:00" || end === "23:45")) {
-        sHour = 0;
-        sMinStr = "ZERO";
-        eHour = 24;
-        eMinStr = "ZERO";
+        startM = 0;
+        endM = 1440;
       } else {
         const [sh, sm] = start.split(":").map(v => parseInt(v, 10));
         const [eh, em] = end.split(":").map(v => parseInt(v, 10));
 
-        sHour = isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh));
-        sMinStr = this.mapMinuteToEnum(sm || 0);
+        const sHour = isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh));
+        const sMin = isNaN(sm) ? 0 : Math.max(0, Math.min(59, sm));
+        const eHour = isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh));
+        const eMin = isNaN(em) ? 0 : Math.max(0, Math.min(59, em));
 
-        eHour = isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh));
-        eMinStr = this.mapMinuteToEnum(em || 0);
+        startM = sHour * 60 + sMin;
+        endM = eHour * 60 + eMin;
 
-        const startTotalMinutes = sHour * 60 + (sm || 0);
-        const endTotalMinutes = eHour * 60 + (em || 0);
-        if (endTotalMinutes <= startTotalMinutes && eHour !== 24) {
+        if (endM <= startM && eHour !== 24) {
           throw new Error(`Invalid ad schedule: End time (${end}) must be after start time (${start}) for ${sched.day || "day"}.`);
         }
       }
 
       for (const d of targetDays) {
+        if (dayIntervals[d]) {
+          dayIntervals[d].push({ startM, endM });
+        }
+      }
+    }
+
+    const allDaysFull = Object.keys(dayIntervals).every(d => {
+      const intervals = dayIntervals[d];
+      if (intervals.length === 0) return false;
+      return intervals.some(inv => inv.startM === 0 && inv.endM >= 1440);
+    });
+
+    if (allDaysFull && Object.values(dayIntervals).every(list => list.length <= 1)) {
+      return [];
+    }
+
+    const criteria: any[] = [];
+    for (const [day, intervals] of Object.entries(dayIntervals)) {
+      if (intervals.length === 0) continue;
+      intervals.sort((a, b) => a.startM - b.startM);
+
+      const merged: Array<{ startM: number; endM: number }> = [];
+      let current = { ...intervals[0] };
+
+      for (let i = 1; i < intervals.length; i++) {
+        const next = intervals[i];
+        if (next.startM <= current.endM) {
+          current.endM = Math.max(current.endM, next.endM);
+        } else {
+          merged.push(current);
+          current = { ...next };
+        }
+      }
+      merged.push(current);
+
+      for (const m of merged) {
+        const sHour = Math.floor(m.startM / 60);
+        const sMin = m.startM % 60;
+        const eHour = Math.floor(m.endM / 60);
+        const eMin = m.endM % 60;
+
         criteria.push({
-          dayOfWeek: d,
+          dayOfWeek: day,
           startHour: sHour,
-          startMinute: sMinStr,
+          startMinute: LeadsDisplayService.mapMinuteToEnum(sMin),
           endHour: eHour,
-          endMinute: eMinStr
+          endMinute: LeadsDisplayService.mapMinuteToEnum(eMin)
         });
       }
     }
@@ -185,7 +230,7 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
   ): Promise<string | null> {
     if (!locationNameOrId || typeof locationNameOrId !== "string") return null;
     const trimmed = locationNameOrId.trim();
-    if (!trimmed || trimmed.toUpperCase() === "ALL") return null;
+    if (!trimmed || trimmed.toUpperCase() === "ALL" || trimmed.toLowerCase() === "global" || trimmed.toLowerCase() === "worldwide" || trimmed.toLowerCase() === "all countries" || trimmed.toLowerCase() === "all countries and territories") return null;
 
     if (/^\d+$/.test(trimmed)) return trimmed;
     if (trimmed.startsWith("geoTargetConstants/")) return trimmed.replace("geoTargetConstants/", "");
@@ -340,9 +385,7 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
       throw new Error("At least 1 marketing image is required for Responsive Display ads.");
     }
     const rawLogos = (payload.logos || []).filter((lg: any) => lg && (typeof lg === "string" ? lg.trim() : lg.url || lg.data || lg.asset));
-    if (rawLogos.length < 1) {
-      throw new Error("At least 1 logo is required for Responsive Display ads.");
-    }
+    // Logos are optional in Google Ads Responsive Display ads (official answer 10759203). Only attached when provided.
 
     // Dates validation
     const todayStr = new Date().toISOString().split("T")[0];
@@ -426,7 +469,12 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
       promotions = [],
       callAsset,
       leadFormAsset,
-      conversionGoals = []
+      conversionGoals = [],
+      displayPath1,
+      displayPath2,
+      frequencyCaps,
+      frequencyCapCount,
+      frequencyCapDays
     } = payload;
 
     const finalUrl = (inputFinalUrl || website).trim();
@@ -507,18 +555,33 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
         campaignBudget: budgetRef,
         containsEuPoliticalAdvertising: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
         startDateTime: `${startStr} 00:00:00`,
+        ...(endStr ? { endDateTime: `${endStr} 23:59:59` } : {}),
         ...biddingConfig
       };
-
-      if (endStr) {
-        campaignPayloadCreate.endDateTime = `${endStr} 23:59:59`;
-      }
 
       // URL options
       if (trackingTemplate) campaignPayloadCreate.trackingUrlTemplate = trackingTemplate;
       if (finalUrlSuffix) campaignPayloadCreate.finalUrlSuffix = finalUrlSuffix;
       if (Array.isArray(customParameters) && customParameters.length > 0) {
         campaignPayloadCreate.urlCustomParameters = customParameters.filter(p => p.name && p.value).map(p => ({ key: p.name, value: p.value }));
+      }
+
+      // Frequency Capping (Google Ads API Display Campaign Level)
+      if (Array.isArray(frequencyCaps) && frequencyCaps.length > 0) {
+        campaignPayloadCreate.frequencyCaps = frequencyCaps;
+      } else if (frequencyCapCount && frequencyCapCount > 0) {
+        const timeUnit = (frequencyCapDays === 1) ? "DAY" : (frequencyCapDays === 7) ? "WEEK" : (frequencyCapDays === 30) ? "MONTH" : "DAY";
+        campaignPayloadCreate.frequencyCaps = [
+          {
+            key: {
+              level: "CAMPAIGN",
+              eventType: "IMPRESSION",
+              timeUnit: timeUnit,
+              timeLength: (frequencyCapDays && frequencyCapDays > 1 && timeUnit === "DAY") ? frequencyCapDays : 1
+            },
+            cap: Number(frequencyCapCount)
+          }
+        ];
       }
 
       let campRes;
@@ -1161,6 +1224,11 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
         const fieldType = typeof img === "object" && img?.fieldType ? img.fieldType : null;
         const aspectRatio = typeof img === "object" && img?.aspectRatio ? img.aspectRatio : null;
 
+        // Skip logo types inside rawImages to prevent miscategorized logo assets from being pushed as display images
+        if (fieldType === "LOGO") {
+          continue;
+        }
+
         if (fieldType === "MARKETING_IMAGE" || aspectRatio === "1.91:1") {
           let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
           landscapeUrl = toPollinationsTransform(landscapeUrl, 1200, 628);
@@ -1174,16 +1242,6 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
           const squareRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Sq_${Date.now()}`, squareUrl);
           if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
             createdAssets.squareMarketingImages.push(squareRef);
-          }
-        } else if (fieldType === "LOGO") {
-          // 1:1 Logo (min 128x128, recommend 1200x1200)
-          let logoUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
-          logoUrl = toPollinationsTransform(logoUrl, 1200, 1200);
-          if (!raw.startsWith("customers/")) {
-            const logoRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Logo_${Date.now()}`, logoUrl);
-            if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
-              createdAssets.logoImages.push(logoRef);
-            }
           }
         } else {
           let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
@@ -1237,24 +1295,11 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
         }
       }
 
-      // If no valid logo image was created, upload guaranteed 1:1 fallback logo
-      if (createdAssets.logoImages.length === 0) {
-        const DEFAULT_DISP_LOGO = "https://ik.imagekit.io/automationjds/tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
-        const fallbackLogoRef = await this.uploadImageAsset(organizationId, customerId, `Leads_Disp_Logo_${Date.now()}`, DEFAULT_DISP_LOGO);
-        if (fallbackLogoRef) {
-          createdAssets.logoImages.push(fallbackLogoRef);
-        }
-      }
-
       const uniqueMarketingImages = Array.from(new Set(createdAssets.marketingImages));
       const uniqueSquareImages = Array.from(new Set(createdAssets.squareMarketingImages));
-      const uniqueLogoImages = Array.from(new Set(createdAssets.logoImages));
 
       if (uniqueMarketingImages.length === 0 || uniqueSquareImages.length === 0) {
         throw new Error("At least 1 landscape marketing image (1.91:1) and 1 square marketing image (1:1) are required for Responsive Display ads.");
-      }
-      if (uniqueLogoImages.length === 0) {
-        throw new Error("At least 1 logo asset (1:1) is required for Responsive Display ads.");
       }
 
       const safeHeadlines = rawHeadlines
@@ -1274,12 +1319,15 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
       const responsiveDisplayAd: any = {
         marketingImages: createdAssets.marketingImages.map((asset: string) => ({ asset })),
         squareMarketingImages: createdAssets.squareMarketingImages.map((asset: string) => ({ asset })),
-        logoImages: createdAssets.logoImages.map((asset: string) => ({ asset })),
         headlines: safeHeadlines,
         longHeadline: { text: safeLongHeadline },
         descriptions: safeDescriptions,
         businessName: safeBusinessName
       };
+
+      if (createdAssets.logoImages.length > 0) {
+        responsiveDisplayAd.logoImages = createdAssets.logoImages.map((asset: string) => ({ asset }));
+      }
 
       if (callToAction && callToAction !== "Automated") {
         const ctaClean = String(callToAction).trim().toUpperCase().replace(/[\s-]+/g, "_");
@@ -1311,8 +1359,7 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
               status: "ENABLED",
               ad: {
                 responsiveDisplayAd,
-                finalUrls: [finalUrl],
-                ...(resolvedMobileFinalUrl ? { finalMobileUrls: [resolvedMobileFinalUrl] } : {})
+                finalUrls: [finalUrl]
               }
             }
           }
@@ -1339,6 +1386,9 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
 
     // ── 13. PERSIST COMPLETE CAMPAIGN CONFIGURATION ONLY ON SUCCESS ──
     const amountMicros = Math.round(effectiveBudget * 1_000_000);
+    const effectiveStartStr = startDate ? String(startDate).split("T")[0] : todayStr;
+    const effectiveEndStr = endDate ? String(endDate).split("T")[0] : null;
+
     const localCampaign = await this.saveCampaignToDatabase({
       organizationId,
       customerId,
@@ -1349,6 +1399,8 @@ export class LeadsDisplayService extends GoogleAdsBaseService {
       budget: Number(effectiveBudget),
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: new Date(effectiveStartStr),
+      endDate: effectiveEndStr ? new Date(effectiveEndStr) : null,
       finalUrl,
       headlines: rawHeadlines,
       descriptions: rawDescriptions,

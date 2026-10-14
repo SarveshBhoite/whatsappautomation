@@ -2411,9 +2411,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           const rawProfileLoc = Array.isArray(profileData.locations) && profileData.locations.length > 0 
             ? profileData.locations[0] 
             : (typeof profileData.locations === "string" ? profileData.locations.split(",")[0].trim() : (resolvedLocation ? resolvedLocation.split(",")[0].trim() : "India"));
-          const prefilledLocations = (prev.locations && prev.locations.length > 0 && prev.locations[0] !== "" && prev.locations[0] !== "India") 
-            ? [prev.locations[0]] 
-            : [rawProfileLoc || "India"];
+          const cleanLocCandidate = String(rawProfileLoc || "India").trim();
+          const isGlobalCand = /^(global|worldwide|world|all countries|all countries and territories)$/i.test(cleanLocCandidate);
+          const sanitizedLoc = isGlobalCand ? "India" : cleanLocCandidate;
+          const prevLocCandidate = prev.locations && prev.locations.length > 0 ? String(prev.locations[0]).trim() : "";
+          const isPrevGlobal = /^(global|worldwide|world|all countries|all countries and territories)$/i.test(prevLocCandidate);
+          const prefilledLocations = (prevLocCandidate && prevLocCandidate !== "" && !isPrevGlobal) 
+            ? [prevLocCandidate] 
+            : [sanitizedLoc || "India"];
           const prefilledLanguage = prev.language || (prof?.languagesServed?.[0] ? prof.languagesServed[0] : prev.language);
 
           // Auto-fill Keywords if campaignState keywords are empty
@@ -3913,8 +3918,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const validateDailyBudget = (val?: string | number, targetCampaignType?: string, currentBudgetType?: string): string | null => {
     const effectiveType = targetCampaignType || campaignState.campaignType;
     const isTotal = (currentBudgetType || tempEditValues.budgetType || campaignState.budgetType) === "TOTAL";
-    if (effectiveType === "APP" && isTotal) {
-      return "Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.";
+    if ((effectiveType === "APP" || effectiveType === "DISPLAY") && isTotal) {
+      return `Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${effectiveType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`;
     }
     const label = isTotal ? "Campaign total budget" : "Daily budget";
     if (val === undefined || val === null || String(val).trim() === "") {
@@ -4201,9 +4206,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       });
     }
 
-    if (cType === "APP" && state.budgetType === "TOTAL") {
+    if ((cType === "APP" || cType === "DISPLAY") && state.budgetType === "TOTAL") {
       missing.push({
-        label: "Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns. Switch to Daily Budget.",
+        label: `Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${cType} campaigns. Switch to Daily Budget.`,
         field: "dailyBudget",
         fixAction: () => {
           setCampaignState(prev => ({ ...prev, budgetType: "DAILY" }));
@@ -4567,8 +4572,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         return;
       }
     } else if (editingField === "budgetType") {
-      if ((tempEditValues.campaignType || campaignState.campaignType) === "APP" && tempEditValues.budgetType === "TOTAL") {
-        setFieldError("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+      const effType = tempEditValues.campaignType || campaignState.campaignType;
+      if ((effType === "APP" || effType === "DISPLAY") && tempEditValues.budgetType === "TOTAL") {
+        setFieldError(`Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${effType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`);
         return;
       }
     } else if (editingField === "appTargetCpa") {
@@ -4903,8 +4909,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       }
 
       if (editingField === "budgetType" && tempEditValues.budgetType !== undefined) {
-        if ((updated.campaignType === "APP" || campaignState.campaignType === "APP") && tempEditValues.budgetType === "TOTAL") {
-          setFieldError("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+        const effType = updated.campaignType || campaignState.campaignType;
+        if ((effType === "APP" || effType === "DISPLAY") && tempEditValues.budgetType === "TOTAL") {
+          setFieldError(`Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${effType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`);
           return;
         }
         updated.budgetType = tempEditValues.budgetType;
@@ -6393,10 +6400,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       if (targetType === "LOGO") {
         detectedFieldType = "LOGO";
         // Logo Guidelines:
-        // Square (1:1): Min 128x128, Rec 1200x1200 (aspect ratio 0.90 - 1.10)
-        // Landscape (4:1): Min 512x128, Rec 1200x300 (aspect ratio 3.5 - 4.5)
-        const isSquare = ratio >= 0.9 && ratio <= 1.1;
-        const isLandscapeLogo = ratio >= 3.5 && ratio <= 4.5;
+        // Square (1:1): Min 128x128, Rec 1200x1200 (aspect ratio strictly 0.97 - 1.03 to meet Google Ads API asset spec)
+        // Landscape (4:1): Min 512x128, Rec 1200x300 (aspect ratio strictly 3.9 - 4.1)
+        const isSquare = ratio >= 0.97 && ratio <= 1.03;
+        const isLandscapeLogo = ratio >= 3.9 && ratio <= 4.1;
         detectedAspect = isLandscapeLogo ? "4:1" : "1:1";
 
         if (!isSquare && !isLandscapeLogo) {
@@ -7069,9 +7076,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         return `${c} `;
       })();
 
-      if (effectiveState.campaignType === "APP" && isTotalBudget) {
+      if ((effectiveState.campaignType === "APP" || effectiveState.campaignType === "DISPLAY") && isTotalBudget) {
         startFieldEdit("dailyBudget");
-        throw new Error("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+        throw new Error(`Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${effectiveState.campaignType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`);
       }
 
       if (!effectiveState.dailyBudget || isNaN(budgetNum) || !isFinite(budgetNum) || budgetNum <= 0) {
@@ -7129,15 +7136,29 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       };
 
       // 5. Locations Validation & Auto-Resolution (Frontend Level)
-      const validLocs = (effectiveState.locations || []).filter((l: any) => l && String(l).trim());
+      // Google Ads API requires specific geo target constants (e.g. India) and does not support generic "Global"
+      let resolvedLocs = (effectiveState.locations || []).map((l: any) => {
+        if (!l) return "";
+        if (typeof l === "string") {
+          const s = l.trim().toLowerCase();
+          if (s === "global" || s === "worldwide" || s === "world" || s === "all countries" || s === "all countries and territories") {
+            return "India";
+          }
+        }
+        return l;
+      }).filter(Boolean);
+
+      const validLocs = resolvedLocs.filter((l: any) => l && String(l).trim());
       if (validLocs.length === 0) {
-        if (selectedLocationsList && selectedLocationsList.length > 0 && selectedLocationsList[0]) {
+        if (selectedLocationsList && selectedLocationsList.length > 0 && selectedLocationsList[0] && !/^(global|worldwide|world|all countries|all countries and territories)$/i.test(String(selectedLocationsList[0]).trim())) {
           effectiveState.locations = selectedLocationsList;
         } else {
-          // Safe smart default to India if not specified
+          // Safe smart default to India if not specified or was Global
           effectiveState.locations = ["India"];
           setCampaignState(p => ({ ...p, locations: ["India"] }));
         }
+      } else {
+        effectiveState.locations = resolvedLocs;
       }
 
       // Check proximity radius in locations
@@ -7270,19 +7291,98 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       }
 
       if (effectiveState.adSchedule && Array.isArray(effectiveState.adSchedule)) {
-        const seen = new Set<string>();
-        const filtered = effectiveState.adSchedule.filter((s: any) => {
-          if (!s || !s.day || !s.start || !s.end) return false;
-          // Filter out default 00:00 - 00:00 (or 24:00) 24/7 all days schedules as Google Ads already runs 24/7 by default
+        // Disallow overlapping intervals per day or between "All days" and specific days
+        const dayMap: Record<string, string[]> = {
+          "all days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"],
+          "mondays - fridays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+          "saturdays - sundays": ["SATURDAY", "SUNDAY"],
+          "mondays": ["MONDAY"],
+          "tuesdays": ["TUESDAY"],
+          "wednesdays": ["WEDNESDAY"],
+          "thursdays": ["THURSDAY"],
+          "fridays": ["FRIDAY"],
+          "saturdays": ["SATURDAY"],
+          "sundays": ["SUNDAY"],
+          "monday": ["MONDAY"],
+          "tuesday": ["TUESDAY"],
+          "wednesday": ["WEDNESDAY"],
+          "thursday": ["THURSDAY"],
+          "friday": ["FRIDAY"],
+          "saturday": ["SATURDAY"],
+          "sunday": ["SUNDAY"]
+        };
+
+        const dayIntervals: Record<string, Array<{ startM: number; endM: number }>> = {
+          MONDAY: [],
+          TUESDAY: [],
+          WEDNESDAY: [],
+          THURSDAY: [],
+          FRIDAY: [],
+          SATURDAY: [],
+          SUNDAY: []
+        };
+
+        for (const s of effectiveState.adSchedule) {
+          if (!s || !s.day || !s.start || !s.end) continue;
           const isAllDay = (s.start === "00:00" || s.start === "0:00") && (s.end === "00:00" || s.end === "0:00" || s.end === "24:00" || s.end === "23:45");
           const isAllDays = String(s.day).trim().toLowerCase() === "all days";
-          if (isAllDay && isAllDays) return false;
-          const key = `${s.day}_${s.start}_${s.end}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        effectiveState.adSchedule = filtered;
+          if (isAllDay && isAllDays) continue;
+
+          let startM = 0;
+          let endM = 1440;
+          if (isAllDay) {
+            startM = 0;
+            endM = 1440;
+          } else {
+            const [sh, sm] = String(s.start).split(":").map(v => parseInt(v, 10));
+            const [eh, em] = String(s.end).split(":").map(v => parseInt(v, 10));
+            startM = (isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh))) * 60 + (isNaN(sm) ? 0 : Math.max(0, Math.min(59, sm)));
+            endM = (isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh))) * 60 + (isNaN(em) ? 0 : Math.max(0, Math.min(59, em)));
+            if (endM <= startM && eh !== 24) continue;
+          }
+
+          const targetDays = dayMap[String(s.day).trim().toLowerCase()] || [String(s.day).toUpperCase()];
+          for (const d of targetDays) {
+            if (dayIntervals[d]) {
+              dayIntervals[d].push({ startM, endM });
+            }
+          }
+        }
+
+        const mergedSchedules: Array<{ day: string; start: string; end: string }> = [];
+        const pad = (n: number) => String(n).padStart(2, "0");
+
+        for (const [day, intervals] of Object.entries(dayIntervals)) {
+          if (intervals.length === 0) continue;
+          intervals.sort((a, b) => a.startM - b.startM);
+          const merged: Array<{ startM: number; endM: number }> = [];
+          let current = { ...intervals[0] };
+          for (let i = 1; i < intervals.length; i++) {
+            const next = intervals[i];
+            if (next.startM <= current.endM) {
+              current.endM = Math.max(current.endM, next.endM);
+            } else {
+              merged.push(current);
+              current = { ...next };
+            }
+          }
+          merged.push(current);
+
+          const dayLabel = day.charAt(0) + day.slice(1).toLowerCase();
+          for (const m of merged) {
+            const sh = Math.floor(m.startM / 60);
+            const sm = m.startM % 60;
+            const eh = Math.floor(m.endM / 60);
+            const em = m.endM % 60;
+            mergedSchedules.push({
+              day: dayLabel,
+              start: `${pad(sh)}:${pad(sm)}`,
+              end: `${pad(eh)}:${pad(em)}`
+            });
+          }
+        }
+
+        effectiveState.adSchedule = mergedSchedules;
       }
 
       if (effectiveState.searchThemes && Array.isArray(effectiveState.searchThemes)) {
@@ -7409,6 +7509,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             currentImages.push({ url: raw, fieldType: "SQUARE_MARKETING_IMAGE", name: "Square_Marketing_Image", aspectRatio: "1:1" });
           }
         }
+        // Strip out any image assets that have fieldType === 'LOGO' from currentImages, or customer asset references
+        currentImages = currentImages.filter((img: any) => {
+          const raw = typeof img === "string" ? img : img?.url || img?.data || "";
+          const fType = typeof img === "object" ? img?.fieldType : null;
+          return raw && !raw.startsWith("customers/") && fType !== "LOGO";
+        });
         effectiveState.images = currentImages;
         setCampaignState(p => ({ ...p, images: currentImages }));
 
@@ -7416,12 +7522,49 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         // Filter out existing customer asset strings (e.g., customers/.../assets/...) that might have non-1:1 aspect ratios from other campaign types
         currentLogos = currentLogos.filter((l: any) => {
           const raw = typeof l === "string" ? l : l?.url || l?.data || "";
-          return raw && !raw.startsWith("customers/");
+          return raw && !raw.startsWith("customers/") && raw.length > 5;
         });
 
         // Brand logos are optional for Display campaigns - do not force default logo if empty
         effectiveState.logos = currentLogos;
         setCampaignState(p => ({ ...p, logos: currentLogos }));
+
+        effectiveState.headlines = validH.slice(0, 5);
+        effectiveState.longHeadlines = validLH.length > 0 ? validLH.slice(0, 1) : [validH[0]];
+        effectiveState.descriptions = validD.slice(0, 5);
+        if (campaignState.businessName || effectiveState.businessName) effectiveState.businessName = (campaignState.businessName || effectiveState.businessName || "").trim();
+        if (campaignState.displayPath1) effectiveState.displayPath1 = campaignState.displayPath1.trim();
+        if (campaignState.displayPath2) effectiveState.displayPath2 = campaignState.displayPath2.trim();
+        if (campaignState.callToAction || (campaignState as any).callToActionText) effectiveState.callToAction = (campaignState.callToAction || (campaignState as any).callToActionText || "").trim();
+        if (campaignState.adSchedule) effectiveState.adSchedule = campaignState.adSchedule;
+        if ((campaignState as any).customParameters) (effectiveState as any).customParameters = (campaignState as any).customParameters;
+        if (campaignState.trackingTemplate) effectiveState.trackingTemplate = campaignState.trackingTemplate.trim();
+        if (campaignState.finalUrlSuffix) effectiveState.finalUrlSuffix = campaignState.finalUrlSuffix.trim();
+        if ((campaignState as any).mobileFinalUrl) (effectiveState as any).mobileFinalUrl = String((campaignState as any).mobileFinalUrl).trim();
+        if (campaignState.brandInclusions) effectiveState.brandInclusions = campaignState.brandInclusions;
+        if (campaignState.brandExclusions) effectiveState.brandExclusions = campaignState.brandExclusions;
+        if ((campaignState as any).placements) (effectiveState as any).placements = (campaignState as any).placements;
+        if ((campaignState as any).selectedPlacements) (effectiveState as any).selectedPlacements = (campaignState as any).selectedPlacements;
+        if ((campaignState as any).demographics) (effectiveState as any).demographics = (campaignState as any).demographics;
+        if ((campaignState as any).demographicsGender) (effectiveState as any).demographicsGender = (campaignState as any).demographicsGender;
+        if ((campaignState as any).demographicsAge) (effectiveState as any).demographicsAge = (campaignState as any).demographicsAge;
+        if ((campaignState as any).demographicsParental) (effectiveState as any).demographicsParental = (campaignState as any).demographicsParental;
+        if ((campaignState as any).demographicsIncome) (effectiveState as any).demographicsIncome = (campaignState as any).demographicsIncome;
+        if ((campaignState as any).topics) (effectiveState as any).topics = (campaignState as any).topics;
+        if ((campaignState as any).selectedTopics) (effectiveState as any).selectedTopics = (campaignState as any).selectedTopics;
+        if ((campaignState as any).audiences) (effectiveState as any).audiences = (campaignState as any).audiences;
+        if ((campaignState as any).selectedAudiences) (effectiveState as any).selectedAudiences = (campaignState as any).selectedAudiences;
+        if ((campaignState as any).audienceSignalIds) (effectiveState as any).audienceSignalIds = (campaignState as any).audienceSignalIds;
+        if ((campaignState as any).keywords) (effectiveState as any).keywords = (campaignState as any).keywords;
+        if ((campaignState as any).contentLabels) (effectiveState as any).contentLabels = (campaignState as any).contentLabels;
+        if ((campaignState as any).sensitiveContent) (effectiveState as any).sensitiveContent = (campaignState as any).sensitiveContent;
+        if ((campaignState as any).contentTypeExclusions) (effectiveState as any).contentTypeExclusions = (campaignState as any).contentTypeExclusions;
+        if ((campaignState as any).useOptimizedTargeting !== undefined) (effectiveState as any).useOptimizedTargeting = Boolean((campaignState as any).useOptimizedTargeting);
+        if ((campaignState as any).optimizedTargeting !== undefined) (effectiveState as any).optimizedTargeting = Boolean((campaignState as any).optimizedTargeting);
+        if ((campaignState as any).frequencyCaps) (effectiveState as any).frequencyCaps = (campaignState as any).frequencyCaps;
+        if ((campaignState as any).frequencyCapCount !== undefined) (effectiveState as any).frequencyCapCount = (campaignState as any).frequencyCapCount;
+        if ((campaignState as any).frequencyCapDays !== undefined) (effectiveState as any).frequencyCapDays = (campaignState as any).frequencyCapDays;
+        if ((campaignState as any).conversionGoals) (effectiveState as any).conversionGoals = (campaignState as any).conversionGoals;
       } else if (cType === "SEARCH") {
         if (validH.length < 3) {
           throw new Error(`Search campaigns require at least 3 Headlines (${validH.length}/3 added).`);
@@ -7722,9 +7865,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
       // 8. Explicitly ensure Budget, Media Assets, Brand Controls, Device Targeting, Extensions, and Merchant Center are synchronized
       const isTotalBudgetType = (effectiveState.budgetType || campaignState.budgetType || "").toUpperCase() === "TOTAL";
-      if (effectiveState.campaignType === "APP" && isTotalBudgetType) {
+      if ((effectiveState.campaignType === "APP" || effectiveState.campaignType === "DISPLAY") && isTotalBudgetType) {
         startFieldEdit("dailyBudget");
-        throw new Error("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+        throw new Error(`Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${effectiveState.campaignType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`);
       }
       if (isTotalBudgetType) {
         effectiveState.budgetType = "TOTAL";
@@ -7771,7 +7914,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       if (campaignState.biddingStrategy || effectiveState.biddingStrategy) {
         effectiveState.biddingStrategy = campaignState.biddingStrategy || effectiveState.biddingStrategy;
       }
-      if (campaignState.targetCpa !== undefined && campaignState.targetCpa !== null && String(campaignState.targetCpa).trim() !== "") {
+      if (cType === "DISPLAY") {
+        // In Google Ads API, Display campaigns with Maximize Conversions throw "The operation is not allowed for the given context" if target_cpa_micros is passed when conversion tracking or account history is unverified.
+        delete (effectiveState as any).targetCpa;
+      } else if (campaignState.targetCpa !== undefined && campaignState.targetCpa !== null && String(campaignState.targetCpa).trim() !== "") {
         const numCpa = Number(campaignState.targetCpa);
         if (!isNaN(numCpa) && numCpa > 0) {
           effectiveState.targetCpa = numCpa;
@@ -12468,10 +12614,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <DollarSign className="w-3 h-3 text-emerald-600" />
                       <span>Daily Budget</span>
                     </button>
-                    {(campaignState.campaignType as string) === "APP" ? (
+                    {(campaignState.campaignType as string) === "APP" || (campaignState.campaignType as string) === "DISPLAY" ? (
                       <div
                         className="flex-1 py-1 px-2 rounded-lg text-[10.5px] font-medium flex items-center justify-center gap-1 bg-slate-200/60 text-slate-400 border border-slate-200 cursor-not-allowed select-none"
-                        title="Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX."
+                        title={`Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${campaignState.campaignType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`}
                       >
                         <Layers className="w-3 h-3 text-slate-400" />
                         <span>Total Budget</span>
@@ -12503,10 +12649,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </button>
                     )}
                   </div>
-                  {(campaignState.campaignType as string) === "APP" && (
+                  {((campaignState.campaignType as string) === "APP" || (campaignState.campaignType as string) === "DISPLAY") && (
                     <div className="mt-1.5 text-[10px] text-amber-700 bg-amber-50 border border-amber-200/80 rounded-lg p-1.5 flex items-start gap-1">
                       <AlertCircle className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
-                      <span>Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.</span>
+                      <span>Campaign Total Budget (CUSTOM_PERIOD) is not supported for {campaignState.campaignType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.</span>
                     </div>
                   )}
                 </div>

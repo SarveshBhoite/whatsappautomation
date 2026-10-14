@@ -324,33 +324,7 @@ export default function CampaignCreatePage() {
   const [merchantCenterAccount, setMerchantCenterAccount] = useState<string>("");
   const [feedLabel, setFeedLabel] = useState<string>("");
 
-  // Fetch existing drafts on mount / customerId change
-  useEffect(() => {
-    const fetchDrafts = async () => {
-      setIsLoadingDrafts(true);
-      try {
-        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-        const url = customerId
-          ? `${BACKEND}/api/ads/campaigns/drafts?customerId=${customerId}`
-          : `${BACKEND}/api/ads/campaigns/drafts`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setExistingDrafts(data);
-            if (data.length > 0) {
-              setSelectedDraftId(data[0].id || data[0].campaignId);
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load drafts:", err);
-      } finally {
-        setIsLoadingDrafts(false);
-      }
-    };
-    fetchDrafts();
-  }, [customerId]);
+
 
   // Search Reach Goals State
   const [websiteVisitsUrl, setWebsiteVisitsUrl] = useState<string>("");
@@ -844,12 +818,16 @@ export default function CampaignCreatePage() {
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     if (customerId) {
       fetch(`${BACKEND}/api/ads/customer-info?orgId=${encodeURIComponent(orgId)}&customerId=${customerId}`)
-        .then(r => r.json())
+        .then(r => r.ok ? r.json() : null)
         .then(d => {
-          setAccountInfo({
-            customerId: d.customerId || customerId,
-            name: d.descriptiveName || `Account ${customerId}`
-          });
+          if (d) {
+            setAccountInfo({
+              customerId: d.customerId || customerId,
+              name: d.descriptiveName || `Account ${customerId}`
+            });
+          } else {
+            setAccountInfo({ customerId, name: `Account ${customerId}` });
+          }
         })
         .catch(() => {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
@@ -857,7 +835,7 @@ export default function CampaignCreatePage() {
 
       // Fetch customer profile to check mobile apps and merchant connection
       fetch(`${BACKEND}/api/ads/customer-profile?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(customerId)}`)
-        .then(r => r.json())
+        .then(r => r.ok ? r.json() : null)
         .then(prof => {
           if (prof && prof.success !== false) {
             setCustomerProfile(prof);
@@ -893,14 +871,14 @@ export default function CampaignCreatePage() {
           }
         })
         .catch(err => {
-          console.error("Failed to load customer profile for app connection check", err);
+          console.warn("Notice: could not load customer profile:", err?.message || err);
         });
     }
 
     // Fetch existing campaign drafts
     setIsLoadingDrafts(true);
     fetch(`${BACKEND}/api/ads/campaigns/drafts?orgId=${encodeURIComponent(orgId)}${customerId ? `&customerId=${encodeURIComponent(customerId)}` : ""}`)
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : [])
       .then(data => {
         if (Array.isArray(data)) {
           setExistingDrafts(data);
@@ -910,7 +888,7 @@ export default function CampaignCreatePage() {
         }
       })
       .catch(err => {
-        console.error("Failed to load drafts:", err);
+        console.warn("Notice: could not load drafts:", err?.message || err);
       })
       .finally(() => {
         setIsLoadingDrafts(false);

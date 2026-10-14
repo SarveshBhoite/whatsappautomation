@@ -1046,16 +1046,37 @@ function SettingsTab({
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
-function SearchParamsHandler({ onOAuth }: { onOAuth: (status: string, tab: string) => void }) {
+function SearchParamsHandler({
+  onOAuth,
+  onCustomerId,
+  onTab
+}: {
+  onOAuth: (status: string, tab: string) => void;
+  onCustomerId?: (cid: string) => void;
+  onTab?: (tab: Tab) => void;
+}) {
   const searchParams = useSearchParams();
   useEffect(() => {
     const oauthStatus = searchParams.get("oauth") || "";
     const tabParam = searchParams.get("tab") || "";
-    if (oauthStatus || tabParam) {
-      onOAuth(oauthStatus, tabParam);
-      window.history.replaceState({}, document.title, window.location.pathname);
+    const customerIdParam = searchParams.get("customerId") || "";
+
+    if (customerIdParam && onCustomerId) {
+      onCustomerId(customerIdParam.replace(/-/g, "").trim());
     }
-  }, [searchParams, onOAuth]);
+    if (tabParam && onTab) {
+      onTab(tabParam as Tab);
+    }
+
+    if (oauthStatus) {
+      onOAuth(oauthStatus, tabParam);
+      // Clean up only oauth param from URL while preserving customerId
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.delete("oauth");
+      const qs = newParams.toString();
+      window.history.replaceState({}, document.title, window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, [searchParams, onOAuth, onCustomerId, onTab]);
   return null;
 }
 
@@ -1252,7 +1273,9 @@ export default function GoogleAdsPage() {
         const activeCfg = data?.config || data || {};
         setIsConnected(!!(activeCfg.googleRefreshToken || data?.googleRefreshToken));
         const adsCid = activeCfg.googleAdsCustomerId || data?.googleAdsCustomerId;
-        if (adsCid) setSelectedCustomerId(adsCid.replace(/-/g, ""));
+        if (adsCid) {
+          setSelectedCustomerId(prev => prev || adsCid.replace(/-/g, ""));
+        }
       } catch { } finally { setConfigLoading(false); }
     })();
   }, [orgId]);
@@ -2522,7 +2545,19 @@ export default function GoogleAdsPage() {
   return (
     <div className="flex flex-col h-full bg-slate-50 text-slate-900 overflow-hidden">
       <Suspense fallback={null}>
-        <SearchParamsHandler onOAuth={handleOAuthParams} />
+        <SearchParamsHandler
+          onOAuth={handleOAuthParams}
+          onCustomerId={(cid) => {
+            if (cid && cid !== selectedCustomerId) {
+              setSelectedCustomerId(cid);
+            }
+          }}
+          onTab={(tab) => {
+            if (tab) {
+              setActiveTab(tab);
+            }
+          }}
+        />
       </Suspense>
 
       {/* ── Top Header Bar ── */}
@@ -2828,14 +2863,7 @@ export default function GoogleAdsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => {
-                                setSelectedCampaignDetails(c);
-                                setActiveDetailsTab("info");
-                                setDetailName(c.name);
-                                setDetailBudget(c.budget);
-                                setDetailStatus(c.liveStatus || c.status);
-                                setDetailEndDate(c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "");
-                              }}
+                              onClick={() => openEditCampaignModal(c, "info")}
                               className="font-bold text-blue-600 hover:text-blue-800 hover:underline text-left text-sm truncate max-w-[200px] block focus:outline-none cursor-pointer"
                             >
                               {c.name}
