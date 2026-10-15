@@ -3668,6 +3668,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   // ── Media Source Choice Modal & Past Media Library State ──
   const [isMediaSourceModalOpen, setIsMediaSourceModalOpen] = useState<boolean>(false);
   const [isPastMediaModalOpen, setIsPastMediaModalOpen] = useState<boolean>(false);
+  const [isMerchantProductModalOpen, setIsMerchantProductModalOpen] = useState<boolean>(false);
+  const [merchantProductSearchQuery, setMerchantProductSearchQuery] = useState<string>("");
   const [pastMediaList, setPastMediaList] = useState<Array<any>>([]);
   const [isLoadingPastMedia, setIsLoadingPastMedia] = useState<boolean>(false);
   const [pastMediaSearchQuery, setPastMediaSearchQuery] = useState<string>("");
@@ -6581,6 +6583,106 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
     setIsPastMediaModalOpen(false);
     setIsMediaSourceModalOpen(false);
+  };
+
+  const handleSelectMerchantProductImage = (prod: any) => {
+    const rawImageUrl = prod.imageLink || (Array.isArray(prod.additionalImageLinks) ? prod.additionalImageLinks[0] : null);
+    if (!rawImageUrl) {
+      alert("This Merchant Center product does not have an image URL.");
+      return;
+    }
+
+    const targetType = activeUploadTarget === "LOGO" ? "LOGO" : "IMAGE";
+    const prodTitle = prod.title || "merchant_product";
+    const safeProdName = `${prodTitle.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40)}.jpg`;
+
+    // Duplicate check
+    const isAlreadyAttached = [
+      ...(campaignState.images || []),
+      ...(campaignState.logos || [])
+    ].some(media => {
+      const mediaUrl = typeof media === "string" ? media : (media as any)?.url || "";
+      return mediaUrl && mediaUrl === rawImageUrl;
+    });
+
+    if (isAlreadyAttached) {
+      alert(`The image for "${prodTitle}" is already attached to this campaign.`);
+      return;
+    }
+
+    setIsMerchantProductModalOpen(false);
+    setIsMediaSourceModalOpen(false);
+
+    // Read image dimensions and open cropper if violation or allow ratio editing
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const dimensions = { width: img.width, height: img.height };
+      const ratio = img.width / (img.height || 1);
+      let ruleViolationReason: string | null = null;
+      const isDisplayMode = campaignState.campaignType === "DISPLAY";
+
+      if (targetType === "LOGO") {
+        const isSquare = ratio >= 0.97 && ratio <= 1.03;
+        const isLandscapeLogo = ratio >= 3.9 && ratio <= 4.1;
+        if (!isSquare && !isLandscapeLogo) {
+          ruleViolationReason = `Logo aspect ratio (${ratio.toFixed(2)}:1, ${img.width}x${img.height}px) does not match Google Ads logo specifications. Required: Square (1:1) or Landscape (4:1).`;
+        } else if (isSquare && (img.width < 128 || img.height < 128)) {
+          ruleViolationReason = `Square logo must be at least 128x128 pixels (current: ${img.width}x${img.height}px).`;
+        } else if (isLandscapeLogo && (img.width < 512 || img.height < 128)) {
+          ruleViolationReason = `Landscape logo (4:1) must be at least 512x128 pixels (current: ${img.width}x${img.height}px).`;
+        }
+      } else {
+        if (isDisplayMode) {
+          const isLandscape = ratio >= 1.83 && ratio <= 2.05;
+          const isSquare = ratio >= 0.95 && ratio <= 1.05;
+          if (!isLandscape && !isSquare) {
+            ruleViolationReason = `Display campaigns support only Landscape (1.91:1) or Square (1:1) images. Current image is ${img.width}x${img.height}px (${ratio.toFixed(2)}:1). Please crop to a valid format.`;
+          } else if (isSquare && (img.width < 300 || img.height < 300)) {
+            ruleViolationReason = `Display Square image (1:1) must be at least 300x300 pixels (current: ${img.width}x${img.height}px).`;
+          } else if (isLandscape && (img.width < 600 || img.height < 314)) {
+            ruleViolationReason = `Display Landscape image (1.91:1) must be at least 600x314 pixels (current: ${img.width}x${img.height}px).`;
+          }
+        } else {
+          const isLandscape = ratio >= 1.8 && ratio <= 2.05;
+          const isSquare = ratio >= 0.95 && ratio <= 1.05;
+          const isPortrait45 = ratio >= 0.75 && ratio <= 0.85;
+          const isTall916 = ratio >= 0.50 && ratio <= 0.62;
+          const matchesStandardRatio = isLandscape || isSquare || isPortrait45 || isTall916;
+          if (!matchesStandardRatio) {
+            ruleViolationReason = `Product image aspect ratio (${ratio.toFixed(2)}:1, ${img.width}x${img.height}px) does not match standard creative ratios (Landscape 1.91:1, Square 1:1, Portrait 4:5, or Story 9:16).`;
+          } else if (img.width < 300 || img.height < 300) {
+            ruleViolationReason = `Marketing image must have at least 300x300px minimum dimension (current: ${img.width}x${img.height}px).`;
+          }
+        }
+      }
+
+      // Always open image edit box so user can confirm and format aspect ratio to adhere to Google Ads rules
+      triggerImageEditor(
+        rawImageUrl,
+        targetType,
+        safeProdName,
+        null,
+        dimensions,
+        ruleViolationReason,
+        null
+      );
+    };
+
+    img.onerror = () => {
+      // If direct cross-origin fetch fails, still trigger image editor with URL
+      triggerImageEditor(
+        rawImageUrl,
+        targetType,
+        safeProdName,
+        null,
+        { width: 800, height: 800 },
+        null,
+        null
+      );
+    };
+
+    img.src = rawImageUrl;
   };
 
   const handleDeletePastMediaItem = async (e: React.MouseEvent, item: any) => {
@@ -27486,80 +27588,120 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             </div>
 
             {/* Selection Options */}
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-slate-50/50">
-              {/* Option 1: Device File Explorer */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMediaSourceModalOpen(false);
-                  if (activeUploadTarget === "IMAGE") imageInputRef.current?.click();
-                  else if (activeUploadTarget === "LOGO") logoInputRef.current?.click();
-                  else if (activeUploadTarget === "VIDEO") videoInputRef.current?.click();
-                }}
-                className="p-4 rounded-2xl border-2 border-slate-200 hover:border-blue-500 bg-white hover:bg-blue-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
-              >
-                <div className="h-12 w-12 rounded-2xl bg-blue-100/70 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <UploadCloud className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="font-bold text-xs text-slate-800 group-hover:text-blue-600">
-                    Device File Explorer
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                    Upload from local drive, camera or PC
-                  </p>
-                </div>
-              </button>
+            {(() => {
+              const effectiveProf = customerProfile || campaignState.customerProfile;
+              const isMerchantConn = Boolean(isMerchantVerified(effectiveProf));
+              const activeMerchantId = (
+                campaignState.merchantCenterId ||
+                (campaignState as any).merchantId ||
+                effectiveProf?.merchantCenterId ||
+                effectiveProf?.merchantId ||
+                ""
+              ).toString().trim();
+              const hasMerchant = isMerchantConn || (activeMerchantId.length > 0 && /^\d+$/.test(activeMerchantId)) || Boolean(hasMerchantCenterAccount);
 
-              {/* Option 2: Choose Past Files */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMediaSourceModalOpen(false);
-                  fetchPastMediaLibrary();
-                  setIsPastMediaModalOpen(true);
-                }}
-                className="p-4 rounded-2xl border-2 border-slate-200 hover:border-purple-500 bg-white hover:bg-purple-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
-              >
-                <div className="h-12 w-12 rounded-2xl bg-purple-100/70 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Bookmark className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="font-bold text-xs text-slate-800 group-hover:text-purple-600">
-                    Past Files & Media Library
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                    Browse previously saved ImageKit assets
-                  </p>
-                </div>
-              </button>
+              return (
+                <div className={`p-5 grid grid-cols-1 ${hasMerchant ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3.5 bg-slate-50/50`}>
+                  {/* Option 1: Device File Explorer */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMediaSourceModalOpen(false);
+                      if (activeUploadTarget === "IMAGE") imageInputRef.current?.click();
+                      else if (activeUploadTarget === "LOGO") logoInputRef.current?.click();
+                      else if (activeUploadTarget === "VIDEO") videoInputRef.current?.click();
+                    }}
+                    className="p-4 rounded-2xl border-2 border-slate-200 hover:border-blue-500 bg-white hover:bg-blue-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
+                  >
+                    <div className="h-12 w-12 rounded-2xl bg-blue-100/70 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <UploadCloud className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-xs text-slate-800 group-hover:text-blue-600">
+                        Device File Explorer
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                        Upload from local drive, camera or PC
+                      </p>
+                    </div>
+                  </button>
 
-              {/* Option 3: YouTube Video URL (For Videos) */}
-              {activeUploadTarget === "VIDEO" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMediaSourceModalOpen(false);
-                    setYoutubeVideoUrlError(null);
-                    setYoutubeVideoUrlInput("");
-                    setIsYoutubeUrlModalOpen(true);
-                  }}
-                  className="p-4 rounded-2xl border-2 border-slate-200 hover:border-rose-500 bg-white hover:bg-rose-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md sm:col-span-2"
-                >
-                  <div className="h-12 w-12 rounded-2xl bg-rose-100/70 text-rose-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <Video className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-xs text-slate-800 group-hover:text-rose-600">
-                      Enter YouTube Video URL
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                      Paste a direct YouTube URL (e.g. youtube.com/watch?v=... or youtu.be/...)
-                    </p>
-                  </div>
-                </button>
-              )}
-            </div>
+                  {/* Option 2: Choose Past Files */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMediaSourceModalOpen(false);
+                      fetchPastMediaLibrary();
+                      setIsPastMediaModalOpen(true);
+                    }}
+                    className="p-4 rounded-2xl border-2 border-slate-200 hover:border-purple-500 bg-white hover:bg-purple-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
+                  >
+                    <div className="h-12 w-12 rounded-2xl bg-purple-100/70 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <Bookmark className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-xs text-slate-800 group-hover:text-purple-600">
+                        Past Files & Media Library
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                        Browse previously saved ImageKit assets
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option 3: Merchant Product Images (Condition: Display ONLY when Merchant Account is connected) */}
+                  {hasMerchant && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMediaSourceModalOpen(false);
+                        setMerchantProductSearchQuery("");
+                        setIsMerchantProductModalOpen(true);
+                      }}
+                      className="p-4 rounded-2xl border-2 border-slate-200 hover:border-emerald-500 bg-white hover:bg-emerald-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
+                    >
+                      <div className="h-12 w-12 rounded-2xl bg-emerald-100/70 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <ShoppingBag className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-xs text-slate-800 group-hover:text-emerald-600 flex items-center justify-center gap-1">
+                          <span>Merchant Product Images</span>
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                          Select from live connected Google Merchant feed
+                        </p>
+                      </div>
+                    </button>
+                  )}
+
+                  {/* Option for YouTube Video URL (For Videos) */}
+                  {activeUploadTarget === "VIDEO" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMediaSourceModalOpen(false);
+                        setYoutubeVideoUrlError(null);
+                        setYoutubeVideoUrlInput("");
+                        setIsYoutubeUrlModalOpen(true);
+                      }}
+                      className="p-4 rounded-2xl border-2 border-slate-200 hover:border-rose-500 bg-white hover:bg-rose-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md sm:col-span-2"
+                    >
+                      <div className="h-12 w-12 rounded-2xl bg-rose-100/70 text-rose-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Video className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-xs text-slate-800 group-hover:text-rose-600">
+                          Enter YouTube Video URL
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                          Paste a direct YouTube URL (e.g. youtube.com/watch?v=... or youtu.be/...)
+                        </p>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Footer */}
             <div className="p-3 bg-slate-100/80 border-t border-slate-200 flex justify-end">
@@ -27968,6 +28110,211 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 2B: MERCHANT PRODUCT IMAGES PICKER MODAL                */}
+      {/* ------------------------------------------------------------- */}
+      {isMerchantProductModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col scale-in-95 duration-150">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 via-teal-50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                  <ShoppingBag className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                    <span>Merchant Product Images</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      Target: {activeUploadTarget.toUpperCase()}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Select a product image from your connected Google Merchant Center catalog to format and upload
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const effectiveProf = customerProfile || campaignState.customerProfile;
+                    const activeMerchantId = (
+                      campaignState.merchantCenterId ||
+                      (campaignState as any).merchantId ||
+                      effectiveProf?.merchantCenterId ||
+                      effectiveProf?.merchantId ||
+                      ""
+                    ).toString().trim();
+                    if (activeMerchantId) {
+                      setIsLoadingMerchantProducts(true);
+                      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                      const storedOrg = typeof window !== "undefined" ? localStorage.getItem("organization_id") || "" : "";
+                      fetch(`${BACKEND}/api/ads/merchant-products?orgId=${encodeURIComponent(storedOrg)}&customerId=${encodeURIComponent(customerId || "")}&merchantId=${encodeURIComponent(activeMerchantId)}`, {
+                        headers: { "x-organization-id": storedOrg, "x-customer-id": customerId || "" }
+                      })
+                        .then(r => r.json())
+                        .then(d => {
+                          if (Array.isArray(d.products)) setMerchantProductsList(d.products);
+                        })
+                        .finally(() => setIsLoadingMerchantProducts(false));
+                    }
+                  }}
+                  disabled={isLoadingMerchantProducts}
+                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer text-xs font-semibold flex items-center gap-1"
+                  title="Refresh catalog"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isLoadingMerchantProducts ? "animate-spin text-emerald-600" : ""}`} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsMerchantProductModalOpen(false)}
+                  className="p-1.5 rounded-full hover:bg-slate-200/70 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Search Bar & Stats */}
+            <div className="p-3 sm:p-4 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={merchantProductSearchQuery}
+                  onChange={(e) => setMerchantProductSearchQuery(e.target.value)}
+                  placeholder="Search products by title, brand, or SKU..."
+                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 shadow-2xs"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500 bg-white px-2.5 py-1.5 rounded-xl border border-slate-200">
+                  {merchantProductsList.length} Products Found
+                </span>
+              </div>
+            </div>
+
+            {/* Products Image Gallery */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 min-h-[300px]">
+              {isLoadingMerchantProducts ? (
+                <div className="py-20 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                  <span className="font-semibold text-slate-700">Loading live product catalog from Google Merchant Center...</span>
+                </div>
+              ) : merchantProductsList.length === 0 ? (
+                <div className="py-20 text-center text-xs text-slate-400 space-y-3">
+                  <ShoppingBag className="h-12 w-12 text-slate-300 mx-auto" />
+                  <p className="font-bold text-sm text-slate-700">No merchant products detected</p>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Ensure your Google Merchant Center account has approved items with active image URLs synced.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                  {merchantProductsList
+                    .filter((prod) => {
+                      if (!merchantProductSearchQuery.trim()) return true;
+                      const q = merchantProductSearchQuery.toLowerCase();
+                      const titleMatch = (prod.title || "").toLowerCase().includes(q);
+                      const brandMatch = (prod.brand || "").toLowerCase().includes(q);
+                      const idMatch = (prod.id || "").toLowerCase().includes(q);
+                      return titleMatch || brandMatch || idMatch;
+                    })
+                    .map((prod, idx) => {
+                      const imgUrl = prod.imageLink || (Array.isArray(prod.additionalImageLinks) ? prod.additionalImageLinks[0] : null);
+                      const priceDisplay = typeof prod.price === "string" ? prod.price : (prod.price?.value ? `${prod.price.currency || "INR"} ${prod.price.value}` : null);
+
+                      return (
+                        <div
+                          key={prod.id || idx}
+                          className="group relative rounded-2xl border border-slate-200 bg-white overflow-hidden hover:border-emerald-400 hover:shadow-lg transition-all flex flex-col"
+                        >
+                          {/* Image Box */}
+                          <div className="relative aspect-square w-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                            {imgUrl ? (
+                              <img
+                                src={imgUrl}
+                                alt={prod.title}
+                                className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-200"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-slate-400 p-2">
+                                <ShoppingBag className="h-8 w-8 text-slate-300" />
+                                <span className="text-[10px] text-slate-400 mt-1">No Image Available</span>
+                              </div>
+                            )}
+
+                            {/* Badge */}
+                            <div className="absolute top-2 left-2 flex flex-col gap-1 items-start pointer-events-none">
+                              {prod.brand && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-black/70 text-white text-[9px] font-bold backdrop-blur-xs truncate max-w-[120px]">
+                                  {prod.brand}
+                                </span>
+                              )}
+                              <span className={`px-1.5 py-0.5 rounded-md text-[8.5px] font-bold uppercase shadow-2xs ${
+                                (prod.availability || "").toLowerCase().includes("out")
+                                  ? "bg-rose-500 text-white"
+                                  : "bg-emerald-600 text-white"
+                              }`}>
+                                {prod.availability || "in stock"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Info and Select Button */}
+                          <div className="p-3 flex flex-col justify-between flex-1 gap-2 bg-white">
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-bold text-slate-800 line-clamp-2 leading-tight" title={prod.title}>
+                                {prod.title}
+                              </p>
+                              {priceDisplay && (
+                                <p className="text-[10.5px] font-bold text-emerald-700 font-mono mt-1">
+                                  {priceDisplay}
+                                </p>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSelectMerchantProductImage(prod)}
+                              disabled={!imgUrl}
+                              className={`w-full py-1.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                                imgUrl
+                                  ? "bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border-emerald-200 hover:border-emerald-600"
+                                  : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                              }`}
+                            >
+                              <Crop className="h-3 w-3" />
+                              <span>Select & Crop Image</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Selected images will open directly in the Google Ads image crop editor to ensure compliance with all aspect ratio guidelines.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsMerchantProductModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition-all cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
