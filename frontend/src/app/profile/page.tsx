@@ -59,6 +59,8 @@ interface OrgStatusResponse {
   status: string;
   enabledModules: string[];
   subscription?: SubscriptionData | null;
+  upcomingSubscription?: SubscriptionData | null;
+  allSubscriptions?: SubscriptionData[];
 }
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -256,14 +258,34 @@ export default function ProfilePage() {
 
   const finalizeUpgrade = async (paymentDetails: any) => {
     try {
-      // Re-fetch status to refresh active subscription card immediately
+      const upgradeRes = await fetch(`${BACKEND_URL}/api/subscription/upgrade`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: orgId,
+          planCode: selectedPlanCode,
+          extraChannels,
+          ...paymentDetails,
+        }),
+      });
+
+      const upgradeData = await upgradeRes.json();
+      if (!upgradeRes.ok || !upgradeData.success) {
+        throw new Error(upgradeData.error || "Failed to finalize plan update");
+      }
+
+      // Re-fetch status to refresh active and upcoming subscription cards immediately
       if (orgId) {
         await fetchStatus(orgId);
       }
-      setActionMsg({ text: `Plan successfully updated to ${selectedTier.name}!`, type: "success" });
+      setActionMsg({ 
+        text: upgradeData.message || `Plan successfully updated to ${selectedTier.name}!`, 
+        type: "success" 
+      });
       setIsUpgradeSectionOpen(false);
     } catch (e: any) {
-      setActionMsg({ text: "Plan payment verified, please refresh the page.", type: "success" });
+      console.error(e);
+      setActionMsg({ text: e.message || "Plan payment verified, please refresh the page.", type: "error" });
     } finally {
       setIsProcessingUpgrade(false);
     }
@@ -406,84 +428,228 @@ export default function ProfilePage() {
             </Button>
           </div>
 
-          {/* Active Subscription Cockpit Card */}
-          <div className="lg:col-span-7 p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-sky-950 text-white shadow-xl shadow-slate-900/15 border border-slate-800 flex flex-col justify-between space-y-6 relative overflow-hidden">
-            {/* Top Glow Ambient Accent */}
-            <div className="absolute top-0 right-0 w-72 h-72 bg-brand-blue/15 rounded-full blur-3xl pointer-events-none" />
+          {/* Active & Upcoming Subscription Cockpit Card */}
+          <div className="lg:col-span-7 flex flex-col gap-5">
+            {/* 1. CURRENT ACTIVE PLAN CARD */}
+            <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-sky-950 text-white shadow-xl shadow-slate-900/15 border border-slate-800 flex flex-col justify-between space-y-6 relative overflow-hidden">
+              {/* Top Glow Ambient Accent */}
+              <div className="absolute top-0 right-0 w-72 h-72 bg-brand-blue/15 rounded-full blur-3xl pointer-events-none" />
 
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <span className="text-xs font-black uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Current Active Plan
-                </span>
-                <Badge className={isExpired ? "bg-rose-500 text-white text-[10px]" : "bg-emerald-500 text-white text-[10px]"}>
-                  {sub?.status || "ACTIVE"}
-                </Badge>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mt-4">
-                <div>
-                  <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                    {sub?.planName || "Annual Complete Growth Plan"}
-                  </h2>
-                  <p className="text-xs text-slate-300 mt-1">
-                    Valid for: <span className="font-bold text-sky-300">{sub?.durationMonths ? `${sub.durationMonths} Months` : "12 Months"}</span>
-                    {sub?.extraChannels ? ` • Includes ${sub.extraChannels} Extra Account(s)` : ""}
-                  </p>
-                </div>
-                {sub?.amountPaid && (
-                  <div className="sm:text-right">
-                    <span className="text-xs text-slate-400 block font-semibold">Total Paid</span>
-                    <span className="text-2xl font-black text-sky-400">
-                      ₹{sub.amountPaid.toLocaleString("en-IN")}
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Current Active Plan
+                    </span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                      ● Active Now
                     </span>
                   </div>
-                )}
+                  <Badge className={isExpired ? "bg-rose-500 text-white text-[10px]" : "bg-emerald-500 text-white text-[10px]"}>
+                    {sub?.status || "ACTIVE"}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mt-4">
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                      {sub?.planName || "Annual Complete Growth Plan"}
+                    </h2>
+                    <p className="text-xs text-slate-300 mt-1">
+                      Duration: <span className="font-bold text-sky-300">{sub?.durationMonths ? `${sub.durationMonths} Months` : "12 Months"}</span>
+                      {sub?.extraChannels ? ` • Includes ${sub.extraChannels} Extra Channel(s)` : ""}
+                    </p>
+                  </div>
+                  {sub?.amountPaid && (
+                    <div className="sm:text-right">
+                      <span className="text-xs text-slate-400 block font-semibold">Amount Paid</span>
+                      <span className="text-2xl font-black text-sky-400">
+                        ₹{sub.amountPaid.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Exact Timeline & Expiry Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                    <Calendar className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Active Since (Date &amp; Time)</span>
+                  </div>
+                  <div className="text-slate-100 font-bold text-sm">
+                    {sub?.startDate
+                      ? new Date(sub.startDate).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "Live Active"}
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-mono">
+                    {sub?.startDate
+                      ? new Date(sub.startDate).toLocaleTimeString("en-IN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: true,
+                        })
+                      : "Instant Provisioning"}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Expires At (Exact Date &amp; Time)</span>
+                  </div>
+                  <div className={`font-black text-sm ${isExpired ? "text-rose-400" : "text-emerald-400"}`}>
+                    {sub?.endDate
+                      ? new Date(sub.endDate).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "Year-Round Active"}
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-mono">
+                    {sub?.endDate
+                      ? new Date(sub.endDate).toLocaleTimeString("en-IN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: true,
+                        })
+                      : "Continuous Access"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Upgrade Drawer Trigger Button */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800/80">
+                <span className="text-[11px] text-slate-300">
+                  {orgData?.upcomingSubscription 
+                    ? "★ You have an upcoming plan scheduled!" 
+                    : "Need to stack another tier or renew in advance?"}
+                </span>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setIsUpgradeSectionOpen(!isUpgradeSectionOpen);
+                    if (!isUpgradeSectionOpen) {
+                      setTimeout(() => {
+                        document.getElementById("upgrade-section")?.scrollIntoView({ behavior: "smooth" });
+                      }, 100);
+                    }
+                  }}
+                  className="w-full sm:w-auto bg-gradient-to-r from-brand-blue to-emerald-500 hover:from-brand-blue-deep hover:to-emerald-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>{isUpgradeSectionOpen ? "Hide Plan Selector" : "Queue / Upgrade Next Plan"}</span>
+                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isUpgradeSectionOpen ? "rotate-90" : ""}`} />
+                </Button>
               </div>
             </div>
 
-            {/* Timeline & Expiry Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm text-xs">
-              <div>
-                <span className="text-slate-400 block text-[10px] font-bold uppercase">Activated On</span>
-                <span className="text-slate-200 font-semibold">
-                  {sub?.startDate ? new Date(sub.startDate).toLocaleDateString() : "Live Active"}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px] font-bold uppercase">Expiration Date</span>
-                <span className={`font-black ${isExpired ? "text-rose-400" : "text-emerald-400"}`}>
-                  {sub?.endDate ? new Date(sub.endDate).toLocaleDateString() : "Year-Round Active"}
-                </span>
-              </div>
-              <div className="col-span-2 sm:col-span-1">
-                <span className="text-slate-400 block text-[10px] font-bold uppercase">Renewal Status</span>
-                <span className="text-sky-300 font-semibold">Self-Service Upgrades</span>
-              </div>
-            </div>
+            {/* 2. UPCOMING PLAN CARD (When user queued or paid a new plan while current is active) */}
+            {orgData?.upcomingSubscription && (
+              <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-900 border-2 border-emerald-500/50 text-white shadow-xl shadow-emerald-950/20 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Upgrade Drawer Trigger Button */}
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-[11px] text-slate-300">
-                Need to extend validity or change tiers?
-              </span>
-              <Button
-                type="button"
-                onClick={() => {
-                  setIsUpgradeSectionOpen(!isUpgradeSectionOpen);
-                  if (!isUpgradeSectionOpen) {
-                    setTimeout(() => {
-                      document.getElementById("upgrade-section")?.scrollIntoView({ behavior: "smooth" });
-                    }, 100);
-                  }
-                }}
-                className="w-full sm:w-auto bg-gradient-to-r from-brand-blue to-emerald-500 hover:from-brand-blue-deep hover:to-emerald-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-1.5"
-              >
-                <span>{isUpgradeSectionOpen ? "Hide Plan Selector" : "Upgrade / Renew Plan"}</span>
-                <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isUpgradeSectionOpen ? "rotate-90" : ""}`} />
-              </Button>
-            </div>
+                <div className="flex items-center justify-between pb-3 border-b border-emerald-900/60">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      Upcoming Scheduled Plan
+                    </span>
+                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-2 py-0.5 rounded-full uppercase">
+                      Queued
+                    </span>
+                  </div>
+                  <Badge className="bg-emerald-500 text-white font-bold text-[10px]">
+                    Auto-Activates on Start Date
+                  </Badge>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mt-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                      {orgData.upcomingSubscription.planName}
+                      <span className="text-xs font-normal text-emerald-300">
+                        ({orgData.upcomingSubscription.durationMonths} Months)
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-1">
+                      Paid in advance • All 12 modules seamlessly continuous without interruption.
+                    </p>
+                  </div>
+                  {orgData.upcomingSubscription.amountPaid && (
+                    <div className="sm:text-right">
+                      <span className="text-xs text-slate-400 block font-semibold">Amount Paid</span>
+                      <span className="text-xl font-black text-emerald-400">
+                        ₹{orgData.upcomingSubscription.amountPaid.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upcoming Plan Exact Timestamps */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 p-4 rounded-2xl bg-white/5 border border-emerald-500/20 backdrop-blur-sm text-xs">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Starts Automatically At</span>
+                    </div>
+                    <div className="text-white font-bold text-sm">
+                      {orgData.upcomingSubscription.startDate
+                        ? new Date(orgData.upcomingSubscription.startDate).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "Upon Current Expiry"}
+                    </div>
+                    <div className="text-[11px] text-emerald-300/80 font-mono">
+                      {orgData.upcomingSubscription.startDate
+                        ? new Date(orgData.upcomingSubscription.startDate).toLocaleTimeString("en-IN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                            hour12: true,
+                          })
+                        : "12:00:00 AM"}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 text-slate-300 text-[10px] font-bold uppercase tracking-wider">
+                      <Clock className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Valid Until (Date &amp; Time)</span>
+                    </div>
+                    <div className="text-emerald-400 font-bold text-sm">
+                      {orgData.upcomingSubscription.endDate
+                        ? new Date(orgData.upcomingSubscription.endDate).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "Extended"}
+                    </div>
+                    <div className="text-[11px] text-slate-400 font-mono">
+                      {orgData.upcomingSubscription.endDate
+                        ? new Date(orgData.upcomingSubscription.endDate).toLocaleTimeString("en-IN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                            hour12: true,
+                          })
+                        : "11:59:59 PM"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

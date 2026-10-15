@@ -388,7 +388,168 @@ router.post("/verify-and-register", async (req: Request, res: Response) => {
 });
 
 /**
+ * POST: Upgrade or renew subscription for an existing organization
+ * When an organization already has an active plan:
+ * - If the current plan has not expired yet, the new plan becomes UPCOMING (starts exactly when current plan ends).
+ * - If the current plan has expired, the new plan starts immediately (ACTIVE).
+ */
+router.post("/upgrade", async (req: Request, res: Response) => {
+  try {
+    const {
+      organizationId,
+      planCode = "annual",
+      extraChannels = 0,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+    } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ error: "organizationId is required" });
+    }
+
+    const org = await (prisma.organization as any).findUnique({
+      where: { id: organizationId },
+      include: {
+        subscriptions: {
+          orderBy: { endDate: "desc" },
+        },
+      },
+    });
+
+    if (!org) {
+      return res.status(404).json({ error: "Organization not found" });
+    }
+
+    // Server-side calculation only
+    const calculation = calculatePricing(planCode, extraChannels);
+    const {
+      grandTotal,
+      planCode: resolvedPlanCode,
+      planName,
+      durationMonths,
+      extraChannelsCount,
+      features,
+    } = calculation;
+
+    // Verify signature if live Razorpay keys are set
+    const razorpay = getRazorpayInstance();
+    if (razorpay && RAZORPAY_KEY_SECRET) {
+      if (!razorpaySignature || !razorpayPaymentId || !razorpayOrderId) {
+        return res.status(400).json({
+          error: "Payment verification failed. Missing transaction identifiers.",
+        });
+      }
+      const generatedSignature = crypto
+        .createHmac("sha256", RAZORPAY_KEY_SECRET)
+        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+        .digest("hex");
+
+      if (generatedSignature !== razorpaySignature) {
+        return res.status(400).json({
+          error: "Payment verification failed. Invalid transaction signature.",
+        });
+      }
+    }
+
+    // Determine startDate and endDate:
+    // Check if there is a currently running subscription
+    const now = new Date();
+    const activeSub = org.subscriptions?.find(
+      (s: any) => s.status === "ACTIVE" && new Date(s.endDate).getTime() > now.getTime()
+    );
+
+    let startDate: Date;
+    let status: string;
+
+    if (activeSub) {
+      // The new plan is queued to start immediately upon current plan expiration
+      startDate = new Date(activeSub.endDate);
+      status = "UPCOMING";
+    } else {
+      // Current plan expired or none exists -> starts now
+      startDate = new Date();
+      status = "ACTIVE";
+    }
+
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + durationMonths);
+
+    const newSub = await (prisma as any).subscription.create({
+      data: {
+        organizationId: org.id,
+        planCode: resolvedPlanCode,
+        planName,
+        billingCycle: `${durationMonths}_months`,
+        durationMonths,
+        amountPaid: grandTotal,
+        currency: "INR",
+        status,
+        startDate,
+        endDate,
+        paymentMode: "ONE_TIME",
+        featuresIncluded: features,
+        maxUsers: 10 + extraChannelsCount * 2,
+        maxContacts: 50000,
+        maxAiTokens: 0,
+        extraChannels: extraChannelsCount,
+        razorpayOrderId: razorpayOrderId || null,
+        razorpayPaymentId: razorpayPaymentId || `pay_mock_${Date.now()}`,
+        razorpaySignature: razorpaySignature || null,
+      },
+    });
+
+    // Record Payment Transaction
+    if (razorpayOrderId) {
+      await (prisma as any).paymentTransaction.upsert({
+        where: { razorpayOrderId },
+        update: {
+          organizationId: org.id,
+          razorpayPaymentId: razorpayPaymentId || null,
+          razorpaySignature: razorpaySignature || null,
+          status: "captured",
+        },
+        create: {
+          organizationId: org.id,
+          razorpayOrderId,
+          razorpayPaymentId: razorpayPaymentId || null,
+          razorpaySignature: razorpaySignature || null,
+          amount: grandTotal,
+          currency: "INR",
+          status: "captured",
+          planCode: resolvedPlanCode,
+          billingCycle: `${durationMonths}_months`,
+          customerEmail: org.name || "workspace@jisnucrm.com",
+          metadata: {
+            isUpgrade: true,
+            status,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            calculation,
+          },
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        status === "UPCOMING"
+          ? `Upcoming plan scheduled! Will automatically activate on ${startDate.toLocaleString("en-IN")}.`
+          : `Plan activated successfully until ${endDate.toLocaleString("en-IN")}!`,
+      subscription: newSub,
+      currentPlanActive: activeSub || null,
+      upcomingPlan: status === "UPCOMING" ? newSub : null,
+    });
+  } catch (error: any) {
+    console.error("Error creating upgraded subscription:", error);
+    return res.status(500).json({ error: "Failed to upgrade subscription", details: error.message });
+  }
+});
+
+/**
  * GET: Current organization's subscription status
+ * Returns current plan, upcoming plan (if queued), and full history
  */
 router.get("/status", async (req: Request, res: Response) => {
   try {
@@ -402,8 +563,7 @@ router.get("/status", async (req: Request, res: Response) => {
       where: { id: orgId },
       include: {
         subscriptions: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
+          orderBy: { startDate: "asc" },
         },
       },
     });
@@ -412,7 +572,28 @@ router.get("/status", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Organization not found" });
     }
 
-    const currentSub = org.subscriptions?.[0] || null;
+    const nowTime = Date.now();
+    const subs: any[] = org.subscriptions || [];
+
+    // Find current active subscription:
+    // Status is ACTIVE and current time is within [startDate, endDate]
+    let currentSub = subs.find((s) => {
+      const sStart = new Date(s.startDate).getTime();
+      const sEnd = new Date(s.endDate).getTime();
+      return (s.status === "ACTIVE" || !s.status) && sStart <= nowTime && sEnd >= nowTime;
+    });
+
+    // If no sub precisely within time range, pick latest sub marked ACTIVE or most recent
+    if (!currentSub && subs.length > 0) {
+      currentSub = subs[subs.length - 1];
+    }
+
+    // Find upcoming subscription:
+    // Sub with status UPCOMING or with startDate > nowTime
+    const upcomingSub = subs.find((s) => {
+      const sStart = new Date(s.startDate).getTime();
+      return (s.status === "UPCOMING" || sStart > nowTime) && s.id !== currentSub?.id;
+    });
 
     return res.status(200).json({
       success: true,
@@ -420,7 +601,9 @@ router.get("/status", async (req: Request, res: Response) => {
       organizationName: org.name,
       status: org.status,
       enabledModules: org.enabledModules,
-      subscription: currentSub,
+      subscription: currentSub || null,
+      upcomingSubscription: upcomingSub || null,
+      allSubscriptions: subs,
     });
   } catch (error: any) {
     return res.status(500).json({ error: "Failed to retrieve subscription status", details: error.message });
