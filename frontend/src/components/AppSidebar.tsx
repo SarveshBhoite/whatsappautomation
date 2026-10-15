@@ -250,8 +250,8 @@ export default function AppSidebar() {
           </div>
 
           <div className="relative shrink-0">
-            <button
-              onClick={() => setIsProfileOpen(true)}
+            <Link
+              href="/profile"
               onMouseEnter={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 setHoveredNav({
@@ -260,10 +260,19 @@ export default function AppSidebar() {
                 });
               }}
               onMouseLeave={() => setHoveredNav(null)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-700 hover:text-brand-blue-deep hover:bg-white/90 hover:shadow-2xs transition-all duration-200 cursor-pointer"
+              className={`
+                w-10 h-10 rounded-xl flex items-center justify-center relative
+                transition-all duration-200
+                ${isActive("/profile")
+                  ? "bg-gradient-to-br from-brand-blue to-brand-blue-deep text-white font-bold shadow-md shadow-brand-blue/25 scale-105"
+                  : "text-slate-700 hover:text-brand-blue-deep hover:bg-white/90 hover:shadow-2xs"}
+              `}
             >
+              {isActive("/profile") && (
+                <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-brand-blue rounded-r-full" />
+              )}
               <User className="h-5 w-5" />
-            </button>
+            </Link>
           </div>
         </div>
       </aside>
@@ -319,13 +328,18 @@ export default function AppSidebar() {
           );
         })}
 
-        <button
-          onClick={() => setIsProfileOpen(true)}
+        <Link
+          href="/profile"
           title="User Profile & Plan"
-          className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center text-slate-700 hover:text-brand-blue hover:bg-white/80 transition-all duration-200 cursor-pointer"
+          className={`
+            h-10 w-10 shrink-0 rounded-xl flex items-center justify-center transition-all duration-200
+            ${pathname === "/profile"
+              ? "bg-gradient-to-br from-brand-blue to-brand-blue-deep text-white font-bold shadow-xs"
+              : "text-slate-700 hover:text-brand-blue hover:bg-white/80"}
+          `}
         >
           <User className="h-5 w-5" />
-        </button>
+        </Link>
       </nav>
 
       {/* ── ChatGPT Style User Profile & Plan Details Modal ── */}
