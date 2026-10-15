@@ -279,12 +279,12 @@ router.post("/verify-and-register", async (req: Request, res: Response) => {
 
     // Create Tenant: Organization + Admin User + Subscription Record + Payment Transaction
     const newOrg = await prisma.$transaction(async (tx) => {
-      // 1. Create Organization with enabled modules
+      // 1. Create Organization with enabled modules, status set to PENDING_APPROVAL pending Super Admin verification
       const org = await tx.organization.create({
         data: {
           name: organizationName.trim(),
           enabledModules: enabledModules,
-          status: "ACTIVE",
+          status: "PENDING_APPROVAL",
         },
       });
 
@@ -299,7 +299,7 @@ router.post("/verify-and-register", async (req: Request, res: Response) => {
         },
       });
 
-      // 3. Create Active Subscription record
+      // 3. Create Subscription record (status set to PENDING_APPROVAL)
       const sub = await (tx as any).subscription.create({
         data: {
           organizationId: org.id,
@@ -309,7 +309,7 @@ router.post("/verify-and-register", async (req: Request, res: Response) => {
           durationMonths: durationMonths,
           amountPaid: grandTotal,
           currency: "INR",
-          status: "ACTIVE",
+          status: "PENDING_APPROVAL",
           startDate,
           endDate,
           paymentMode: "ONE_TIME",
@@ -359,7 +359,9 @@ router.post("/verify-and-register", async (req: Request, res: Response) => {
 
     return res.status(201).json({
       success: true,
-      message: "Subscription activated and account provisioned successfully!",
+      pendingApproval: true,
+      approvalTurnaround: "6 to 12 hours",
+      message: "Payment successful! Your company account is registered and submitted for verification. Approval will be completed within 6 to 12 hours.",
       user: {
         id: newOrg.user.id,
         email: newOrg.user.email,
@@ -368,6 +370,7 @@ router.post("/verify-and-register", async (req: Request, res: Response) => {
         organizationId: newOrg.org.id,
         organizationName: newOrg.org.name,
         enabledModules: newOrg.org.enabledModules,
+        status: newOrg.org.status,
       },
       subscription: {
         id: newOrg.sub.id,

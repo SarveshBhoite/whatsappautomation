@@ -59,8 +59,17 @@ router.post("/login", async (req: Request, res: Response) => {
     }
 
     // 4. Client Portal Login (Organization automatically linked from DB)
-    if (user.organization && (user.organization as any).status === "SUSPENDED") {
-      return res.status(403).json({ error: "Organization account has been suspended. Please contact support." });
+    if (user.organization) {
+      const orgStatus = (user.organization as any).status;
+      if (orgStatus === "SUSPENDED") {
+        return res.status(403).json({ error: "Organization account has been suspended. Please contact support." });
+      }
+      if (orgStatus === "PENDING_APPROVAL") {
+        return res.status(403).json({
+          error: "Your company account registration and payment have been received! Account verification & approval is in progress and will be activated within 6 to 12 hours. Please check back shortly.",
+          isPendingApproval: true,
+        });
+      }
     }
 
     return res.status(200).json({
@@ -2838,6 +2847,14 @@ router.get("/organizations", async (req: Request, res: Response) => {
     const organizations = await prisma.organization.findMany({
       include: {
         users: { select: { id: true, email: true, name: true, role: true } },
+        subscriptions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+        paymentTransactions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
         waConfigs: { select: { phoneNumberId: true, wabaId: true } },
         gmbConfigs: { select: { locationId: true, accountId: true } },
         gmailConfigs: { select: { emailAddress: true } },
@@ -2850,6 +2867,36 @@ router.get("/organizations", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error listing organizations:", error);
     return res.status(500).json({ error: "Failed to list organizations", details: error.message });
+  }
+});
+
+// POST: Approve an organization (Super Admin action)
+router.post("/organizations/:id/approve", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.params.id as string;
+    const organization = await (prisma.organization as any).update({
+      where: { id: orgId },
+      data: { status: "ACTIVE" },
+      include: {
+        users: { select: { id: true, email: true, name: true, role: true } },
+        subscriptions: true,
+      },
+    });
+
+    // Also update any PENDING_APPROVAL subscription for this org to ACTIVE
+    await (prisma as any).subscription.updateMany({
+      where: { organizationId: orgId, status: "PENDING_APPROVAL" },
+      data: { status: "ACTIVE" },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Organization "${organization.name}" has been approved and activated!`,
+      organization,
+    });
+  } catch (error: any) {
+    console.error("Error approving organization:", error);
+    return res.status(500).json({ error: "Failed to approve organization", details: error.message });
   }
 });
 

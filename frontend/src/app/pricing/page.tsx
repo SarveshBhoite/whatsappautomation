@@ -769,55 +769,66 @@ export default function PricingPage() {
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto max-h-[75vh]">
               {successData ? (
-                /* Success Activation Screen */
+                /* Success Screen with 6 to 12 Hour Approval Notice */
                 <div className="text-center py-6 space-y-4">
-                  <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-10 h-10" />
+                  <div className="h-16 w-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-600" />
                   </div>
-                  <h4 className="text-2xl font-black text-slate-900">Subscription Active!</h4>
-                  <p className="text-sm text-slate-600">
-                    Your account and organization workspace have been provisioned successfully with all modules unlocked.
-                  </p>
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-300 text-amber-800 text-xs font-black uppercase tracking-wider mb-2">
+                      Payment Received • Verification in Progress
+                    </span>
+                    <h4 className="text-2xl font-black text-slate-900">
+                      Approval Turnaround: 6 to 12 Hours
+                    </h4>
+                    <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-sm mx-auto">
+                      Your company subscription payment is verified. Your tenant workspace is submitted to Super Admin and will be activated within <strong>6 to 12 hours</strong>.
+                    </p>
+                  </div>
+
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left text-xs space-y-2 text-slate-700">
                     <div>
-                      <span className="text-slate-400">Organization:</span>{" "}
+                      <span className="text-slate-400">Company Name:</span>{" "}
                       <span className="font-bold text-slate-900">{successData.user.organizationName}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400">Login Email:</span>{" "}
+                      <span className="text-slate-400">Company Login Email:</span>{" "}
                       <span className="font-bold text-slate-900">{successData.user.email}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400">Account Password:</span>{" "}
+                      <span className="text-slate-400">Password:</span>{" "}
                       <span className="font-mono text-slate-700 bg-slate-200/80 px-2 py-0.5 rounded text-[11px]">
-                        Saved as created by you (use this password to log in anytime)
+                        Saved as chosen by your company
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-400">Plan:</span>{" "}
-                      <span className="font-bold text-brand-blue">{successData.subscription.planName}</span>
+                      <span className="text-slate-400">Plan &amp; Validity:</span>{" "}
+                      <span className="font-bold text-brand-blue">
+                        {successData.subscription.planName} ({successData.subscription.durationMonths} Months)
+                      </span>
                     </div>
                     <div>
-                      <span className="text-slate-400">Subscription Period:</span>{" "}
-                      <span className="font-bold text-slate-900">
-                        {successData.subscription.durationMonths} Months ({new Date(successData.subscription.startDate).toLocaleDateString()} to {new Date(successData.subscription.endDate).toLocaleDateString()})
+                      <span className="text-slate-400">Current Status:</span>{" "}
+                      <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-[10px]">
+                        PENDING SUPER ADMIN APPROVAL (6-12h)
                       </span>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => router.push("/whatsapp")}
-                      className="flex-1 py-3 px-4 rounded-xl bg-brand-blue hover:bg-brand-blue-deep text-white font-bold text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <span>Go to CRM Dashboard</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
+
+                  <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-left text-xs text-sky-900">
+                    <p className="font-bold text-brand-blue">What happens next?</p>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Our system verifies your company details and allocates multi-tenant database isolation. Once approved, you can log in directly at the Sign In page with your company email and password.
+                    </p>
+                  </div>
+
+                  <div className="pt-2">
                     <Link
                       href="/login"
-                      className="py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm text-center transition-all cursor-pointer"
+                      className="w-full py-3 px-4 rounded-xl bg-brand-blue hover:bg-brand-blue-deep text-white font-bold text-sm text-center flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
                     >
-                      Sign In Page
+                      <span>Go to Sign In Page</span>
+                      <ArrowRight className="w-4 h-4" />
                     </Link>
                   </div>
                 </div>
@@ -892,7 +903,7 @@ export default function PricingPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Admin Email Address *
+                      Company / Business Email Address *
                     </label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -901,12 +912,12 @@ export default function PricingPage() {
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="admin@yourbusiness.com"
+                        placeholder="contact@company.com"
                         autoComplete="email"
                         className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
                       />
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">This email will be your login ID for Jisnu CRM.</p>
+                    <p className="text-[10px] text-slate-400 mt-1">This official company email will be your login ID for Jisnu CRM.</p>
                   </div>
 
                   {/* Password & Confirm Password Side-by-Side */}
