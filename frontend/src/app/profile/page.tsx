@@ -258,7 +258,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-full w-full bg-mesh-canvas text-slate-900 flex flex-col font-sans selection:bg-sky-100 selection:text-sky-900 pb-16">
+    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-mesh-canvas text-slate-900 font-sans selection:bg-sky-100 selection:text-sky-900 pb-20">
       
       {/* ── Top Header Navigation Bar (Same as Cockpit Page) ── */}
       <div className="w-full bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
