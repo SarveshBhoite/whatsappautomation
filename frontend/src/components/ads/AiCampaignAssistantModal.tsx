@@ -614,15 +614,21 @@ export function AiCampaignAssistantModal({
 
   const applyProposedCampaignState = (proposed: CampaignState, messageId?: string) => {
     if (!proposed) return;
-    setCampaignState(prev => ({
-      ...prev,
-      ...proposed,
-      startDate: proposed.startDate || prev.startDate || todayIso,
-      endDate: proposed.endDate || prev.endDate,
-      images: (proposed.images && proposed.images.length > 0) ? proposed.images : prev.images,
-      logos: (proposed.logos && proposed.logos.length > 0) ? proposed.logos : prev.logos,
-      videos: (proposed.videos && proposed.videos.length > 0) ? proposed.videos : prev.videos
-    }));
+    setCampaignState(prev => {
+      const merged: CampaignState = {
+        ...prev,
+        ...proposed,
+        startDate: proposed.startDate || prev.startDate || todayIso,
+        endDate: proposed.endDate || prev.endDate,
+        images: (proposed.images && proposed.images.length > 0) ? proposed.images : prev.images,
+        logos: (proposed.logos && proposed.logos.length > 0) ? proposed.logos : prev.logos,
+        videos: (proposed.videos && proposed.videos.length > 0) ? proposed.videos : prev.videos
+      };
+      if (merged.campaignType === "APP" && merged.budgetType === "TOTAL") {
+        merged.budgetType = "DAILY";
+      }
+      return merged;
+    });
 
     if (messageId) {
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isApplied: true, isDismissed: false } : m));
@@ -686,13 +692,17 @@ export function AiCampaignAssistantModal({
 
       const data = await res.json();
 
+      const normalizedState = data.campaignState ? { ...data.campaignState } : undefined;
+      if (normalizedState && normalizedState.campaignType === "APP" && normalizedState.budgetType === "TOTAL") {
+        normalizedState.budgetType = "DAILY";
+      }
       const assistantMessage: Message = {
         id: `ai-${Date.now()}`,
         role: "assistant",
         content: data.message || "I've formulated campaign recommendations for you. Please review and confirm to apply them.",
         suggestions: data.suggestions || [],
-        campaignState: data.campaignState,
-        proposedCampaignState: data.campaignState,
+        campaignState: normalizedState,
+        proposedCampaignState: normalizedState,
         isApplied: false,
         isDismissed: false,
         readyForReview: data.readyForReview,
@@ -1730,9 +1740,23 @@ export function AiCampaignAssistantModal({
     customerId
   ]);
 
+  useEffect(() => {
+    if (campaignState.campaignType === "APP" && campaignState.budgetType === "TOTAL") {
+      setCampaignState(prev => ({
+        ...prev,
+        budgetType: "DAILY"
+      }));
+    }
+  }, [campaignState.campaignType, campaignState.budgetType]);
+
   const handleCreateCampaign = async () => {
     if (!userConfirmed) {
       setPublishError("Please confirm that you have reviewed the campaign configuration before creating.");
+      return;
+    }
+
+    if (campaignState.campaignType === "APP" && campaignState.budgetType === "TOTAL") {
+      setPublishError("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
       return;
     }
 

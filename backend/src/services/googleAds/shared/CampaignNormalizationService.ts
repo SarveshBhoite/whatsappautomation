@@ -471,7 +471,14 @@ export class CampaignNormalizationService {
    */
   public static normalizeLocations(state: any): NormalizedLocations {
     const rawLocs = state.locations || (state.location ? [state.location] : []);
-    const locArray: string[] = Array.isArray(rawLocs) ? rawLocs.map(String).map(s => s.trim()).filter(Boolean) : [];
+    const locArray: string[] = Array.isArray(rawLocs)
+      ? rawLocs.map(String).map(s => s.trim()).filter(Boolean).map(loc => {
+          if (/^(global|worldwide|world|all countries|all countries and territories)$/i.test(loc)) {
+            return "India";
+          }
+          return loc;
+        })
+      : [];
 
     const detailed: NormalizedLocation[] = locArray.map(locStr => {
       // Check if radius targeting pattern exists e.g. "25 km around Bengaluru"

@@ -1448,6 +1448,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     brand?: string;
     channel?: string;
     condition?: string;
+    additionalImageLinks?: string[];
     googleProductCategory?: string;
   }>>([]);
   const [isLoadingMerchantProducts, setIsLoadingMerchantProducts] = useState<boolean>(false);
@@ -1456,6 +1457,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   // More Asset Types Modals & Forms State (100% Parity with Manual Sales Performance Max & Search)
   const [activeAssetModal, setActiveAssetModal] = useState<"PROMOTIONS" | "PRICES" | "APPS" | "APP_ASSET" | "SNIPPETS" | "LEAD_FORMS" | "BRAND_GUIDELINES" | null>(null);
   const [assetModalMode, setAssetModalMode] = useState<"CREATE" | "OLD">("CREATE");
+  const [activeAssetTargetAgId, setActiveAssetTargetAgId] = useState<string | null>(null);
+  const [recentlyAppliedAssetType, setRecentlyAppliedAssetType] = useState<string | null>(null);
 
   // App Asset Modal State
   const [appPlatform, setAppPlatform] = useState<"Android" | "iOS">("Android");
@@ -1725,6 +1728,15 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       setEditingAssetIndex(null);
     }
 
+    // Trigger visual pop animation across all 7 asset types
+    if (assetType) {
+      setRecentlyAppliedAssetType(assetType);
+      setTimeout(() => {
+        setRecentlyAppliedAssetType(prev => (prev === assetType ? null : prev));
+      }, 2500);
+      toast.success(`✨ Applied AI suggestion to ${assetType.replace(/_/g, " ").toLowerCase()}!`);
+    }
+
     setPreviewingAiSuggestion(null);
   };
 
@@ -1940,15 +1952,28 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     <span>Edit</span>
                   </button>
 
-                  {/* Apply to Form Button */}
+                  {/* Apply to Form Button with lively animation */}
                   <button
                     type="button"
                     onClick={() => handleApplySuggestion(sug, modalType)}
-                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs cursor-pointer transition-all"
+                    className={`px-3 py-1.5 rounded-lg text-white font-bold text-[11px] flex items-center gap-1 shadow-xs cursor-pointer transition-all transform duration-200 active:scale-95 ${
+                      recentlyAppliedAssetType === modalType
+                        ? "bg-gradient-to-r from-emerald-600 to-teal-600 scale-105 ring-2 ring-emerald-400 ring-offset-1 animate-pulse"
+                        : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 hover:scale-102"
+                    }`}
                     title="Apply this strategy to the form fields"
                   >
-                    <Zap className="h-3 w-3" />
-                    <span>Apply</span>
+                    {recentlyAppliedAssetType === modalType ? (
+                      <>
+                        <Check className="h-3 w-3 animate-bounce" />
+                        <span>Applied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-3 w-3" />
+                        <span>Apply</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1974,6 +1999,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     structuredSnippets?: any[];
     leadForms?: any[];
     messages?: any[];
+    app?: any;
     ads: Array<{
       id: string;
       name: string;
@@ -2030,6 +2056,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     structuredSnippets?: any[];
     leadForms?: any[];
     messages?: any[];
+    app?: any;
     ads: Array<{
       id: string;
       name: string;
@@ -2385,9 +2412,14 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           const rawProfileLoc = Array.isArray(profileData.locations) && profileData.locations.length > 0 
             ? profileData.locations[0] 
             : (typeof profileData.locations === "string" ? profileData.locations.split(",")[0].trim() : (resolvedLocation ? resolvedLocation.split(",")[0].trim() : "India"));
-          const prefilledLocations = (prev.locations && prev.locations.length > 0 && prev.locations[0] !== "" && prev.locations[0] !== "India") 
-            ? [prev.locations[0]] 
-            : [rawProfileLoc || "India"];
+          const cleanLocCandidate = String(rawProfileLoc || "India").trim();
+          const isGlobalCand = /^(global|worldwide|world|all countries|all countries and territories)$/i.test(cleanLocCandidate);
+          const sanitizedLoc = isGlobalCand ? "India" : cleanLocCandidate;
+          const prevLocCandidate = prev.locations && prev.locations.length > 0 ? String(prev.locations[0]).trim() : "";
+          const isPrevGlobal = /^(global|worldwide|world|all countries|all countries and territories)$/i.test(prevLocCandidate);
+          const prefilledLocations = (prevLocCandidate && prevLocCandidate !== "" && !isPrevGlobal) 
+            ? [prevLocCandidate] 
+            : [sanitizedLoc || "India"];
           const prefilledLanguage = prev.language || (prof?.languagesServed?.[0] ? prof.languagesServed[0] : prev.language);
 
           // Auto-fill Keywords if campaignState keywords are empty
@@ -3498,7 +3530,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       campaignName: camp.name || campaignState.campaignName,
       campaignType: resolvedType,
       objective: extractedObjective as any,
-      budgetType: camp.budgetType || campaignState.budgetType || "DAILY",
+      budgetType: resolvedType === "APP" ? "DAILY" : (camp.budgetType || campaignState.budgetType || "DAILY"),
       dailyBudget: parsedBudget || campaignState.dailyBudget,
       website: extractedWebsite || campaignState.website,
       business: {
@@ -3637,6 +3669,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   // ── Media Source Choice Modal & Past Media Library State ──
   const [isMediaSourceModalOpen, setIsMediaSourceModalOpen] = useState<boolean>(false);
   const [isPastMediaModalOpen, setIsPastMediaModalOpen] = useState<boolean>(false);
+  const [isMerchantProductModalOpen, setIsMerchantProductModalOpen] = useState<boolean>(false);
+  const [merchantProductSearchQuery, setMerchantProductSearchQuery] = useState<string>("");
   const [pastMediaList, setPastMediaList] = useState<Array<any>>([]);
   const [isLoadingPastMedia, setIsLoadingPastMedia] = useState<boolean>(false);
   const [pastMediaSearchQuery, setPastMediaSearchQuery] = useState<string>("");
@@ -3885,7 +3919,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
   // Real-time Budget Validator (Daily Budget vs Campaign Total Budget)
   const validateDailyBudget = (val?: string | number, targetCampaignType?: string, currentBudgetType?: string): string | null => {
+    const effectiveType = targetCampaignType || campaignState.campaignType;
     const isTotal = (currentBudgetType || tempEditValues.budgetType || campaignState.budgetType) === "TOTAL";
+    if ((effectiveType === "APP" || effectiveType === "DISPLAY") && isTotal) {
+      return `Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${effectiveType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`;
+    }
     const label = isTotal ? "Campaign total budget" : "Daily budget";
     if (val === undefined || val === null || String(val).trim() === "") {
       return `${label} is required.`;
@@ -3913,7 +3951,6 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     if (num > 10_000_000) {
       return `${label} cannot exceed the maximum allowed limit of ${curSymbol}10,000,000.`;
     }
-    const effectiveType = targetCampaignType || campaignState.campaignType;
     if (effectiveType === "DEMAND_GEN") {
       if (num <= 0) {
         return `Demand Gen budget must be greater than ${curSymbol}0.`;
@@ -4131,7 +4168,8 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     if (cType === "APP") {
       const hasAppId = !!(state.appId && state.appId.trim());
       const hasTargetCpa = state.targetCpa !== undefined && state.targetCpa !== null && !isNaN(Number(state.targetCpa)) && Number(state.targetCpa) > 0;
-      return Boolean(hasAppId && hasBizName && hasTargetCpa && validHeadlines.length >= 1 && validDescriptions.length >= 1 && hasBudget);
+      const isBudgetSupportedForApp = state.budgetType !== "TOTAL";
+      return Boolean(hasAppId && hasBizName && hasTargetCpa && validHeadlines.length >= 1 && validDescriptions.length >= 1 && hasBudget && isBudgetSupportedForApp);
     }
 
     if (cType === "SHOPPING") {
@@ -4168,6 +4206,17 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         label: "Valid Website Landing Page URL (http:// or https://) is required",
         field: "website",
         fixAction: () => startFieldEdit("website")
+      });
+    }
+
+    if ((cType === "APP" || cType === "DISPLAY") && state.budgetType === "TOTAL") {
+      missing.push({
+        label: `Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${cType} campaigns. Switch to Daily Budget.`,
+        field: "dailyBudget",
+        fixAction: () => {
+          setCampaignState(prev => ({ ...prev, budgetType: "DAILY" }));
+          setTempEditValues(prev => ({ ...prev, budgetType: "DAILY" }));
+        }
       });
     }
 
@@ -4520,9 +4569,21 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         return;
       }
     } else if (editingField === "dailyBudget") {
-      const err = validateDailyBudget(tempEditValues.dailyBudget, tempEditValues.campaignType || campaignState.campaignType);
+      const err = validateDailyBudget(tempEditValues.dailyBudget, tempEditValues.campaignType || campaignState.campaignType, tempEditValues.budgetType || campaignState.budgetType);
       if (err) {
         setFieldError(err);
+        return;
+      }
+    } else if (editingField === "budgetType") {
+      const effType = tempEditValues.campaignType || campaignState.campaignType;
+      if ((effType === "APP" || effType === "DISPLAY") && tempEditValues.budgetType === "TOTAL") {
+        setFieldError(`Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${effType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`);
+        return;
+      }
+    } else if (editingField === "appTargetCpa") {
+      const cpaNum = Number(tempEditValues.targetCpa);
+      if (!tempEditValues.targetCpa || isNaN(cpaNum) || cpaNum <= 0) {
+        setFieldError("Please enter a valid Target CPA greater than ₹0.");
         return;
       }
     } else if (editingField === "biddingStrategy") {
@@ -4806,6 +4867,9 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       } else if (editingField === "campaignType") {
         updated = reconcileCampaignStateWithManualFlow(updated, "campaignType", profSource);
         newCampaignType = updated.campaignType;
+        if (updated.campaignType === "APP" && updated.budgetType === "TOTAL") {
+          updated.budgetType = "DAILY";
+        }
       }
 
       // Check if user explicitly edited campaignName field directly
@@ -4848,6 +4912,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       }
 
       if (editingField === "budgetType" && tempEditValues.budgetType !== undefined) {
+        const effType = updated.campaignType || campaignState.campaignType;
+        if ((effType === "APP" || effType === "DISPLAY") && tempEditValues.budgetType === "TOTAL") {
+          setFieldError(`Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${effType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`);
+          return;
+        }
         updated.budgetType = tempEditValues.budgetType;
         if (tempEditValues.budgetType === "TOTAL" && (!updated.endDate || !String(updated.endDate).trim())) {
           const baseStart = updated.startDate || todayIso;
@@ -4886,6 +4955,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         } else {
           updated.targetCpa = null;
           updated.targetRoas = null;
+        }
+      }
+
+      if (editingField === "appTargetCpa" && tempEditValues.targetCpa !== undefined) {
+        const parsedCpa = parseFloat(String(tempEditValues.targetCpa));
+        if (!isNaN(parsedCpa) && parsedCpa > 0) {
+          updated.targetCpa = parsedCpa;
         }
       }
 
@@ -5156,6 +5232,19 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     setTimeout(() => inputRef.current?.focus(), 150);
   }, [messages, isLoading]);
 
+  useEffect(() => {
+    if (campaignState.campaignType === "APP" && campaignState.budgetType === "TOTAL") {
+      setCampaignState(prev => ({
+        ...prev,
+        budgetType: "DAILY"
+      }));
+      setTempEditValues(prev => ({
+        ...prev,
+        budgetType: "DAILY"
+      }));
+    }
+  }, [campaignState.campaignType, campaignState.budgetType]);
+
   // Analyze URL helper
   const handleAnalyzeUrl = async (urlStr: string) => {
     setIsAnalyzingUrl(true);
@@ -5235,7 +5324,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           name: resolvedBizName,
           website: proposed.website || prev.website
         },
-        budgetType: proposed.budgetType || prev.budgetType || "DAILY",
+        budgetType: (proposed.campaignType || prev.campaignType) === "APP" ? "DAILY" : (proposed.budgetType || prev.budgetType || "DAILY"),
         startDate: proposed.startDate || prev.startDate || todayIso,
         endDate: proposed.endDate || prev.endDate,
         images: (proposed.images && proposed.images.length > 0) ? proposed.images : prev.images,
@@ -6314,10 +6403,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       if (targetType === "LOGO") {
         detectedFieldType = "LOGO";
         // Logo Guidelines:
-        // Square (1:1): Min 128x128, Rec 1200x1200 (aspect ratio 0.90 - 1.10)
-        // Landscape (4:1): Min 512x128, Rec 1200x300 (aspect ratio 3.5 - 4.5)
-        const isSquare = ratio >= 0.9 && ratio <= 1.1;
-        const isLandscapeLogo = ratio >= 3.5 && ratio <= 4.5;
+        // Square (1:1): Min 128x128, Rec 1200x1200 (aspect ratio strictly 0.97 - 1.03 to meet Google Ads API asset spec)
+        // Landscape (4:1): Min 512x128, Rec 1200x300 (aspect ratio strictly 3.9 - 4.1)
+        const isSquare = ratio >= 0.97 && ratio <= 1.03;
+        const isLandscapeLogo = ratio >= 3.9 && ratio <= 4.1;
         detectedAspect = isLandscapeLogo ? "4:1" : "1:1";
 
         if (!isSquare && !isLandscapeLogo) {
@@ -6495,6 +6584,106 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
     setIsPastMediaModalOpen(false);
     setIsMediaSourceModalOpen(false);
+  };
+
+  const handleSelectMerchantProductImage = (prod: any) => {
+    const rawImageUrl = prod.imageLink || (Array.isArray(prod.additionalImageLinks) ? prod.additionalImageLinks[0] : null);
+    if (!rawImageUrl) {
+      alert("This Merchant Center product does not have an image URL.");
+      return;
+    }
+
+    const targetType = activeUploadTarget === "LOGO" ? "LOGO" : "IMAGE";
+    const prodTitle = prod.title || "merchant_product";
+    const safeProdName = `${prodTitle.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40)}.jpg`;
+
+    // Duplicate check
+    const isAlreadyAttached = [
+      ...(campaignState.images || []),
+      ...(campaignState.logos || [])
+    ].some(media => {
+      const mediaUrl = typeof media === "string" ? media : (media as any)?.url || "";
+      return mediaUrl && mediaUrl === rawImageUrl;
+    });
+
+    if (isAlreadyAttached) {
+      alert(`The image for "${prodTitle}" is already attached to this campaign.`);
+      return;
+    }
+
+    setIsMerchantProductModalOpen(false);
+    setIsMediaSourceModalOpen(false);
+
+    // Read image dimensions and open cropper if violation or allow ratio editing
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const dimensions = { width: img.width, height: img.height };
+      const ratio = img.width / (img.height || 1);
+      let ruleViolationReason: string | null = null;
+      const isDisplayMode = campaignState.campaignType === "DISPLAY";
+
+      if (targetType === "LOGO") {
+        const isSquare = ratio >= 0.97 && ratio <= 1.03;
+        const isLandscapeLogo = ratio >= 3.9 && ratio <= 4.1;
+        if (!isSquare && !isLandscapeLogo) {
+          ruleViolationReason = `Logo aspect ratio (${ratio.toFixed(2)}:1, ${img.width}x${img.height}px) does not match Google Ads logo specifications. Required: Square (1:1) or Landscape (4:1).`;
+        } else if (isSquare && (img.width < 128 || img.height < 128)) {
+          ruleViolationReason = `Square logo must be at least 128x128 pixels (current: ${img.width}x${img.height}px).`;
+        } else if (isLandscapeLogo && (img.width < 512 || img.height < 128)) {
+          ruleViolationReason = `Landscape logo (4:1) must be at least 512x128 pixels (current: ${img.width}x${img.height}px).`;
+        }
+      } else {
+        if (isDisplayMode) {
+          const isLandscape = ratio >= 1.83 && ratio <= 2.05;
+          const isSquare = ratio >= 0.95 && ratio <= 1.05;
+          if (!isLandscape && !isSquare) {
+            ruleViolationReason = `Display campaigns support only Landscape (1.91:1) or Square (1:1) images. Current image is ${img.width}x${img.height}px (${ratio.toFixed(2)}:1). Please crop to a valid format.`;
+          } else if (isSquare && (img.width < 300 || img.height < 300)) {
+            ruleViolationReason = `Display Square image (1:1) must be at least 300x300 pixels (current: ${img.width}x${img.height}px).`;
+          } else if (isLandscape && (img.width < 600 || img.height < 314)) {
+            ruleViolationReason = `Display Landscape image (1.91:1) must be at least 600x314 pixels (current: ${img.width}x${img.height}px).`;
+          }
+        } else {
+          const isLandscape = ratio >= 1.8 && ratio <= 2.05;
+          const isSquare = ratio >= 0.95 && ratio <= 1.05;
+          const isPortrait45 = ratio >= 0.75 && ratio <= 0.85;
+          const isTall916 = ratio >= 0.50 && ratio <= 0.62;
+          const matchesStandardRatio = isLandscape || isSquare || isPortrait45 || isTall916;
+          if (!matchesStandardRatio) {
+            ruleViolationReason = `Product image aspect ratio (${ratio.toFixed(2)}:1, ${img.width}x${img.height}px) does not match standard creative ratios (Landscape 1.91:1, Square 1:1, Portrait 4:5, or Story 9:16).`;
+          } else if (img.width < 300 || img.height < 300) {
+            ruleViolationReason = `Marketing image must have at least 300x300px minimum dimension (current: ${img.width}x${img.height}px).`;
+          }
+        }
+      }
+
+      // Always open image edit box so user can confirm and format aspect ratio to adhere to Google Ads rules
+      triggerImageEditor(
+        rawImageUrl,
+        targetType,
+        safeProdName,
+        null,
+        dimensions,
+        ruleViolationReason,
+        null
+      );
+    };
+
+    img.onerror = () => {
+      // If direct cross-origin fetch fails, still trigger image editor with URL
+      triggerImageEditor(
+        rawImageUrl,
+        targetType,
+        safeProdName,
+        null,
+        { width: 800, height: 800 },
+        null,
+        null
+      );
+    };
+
+    img.src = rawImageUrl;
   };
 
   const handleDeletePastMediaItem = async (e: React.MouseEvent, item: any) => {
@@ -6820,7 +7009,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             website: returnedCs.website || returnedCs.business?.website || prev.website,
             objective: returnedCs.objective || prev.objective,
             campaignType: returnedCs.campaignType || prev.campaignType,
-            budgetType: returnedCs.budgetType || prev.budgetType,
+            budgetType: (returnedCs.campaignType || prev.campaignType) === "APP" ? "DAILY" : (returnedCs.budgetType || prev.budgetType),
             dailyBudget: returnedCs.dailyBudget !== undefined ? returnedCs.dailyBudget : prev.dailyBudget,
             biddingStrategy: returnedCs.biddingStrategy || prev.biddingStrategy,
             locations: (returnedCs.locations && returnedCs.locations.length > 0) ? returnedCs.locations : prev.locations,
@@ -6989,6 +7178,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         if (c === "INR") return "₹";
         return `${c} `;
       })();
+
+      if ((effectiveState.campaignType === "APP" || effectiveState.campaignType === "DISPLAY") && isTotalBudget) {
+        startFieldEdit("dailyBudget");
+        throw new Error(`Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${effectiveState.campaignType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`);
+      }
+
       if (!effectiveState.dailyBudget || isNaN(budgetNum) || !isFinite(budgetNum) || budgetNum <= 0) {
         startFieldEdit("dailyBudget");
         throw new Error(`${isTotalBudget ? "Campaign Total Budget" : "Daily Budget"} is required and must be greater than ${curSymbol}0. Please set a budget in chat or the Live Cockpit.`);
@@ -7044,15 +7239,29 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       };
 
       // 5. Locations Validation & Auto-Resolution (Frontend Level)
-      const validLocs = (effectiveState.locations || []).filter((l: any) => l && String(l).trim());
+      // Google Ads API requires specific geo target constants (e.g. India) and does not support generic "Global"
+      let resolvedLocs = (effectiveState.locations || []).map((l: any) => {
+        if (!l) return "";
+        if (typeof l === "string") {
+          const s = l.trim().toLowerCase();
+          if (s === "global" || s === "worldwide" || s === "world" || s === "all countries" || s === "all countries and territories") {
+            return "India";
+          }
+        }
+        return l;
+      }).filter(Boolean);
+
+      const validLocs = resolvedLocs.filter((l: any) => l && String(l).trim());
       if (validLocs.length === 0) {
-        if (selectedLocationsList && selectedLocationsList.length > 0 && selectedLocationsList[0]) {
+        if (selectedLocationsList && selectedLocationsList.length > 0 && selectedLocationsList[0] && !/^(global|worldwide|world|all countries|all countries and territories)$/i.test(String(selectedLocationsList[0]).trim())) {
           effectiveState.locations = selectedLocationsList;
         } else {
-          // Safe smart default to India if not specified
+          // Safe smart default to India if not specified or was Global
           effectiveState.locations = ["India"];
           setCampaignState(p => ({ ...p, locations: ["India"] }));
         }
+      } else {
+        effectiveState.locations = resolvedLocs;
       }
 
       // Check proximity radius in locations
@@ -7185,19 +7394,98 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       }
 
       if (effectiveState.adSchedule && Array.isArray(effectiveState.adSchedule)) {
-        const seen = new Set<string>();
-        const filtered = effectiveState.adSchedule.filter((s: any) => {
-          if (!s || !s.day || !s.start || !s.end) return false;
-          // Filter out default 00:00 - 00:00 (or 24:00) 24/7 all days schedules as Google Ads already runs 24/7 by default
+        // Disallow overlapping intervals per day or between "All days" and specific days
+        const dayMap: Record<string, string[]> = {
+          "all days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"],
+          "mondays - fridays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+          "saturdays - sundays": ["SATURDAY", "SUNDAY"],
+          "mondays": ["MONDAY"],
+          "tuesdays": ["TUESDAY"],
+          "wednesdays": ["WEDNESDAY"],
+          "thursdays": ["THURSDAY"],
+          "fridays": ["FRIDAY"],
+          "saturdays": ["SATURDAY"],
+          "sundays": ["SUNDAY"],
+          "monday": ["MONDAY"],
+          "tuesday": ["TUESDAY"],
+          "wednesday": ["WEDNESDAY"],
+          "thursday": ["THURSDAY"],
+          "friday": ["FRIDAY"],
+          "saturday": ["SATURDAY"],
+          "sunday": ["SUNDAY"]
+        };
+
+        const dayIntervals: Record<string, Array<{ startM: number; endM: number }>> = {
+          MONDAY: [],
+          TUESDAY: [],
+          WEDNESDAY: [],
+          THURSDAY: [],
+          FRIDAY: [],
+          SATURDAY: [],
+          SUNDAY: []
+        };
+
+        for (const s of effectiveState.adSchedule) {
+          if (!s || !s.day || !s.start || !s.end) continue;
           const isAllDay = (s.start === "00:00" || s.start === "0:00") && (s.end === "00:00" || s.end === "0:00" || s.end === "24:00" || s.end === "23:45");
           const isAllDays = String(s.day).trim().toLowerCase() === "all days";
-          if (isAllDay && isAllDays) return false;
-          const key = `${s.day}_${s.start}_${s.end}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        effectiveState.adSchedule = filtered;
+          if (isAllDay && isAllDays) continue;
+
+          let startM = 0;
+          let endM = 1440;
+          if (isAllDay) {
+            startM = 0;
+            endM = 1440;
+          } else {
+            const [sh, sm] = String(s.start).split(":").map(v => parseInt(v, 10));
+            const [eh, em] = String(s.end).split(":").map(v => parseInt(v, 10));
+            startM = (isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh))) * 60 + (isNaN(sm) ? 0 : Math.max(0, Math.min(59, sm)));
+            endM = (isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh))) * 60 + (isNaN(em) ? 0 : Math.max(0, Math.min(59, em)));
+            if (endM <= startM && eh !== 24) continue;
+          }
+
+          const targetDays = dayMap[String(s.day).trim().toLowerCase()] || [String(s.day).toUpperCase()];
+          for (const d of targetDays) {
+            if (dayIntervals[d]) {
+              dayIntervals[d].push({ startM, endM });
+            }
+          }
+        }
+
+        const mergedSchedules: Array<{ day: string; start: string; end: string }> = [];
+        const pad = (n: number) => String(n).padStart(2, "0");
+
+        for (const [day, intervals] of Object.entries(dayIntervals)) {
+          if (intervals.length === 0) continue;
+          intervals.sort((a, b) => a.startM - b.startM);
+          const merged: Array<{ startM: number; endM: number }> = [];
+          let current = { ...intervals[0] };
+          for (let i = 1; i < intervals.length; i++) {
+            const next = intervals[i];
+            if (next.startM <= current.endM) {
+              current.endM = Math.max(current.endM, next.endM);
+            } else {
+              merged.push(current);
+              current = { ...next };
+            }
+          }
+          merged.push(current);
+
+          const dayLabel = day.charAt(0) + day.slice(1).toLowerCase();
+          for (const m of merged) {
+            const sh = Math.floor(m.startM / 60);
+            const sm = m.startM % 60;
+            const eh = Math.floor(m.endM / 60);
+            const em = m.endM % 60;
+            mergedSchedules.push({
+              day: dayLabel,
+              start: `${pad(sh)}:${pad(sm)}`,
+              end: `${pad(eh)}:${pad(em)}`
+            });
+          }
+        }
+
+        effectiveState.adSchedule = mergedSchedules;
       }
 
       if (effectiveState.searchThemes && Array.isArray(effectiveState.searchThemes)) {
@@ -7324,6 +7612,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             currentImages.push({ url: raw, fieldType: "SQUARE_MARKETING_IMAGE", name: "Square_Marketing_Image", aspectRatio: "1:1" });
           }
         }
+        // Strip out any image assets that have fieldType === 'LOGO' from currentImages, or customer asset references
+        currentImages = currentImages.filter((img: any) => {
+          const raw = typeof img === "string" ? img : img?.url || img?.data || "";
+          const fType = typeof img === "object" ? img?.fieldType : null;
+          return raw && !raw.startsWith("customers/") && fType !== "LOGO";
+        });
         effectiveState.images = currentImages;
         setCampaignState(p => ({ ...p, images: currentImages }));
 
@@ -7331,12 +7625,49 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         // Filter out existing customer asset strings (e.g., customers/.../assets/...) that might have non-1:1 aspect ratios from other campaign types
         currentLogos = currentLogos.filter((l: any) => {
           const raw = typeof l === "string" ? l : l?.url || l?.data || "";
-          return raw && !raw.startsWith("customers/");
+          return raw && !raw.startsWith("customers/") && raw.length > 5;
         });
 
         // Brand logos are optional for Display campaigns - do not force default logo if empty
         effectiveState.logos = currentLogos;
         setCampaignState(p => ({ ...p, logos: currentLogos }));
+
+        effectiveState.headlines = validH.slice(0, 5);
+        effectiveState.longHeadlines = validLH.length > 0 ? validLH.slice(0, 1) : [validH[0]];
+        effectiveState.descriptions = validD.slice(0, 5);
+        if (campaignState.businessName || effectiveState.businessName) effectiveState.businessName = (campaignState.businessName || effectiveState.businessName || "").trim();
+        if (campaignState.displayPath1) effectiveState.displayPath1 = campaignState.displayPath1.trim();
+        if (campaignState.displayPath2) effectiveState.displayPath2 = campaignState.displayPath2.trim();
+        if (campaignState.callToAction || (campaignState as any).callToActionText) effectiveState.callToAction = (campaignState.callToAction || (campaignState as any).callToActionText || "").trim();
+        if (campaignState.adSchedule) effectiveState.adSchedule = campaignState.adSchedule;
+        if ((campaignState as any).customParameters) (effectiveState as any).customParameters = (campaignState as any).customParameters;
+        if (campaignState.trackingTemplate) effectiveState.trackingTemplate = campaignState.trackingTemplate.trim();
+        if (campaignState.finalUrlSuffix) effectiveState.finalUrlSuffix = campaignState.finalUrlSuffix.trim();
+        if ((campaignState as any).mobileFinalUrl) (effectiveState as any).mobileFinalUrl = String((campaignState as any).mobileFinalUrl).trim();
+        if (campaignState.brandInclusions) effectiveState.brandInclusions = campaignState.brandInclusions;
+        if (campaignState.brandExclusions) effectiveState.brandExclusions = campaignState.brandExclusions;
+        if ((campaignState as any).placements) (effectiveState as any).placements = (campaignState as any).placements;
+        if ((campaignState as any).selectedPlacements) (effectiveState as any).selectedPlacements = (campaignState as any).selectedPlacements;
+        if ((campaignState as any).demographics) (effectiveState as any).demographics = (campaignState as any).demographics;
+        if ((campaignState as any).demographicsGender) (effectiveState as any).demographicsGender = (campaignState as any).demographicsGender;
+        if ((campaignState as any).demographicsAge) (effectiveState as any).demographicsAge = (campaignState as any).demographicsAge;
+        if ((campaignState as any).demographicsParental) (effectiveState as any).demographicsParental = (campaignState as any).demographicsParental;
+        if ((campaignState as any).demographicsIncome) (effectiveState as any).demographicsIncome = (campaignState as any).demographicsIncome;
+        if ((campaignState as any).topics) (effectiveState as any).topics = (campaignState as any).topics;
+        if ((campaignState as any).selectedTopics) (effectiveState as any).selectedTopics = (campaignState as any).selectedTopics;
+        if ((campaignState as any).audiences) (effectiveState as any).audiences = (campaignState as any).audiences;
+        if ((campaignState as any).selectedAudiences) (effectiveState as any).selectedAudiences = (campaignState as any).selectedAudiences;
+        if ((campaignState as any).audienceSignalIds) (effectiveState as any).audienceSignalIds = (campaignState as any).audienceSignalIds;
+        if ((campaignState as any).keywords) (effectiveState as any).keywords = (campaignState as any).keywords;
+        if ((campaignState as any).contentLabels) (effectiveState as any).contentLabels = (campaignState as any).contentLabels;
+        if ((campaignState as any).sensitiveContent) (effectiveState as any).sensitiveContent = (campaignState as any).sensitiveContent;
+        if ((campaignState as any).contentTypeExclusions) (effectiveState as any).contentTypeExclusions = (campaignState as any).contentTypeExclusions;
+        if ((campaignState as any).useOptimizedTargeting !== undefined) (effectiveState as any).useOptimizedTargeting = Boolean((campaignState as any).useOptimizedTargeting);
+        if ((campaignState as any).optimizedTargeting !== undefined) (effectiveState as any).optimizedTargeting = Boolean((campaignState as any).optimizedTargeting);
+        if ((campaignState as any).frequencyCaps) (effectiveState as any).frequencyCaps = (campaignState as any).frequencyCaps;
+        if ((campaignState as any).frequencyCapCount !== undefined) (effectiveState as any).frequencyCapCount = (campaignState as any).frequencyCapCount;
+        if ((campaignState as any).frequencyCapDays !== undefined) (effectiveState as any).frequencyCapDays = (campaignState as any).frequencyCapDays;
+        if ((campaignState as any).conversionGoals) (effectiveState as any).conversionGoals = (campaignState as any).conversionGoals;
       } else if (cType === "SEARCH") {
         if (validH.length < 3) {
           throw new Error(`Search campaigns require at least 3 Headlines (${validH.length}/3 added).`);
@@ -7512,10 +7843,91 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
           throw new Error("At least 1 YouTube video URL/asset is required for Video campaigns. Please enter a YouTube video URL or switch to Image format.");
         }
       } else if (cType === "APP") {
-        if (!effectiveState.appId || !effectiveState.appId.trim()) {
+        // Strict Validation and Preparation for APP Campaigns
+        const cleanAppId = String(effectiveState.appId || campaignState.appId || "").trim();
+        if (!cleanAppId) {
           startFieldEdit("appId");
-          throw new Error("App ID / Package Name is required for App campaigns.");
+          throw new Error("Mobile App package name (Android) or App Store ID (iOS) is required before this campaign can be published.");
         }
+        
+        const plat = String(effectiveState.platform || campaignState.platform || "ANDROID").toUpperCase().includes("IOS") ? "IOS" : "ANDROID";
+        if (plat === "ANDROID" && !cleanAppId.includes(".")) {
+          startFieldEdit("appId");
+          throw new Error(`Invalid Android package name: "${cleanAppId}". Real Google Play packages contain dot format (e.g. 'com.example.app').`);
+        }
+        effectiveState.appId = cleanAppId;
+        effectiveState.platform = plat;
+        effectiveState.appStore = plat === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE";
+
+        const rawCpa = Number(effectiveState.targetCpa || campaignState.targetCpa);
+        if (!rawCpa || isNaN(rawCpa) || rawCpa <= 0) {
+          startFieldEdit("appTargetCpa");
+          throw new Error("A valid Target CPA greater than ₹0 is required for App install campaigns.");
+        }
+        effectiveState.targetCpa = rawCpa;
+
+        const appHeadlines = (effectiveState.headlines && effectiveState.headlines.length > 0)
+          ? effectiveState.headlines
+          : (campaignState.headlines && campaignState.headlines.length > 0)
+          ? campaignState.headlines
+          : [];
+        const cleanHeadlines = appHeadlines
+          .map((h: any) => typeof h === "string" ? h.trim() : (h?.text ? String(h.text).trim() : ""))
+          .filter((h: string) => h.length > 0)
+          .slice(0, 5);
+        if (cleanHeadlines.length === 0) {
+          throw new Error("At least 1 headline is required for App promotion campaigns (max 5, 30 chars each).");
+        }
+        effectiveState.headlines = cleanHeadlines;
+
+        const appDescriptions = (effectiveState.descriptions && effectiveState.descriptions.length > 0)
+          ? effectiveState.descriptions
+          : (campaignState.descriptions && campaignState.descriptions.length > 0)
+          ? campaignState.descriptions
+          : [];
+        const cleanDescriptions = appDescriptions
+          .map((d: any) => typeof d === "string" ? d.trim() : (d?.text ? String(d.text).trim() : ""))
+          .filter((d: string) => d.length > 0)
+          .slice(0, 5);
+        if (cleanDescriptions.length === 0) {
+          throw new Error("At least 1 description is required for App promotion campaigns (max 5, 90 chars each).");
+        }
+        effectiveState.descriptions = cleanDescriptions;
+
+        const appStoreUrl = plat === "IOS"
+          ? `https://apps.apple.com/app/id${cleanAppId}`
+          : `https://play.google.com/store/apps/details?id=${cleanAppId}`;
+        effectiveState.finalUrl = (effectiveState.website && effectiveState.website.startsWith("http") && effectiveState.website !== "https://example.com")
+          ? effectiveState.website
+          : (effectiveState.finalUrl && effectiveState.finalUrl.startsWith("http") && effectiveState.finalUrl !== "https://example.com")
+          ? effectiveState.finalUrl
+          : appStoreUrl;
+
+        effectiveState.objective = "APP_PROMOTION";
+        effectiveState.biddingStrategy = "OPTIMIZE_INSTALLS_TARGET_INSTALL_COST";
+        effectiveState.budgetType = "DAILY";
+
+        const resolvedLocs = (effectiveState.locations && effectiveState.locations.length > 0)
+          ? effectiveState.locations
+          : (campaignState.locations && campaignState.locations.length > 0)
+          ? campaignState.locations
+          : ["India"];
+        const resolvedLangs = (effectiveState.languages && effectiveState.languages.length > 0)
+          ? effectiveState.languages
+          : (effectiveState.language ? [effectiveState.language] : (campaignState.language ? [campaignState.language] : ["English"]));
+        effectiveState.locations = resolvedLocs;
+        effectiveState.languages = resolvedLangs;
+
+        effectiveState.geoTargets = {
+          locations: resolvedLocs,
+          languages: resolvedLangs,
+          platform: plat,
+          appId: cleanAppId,
+          appName: effectiveState.appName || campaignState.appName || undefined,
+          businessName: effectiveState.businessName || campaignState.businessName || undefined,
+          targetCpa: rawCpa,
+          objective: "App Promotion"
+        };
       } else if (cType === "SHOPPING") {
         const mId = effectiveState.merchantCenterId || (campaignState as any).merchantCenterId || (campaignState as any).merchantId;
         if (!mId || !/^\d+$/.test(String(mId).trim())) {
@@ -7556,6 +7968,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
       // 8. Explicitly ensure Budget, Media Assets, Brand Controls, Device Targeting, Extensions, and Merchant Center are synchronized
       const isTotalBudgetType = (effectiveState.budgetType || campaignState.budgetType || "").toUpperCase() === "TOTAL";
+      if ((effectiveState.campaignType === "APP" || effectiveState.campaignType === "DISPLAY") && isTotalBudgetType) {
+        startFieldEdit("dailyBudget");
+        throw new Error(`Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${effectiveState.campaignType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`);
+      }
       if (isTotalBudgetType) {
         effectiveState.budgetType = "TOTAL";
         effectiveState.totalBudget = Number(effectiveState.dailyBudget || (effectiveState as any).totalBudget || campaignState.totalBudget || campaignState.dailyBudget);
@@ -7601,7 +8017,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
       if (campaignState.biddingStrategy || effectiveState.biddingStrategy) {
         effectiveState.biddingStrategy = campaignState.biddingStrategy || effectiveState.biddingStrategy;
       }
-      if (campaignState.targetCpa !== undefined && campaignState.targetCpa !== null && String(campaignState.targetCpa).trim() !== "") {
+      if (cType === "DISPLAY") {
+        // In Google Ads API, Display campaigns with Maximize Conversions throw "The operation is not allowed for the given context" if target_cpa_micros is passed when conversion tracking or account history is unverified.
+        delete (effectiveState as any).targetCpa;
+      } else if (campaignState.targetCpa !== undefined && campaignState.targetCpa !== null && String(campaignState.targetCpa).trim() !== "") {
         const numCpa = Number(campaignState.targetCpa);
         if (!isNaN(numCpa) && numCpa > 0) {
           effectiveState.targetCpa = numCpa;
@@ -11886,7 +12305,11 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                               <button
                                 key={type.id}
                                 type="button"
-                                onClick={() => setTempEditValues({ ...tempEditValues, campaignType: type.id })}
+                                onClick={() => setTempEditValues({
+                                  ...tempEditValues,
+                                  campaignType: type.id,
+                                  budgetType: type.id === "APP" ? "DAILY" : tempEditValues.budgetType
+                                })}
                                 className={`w-full text-left p-2.5 rounded-xl border text-[11px] transition-all flex flex-col gap-1.5 cursor-pointer ${
                                   isSelected
                                     ? "bg-blue-50/95 border-blue-500 shadow-xs ring-1 ring-blue-400"
@@ -12294,30 +12717,47 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       <DollarSign className="w-3 h-3 text-emerald-600" />
                       <span>Daily Budget</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const baseStart = campaignState.startDate || todayIso;
-                        const d = new Date(baseStart);
-                        d.setDate(d.getDate() + 30);
-                        const autoEndDate = campaignState.endDate || d.toISOString().split("T")[0];
-                        setCampaignState(prev => ({
-                          ...prev,
-                          budgetType: "TOTAL",
-                          endDate: autoEndDate
-                        }));
-                        setTempEditValues(prev => ({ ...prev, budgetType: "TOTAL", endDate: autoEndDate }));
-                      }}
-                      className={`flex-1 py-1 px-2 rounded-lg text-[10.5px] font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                        campaignState.budgetType === "TOTAL"
-                          ? "bg-white text-emerald-800 shadow-xs border border-emerald-300 font-bold"
-                          : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-                      }`}
-                    >
-                      <Layers className="w-3 h-3 text-emerald-600" />
-                      <span>Total Budget</span>
-                    </button>
+                    {(campaignState.campaignType as string) === "APP" || (campaignState.campaignType as string) === "DISPLAY" ? (
+                      <div
+                        className="flex-1 py-1 px-2 rounded-lg text-[10.5px] font-medium flex items-center justify-center gap-1 bg-slate-200/60 text-slate-400 border border-slate-200 cursor-not-allowed select-none"
+                        title={`Campaign Total Budget (CUSTOM_PERIOD) is not supported for ${campaignState.campaignType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.`}
+                      >
+                        <Layers className="w-3 h-3 text-slate-400" />
+                        <span>Total Budget</span>
+                        <span className="text-[9px] text-amber-600 font-semibold ml-0.5">(Unsupported)</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const baseStart = campaignState.startDate || todayIso;
+                          const d = new Date(baseStart);
+                          d.setDate(d.getDate() + 30);
+                          const autoEndDate = campaignState.endDate || d.toISOString().split("T")[0];
+                          setCampaignState(prev => ({
+                            ...prev,
+                            budgetType: "TOTAL",
+                            endDate: autoEndDate
+                          }));
+                          setTempEditValues(prev => ({ ...prev, budgetType: "TOTAL", endDate: autoEndDate }));
+                        }}
+                        className={`flex-1 py-1 px-2 rounded-lg text-[10.5px] font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                          campaignState.budgetType === "TOTAL"
+                            ? "bg-white text-emerald-800 shadow-xs border border-emerald-300 font-bold"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                        }`}
+                      >
+                        <Layers className="w-3 h-3 text-emerald-600" />
+                        <span>Total Budget</span>
+                      </button>
+                    )}
                   </div>
+                  {((campaignState.campaignType as string) === "APP" || (campaignState.campaignType as string) === "DISPLAY") && (
+                    <div className="mt-1.5 text-[10px] text-amber-700 bg-amber-50 border border-amber-200/80 rounded-lg p-1.5 flex items-start gap-1">
+                      <AlertCircle className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
+                      <span>Campaign Total Budget (CUSTOM_PERIOD) is not supported for {campaignState.campaignType} campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Field 7b: Budget Amount (Display with Edit Pen Icon -> Inline Editor on Click) */}
@@ -17683,12 +18123,21 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
                       {/* SUB-TAB 4: MORE ASSET TYPES */}
                       {activeAdGroupSubTab === "MORE_ASSETS" && (() => {
-                        const agCallouts = currentAg.callouts || [];
-                        const agPromotions = currentAg.promotions || [];
-                        const agPrices = currentAg.prices || [];
-                        const agSnippets = currentAg.structuredSnippets || [];
-                        const agLeadForms = currentAg.leadForms || [];
-                        const agMessages = currentAg.messages || [];
+                        const agCallouts = (currentAg.callouts && currentAg.callouts.length > 0) ? currentAg.callouts : (campaignState.callouts || []);
+                        const agPromotions = (currentAg.promotions && currentAg.promotions.length > 0) ? currentAg.promotions : (campaignState.promotions || []);
+                        const agPrices = (currentAg.prices && currentAg.prices.length > 0) ? currentAg.prices : (campaignState.prices || []);
+                        const agSnippets = (currentAg.structuredSnippets && currentAg.structuredSnippets.length > 0) ? currentAg.structuredSnippets : (campaignState.structuredSnippets || []);
+                        const agLeadForms = (currentAg.leadForms && currentAg.leadForms.length > 0) ? currentAg.leadForms : (campaignState.leadForms || []);
+                        const agMessages = (currentAg.messages && currentAg.messages.length > 0) ? currentAg.messages : (campaignState.messages || []);
+                        const hasApp = Boolean(currentAg.app || campaignState.appName || campaignState.appId);
+                        const appDisplay = currentAg.app?.appName || campaignState.appName || campaignState.appId;
+
+                        const openAssetModalForAdGroup = (modal: "PROMOTIONS" | "PRICES" | "APPS" | "SNIPPETS" | "LEAD_FORMS" | "BRAND_GUIDELINES" | "APP_ASSET") => {
+                          setActiveAssetTargetAgId(currentAg.id);
+                          setActiveAssetModal(modal);
+                        };
+
+                        const hasAnyAssets = agCallouts.length > 0 || agSnippets.length > 0 || agPromotions.length > 0 || agPrices.length > 0 || agMessages.length > 0 || agLeadForms.length > 0 || hasApp;
 
                         return (
                           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs animate-in fade-in duration-150">
@@ -17709,17 +18158,18 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             </div>
 
                             <p className="text-[11px] text-slate-500">
-                              Attach group-level promotions, prices, structured snippets, lead forms, callouts, and messages to enhance performance for {currentAg.name}.
+                              Attach group-level promotions, prices, structured snippets, lead forms, callouts, messages, and app links to enhance performance for {currentAg.name}.
                             </p>
 
-                            {/* 6 Modal Trigger Buttons */}
+                            {/* All 7 Modal Trigger Buttons */}
                             <div className="flex flex-wrap gap-1.5 pt-1">
+                              {/* 1. Promotions */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("PROMOTIONS")}
+                                onClick={() => openAssetModalForAdGroup("PROMOTIONS")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agPromotions.length > 0
-                                    ? "bg-amber-50 border-amber-300 text-amber-900 shadow-2xs"
+                                    ? "bg-amber-50 border-amber-300 text-amber-900 shadow-2xs ring-1 ring-amber-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17731,12 +18181,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 )}
                               </button>
 
+                              {/* 2. Prices */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("PRICES")}
+                                onClick={() => openAssetModalForAdGroup("PRICES")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agPrices.length > 0
-                                    ? "bg-emerald-50 border-emerald-300 text-emerald-900 shadow-2xs"
+                                    ? "bg-emerald-50 border-emerald-300 text-emerald-900 shadow-2xs ring-1 ring-emerald-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17748,12 +18199,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 )}
                               </button>
 
+                              {/* 3. Messages */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("APPS")}
+                                onClick={() => openAssetModalForAdGroup("APPS")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agMessages.length > 0
-                                    ? "bg-sky-50 border-sky-300 text-sky-900 shadow-2xs"
+                                    ? "bg-sky-50 border-sky-300 text-sky-900 shadow-2xs ring-1 ring-sky-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17765,12 +18217,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 )}
                               </button>
 
+                              {/* 4. Structured Snippets */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("SNIPPETS")}
+                                onClick={() => openAssetModalForAdGroup("SNIPPETS")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agSnippets.length > 0
-                                    ? "bg-purple-50 border-purple-300 text-purple-900 shadow-2xs"
+                                    ? "bg-purple-50 border-purple-300 text-purple-900 shadow-2xs ring-1 ring-purple-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17782,12 +18235,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 )}
                               </button>
 
+                              {/* 5. Lead Forms */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("LEAD_FORMS")}
+                                onClick={() => openAssetModalForAdGroup("LEAD_FORMS")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agLeadForms.length > 0
-                                    ? "bg-rose-50 border-rose-300 text-rose-900 shadow-2xs"
+                                    ? "bg-rose-50 border-rose-300 text-rose-900 shadow-2xs ring-1 ring-rose-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17799,12 +18253,13 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                 )}
                               </button>
 
+                              {/* 6. Callouts */}
                               <button
                                 type="button"
-                                onClick={() => setActiveAssetModal("BRAND_GUIDELINES")}
+                                onClick={() => openAssetModalForAdGroup("BRAND_GUIDELINES")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                   agCallouts.length > 0
-                                    ? "bg-teal-50 border-teal-300 text-teal-900 shadow-2xs"
+                                    ? "bg-teal-50 border-teal-300 text-teal-900 shadow-2xs ring-1 ring-teal-200/50"
                                     : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
                                 }`}
                               >
@@ -17815,11 +18270,30 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   </span>
                                 )}
                               </button>
+
+                              {/* 7. App Link */}
+                              <button
+                                type="button"
+                                onClick={() => openAssetModalForAdGroup("APP_ASSET")}
+                                className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                  hasApp
+                                    ? "bg-cyan-50 border-cyan-300 text-cyan-900 shadow-2xs ring-1 ring-cyan-200/50"
+                                    : "bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/40"
+                                }`}
+                              >
+                                <span>+ Apps</span>
+                                {hasApp && (
+                                  <span className="bg-cyan-200 text-cyan-900 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
+                                    1
+                                  </span>
+                                )}
+                              </button>
                             </div>
 
-                            {/* Quick Display Badges of Configured Extension Assets */}
-                            {(agCallouts.length > 0 || agSnippets.length > 0 || agPromotions.length > 0 || agPrices.length > 0) && (
-                              <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                            {/* Quick Display Badges of All 7 Configured Extension Assets */}
+                            {hasAnyAssets && (
+                              <div className="pt-2 border-t border-slate-200 space-y-2">
+                                {/* 1. Callouts */}
                                 {agCallouts.length > 0 && (
                                   <div className="flex flex-wrap gap-1">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Callouts:</span>
@@ -17831,8 +18305,10 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                           onClick={() => {
                                             const nextCo = agCallouts.filter((_, i) => i !== idx);
                                             setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, callouts: nextCo } : g));
+                                            setCampaignState(p => ({ ...p, callouts: nextCo }));
                                           }}
                                           className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove callout"
                                         >
                                           <X className="h-2.5 w-2.5" />
                                         </button>
@@ -17841,19 +18317,22 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   </div>
                                 )}
 
+                                {/* 2. Snippets */}
                                 {agSnippets.length > 0 && (
                                   <div className="flex flex-wrap gap-1">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Snippets:</span>
                                     {agSnippets.map((sn, idx) => (
                                       <span key={idx} className="px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-800 text-[10px] flex items-center gap-1 font-medium">
-                                        <span><strong>{sn.header}:</strong> {sn.values.join(", ")}</span>
+                                        <span><strong>{sn.header}:</strong> {Array.isArray(sn.values) ? sn.values.join(", ") : sn.values}</span>
                                         <button
                                           type="button"
                                           onClick={() => {
                                             const nextSn = agSnippets.filter((_, i) => i !== idx);
                                             setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, structuredSnippets: nextSn } : g));
+                                            setCampaignState(p => ({ ...p, structuredSnippets: nextSn }));
                                           }}
                                           className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove snippet"
                                         >
                                           <X className="h-2.5 w-2.5" />
                                         </button>
@@ -17862,24 +18341,120 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                                   </div>
                                 )}
 
+                                {/* 3. Deals / Promotions */}
                                 {agPromotions.length > 0 && (
                                   <div className="flex flex-wrap gap-1">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Deals:</span>
                                     {agPromotions.map((pr, idx) => (
                                       <span key={idx} className="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] flex items-center gap-1 font-medium">
-                                        <span>{pr.promotionTarget} ({pr.percentOff ? `${pr.percentOff}% off` : pr.moneyAmountOff ? `₹${pr.moneyAmountOff} off` : "Discount"})</span>
+                                        <span>🏷️ {pr.promotionTarget} ({pr.percentOff ? `${pr.percentOff}% off` : pr.moneyAmountOff ? `₹${pr.moneyAmountOff} off` : "Discount"})</span>
                                         <button
                                           type="button"
                                           onClick={() => {
                                             const nextPr = agPromotions.filter((_, i) => i !== idx);
                                             setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, promotions: nextPr } : g));
+                                            setCampaignState(p => ({ ...p, promotions: nextPr }));
                                           }}
                                           className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove promotion"
                                         >
                                           <X className="h-2.5 w-2.5" />
                                         </button>
                                       </span>
                                     ))}
+                                  </div>
+                                )}
+
+                                {/* 4. Prices */}
+                                {agPrices.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Prices:</span>
+                                    {agPrices.map((pItem, idx) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] flex items-center gap-1 font-medium">
+                                        <span>💰 {pItem.header || `Tier ${idx + 1}`}: ₹{pItem.amount || "0"}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const nextPrices = agPrices.filter((_, i) => i !== idx);
+                                            setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, prices: nextPrices } : g));
+                                            setCampaignState(p => ({ ...p, prices: nextPrices }));
+                                          }}
+                                          className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove price"
+                                        >
+                                          <X className="h-2.5 w-2.5" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* 5. Messages */}
+                                {agMessages.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Messages:</span>
+                                    {agMessages.map((m, idx) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-800 text-[10px] flex items-center gap-1 font-medium">
+                                        <span>💬 {m.platform}: {m.customUrlName || m.starterMessage || "Chat active"}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const nextMsgs = agMessages.filter((_, i) => i !== idx);
+                                            setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, messages: nextMsgs } : g));
+                                            setCampaignState(p => ({ ...p, messages: nextMsgs }));
+                                          }}
+                                          className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove message"
+                                        >
+                                          <X className="h-2.5 w-2.5" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* 6. Lead Forms */}
+                                {agLeadForms.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">Leads:</span>
+                                    {agLeadForms.map((lf, idx) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-[10px] flex items-center gap-1 font-medium">
+                                        <span>📋 {lf.headline || lf.businessName || "Lead Form"}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const nextForms = agLeadForms.filter((_, i) => i !== idx);
+                                            setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, leadForms: nextForms } : g));
+                                            setCampaignState(p => ({ ...p, leadForms: nextForms }));
+                                          }}
+                                          className="text-slate-400 hover:text-rose-600 transition-colors"
+                                          title="Remove lead form"
+                                        >
+                                          <X className="h-2.5 w-2.5" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* 7. App Link */}
+                                {hasApp && (
+                                  <div className="flex flex-wrap gap-1">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-center mr-1">App:</span>
+                                    <span className="px-2 py-0.5 rounded-md bg-cyan-50 border border-cyan-200 text-cyan-800 text-[10px] flex items-center gap-1 font-medium">
+                                      <span>📱 {appDisplay} ({campaignState.platform || "Android"})</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSearchAdGroups(prev => prev.map(g => g.id === currentAg.id ? { ...g, app: undefined } : g));
+                                          setCampaignState(p => ({ ...p, appName: undefined, appId: undefined, app: undefined }));
+                                        }}
+                                        className="text-slate-400 hover:text-rose-600 transition-colors"
+                                        title="Remove app link"
+                                      >
+                                        <X className="h-2.5 w-2.5" />
+                                      </button>
+                                    </span>
                                   </div>
                                 )}
                               </div>
@@ -21715,13 +22290,54 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
                     {/* Target CPA */}
                     <div className="flex justify-between items-center py-1">
-                      <span className="text-slate-500">Target CPA:</span>
-                      <span className="font-semibold text-slate-800">
-                        {campaignState.targetCpa ? `₹${campaignState.targetCpa}` : (
-                          <span className="text-rose-500 font-semibold">Required</span>
-                        )}
-                      </span>
+                      <div className="flex items-center gap-1 text-slate-500">
+                        <span>Target CPA:</span>
+                        <button
+                          type="button"
+                          onClick={() => (editingField === "appTargetCpa" ? cancelFieldEdit() : startFieldEdit("appTargetCpa"))}
+                          className="p-0.5 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                          title="Edit Target CPA"
+                        >
+                          <Edit3 className="h-3 w-3" />
+                        </button>
+                      </div>
+                      {editingField === "appTargetCpa" ? (
+                        <div className="flex items-center gap-1 max-w-[160px]">
+                          <span className="text-slate-500 font-bold">₹</span>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={tempEditValues.targetCpa ?? ""}
+                            onChange={(e) => setTempEditValues({ ...tempEditValues, targetCpa: e.target.value })}
+                            onKeyDown={handleKeyDownSave}
+                            placeholder="e.g. 50"
+                            className="w-full bg-white border border-blue-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 focus:outline-none"
+                            autoFocus
+                          />
+                          <button type="button" onClick={saveFieldEdit} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">
+                            <Check className="h-3 w-3" />
+                          </button>
+                          <button type="button" onClick={cancelFieldEdit} className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="font-semibold text-slate-800">
+                          {campaignState.targetCpa ? `₹${campaignState.targetCpa}` : (
+                            <span className="text-rose-500 font-semibold flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" /> Required (&gt; ₹0)
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </div>
+                    {editingField === "appTargetCpa" && fieldError && (
+                      <div className="text-[10px] text-rose-600 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-2.5 w-2.5 shrink-0" />
+                        <span>{fieldError}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Missing App ID alert */}
@@ -22263,6 +22879,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                         (campaignState.targetCpa && Number(campaignState.targetCpa) > 0) &&
                         (campaignState.headlines?.length || 0) >= 1 &&
                         (campaignState.descriptions?.length || 0) >= 1 &&
+                        campaignState.budgetType !== "TOTAL" &&
                         (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
                       ) ? "text-emerald-600 font-bold" : "text-amber-600 font-semibold"}>
                         {Boolean(
@@ -22270,6 +22887,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           (campaignState.targetCpa && Number(campaignState.targetCpa) > 0) &&
                           (campaignState.headlines?.length || 0) >= 1 &&
                           (campaignState.descriptions?.length || 0) >= 1 &&
+                          campaignState.budgetType !== "TOTAL" &&
                           (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
                         ) ? "Complete ✓" : "Required items missing"}
                       </span>
@@ -22301,8 +22919,12 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                       </div>
                       <div className="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">
                         <span>Daily Budget (≥ ₹100):</span>
-                        <span className={(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
-                          {(campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? `₹${campaignState.dailyBudget}/day ✓` : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
+                        <span className={campaignState.budgetType === "TOTAL" ? "text-rose-500 font-medium" : (campaignState.dailyBudget && campaignState.dailyBudget >= 100) ? "text-emerald-600 font-bold" : "text-rose-500 font-medium"}>
+                          {campaignState.budgetType === "TOTAL"
+                            ? "Total Budget unsupported ✗"
+                            : (campaignState.dailyBudget && campaignState.dailyBudget >= 100)
+                            ? `₹${campaignState.dailyBudget}/day ✓`
+                            : `₹${campaignState.dailyBudget || 0}/day (min ₹100)`}
                         </span>
                       </div>
                     </div>
@@ -26967,80 +27589,120 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
             </div>
 
             {/* Selection Options */}
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-slate-50/50">
-              {/* Option 1: Device File Explorer */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMediaSourceModalOpen(false);
-                  if (activeUploadTarget === "IMAGE") imageInputRef.current?.click();
-                  else if (activeUploadTarget === "LOGO") logoInputRef.current?.click();
-                  else if (activeUploadTarget === "VIDEO") videoInputRef.current?.click();
-                }}
-                className="p-4 rounded-2xl border-2 border-slate-200 hover:border-blue-500 bg-white hover:bg-blue-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
-              >
-                <div className="h-12 w-12 rounded-2xl bg-blue-100/70 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <UploadCloud className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="font-bold text-xs text-slate-800 group-hover:text-blue-600">
-                    Device File Explorer
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                    Upload from local drive, camera or PC
-                  </p>
-                </div>
-              </button>
+            {(() => {
+              const effectiveProf = customerProfile || campaignState.customerProfile;
+              const isMerchantConn = Boolean(isMerchantVerified(effectiveProf));
+              const activeMerchantId = (
+                campaignState.merchantCenterId ||
+                (campaignState as any).merchantId ||
+                effectiveProf?.merchantCenterId ||
+                effectiveProf?.merchantId ||
+                ""
+              ).toString().trim();
+              const hasMerchant = isMerchantConn || (activeMerchantId.length > 0 && /^\d+$/.test(activeMerchantId)) || Boolean(hasMerchantCenterAccount);
 
-              {/* Option 2: Choose Past Files */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMediaSourceModalOpen(false);
-                  fetchPastMediaLibrary();
-                  setIsPastMediaModalOpen(true);
-                }}
-                className="p-4 rounded-2xl border-2 border-slate-200 hover:border-purple-500 bg-white hover:bg-purple-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
-              >
-                <div className="h-12 w-12 rounded-2xl bg-purple-100/70 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Bookmark className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="font-bold text-xs text-slate-800 group-hover:text-purple-600">
-                    Past Files & Media Library
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                    Browse previously saved ImageKit assets
-                  </p>
-                </div>
-              </button>
+              return (
+                <div className={`p-5 grid grid-cols-1 ${hasMerchant ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3.5 bg-slate-50/50`}>
+                  {/* Option 1: Device File Explorer */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMediaSourceModalOpen(false);
+                      if (activeUploadTarget === "IMAGE") imageInputRef.current?.click();
+                      else if (activeUploadTarget === "LOGO") logoInputRef.current?.click();
+                      else if (activeUploadTarget === "VIDEO") videoInputRef.current?.click();
+                    }}
+                    className="p-4 rounded-2xl border-2 border-slate-200 hover:border-blue-500 bg-white hover:bg-blue-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
+                  >
+                    <div className="h-12 w-12 rounded-2xl bg-blue-100/70 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <UploadCloud className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-xs text-slate-800 group-hover:text-blue-600">
+                        Device File Explorer
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                        Upload from local drive, camera or PC
+                      </p>
+                    </div>
+                  </button>
 
-              {/* Option 3: YouTube Video URL (For Videos) */}
-              {activeUploadTarget === "VIDEO" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMediaSourceModalOpen(false);
-                    setYoutubeVideoUrlError(null);
-                    setYoutubeVideoUrlInput("");
-                    setIsYoutubeUrlModalOpen(true);
-                  }}
-                  className="p-4 rounded-2xl border-2 border-slate-200 hover:border-rose-500 bg-white hover:bg-rose-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md sm:col-span-2"
-                >
-                  <div className="h-12 w-12 rounded-2xl bg-rose-100/70 text-rose-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <Video className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-xs text-slate-800 group-hover:text-rose-600">
-                      Enter YouTube Video URL
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                      Paste a direct YouTube URL (e.g. youtube.com/watch?v=... or youtu.be/...)
-                    </p>
-                  </div>
-                </button>
-              )}
-            </div>
+                  {/* Option 2: Choose Past Files */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMediaSourceModalOpen(false);
+                      fetchPastMediaLibrary();
+                      setIsPastMediaModalOpen(true);
+                    }}
+                    className="p-4 rounded-2xl border-2 border-slate-200 hover:border-purple-500 bg-white hover:bg-purple-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
+                  >
+                    <div className="h-12 w-12 rounded-2xl bg-purple-100/70 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <Bookmark className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-xs text-slate-800 group-hover:text-purple-600">
+                        Past Files & Media Library
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                        Browse previously saved ImageKit assets
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option 3: Merchant Product Images (Condition: Display ONLY when Merchant Account is connected) */}
+                  {hasMerchant && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMediaSourceModalOpen(false);
+                        setMerchantProductSearchQuery("");
+                        setIsMerchantProductModalOpen(true);
+                      }}
+                      className="p-4 rounded-2xl border-2 border-slate-200 hover:border-emerald-500 bg-white hover:bg-emerald-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md"
+                    >
+                      <div className="h-12 w-12 rounded-2xl bg-emerald-100/70 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <ShoppingBag className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-xs text-slate-800 group-hover:text-emerald-600 flex items-center justify-center gap-1">
+                          <span>Merchant Product Images</span>
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                          Select from live connected Google Merchant feed
+                        </p>
+                      </div>
+                    </button>
+                  )}
+
+                  {/* Option for YouTube Video URL (For Videos) */}
+                  {activeUploadTarget === "VIDEO" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMediaSourceModalOpen(false);
+                        setYoutubeVideoUrlError(null);
+                        setYoutubeVideoUrlInput("");
+                        setIsYoutubeUrlModalOpen(true);
+                      }}
+                      className="p-4 rounded-2xl border-2 border-slate-200 hover:border-rose-500 bg-white hover:bg-rose-50/40 transition-all text-left flex flex-col items-center text-center gap-2.5 group cursor-pointer shadow-xs hover:shadow-md sm:col-span-2"
+                    >
+                      <div className="h-12 w-12 rounded-2xl bg-rose-100/70 text-rose-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Video className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-xs text-slate-800 group-hover:text-rose-600">
+                          Enter YouTube Video URL
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                          Paste a direct YouTube URL (e.g. youtube.com/watch?v=... or youtu.be/...)
+                        </p>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Footer */}
             <div className="p-3 bg-slate-100/80 border-t border-slate-200 flex justify-end">
@@ -27449,6 +28111,211 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 2B: MERCHANT PRODUCT IMAGES PICKER MODAL                */}
+      {/* ------------------------------------------------------------- */}
+      {isMerchantProductModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col scale-in-95 duration-150">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 via-teal-50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                  <ShoppingBag className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                    <span>Merchant Product Images</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      Target: {activeUploadTarget.toUpperCase()}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Select a product image from your connected Google Merchant Center catalog to format and upload
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const effectiveProf = customerProfile || campaignState.customerProfile;
+                    const activeMerchantId = (
+                      campaignState.merchantCenterId ||
+                      (campaignState as any).merchantId ||
+                      effectiveProf?.merchantCenterId ||
+                      effectiveProf?.merchantId ||
+                      ""
+                    ).toString().trim();
+                    if (activeMerchantId) {
+                      setIsLoadingMerchantProducts(true);
+                      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                      const storedOrg = typeof window !== "undefined" ? localStorage.getItem("organization_id") || "" : "";
+                      fetch(`${BACKEND}/api/ads/merchant-products?orgId=${encodeURIComponent(storedOrg)}&customerId=${encodeURIComponent(customerId || "")}&merchantId=${encodeURIComponent(activeMerchantId)}`, {
+                        headers: { "x-organization-id": storedOrg, "x-customer-id": customerId || "" }
+                      })
+                        .then(r => r.json())
+                        .then(d => {
+                          if (Array.isArray(d.products)) setMerchantProductsList(d.products);
+                        })
+                        .finally(() => setIsLoadingMerchantProducts(false));
+                    }
+                  }}
+                  disabled={isLoadingMerchantProducts}
+                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer text-xs font-semibold flex items-center gap-1"
+                  title="Refresh catalog"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isLoadingMerchantProducts ? "animate-spin text-emerald-600" : ""}`} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsMerchantProductModalOpen(false)}
+                  className="p-1.5 rounded-full hover:bg-slate-200/70 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Search Bar & Stats */}
+            <div className="p-3 sm:p-4 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={merchantProductSearchQuery}
+                  onChange={(e) => setMerchantProductSearchQuery(e.target.value)}
+                  placeholder="Search products by title, brand, or SKU..."
+                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 shadow-2xs"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500 bg-white px-2.5 py-1.5 rounded-xl border border-slate-200">
+                  {merchantProductsList.length} Products Found
+                </span>
+              </div>
+            </div>
+
+            {/* Products Image Gallery */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 min-h-[300px]">
+              {isLoadingMerchantProducts ? (
+                <div className="py-20 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                  <span className="font-semibold text-slate-700">Loading live product catalog from Google Merchant Center...</span>
+                </div>
+              ) : merchantProductsList.length === 0 ? (
+                <div className="py-20 text-center text-xs text-slate-400 space-y-3">
+                  <ShoppingBag className="h-12 w-12 text-slate-300 mx-auto" />
+                  <p className="font-bold text-sm text-slate-700">No merchant products detected</p>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Ensure your Google Merchant Center account has approved items with active image URLs synced.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                  {merchantProductsList
+                    .filter((prod) => {
+                      if (!merchantProductSearchQuery.trim()) return true;
+                      const q = merchantProductSearchQuery.toLowerCase();
+                      const titleMatch = (prod.title || "").toLowerCase().includes(q);
+                      const brandMatch = (prod.brand || "").toLowerCase().includes(q);
+                      const idMatch = (prod.id || "").toLowerCase().includes(q);
+                      return titleMatch || brandMatch || idMatch;
+                    })
+                    .map((prod, idx) => {
+                      const imgUrl = prod.imageLink || (Array.isArray(prod.additionalImageLinks) ? prod.additionalImageLinks[0] : null);
+                      const priceDisplay = typeof prod.price === "string" ? prod.price : (prod.price?.value ? `${prod.price.currency || "INR"} ${prod.price.value}` : null);
+
+                      return (
+                        <div
+                          key={prod.id || idx}
+                          className="group relative rounded-2xl border border-slate-200 bg-white overflow-hidden hover:border-emerald-400 hover:shadow-lg transition-all flex flex-col"
+                        >
+                          {/* Image Box */}
+                          <div className="relative aspect-square w-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                            {imgUrl ? (
+                              <img
+                                src={imgUrl}
+                                alt={prod.title}
+                                className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-200"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-slate-400 p-2">
+                                <ShoppingBag className="h-8 w-8 text-slate-300" />
+                                <span className="text-[10px] text-slate-400 mt-1">No Image Available</span>
+                              </div>
+                            )}
+
+                            {/* Badge */}
+                            <div className="absolute top-2 left-2 flex flex-col gap-1 items-start pointer-events-none">
+                              {prod.brand && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-black/70 text-white text-[9px] font-bold backdrop-blur-xs truncate max-w-[120px]">
+                                  {prod.brand}
+                                </span>
+                              )}
+                              <span className={`px-1.5 py-0.5 rounded-md text-[8.5px] font-bold uppercase shadow-2xs ${
+                                (prod.availability || "").toLowerCase().includes("out")
+                                  ? "bg-rose-500 text-white"
+                                  : "bg-emerald-600 text-white"
+                              }`}>
+                                {prod.availability || "in stock"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Info and Select Button */}
+                          <div className="p-3 flex flex-col justify-between flex-1 gap-2 bg-white">
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-bold text-slate-800 line-clamp-2 leading-tight" title={prod.title}>
+                                {prod.title}
+                              </p>
+                              {priceDisplay && (
+                                <p className="text-[10.5px] font-bold text-emerald-700 font-mono mt-1">
+                                  {priceDisplay}
+                                </p>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSelectMerchantProductImage(prod)}
+                              disabled={!imgUrl}
+                              className={`w-full py-1.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                                imgUrl
+                                  ? "bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border-emerald-200 hover:border-emerald-600"
+                                  : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                              }`}
+                            >
+                              <Crop className="h-3 w-3" />
+                              <span>Select & Crop Image</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Selected images will open directly in the Google Ads image crop editor to ensure compliance with all aspect ratio guidelines.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsMerchantProductModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition-all cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -29045,8 +29912,20 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           }
                           return { ...prev, promotions: [...current, newPromo].slice(0, 15) };
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const current = [...(ag.promotions || [])];
+                            if (editingAssetIndex !== null && current[editingAssetIndex]) {
+                              current[editingAssetIndex] = newPromo;
+                              return { ...ag, promotions: current };
+                            }
+                            return { ...ag, promotions: [...current, newPromo].slice(0, 15) };
+                          }));
+                        }
                         setEditingAssetIndex(null);
                         setActiveAssetModal(null);
+                        setActiveAssetTargetAgId(null);
                       }}
                       className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                     >
@@ -29659,9 +30538,22 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           const combined = [...current, ...validItems];
                           return { ...prev, prices: combined.slice(0, 15) };
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const current = [...(ag.prices || [])];
+                            if (editingAssetIndex !== null && current[editingAssetIndex]) {
+                              current[editingAssetIndex] = validItems[0];
+                              return { ...ag, prices: current.slice(0, 15) };
+                            }
+                            const combined = [...current, ...validItems];
+                            return { ...ag, prices: combined.slice(0, 15) };
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >
@@ -30164,9 +31056,22 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                           const combined = [...current, newMsg as any];
                           return { ...prev, messages: combined.slice(0, 15) };
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const current = [...(ag.messages || [])];
+                            if (editingAssetIndex !== null && current[editingAssetIndex]) {
+                              current[editingAssetIndex] = newMsg as any;
+                              return { ...ag, messages: current.slice(0, 15) };
+                            }
+                            const combined = [...current, newMsg as any];
+                            return { ...ag, messages: combined.slice(0, 15) };
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >
@@ -30636,9 +31541,23 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             return { ...prev, structuredSnippets: combined.slice(0, 15) };
                           }
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const cur = [...(ag.structuredSnippets || [])];
+                            if (editingAssetIndex !== null && editingAssetIndex >= 0 && editingAssetIndex < cur.length) {
+                              cur[editingAssetIndex] = updatedSnippet;
+                              return { ...ag, structuredSnippets: cur.slice(0, 15) };
+                            } else {
+                              const combined = [...cur, updatedSnippet];
+                              return { ...ag, structuredSnippets: combined.slice(0, 15) };
+                            }
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >
@@ -31011,9 +31930,23 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             return { ...prev, leadForms: combined.slice(0, 15) };
                           }
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const cur = [...(ag.leadForms || [])];
+                            if (editingAssetIndex !== null && editingAssetIndex >= 0 && editingAssetIndex < cur.length) {
+                              cur[editingAssetIndex] = newLeadForm;
+                              return { ...ag, leadForms: cur.slice(0, 15) };
+                            } else {
+                              const combined = [...cur, newLeadForm];
+                              return { ...ag, leadForms: combined.slice(0, 15) };
+                            }
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >
@@ -31348,11 +32281,25 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                             };
                           }
                         });
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            const cur = [...(ag.callouts || [])];
+                            if (editingAssetIndex !== null && editingAssetIndex >= 0 && editingAssetIndex < cur.length && finalCallouts[0]) {
+                              cur[editingAssetIndex] = finalCallouts[0];
+                              return { ...ag, callouts: cur.slice(0, 15) };
+                            } else {
+                              const combined = Array.from(new Set([...cur, ...finalCallouts]));
+                              return { ...ag, callouts: combined.slice(0, 15) };
+                            }
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setModalCalloutTexts([]);
                       setNewCalloutInput("");
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >
@@ -32129,21 +33076,30 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
                     type="button"
                     onClick={() => {
                       if (appNameInput.trim()) {
+                        const appObj = {
+                          appId: appNameInput.trim(),
+                          appName: appNameInput.trim(),
+                          appStore: appPlatform === "iOS" ? "APPLE_APP_STORE" : "GOOGLE_PLAY_STORE",
+                          linkText: appLinkText.trim() || "Download App",
+                          url: `https://store.example.com/${appNameInput.trim()}`
+                        };
                         setCampaignState(prev => ({
                           ...prev,
                           appName: appNameInput.trim(),
                           appId: appNameInput.trim(),
                           platform: appPlatform === "iOS" ? "IOS" : "ANDROID",
-                          app: {
-                            appId: appNameInput.trim(),
-                            appStore: appPlatform === "iOS" ? "APPLE_APP_STORE" : "GOOGLE_PLAY_STORE",
-                            linkText: appLinkText.trim() || "Download App",
-                            url: `https://store.example.com/${appNameInput.trim()}`
-                          }
+                          app: appObj
                         }));
+                        if (activeAssetTargetAgId) {
+                          setSearchAdGroups(prev => prev.map(ag => {
+                            if (ag.id !== activeAssetTargetAgId) return ag;
+                            return { ...ag, app: appObj };
+                          }));
+                        }
                       }
                       setEditingAssetIndex(null);
                       setActiveAssetModal(null);
+                      setActiveAssetTargetAgId(null);
                     }}
                     className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer transition-all shadow-xs"
                   >

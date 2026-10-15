@@ -2579,7 +2579,7 @@ export default function  NoGuidanceAppPage()  {
                     <div className="p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 flex items-start gap-3 text-blue-300">
                       <HelpCircle className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
                       <p className="text-xs leading-relaxed">
-                        Your budget type (daily or campaign total) can&apos;t be changed once this campaign has started. You can change your budget amount at any time.
+                        Google Ads App campaigns strictly require an <strong>Average daily budget</strong>. Campaign Total Budget (CUSTOM_PERIOD) is not supported for App campaigns in the Google Ads API.
                       </p>
                     </div>
 
@@ -2588,7 +2588,10 @@ export default function  NoGuidanceAppPage()  {
 
                       {/* Option 1: Average daily budget */}
                       <label
-                        onClick={() => setBudgetType("DAILY")}
+                        onClick={() => {
+                          setBudgetType("DAILY");
+                          setPublishError("");
+                        }}
                         className={`flex items-start gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all ${
                           budgetType === "DAILY" ? "border-primary bg-primary/10" : "border-slate-200 bg-slate-50 hover:border-slate-300"
                         }`}
@@ -2597,7 +2600,10 @@ export default function  NoGuidanceAppPage()  {
                           type="radio"
                           name="budgetTypeRadio"
                           checked={budgetType === "DAILY"}
-                          onChange={() => setBudgetType("DAILY")}
+                          onChange={() => {
+                            setBudgetType("DAILY");
+                            setPublishError("");
+                          }}
                           className="mt-1 text-primary h-4 w-4"
                         />
                         <div className="space-y-1">
@@ -2623,59 +2629,56 @@ export default function  NoGuidanceAppPage()  {
                         </div>
                       </label>
 
-                      {/* Option 2: Campaign total budget */}
-                      <label
-                        onClick={() => setBudgetType("TOTAL")}
-                        className={`flex items-start gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                          budgetType === "TOTAL" ? "border-primary bg-primary/10" : "border-slate-200 bg-slate-50 hover:border-slate-300"
-                        }`}
+                      {/* Option 2: Campaign total budget (Disabled for App campaigns) */}
+                      <div
+                        onClick={() => {
+                          setPublishError("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+                        }}
+                        className="flex items-start gap-3.5 p-3.5 rounded-xl border border-slate-200 bg-slate-100/70 opacity-60 cursor-not-allowed select-none transition-all"
+                        title="Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API."
                       >
                         <input
                           type="radio"
                           name="budgetTypeRadio"
-                          checked={budgetType === "TOTAL"}
-                          onChange={() => setBudgetType("TOTAL")}
-                          className="mt-1 text-primary h-4 w-4"
+                          checked={false}
+                          disabled
+                          className="mt-1 text-slate-400 h-4 w-4 cursor-not-allowed"
                         />
                         <div className="space-y-1 flex-1">
-                          <span className="font-bold text-slate-900 block">Campaign total budget</span>
-                          <span className="text-slate-500 block text-[11px]">Set a budget for the duration of your campaign</span>
-                          
-                          {budgetType === "TOTAL" && (
-                            <div className="pt-2 space-y-4">
-                              <div className="relative max-w-xs">
-                                <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-mono">₹</span>
-                                <input
-                                  type="text"
-                                  value={customBudgetValue}
-                                  onChange={(e) => setCustomBudgetValue(e.target.value)}
-                                  placeholder=""
-                                  className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
-                                />
-                              </div>
-
-                              {/* Start Date & End Date Info Card */}
-                              <div className="p-4 rounded-xl border border-slate-200 bg-white flex items-center justify-between">
-                                <div className="space-y-1 text-xs">
-                                  <p className="text-slate-800">
-                                    <span className="text-slate-500 font-semibold">Start date:</span> August 11, 2026
-                                  </p>
-                                  <p className="text-slate-800">
-                                    <span className="text-slate-500 font-semibold">End date:</span> None
-                                  </p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => alert("Editing Campaign Dates...")}
-                                  className="text-blue-400 font-bold hover:underline cursor-pointer"
-                                >
-                                  Edit
-                                </button>
-                              </div>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-700 block">Campaign total budget</span>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                              Not Supported for App Campaigns
+                            </span>
+                          </div>
+                          <span className="text-slate-500 block text-[11px]">
+                            Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.
+                          </span>
                         </div>
-                      </label>
+                      </div>
+
+                      {/* Active Alert if budgetType is somehow TOTAL */}
+                      {budgetType === "TOTAL" && (
+                        <div className="p-3.5 rounded-xl border border-rose-300 bg-rose-50 text-rose-900 flex items-start gap-3 animate-fadeIn">
+                          <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                          <div className="space-y-1 flex-1">
+                            <p className="font-bold text-xs">Campaign Total Budget is not supported for App campaigns</p>
+                            <p className="text-[11px] text-rose-800 leading-relaxed">
+                              Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBudgetType("DAILY");
+                                setPublishError("");
+                              }}
+                              className="mt-1 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold cursor-pointer transition-all"
+                            >
+                              Switch to Average daily budget
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                   </div>
@@ -2683,7 +2686,7 @@ export default function  NoGuidanceAppPage()  {
                   {/* Right Help Column (4 Cols) */}
                   <div className="lg:col-span-4 border-l border-slate-200 pl-6 space-y-3">
                     <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Your campaign total budget is what the campaign should spend over its runtime. To use a campaign total budget, you must add an end date for your campaign.
+                      Google Ads App campaigns only support an <strong>Average daily budget</strong>. Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API (supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX). Google Ads optimizes install pacing on a daily basis.
                     </p>
                   </div>
 
@@ -2700,7 +2703,7 @@ export default function  NoGuidanceAppPage()  {
               </div>
 
               {/* 1. Issues Section */}
-              {(!headlines.some(h => h.trim().length > 0) || !businessName.trim() || (finalUrl.trim() && (finalUrl.includes("example.com") || (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")))) || !customBudgetValue.trim() || Number(customBudgetValue.replace(/,/g, "")) <= 0) && (
+              {(!headlines.some(h => h.trim().length > 0) || !businessName.trim() || (finalUrl.trim() && (finalUrl.includes("example.com") || (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")))) || !customBudgetValue.trim() || Number(customBudgetValue.replace(/,/g, "")) <= 0 || budgetType === "TOTAL") && (
               <div className="space-y-2">
                 <div className="space-y-0.5">
                   <h3 className="font-bold text-slate-800 text-xs">Issues</h3>
@@ -2708,6 +2711,28 @@ export default function  NoGuidanceAppPage()  {
                 </div>
 
                 <div className="space-y-2">
+                  {/* Issue: Unsupported Budget Type */}
+                  {budgetType === "TOTAL" && (
+                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                      <p className="text-slate-800">
+                        <strong className="text-slate-900 font-bold">Unsupported budget:</strong> Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBudgetType("DAILY");
+                        setWizardStep("BIDDING_BUDGET");
+                      }}
+                      className="text-blue-500 font-bold hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-2"
+                    >
+                      Switch to Daily
+                    </button>
+                  </div>
+                  )}
+
                   {/* Issue 1: Create an ad */}
                   {!headlines.some(h => h.trim().length > 0) && (
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
@@ -2917,9 +2942,14 @@ export default function  NoGuidanceAppPage()  {
                 <div className="rounded-xl border border-slate-200 bg-white overflow-hidden p-4 flex items-center justify-between">
                   <span className="text-slate-500 w-48 font-medium">Budget</span>
                   <div className="flex-1 space-y-1">
-                    {activeBudgetValue > 0 ? (
+                    {budgetType === "TOTAL" ? (
+                      <span className="text-rose-600 font-bold text-xs flex items-center gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        Unsupported: Campaign Total Budget (CUSTOM_PERIOD)
+                      </span>
+                    ) : activeBudgetValue > 0 ? (
                       <span className="text-slate-900 font-bold">
-                        {budgetType === "DAILY" ? "Daily: " : "Campaign total: "}₹{activeBudgetValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        Daily: ₹{activeBudgetValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </span>
                     ) : (
                       <span className="text-rose-500 font-semibold flex items-center gap-1">
@@ -3001,6 +3031,10 @@ export default function  NoGuidanceAppPage()  {
                   }
                   setWizardStep("BIDDING_BUDGET");
                 } else if (wizardStep === "BIDDING_BUDGET") {
+                  if (budgetType === "TOTAL") {
+                    setPublishError("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+                    return;
+                  }
                   const budgetNum = Number(customBudgetValue.replace(/,/g, ""));
                   if (!customBudgetValue.trim() || isNaN(budgetNum) || budgetNum <= 0) {
                     setPublishError("Please enter a valid positive budget amount.");
@@ -3014,6 +3048,7 @@ export default function  NoGuidanceAppPage()  {
                     setPublishError("Please enter a valid Target ROAS percentage.");
                     return;
                   }
+                  setPublishError("");
                   setWizardStep("SUMMARY");
                 }
               }}
@@ -3049,6 +3084,9 @@ export default function  NoGuidanceAppPage()  {
                   }
                   if (finalUrl.trim() && (finalUrl.includes("example.com") || (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")))) {
                     throw new Error(finalUrl.includes("example.com") ? "Final URL cannot be default example.com. Please enter your valid landing page URL." : "Final URL must begin with http:// or https://");
+                  }
+                  if (budgetType === "TOTAL") {
+                    throw new Error("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
                   }
                   if (!customBudgetValue.trim() || isNaN(budgetNum) || budgetNum <= 0) {
                     throw new Error("A valid positive daily budget is required.");
@@ -3112,6 +3150,7 @@ export default function  NoGuidanceAppPage()  {
                       dailyBudget: budgetNum,
                       images: imageBase64Array,
                       youtubeVideoIds: youtubeIds,
+                      conversionGoals: ["installs"]
                     }),
                   });
                   const data = await res.json();

@@ -4368,7 +4368,6 @@ router.post("/create-campaign", async (req, res) => {
           isAiGuided: true,
           campaignName,
           finalUrl: state.website || state.finalUrl,
-          mobileFinalUrl: anyState.mobileFinalUrl || undefined,
           businessName: state.businessName,
           dailyBudget,
           budget: dailyBudget,
@@ -4378,14 +4377,14 @@ router.post("/create-campaign", async (req, res) => {
           biddingFocus: state.biddingStrategy || "MAXIMIZE_CONVERSIONS",
           biddingStrategyId: state.biddingStrategyId || (state as any).biddingStrategyId || undefined,
           biddingStrategyResourceName: state.biddingStrategyResourceName || (state as any).biddingStrategyResourceName || undefined,
-          targetCpa: state.targetCpa || undefined,
+          targetCpa: undefined,
           targetRoas: state.targetRoas || undefined,
           targetCpc: anyState.targetCpc || anyState.maxCpc || undefined,
           maxCpc: anyState.maxCpc || undefined,
           cpcBid: anyState.cpcBid || undefined,
           viewableCpmBid: anyState.viewableCpmBid || undefined,
-          startDate: state.startDate,
-          endDate: state.endDate,
+          startDate: state.startDate || undefined,
+          endDate: state.endDate || undefined,
           headlines: validHeadlines,
           longHeadlines: state.longHeadlines && state.longHeadlines.length > 0 ? state.longHeadlines : (validHeadlines.length > 0 ? [validHeadlines[0]] : []),
           descriptions: validDescriptions,
@@ -4407,17 +4406,6 @@ router.post("/create-campaign", async (req, res) => {
           audienceSignal: anyState.audienceSignal || (anyState.audienceSignals?.[0] ? anyState.audienceSignals[0] : (state.audienceSignals?.[0] || undefined)),
           audienceSignals: anyState.audienceSignals || (anyState.audienceSignal ? (Array.isArray(anyState.audienceSignal) ? anyState.audienceSignal : [anyState.audienceSignal]) : (state.audienceSignals || [])),
           audience: anyState.audience || undefined,
-          demographicsGender: anyState.demographicsGender || undefined,
-          demographicsAge: anyState.demographicsAge || undefined,
-          demographicsParental: anyState.demographicsParental || undefined,
-          demographicsIncome: anyState.demographicsIncome || undefined,
-          demographics: anyState.demographics || undefined,
-          topics: anyState.topics || anyState.selectedTopics || [],
-          selectedTopics: anyState.selectedTopics || [],
-          placements: anyState.placements || anyState.selectedPlacements || [],
-          selectedPlacements: anyState.selectedPlacements || [],
-          keywords: anyState.keywords || [],
-          enteredKeywordsText: anyState.enteredKeywordsText || undefined,
           contentLabels: anyState.contentLabels || undefined,
           sensitiveContent: anyState.sensitiveContent || undefined,
           contentTypeExclusions: anyState.contentTypeExclusions || undefined,
@@ -4435,7 +4423,12 @@ router.post("/create-campaign", async (req, res) => {
           leadForms: anyState.leadForms || [],
           callAsset: anyState.callAsset || undefined,
           leadFormAsset: anyState.leadFormAsset || undefined,
-          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
+          conversionGoals: anyState.conversionGoals || state.conversionGoals || [],
+          frequencyCaps: anyState.frequencyCaps || undefined,
+          frequencyCapCount: anyState.frequencyCapCount !== undefined ? Number(anyState.frequencyCapCount) : undefined,
+          frequencyCapDays: anyState.frequencyCapDays !== undefined ? Number(anyState.frequencyCapDays) : undefined,
+          budgetType: "DAILY",
+          marketingImages: state.images && state.images.length > 0 ? state.images : []
         };
         if (objective === "LEADS") {
           result = await LeadsDisplayService.createCampaign(orgId, customerId, payload);
@@ -4637,30 +4630,53 @@ router.post("/create-campaign", async (req, res) => {
           return res.status(400).json({ error: `Unsupported objective "${objective}" for APP campaigns. Only APP_PROMOTION is supported.` });
         }
         const anyState = state as any;
+        const normPlatform = String(state.platform || anyState.platform || (anyState.appStore === "APPLE_APP_STORE" ? "IOS" : "ANDROID")).toUpperCase().includes("IOS") ? "IOS" : "ANDROID";
+        const cleanAppId = String(state.appId || anyState.appId || "").trim();
+        const appStoreUrl = normPlatform === "IOS"
+          ? `https://apps.apple.com/app/id${cleanAppId}`
+          : `https://play.google.com/store/apps/details?id=${cleanAppId}`;
+        const finalUrl = (state.finalUrl && state.finalUrl.startsWith("http") && state.finalUrl !== "https://example.com")
+          ? state.finalUrl
+          : (state.website && state.website.startsWith("http") && state.website !== "https://example.com")
+          ? state.website
+          : appStoreUrl;
+
+        const effectiveLocations = (Array.isArray(state.locations) && state.locations.length > 0)
+          ? state.locations
+          : (locations && locations.length > 0 ? locations : ["India"]);
+        const effectiveLanguages = (Array.isArray(state.languages) && state.languages.length > 0)
+          ? state.languages
+          : (state.language ? [state.language] : (languages && languages.length > 0 ? languages : ["English"]));
+
+        const effectiveStartDate = state.startDate || normalizedDates.startDate || new Date().toISOString().split("T")[0];
+        const effectiveEndDate = state.endDate || normalizedDates.endDate || undefined;
+
         const payload = {
           source: "AI_GUIDED",
           isAiGuided: true,
           campaignName,
-          platform: state.platform,
-          appId: state.appId,
-          appName: state.appName || undefined,
-          businessName: state.businessName || undefined,
-          locations,
-          languages,
+          campaignType: "APP",
+          platform: normPlatform,
+          appId: cleanAppId,
+          appName: state.appName || anyState.appName || undefined,
+          businessName: state.businessName || anyState.businessName || undefined,
+          locations: effectiveLocations,
+          languages: effectiveLanguages,
           headlines: validHeadlines,
           descriptions: validDescriptions,
-          targetCpa: state.targetCpa,
+          targetCpa: Number(state.targetCpa || anyState.targetCpa || 0),
           dailyBudget,
           budget: dailyBudget,
-          startDate: state.startDate,
-          endDate: state.endDate,
+          startDate: effectiveStartDate,
+          endDate: effectiveEndDate,
+          finalUrl,
           euPolitical: state.euPolitical || "NO",
           images: (state as any).images || (state as any).marketingImages || [],
           videos: (state as any).videos || (state as any).youtubeVideos || [],
           trackingTemplate: state.trackingTemplate || anyState.trackingTemplate || undefined,
           finalUrlSuffix: state.finalUrlSuffix || anyState.finalUrlSuffix || undefined,
           customParameters: anyState.customParameters || anyState.customParamsList || [],
-          conversionGoals: anyState.conversionGoals || state.conversionGoals || []
+          conversionGoals: anyState.conversionGoals || state.conversionGoals || ["installs"]
         };
         result = await AppPromotionAppService.createCampaign(orgId, customerId, payload);
         break;
@@ -4867,8 +4883,8 @@ router.post("/create-campaign", async (req, res) => {
       dailyBudget: Number(dailyBudget || 0),
       budgetType: String(budgetType || "DAILY"),
       totalBudget: totalBudget !== undefined ? Number(totalBudget) : undefined,
-      startDate: state.startDate ? String(state.startDate).split("T")[0] : null,
-      endDate: state.endDate ? String(state.endDate).split("T")[0] : null,
+      startDate: (result?.campaign?.startDate || state.startDate) ? String(result?.campaign?.startDate || state.startDate).split("T")[0] : new Date().toISOString().split("T")[0],
+      endDate: (result?.campaign?.endDate || state.endDate) ? String(result?.campaign?.endDate || state.endDate).split("T")[0] : null,
       locations: Array.isArray(locations) ? locations : [],
       languages: Array.isArray(languages) ? languages : ["All languages"],
       biddingStrategy: String(anyState?.biddingStrategy || anyState?.biddingFocus || "Maximize conversions"),

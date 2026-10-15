@@ -66,7 +66,7 @@ export class WebsiteTrafficShoppingService extends GoogleAdsBaseService {
       } else if (normStrategy === "MAXIMIZE_CLICKS" || normStrategy === "CLICKS") {
         const maxCpc = payload.maxCpcLimit ? Number(payload.maxCpcLimit) : undefined;
         biddingConfig = {
-          maximizeClicks: maxCpc && maxCpc > 0
+          targetSpend: maxCpc && maxCpc > 0
             ? { cpcBidCeilingMicros: String(Math.round(maxCpc * 1_000_000)) }
             : {}
         };

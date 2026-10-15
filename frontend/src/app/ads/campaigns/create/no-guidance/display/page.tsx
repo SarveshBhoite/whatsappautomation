@@ -3501,7 +3501,8 @@ export default function NoGuidanceDisplayPage() {
                     keywordSetting,
                     selectedTopics,
                     selectedPlacements,
-                    useOptimizedTargeting
+                    useOptimizedTargeting,
+                    conversionGoals: ["phone_leads", "purchase"]
                   };
 
                   console.log("[NoGuidance -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));

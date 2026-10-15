@@ -796,6 +796,7 @@ export class CampaignPlanMapper {
       feedLabel: plan.campaignType === "SHOPPING" ? plan.retailConfig?.feedLabel : undefined,
       campaignPriority: plan.campaignType === "SHOPPING" ? plan.retailConfig?.campaignPriority : undefined,
       appId: plan.campaignType === "APP" ? plan.appConfig?.appId : undefined,
+      appName: plan.campaignType === "APP" ? plan.appConfig?.appName : undefined,
       platform: plan.campaignType === "APP" ? plan.appConfig?.platform : undefined,
       appStore: plan.campaignType === "APP" ? plan.appConfig?.appStore : undefined
     };

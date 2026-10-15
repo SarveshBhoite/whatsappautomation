@@ -6211,7 +6211,7 @@ export default function WebsiteTrafficVideoPage() {
                     trackingTemplate: trackingTemplate || agTrackingTemplate || adTrackingTemplate || undefined,
                     finalUrlSuffix: finalUrlSuffix || agFinalUrlSuffix || adFinalUrlSuffix || undefined,
                     euPolitical: euPoliticalAds,
-                    conversionGoals: []
+                    conversionGoals: videoGoal === "YouTube engagements" ? ["engagements"] : ["views"]
                   };
 
                   console.log("[VIDEO DEBUG] BEFORE LAUNCH FETCH", payloadToLaunch);

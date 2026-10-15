@@ -3552,7 +3552,8 @@ export default function AwarenessDisplayPage() {
                     keywordSetting,
                     selectedTopics,
                     selectedPlacements,
-                    useOptimizedTargeting
+                    useOptimizedTargeting,
+                    conversionGoals: ["engagements"]
                   };
 
                   console.log("[Awareness -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));

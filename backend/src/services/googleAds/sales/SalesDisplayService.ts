@@ -78,6 +78,10 @@ export class SalesDisplayService extends GoogleAdsBaseService {
 
       // 2. Create Campaign with duplicate name handling
       let effectiveCampaignName = campaignName;
+      const todayStr = new Date().toISOString().split("T")[0];
+      const startStr = startDate ? String(startDate).split("T")[0] : todayStr;
+      const endStr = endDate ? String(endDate).split("T")[0] : undefined;
+
       let res;
       try {
         const campaignPayload = {
@@ -89,6 +93,8 @@ export class SalesDisplayService extends GoogleAdsBaseService {
                 advertisingChannelType: "DISPLAY",
                 campaignBudget: budgetRef,
                 containsEuPoliticalAdvertising: euPoliticalValue,
+                startDateTime: `${startStr} 00:00:00`,
+                ...(endStr ? { endDateTime: `${endStr} 23:59:59` } : {}),
                 ...biddingConfig
               }
             }
@@ -110,6 +116,8 @@ export class SalesDisplayService extends GoogleAdsBaseService {
                   advertisingChannelType: "DISPLAY",
                   campaignBudget: budgetRef,
                   containsEuPoliticalAdvertising: euPoliticalValue,
+                  startDateTime: `${startStr} 00:00:00`,
+                  ...(endStr ? { endDateTime: `${endStr} 23:59:59` } : {}),
                   ...biddingConfig
                 }
               }
@@ -197,9 +205,7 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       const rawImages = (images && images.length > 0) ? images : [
         "https://ik.imagekit.io/automationjds/gads_dg_image_1788441362828_images_RKjVY-rHB.png"
       ];
-      const rawLogos = (logos && logos.length > 0) ? logos : [
-        "https://ik.imagekit.io/automationjds/tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg"
-      ];
+      const rawLogos = (logos && logos.length > 0) ? logos : [];
 
       // Upload marketing images and square images
       const toPollinationsTransform = (url: string, width: number, height: number): string => {
@@ -216,6 +222,11 @@ export class SalesDisplayService extends GoogleAdsBaseService {
         const fieldType = typeof img === "object" && img?.fieldType ? img.fieldType : null;
         const aspectRatio = typeof img === "object" && img?.aspectRatio ? img.aspectRatio : null;
 
+        // Skip logo types inside rawImages to prevent miscategorized logo assets from being pushed as display images
+        if (fieldType === "LOGO") {
+          continue;
+        }
+
         if (fieldType === "MARKETING_IMAGE" || aspectRatio === "1.91:1") {
           // 1.91:1 Landscape (min 600x314, recommend 1200x628)
           let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
@@ -231,16 +242,6 @@ export class SalesDisplayService extends GoogleAdsBaseService {
           const squareRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Sq_${Date.now()}`, squareUrl);
           if (squareRef && !createdAssets.squareMarketingImages.includes(squareRef)) {
             createdAssets.squareMarketingImages.push(squareRef);
-          }
-        } else if (fieldType === "LOGO") {
-          // 1:1 Logo (min 128x128, recommend 1200x1200)
-          let logoUrl = toImageKitTransform(raw, "tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF");
-          logoUrl = toPollinationsTransform(logoUrl, 1200, 1200);
-          if (!raw.startsWith("customers/")) {
-            const logoRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Logo_${Date.now()}`, logoUrl);
-            if (logoRef && !createdAssets.logoImages.includes(logoRef)) {
-              createdAssets.logoImages.push(logoRef);
-            }
           }
         } else {
           let landscapeUrl = toImageKitTransform(raw, "tr:w-1200,h-628,cm-pad_resize,bg-FFFFFF");
@@ -259,10 +260,11 @@ export class SalesDisplayService extends GoogleAdsBaseService {
         }
       }
 
-      // Upload logos (1:1 square - min 128x128, recommend 1200x1200)
+      // Upload logos (strictly 1:1 square - min 128x128, recommend 1200x1200)
       for (const logo of rawLogos) {
         const raw = typeof logo === "string" ? logo : logo?.url || logo?.data || "";
         if (!raw) continue;
+        // Never reuse raw customer asset resourceName directly because past assets from other campaigns may violate Display logo aspect ratio
         if (raw.startsWith("customers/") && raw.includes("/assets/")) {
           continue;
         }
@@ -294,13 +296,8 @@ export class SalesDisplayService extends GoogleAdsBaseService {
         }
       }
 
-      if (createdAssets.logoImages.length === 0) {
-        const DEFAULT_DISP_LOGO = "https://ik.imagekit.io/automationjds/tr:w-1200,h-1200,cm-pad_resize,bg-FFFFFF/gads_dg_logo_1788441370183_icon_YO0jo1MbJ.jpeg";
-        const fallbackLogoRef = await this.uploadImageAsset(organizationId, customerId, `Disp_Logo_${Date.now()}`, DEFAULT_DISP_LOGO);
-        if (fallbackLogoRef) {
-          createdAssets.logoImages.push(fallbackLogoRef);
-        }
-      }
+      // Note: Google Ads Responsive Display Ads DO NOT require a logo (logos are optional).
+      // Only attach logo if user provided one that was successfully uploaded with 1:1 aspect ratio.
 
       // 5. Clean text inputs according to Google Ads display constraints
       const cleanedHeadlines = validHeadlines
@@ -373,6 +370,10 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       throw new Error(formatted);
     }
 
+    const todayStr = new Date().toISOString().split("T")[0];
+    const effectiveStartStr = startDate ? String(startDate).split("T")[0] : todayStr;
+    const effectiveEndStr = endDate ? String(endDate).split("T")[0] : null;
+
     const localCampaign = await this.saveCampaignToDatabase({
       organizationId,
       customerId,
@@ -383,6 +384,8 @@ export class SalesDisplayService extends GoogleAdsBaseService {
       budget: Number(effectiveBudget),
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: new Date(effectiveStartStr),
+      endDate: effectiveEndStr ? new Date(effectiveEndStr) : null,
       finalUrl,
       headlines: validHeadlines,
       descriptions: validDescriptions,

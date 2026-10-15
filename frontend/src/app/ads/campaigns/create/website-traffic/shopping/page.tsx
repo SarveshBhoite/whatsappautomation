@@ -453,6 +453,21 @@ export default function WebsiteTrafficShoppingPage() {
       });
     }
 
+    // Budget vs Bidding Strategy compatibility for Shopping campaigns
+    if (budgetType === "total") {
+      const allowedStrategies = ["Manual CPC", "Maximize clicks"];
+      if (!allowedStrategies.includes(bidStrategy)) {
+        issues.push({
+          id: "camp-budget-bid-compat",
+          level: "Campaign",
+          parameter: "Bidding strategy",
+          message: `Bidding strategy "${bidStrategy}" is not compatible with Campaign Total Budgets for Shopping campaigns. Compatible: Manual CPC, Maximize Clicks. Please switch to Average daily budget or select a compatible bidding strategy.`,
+          step: "BUDGET_BIDDING",
+          settingKey: "bidding"
+        });
+      }
+    }
+
     // 8. Target ROAS (if Target ROAS strategy is selected)
     if (bidStrategy === "Target ROAS") {
       const numRoas = Number(targetRoas);
@@ -852,14 +867,27 @@ export default function WebsiteTrafficShoppingPage() {
                       className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 font-semibold focus:outline-none focus:border-primary"
                     >
                       <optgroup label="Automated bid strategies">
-                        <option value="Target ROAS">Target ROAS</option>
+                        <option value="Target ROAS" disabled={budgetType === "total"}>
+                          Target ROAS {budgetType === "total" ? "(Requires Daily Budget)" : ""}
+                        </option>
                         <option value="Maximize clicks">Maximize clicks</option>
-                        <option value="Maximize conversion value">Maximize conversion value</option>
+                        <option value="Maximize conversion value" disabled={budgetType === "total"}>
+                          Maximize conversion value {budgetType === "total" ? "(Requires Daily Budget)" : ""}
+                        </option>
                       </optgroup>
                       <optgroup label="Manual bid strategies">
                         <option value="Manual CPC">Manual CPC</option>
                       </optgroup>
                     </select>
+
+                    {budgetType === "total" && (bidStrategy === "Target ROAS" || bidStrategy === "Maximize conversion value") && (
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2 max-w-md">
+                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                          Bidding strategy &quot;{bidStrategy}&quot; is not compatible with Campaign Total Budgets for Shopping campaigns. Compatible: <strong>Manual CPC</strong>, <strong>Maximize Clicks</strong>. Please switch to Average daily budget or select a compatible strategy.
+                        </p>
+                      </div>
+                    )}
 
                     {bidStrategy === "Target ROAS" && (
                       <div className="pt-2 space-y-1 max-w-md">
@@ -2204,7 +2232,8 @@ export default function WebsiteTrafficShoppingPage() {
                       finalUrlSuffix: finalUrlSuffix.trim() || undefined,
                       includeSearchPartners: networkSearch,
                       productGroupFilter,
-                      productGroupSelectBy: productGroupFilter === "Use a selection of products" ? productGroupSelectBy : undefined
+                      productGroupSelectBy: productGroupFilter === "Use a selection of products" ? productGroupSelectBy : undefined,
+                      conversionGoals: ["phone_leads", "purchase"]
                     };
 
                     console.log("[Shopping Launch] Sanitized payload before publish:", JSON.stringify(payloadToLaunch, null, 2));

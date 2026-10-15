@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Megaphone, TrendingUp, MousePointerClick, Eye, DollarSign,
@@ -1046,16 +1046,37 @@ function SettingsTab({
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
-function SearchParamsHandler({ onOAuth }: { onOAuth: (status: string, tab: string) => void }) {
+function SearchParamsHandler({
+  onOAuth,
+  onCustomerId,
+  onTab
+}: {
+  onOAuth: (status: string, tab: string) => void;
+  onCustomerId?: (cid: string) => void;
+  onTab?: (tab: Tab) => void;
+}) {
   const searchParams = useSearchParams();
   useEffect(() => {
     const oauthStatus = searchParams.get("oauth") || "";
     const tabParam = searchParams.get("tab") || "";
-    if (oauthStatus || tabParam) {
-      onOAuth(oauthStatus, tabParam);
-      window.history.replaceState({}, document.title, window.location.pathname);
+    const customerIdParam = searchParams.get("customerId") || "";
+
+    if (customerIdParam && onCustomerId) {
+      onCustomerId(customerIdParam.replace(/-/g, "").trim());
     }
-  }, [searchParams, onOAuth]);
+    if (tabParam && onTab) {
+      onTab(tabParam as Tab);
+    }
+
+    if (oauthStatus) {
+      onOAuth(oauthStatus, tabParam);
+      // Clean up only oauth param from URL while preserving customerId
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.delete("oauth");
+      const qs = newParams.toString();
+      window.history.replaceState({}, document.title, window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, [searchParams, onOAuth, onCustomerId, onTab]);
   return null;
 }
 
@@ -1142,6 +1163,7 @@ export default function GoogleAdsPage() {
     elapsedSeconds: number;
     isCompleted: boolean;
     actionType: "DELETE" | "STATUS" | "BUDGET";
+    failureReasons?: Array<{ name: string; reason: string }>;
   } | null>(null);
   const [showBulkBudgetModal, setShowBulkBudgetModal] = useState(false);
   const [bulkBudgetVal, setBulkBudgetVal] = useState<number | string>("");
@@ -1203,7 +1225,7 @@ export default function GoogleAdsPage() {
   const [newLanguageInput, setNewLanguageInput] = useState("");
   const [editingParamField, setEditingParamField] = useState<string | null>(null);
   const [tempParamValue, setTempParamValue] = useState<any>("");
-  const [previewChannel, setPreviewChannel] = useState<"search" | "youtube" | "display" | "discover" | "gmail">("search");
+  const [previewChannel, setPreviewChannel] = useState<"search" | "youtube" | "display" | "discover" | "gmail" | "app_install" | "shopping">("search");
   const [previewDeviceMode, setPreviewDeviceMode] = useState<"mobile" | "desktop">("mobile");
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3500); };
@@ -1251,7 +1273,9 @@ export default function GoogleAdsPage() {
         const activeCfg = data?.config || data || {};
         setIsConnected(!!(activeCfg.googleRefreshToken || data?.googleRefreshToken));
         const adsCid = activeCfg.googleAdsCustomerId || data?.googleAdsCustomerId;
-        if (adsCid) setSelectedCustomerId(adsCid.replace(/-/g, ""));
+        if (adsCid) {
+          setSelectedCustomerId(prev => prev || adsCid.replace(/-/g, ""));
+        }
       } catch { } finally { setConfigLoading(false); }
     })();
   }, [orgId]);
@@ -1697,6 +1721,8 @@ export default function GoogleAdsPage() {
     const total = selectedCampaignIds.length;
     let startTime = Date.now();
 
+    const failureReasons: Array<{ name: string; reason: string }> = [];
+
     setBulkTaskProgress({
       isOpen: true,
       title: "Delete Campaigns",
@@ -1707,7 +1733,8 @@ export default function GoogleAdsPage() {
       currentName: "Starting deletion...",
       elapsedSeconds: 0,
       isCompleted: false,
-      actionType: "DELETE"
+      actionType: "DELETE",
+      failureReasons: []
     });
 
     const timerInterval = setInterval(() => {
@@ -1734,15 +1761,20 @@ export default function GoogleAdsPage() {
           successCount++;
         } else {
           failCount++;
+          const errData = await res.json().catch(() => ({}));
+          const reason = errData.error || errData.message || `HTTP ${res.status}: Failed to delete campaign`;
+          failureReasons.push({ name: campName, reason });
         }
-      } catch {
+      } catch (err: any) {
         failCount++;
+        failureReasons.push({ name: campName, reason: err.message || "Network / Request failed" });
       }
 
       setBulkTaskProgress(prev => prev ? {
         ...prev,
         successCount,
-        failCount
+        failCount,
+        failureReasons: [...failureReasons]
       } : null);
     }
 
@@ -1753,7 +1785,8 @@ export default function GoogleAdsPage() {
       ...prev,
       isCompleted: true,
       elapsedSeconds: finalElapsed,
-      currentName: `Completed: ${successCount} removed${failCount > 0 ? `, ${failCount} failed` : ""}`
+      currentName: `Completed: ${successCount} removed${failCount > 0 ? `, ${failCount} failed` : ""}`,
+      failureReasons: [...failureReasons]
     } : null);
 
     setIsBulkOperating(false);
@@ -1880,8 +1913,40 @@ export default function GoogleAdsPage() {
     setIsBulkOperating(true);
     let successCount = 0;
     let failCount = 0;
+    const total = selectedAdGroupIds.length;
+    let startTime = Date.now();
 
-    for (const agId of selectedAdGroupIds) {
+    setBulkTaskProgress({
+      isOpen: true,
+      title: `${actionName} Ad Groups`,
+      total,
+      current: 0,
+      successCount: 0,
+      failCount: 0,
+      currentName: "Starting task...",
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "STATUS"
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    for (let i = 0; i < selectedAdGroupIds.length; i++) {
+      const agId = selectedAdGroupIds[i];
+      const targetAg = adGroups.find(g => g.id === agId);
+      const agName = targetAg?.name || `Ad Group ID ${agId}`;
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        current: i + 1,
+        currentName: agName
+      } : null);
+
       try {
         const res = await api(`/ad-groups/${agId}`, {
           method: "PUT",
@@ -1897,10 +1962,26 @@ export default function GoogleAdsPage() {
       } catch {
         failCount++;
       }
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        successCount,
+        failCount
+      } : null);
     }
 
+    clearInterval(timerInterval);
+    const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+    setBulkTaskProgress(prev => prev ? {
+      ...prev,
+      isCompleted: true,
+      elapsedSeconds: finalElapsed,
+      currentName: `Completed: ${successCount} ${targetStatus === "ENABLED" ? "enabled" : "paused"}${failCount > 0 ? `, ${failCount} failed` : ""}`
+    } : null);
+
     setIsBulkOperating(false);
-    showToast(`Ad Groups updated: ${successCount} ${targetStatus === "ENABLED" ? "enabled" : "paused"}${failCount > 0 ? `, ${failCount} failed` : ""}`);
+    showToast(`Ad Groups updated: ${successCount} ${targetStatus === "ENABLED" ? "enabled" : "paused"} in ${finalElapsed}s${failCount > 0 ? `, ${failCount} failed` : ""}`);
     setSelectedAdGroupIds([]);
     loadAdGroups(selectedCustomerId);
   };
@@ -1910,26 +1991,232 @@ export default function GoogleAdsPage() {
       showToast("Please select at least one ad group.");
       return;
     }
-    if (!confirm(`⚠️ Remove/Delete ${selectedAdGroupIds.length} selected ad group(s) from Google Ads?`)) return;
+    if (!confirm(`⚠️ Remove/Delete ${selectedAdGroupIds.length} selected ad group(s) from Google Ads? This action cannot be undone.`)) return;
 
     setIsBulkOperating(true);
     let successCount = 0;
     let failCount = 0;
+    const total = selectedAdGroupIds.length;
+    let startTime = Date.now();
 
-    for (const agId of selectedAdGroupIds) {
+    const failureReasons: Array<{ name: string; reason: string }> = [];
+
+    setBulkTaskProgress({
+      isOpen: true,
+      title: "Delete Ad Groups",
+      total,
+      current: 0,
+      successCount: 0,
+      failCount: 0,
+      currentName: "Starting deletion...",
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "DELETE",
+      failureReasons: []
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    for (let i = 0; i < selectedAdGroupIds.length; i++) {
+      const agId = selectedAdGroupIds[i];
+      const targetAg = adGroups.find(g => g.id === agId);
+      const agName = targetAg?.name || `Ad Group ID ${agId}`;
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        current: i + 1,
+        currentName: agName
+      } : null);
+
       try {
         const res = await api(`/ad-groups/${agId}?orgId=${orgId}&customerId=${selectedCustomerId}`, { method: "DELETE" });
-        if (res.ok) successCount++;
-        else failCount++;
-      } catch {
+        if (res.ok) {
+          successCount++;
+        } else {
+          failCount++;
+          const errData = await res.json().catch(() => ({}));
+          const reason = errData.error || errData.message || `HTTP ${res.status}: Failed to delete ad group`;
+          failureReasons.push({ name: agName, reason });
+        }
+      } catch (err: any) {
         failCount++;
+        failureReasons.push({ name: agName, reason: err.message || "Network / Request failed" });
       }
+
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        successCount,
+        failCount,
+        failureReasons: [...failureReasons]
+      } : null);
     }
 
+    clearInterval(timerInterval);
+    const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+    setBulkTaskProgress(prev => prev ? {
+      ...prev,
+      isCompleted: true,
+      elapsedSeconds: finalElapsed,
+      currentName: `Completed: ${successCount} removed${failCount > 0 ? `, ${failCount} failed` : ""}`,
+      failureReasons: [...failureReasons]
+    } : null);
+
     setIsBulkOperating(false);
-    showToast(`Ad Groups removed: ${successCount} deleted${failCount > 0 ? `, ${failCount} failed` : ""}`);
+    showToast(`Ad Groups deleted: ${successCount} removed in ${finalElapsed}s${failCount > 0 ? `, ${failCount} failed` : ""}`);
     setSelectedAdGroupIds([]);
     loadAdGroups(selectedCustomerId);
+    loadAds(selectedCustomerId);
+  };
+
+  const handleDeleteSingleAdGroup = async (ag: any) => {
+    if (!confirm(`⚠️ Remove/Delete Ad Group "${ag.name || ag.id}" from Google Ads? This will also remove all ads inside it.`)) return;
+
+    setIsBulkOperating(true);
+    let startTime = Date.now();
+    setBulkTaskProgress({
+      isOpen: true,
+      title: "Delete Ad Group",
+      total: 1,
+      current: 1,
+      successCount: 0,
+      failCount: 0,
+      currentName: ag.name || `Ad Group ID ${ag.id}`,
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "DELETE"
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    try {
+      const res = await api(`/ad-groups/${ag.id}?orgId=${orgId}&customerId=${selectedCustomerId}`, { method: "DELETE" });
+      clearInterval(timerInterval);
+      const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+      if (res.ok) {
+        setBulkTaskProgress(prev => prev ? {
+          ...prev,
+          isCompleted: true,
+          successCount: 1,
+          elapsedSeconds: finalElapsed,
+          currentName: `Successfully removed ${ag.name || ag.id}`
+        } : null);
+        showToast(`Ad Group "${ag.name}" removed from Google Ads ✓`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        const reason = errData.error || errData.message || `HTTP ${res.status}: Could not delete ad group`;
+        setBulkTaskProgress(prev => prev ? {
+          ...prev,
+          isCompleted: true,
+          failCount: 1,
+          elapsedSeconds: finalElapsed,
+          currentName: `Failed: ${reason}`,
+          failureReasons: [{ name: ag.name || `Ad Group ${ag.id}`, reason }]
+        } : null);
+        showToast(`Failed: ${reason}`);
+      }
+    } catch (err: any) {
+      clearInterval(timerInterval);
+      const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+      const reason = err.message || "Unknown error";
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        isCompleted: true,
+        failCount: 1,
+        elapsedSeconds: finalElapsed,
+        currentName: `Error: ${reason}`,
+        failureReasons: [{ name: ag.name || `Ad Group ${ag.id}`, reason }]
+      } : null);
+      showToast(`Error: ${reason}`);
+    } finally {
+      setIsBulkOperating(false);
+      loadAdGroups(selectedCustomerId);
+      loadAds(selectedCustomerId);
+    }
+  };
+
+  const handleDeleteSingleAd = async (ad: any) => {
+    const adTitle = ad.headlines?.[0]?.text || ad.headlines?.[0] || ad.name || `Ad ID ${ad.id}`;
+    if (!confirm(`⚠️ Remove/Delete Ad "${adTitle}" from Google Ads?`)) return;
+
+    setIsBulkOperating(true);
+    let startTime = Date.now();
+    setBulkTaskProgress({
+      isOpen: true,
+      title: "Delete Ad Creative",
+      total: 1,
+      current: 1,
+      successCount: 0,
+      failCount: 0,
+      currentName: adTitle,
+      elapsedSeconds: 0,
+      isCompleted: false,
+      actionType: "DELETE",
+      failureReasons: []
+    });
+
+    const timerInterval = setInterval(() => {
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        elapsedSeconds: Math.floor((Date.now() - startTime) / 1000)
+      } : null);
+    }, 1000);
+
+    try {
+      const res = await api(`/ads/${ad.id}?orgId=${orgId}&customerId=${selectedCustomerId}`, { method: "DELETE" });
+      clearInterval(timerInterval);
+      const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+
+      if (res.ok) {
+        setBulkTaskProgress(prev => prev ? {
+          ...prev,
+          isCompleted: true,
+          successCount: 1,
+          elapsedSeconds: finalElapsed,
+          currentName: `Successfully removed ${adTitle}`
+        } : null);
+        showToast(`Ad removed from Google Ads ✓`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        const reason = errData.error || errData.message || `HTTP ${res.status}: Could not delete ad`;
+        setBulkTaskProgress(prev => prev ? {
+          ...prev,
+          isCompleted: true,
+          failCount: 1,
+          elapsedSeconds: finalElapsed,
+          currentName: `Failed: ${reason}`,
+          failureReasons: [{ name: adTitle, reason }]
+        } : null);
+        showToast(`Failed: ${reason}`);
+      }
+    } catch (err: any) {
+      clearInterval(timerInterval);
+      const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+      const reason = err.message || "Unknown error";
+      setBulkTaskProgress(prev => prev ? {
+        ...prev,
+        isCompleted: true,
+        failCount: 1,
+        elapsedSeconds: finalElapsed,
+        currentName: `Error: ${reason}`,
+        failureReasons: [{ name: adTitle, reason }]
+      } : null);
+      showToast(`Error: ${reason}`);
+    } finally {
+      setIsBulkOperating(false);
+      loadAds(selectedCustomerId);
+    }
   };
 
   async function deleteKeyword(kw: any) {
@@ -2142,6 +2429,15 @@ export default function GoogleAdsPage() {
 
   const filteredKw = keywords.filter(kw => kw.text?.toLowerCase().includes(kwSearch.toLowerCase()));
   const filteredCamps = campaigns.filter(c => c.status !== "REMOVED" && c.liveStatus !== "REMOVED" && c.name?.toLowerCase().includes(campSearch.toLowerCase()));
+  const recentSortedCampaigns = useMemo(() => {
+    return campaigns
+      .filter(c => c.status !== "REMOVED" && c.liveStatus !== "REMOVED")
+      .sort((a, b) => {
+        const dateA = new Date(a.publishDate || a.startDate || a.createdAt || 0).getTime() || 0;
+        const dateB = new Date(b.publishDate || b.startDate || b.createdAt || 0).getTime() || 0;
+        return dateB - dateA;
+      });
+  }, [campaigns]);
 
   if (configLoading) {
     return (
@@ -2249,7 +2545,19 @@ export default function GoogleAdsPage() {
   return (
     <div className="flex flex-col h-full bg-slate-50 text-slate-900 overflow-hidden">
       <Suspense fallback={null}>
-        <SearchParamsHandler onOAuth={handleOAuthParams} />
+        <SearchParamsHandler
+          onOAuth={handleOAuthParams}
+          onCustomerId={(cid) => {
+            if (cid && cid !== selectedCustomerId) {
+              setSelectedCustomerId(cid);
+            }
+          }}
+          onTab={(tab) => {
+            if (tab) {
+              setActiveTab(tab);
+            }
+          }}
+        />
       </Suspense>
 
       {/* ── Top Header Bar ── */}
@@ -2530,7 +2838,7 @@ export default function GoogleAdsPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     {[
                       { label: "Active Campaigns", val: enabledCamps, icon: Megaphone, color: "text-emerald-700 bg-emerald-50" },
-                      { label: "Total Campaigns", val: campaigns.length, icon: Layers, color: "text-blue-700 bg-blue-50" },
+                      { label: "Total Campaigns", val: recentSortedCampaigns.length, icon: Layers, color: "text-blue-700 bg-blue-50" },
                       { label: "Cost/Conversion", val: `₹${overview?.costPerConversion || "0.00"}`, icon: BadgePercent, color: "text-amber-700 bg-amber-50" },
                       { label: "Conv. Value", val: `₹${overview?.allConversionsValue || "0.00"}`, icon: Award, color: "text-purple-700 bg-purple-50" }
                     ].map(s => (
@@ -2547,22 +2855,15 @@ export default function GoogleAdsPage() {
                   {/* Recent campaigns table */}
                   <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                     <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                      <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Megaphone className="h-4 w-4 text-blue-600" />Campaigns <span className="text-slate-500 font-normal">({campaigns.length})</span></h2>
+                      <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Megaphone className="h-4 w-4 text-blue-600" />Campaigns <span className="text-slate-500 font-normal">({recentSortedCampaigns.length})</span></h2>
                       <button onClick={() => setActiveTab("campaigns")} className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1 cursor-pointer">View all <ChevronRight className="h-3.5 w-3.5" /></button>
                     </div>
-                    {campaigns.slice(0, 5).map(c => (
+                    {recentSortedCampaigns.slice(0, 8).map(c => (
                       <div key={c.id} className="px-5 py-3.5 flex items-center gap-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/80 transition-all">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => {
-                                setSelectedCampaignDetails(c);
-                                setActiveDetailsTab("info");
-                                setDetailName(c.name);
-                                setDetailBudget(c.budget);
-                                setDetailStatus(c.liveStatus || c.status);
-                                setDetailEndDate(c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "");
-                              }}
+                              onClick={() => openEditCampaignModal(c, "info")}
                               className="font-bold text-blue-600 hover:text-blue-800 hover:underline text-left text-sm truncate max-w-[200px] block focus:outline-none cursor-pointer"
                             >
                               {c.name}
@@ -3087,6 +3388,14 @@ export default function GoogleAdsPage() {
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                       <Pill status={ag.status} />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteSingleAdGroup(ag)}
+                                        className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all cursor-pointer"
+                                        title={`Delete Ad Group "${ag.name}"`}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
                                     </div>
                                   </div>
 
@@ -3162,13 +3471,23 @@ export default function GoogleAdsPage() {
                                                 <Pill status={ad.status} />
                                                 <span className="text-[10px] font-mono text-slate-500">{ad.adType?.replace(/_/g, " ") || "RESPONSIVE SEARCH"}</span>
                                               </div>
-                                              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
-                                                ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" :
-                                                ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" :
-                                                "text-slate-600 border-slate-200 bg-slate-100"
-                                              }`}>
-                                                Strength: {ad.adStrength || "—"}
-                                              </span>
+                                              <div className="flex items-center gap-1.5">
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
+                                                  ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" :
+                                                  ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" :
+                                                  "text-slate-600 border-slate-200 bg-slate-100"
+                                                }`}>
+                                                  Strength: {ad.adStrength || "—"}
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDeleteSingleAd(ad)}
+                                                  className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all cursor-pointer"
+                                                  title="Delete this Ad"
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </button>
+                                              </div>
                                             </div>
 
                                             {/* Mobile Headlines */}
@@ -3233,7 +3552,7 @@ export default function GoogleAdsPage() {
                                     />
                                   </th>
                                 )}
-                                {["Ad Group", "Status", "Type", "CPC Bid", "Ads Count", "Impressions", "Clicks", "Spend", "Conv."].map(h => <th key={h} className="p-4 whitespace-nowrap">{h}</th>)}
+                                {["Ad Group", "Status", "Type", "CPC Bid", "Ads Count", "Impressions", "Clicks", "Spend", "Conv.", "Actions"].map(h => <th key={h} className="p-4 whitespace-nowrap">{h}</th>)}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -3293,12 +3612,22 @@ export default function GoogleAdsPage() {
                                         <td className="p-4 font-semibold text-slate-900">{Number(ag.clicks || 0).toLocaleString()}</td>
                                         <td className="p-4 font-bold text-emerald-700">₹{ag.cost || "0.00"}</td>
                                         <td className="p-4 font-semibold text-purple-700">{Number(ag.conversions || 0).toFixed(1)}</td>
+                                        <td className="p-4">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteSingleAdGroup(ag)}
+                                            className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all cursor-pointer"
+                                            title={`Delete Ad Group "${ag.name}"`}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        </td>
                                       </tr>
 
                                       {/* Desktop Expanded Nested Ads */}
                                       {isExpanded && (
                                         <tr className="bg-slate-50/90 border-y border-slate-200">
-                                          <td colSpan={isAdGroupSelectionMode ? 11 : 10} className="p-4 pl-12">
+                                          <td colSpan={isAdGroupSelectionMode ? 12 : 11} className="p-4 pl-12">
                                             <div className="space-y-3">
                                               <div className="flex items-center justify-between">
                                                 <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
@@ -3320,13 +3649,23 @@ export default function GoogleAdsPage() {
                                                           <Pill status={ad.status} />
                                                           <span className="text-[11px] font-mono text-slate-500">{ad.adType?.replace(/_/g, " ")}</span>
                                                         </div>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
-                                                          ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" :
-                                                          ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" :
-                                                          "text-slate-600 border-slate-200 bg-slate-100"
-                                                        }`}>
-                                                          Ad Strength: {ad.adStrength || "—"}
-                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
+                                                            ad.adStrength === "EXCELLENT" ? "text-emerald-700 border-emerald-200 bg-emerald-50" :
+                                                            ad.adStrength === "GOOD" ? "text-blue-700 border-blue-200 bg-blue-50" :
+                                                            "text-slate-600 border-slate-200 bg-slate-100"
+                                                          }`}>
+                                                            Ad Strength: {ad.adStrength || "—"}
+                                                          </span>
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteSingleAd(ad)}
+                                                            className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-all cursor-pointer"
+                                                            title="Delete this Ad"
+                                                          >
+                                                            <Trash2 className="h-3 w-3" />
+                                                          </button>
+                                                        </div>
                                                       </div>
 
                                                       <div>
@@ -3823,11 +4162,12 @@ export default function GoogleAdsPage() {
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
                           <th className="p-4">Date & Time</th>
                           <th className="p-4">User</th>
-                          <th className="p-4">Resource Type</th>
+                          <th className="p-4">Resource</th>
                           <th className="p-4">Operation</th>
                           <th className="p-4">Campaign</th>
-                          <th className="p-4">Ad Group</th>
-                          <th className="p-4">Client / Source</th>
+                          <th className="p-4">Bidding & Target</th>
+                          <th className="p-4">Merchant Status</th>
+                          <th className="p-4">Assets</th>
                           <th className="p-4 text-right">Details</th>
                         </tr>
                       </thead>
@@ -3836,7 +4176,11 @@ export default function GoogleAdsPage() {
                           const op = item.resourceChangeOperation || item.operation || "CHANGED";
                           const resType = item.changeResourceType || item.resourceType || "UNKNOWN";
                           const campName = item.campaignName || item.campaign?.name || "—";
-                          const agName = item.adGroupName || item.adGroup?.name || "—";
+                          const bStrat = item.biddingStrategy || item.newResource?.campaign?.biddingStrategyType;
+                          const tCpa = item.targetCpa != null ? item.targetCpa : null;
+                          const hasMerch = Boolean(item.hasMerchant || item.merchantCenterId);
+                          const merchText = item.merchantStatus || (hasMerch ? `Yes (ID: ${item.merchantCenterId})` : "No (Disabled / Not Linked)");
+                          const videoCount = (item.videos?.length || 0) + (item.videoUrl ? 1 : 0);
 
                           const opColor =
                             op === "CREATE"
@@ -3855,7 +4199,7 @@ export default function GoogleAdsPage() {
                               <td className="p-4 font-medium text-slate-800 whitespace-nowrap">
                                 <div className="flex items-center gap-1.5">
                                   <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                  <span className="truncate max-w-[180px]">{item.userEmail || "Google System / Automated"}</span>
+                                  <span className="truncate max-w-[150px]">{item.userEmail || "Google System / Automated"}</span>
                                 </div>
                               </td>
                               <td className="p-4 font-semibold text-slate-900 whitespace-nowrap">
@@ -3869,13 +4213,52 @@ export default function GoogleAdsPage() {
                                 </span>
                               </td>
                               <td className="p-4 text-slate-700 font-medium">
-                                {campName}
+                                <span className="truncate max-w-[180px] block" title={campName}>{campName}</span>
                               </td>
-                              <td className="p-4 text-slate-600 font-medium">
-                                {agName}
+                              <td className="p-4 whitespace-nowrap">
+                                {bStrat ? (
+                                  <div className="space-y-0.5">
+                                    <span className="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-100 text-[10px] font-bold text-blue-700 uppercase block w-fit">
+                                      {bStrat.replace(/_/g, " ")}
+                                    </span>
+                                    {tCpa != null && Number(tCpa) > 0 && (
+                                      <span className="text-[10px] font-semibold text-slate-600">
+                                        Target CPA: ₹{Number(tCpa).toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400 text-xs">—</span>
+                                )}
                               </td>
-                              <td className="p-4 text-slate-500 font-mono text-[11px]">
-                                {item.clientType?.replace(/_/g, " ") || "GOOGLE_ADS_WEB_CLIENT"}
+                              <td className="p-4 whitespace-nowrap">
+                                {hasMerch ? (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold text-[11px] inline-flex items-center gap-1">
+                                    <ShoppingBag className="w-3 h-3" />
+                                    {item.merchantCenterId ? `#${item.merchantCenterId}` : "Linked"}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-500 font-medium text-[11px]">
+                                    No
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-4 whitespace-nowrap">
+                                <div className="flex items-center gap-1 text-[11px]">
+                                  {videoCount > 0 && (
+                                    <span className="px-1.5 py-0.5 rounded bg-red-50 border border-red-200 text-red-600 font-semibold flex items-center gap-0.5" title="YouTube Video Asset">
+                                      <Video className="w-3 h-3" /> {videoCount}
+                                    </span>
+                                  )}
+                                  {Array.isArray(item.sitelinks) && item.sitelinks.length > 0 && (
+                                    <span className="px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-600 font-semibold flex items-center gap-0.5" title="Sitelinks">
+                                      <Link2 className="w-3 h-3" /> {item.sitelinks.length}
+                                    </span>
+                                  )}
+                                  {videoCount === 0 && (!item.sitelinks || item.sitelinks.length === 0) && (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </div>
                               </td>
                               <td className="p-4 text-right whitespace-nowrap">
                                 <button
@@ -3971,341 +4354,565 @@ export default function GoogleAdsPage() {
           onClose={() => setSelectedCampaignDetails(null)}
           wide
         >
-          <div className="space-y-5">
-            {/* Modal Tabs: General Settings, Copy & Creative Assets, Targeting & Channels, All Parameters, Ad Preview */}
-            <div className="flex border-b border-slate-200 gap-1 pb-1 overflow-x-auto">
-              {[
-                { id: "info", label: "Settings & Budget", icon: Settings },
-                { id: "assets", label: "Copy & Assets", icon: FileText },
-                { id: "targeting", label: "Targeting & Goals", icon: Target },
-                { id: "all", label: "All Parameters", icon: Layers },
-                { id: "preview", label: "Ad Preview", icon: Eye }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveDetailsTab(tab.id as any)}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0 ${
-                    activeDetailsTab === tab.id
-                      ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                  }`}
-                >
-                  <tab.icon className="h-3.5 w-3.5" />
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+          {(() => {
+            const campTypeNorm = (
+              selectedCampaignDetails.campaignType ||
+              selectedCampaignDetails.advertisingChannelType ||
+              selectedCampaignDetails.live?.channelType ||
+              "SEARCH"
+            ).toUpperCase();
+            const isAppCampaign = campTypeNorm === "APP" || campTypeNorm === "MULTI_CHANNEL";
+            const isPMax = campTypeNorm === "PERFORMANCE_MAX";
+            const isSearch = campTypeNorm === "SEARCH";
+            const isShopping = campTypeNorm === "SHOPPING";
+            const isVideoOrDemandGen = campTypeNorm === "VIDEO" || campTypeNorm === "DEMAND_GEN";
+            const isDisplay = campTypeNorm === "DISPLAY";
 
-            {/* TAB 1: General Settings & Budget Edit */}
-            {activeDetailsTab === "info" && (
-              <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
-                {/* Live Loading Indicator */}
-                {detailLoadingLive && (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 font-medium">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span>Fetching live Google Ads campaign configuration...</span>
-                  </div>
-                )}
+            const tab2Config = isPMax
+              ? { id: "assets", label: "Asset Groups & Creative", icon: Sparkles }
+              : isSearch
+              ? { id: "assets", label: "Ad Groups & Keywords", icon: Search }
+              : isAppCampaign
+              ? { id: "assets", label: "App Store & Creative Assets", icon: Smartphone }
+              : isShopping
+              ? { id: "assets", label: "Merchant Feed & Listing Groups", icon: ShoppingBag }
+              : isVideoOrDemandGen
+              ? { id: "assets", label: "Video Creatives & Channels", icon: Video }
+              : { id: "assets", label: "Copy & Assets", icon: FileText };
 
-                {/* API Validation Error Display */}
-                {detailError && (
-                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="font-bold">Google Ads API Validation Notice</p>
-                      <p className="mt-0.5 text-[11px] leading-relaxed">{detailError}</p>
-                    </div>
-                  </div>
-                )}
+            const modalTabs = [
+              { id: "info", label: "Settings & Budget", icon: Settings },
+              tab2Config,
+              { id: "targeting", label: "Targeting & Goals", icon: Target },
+              { id: "all", label: "All Parameters", icon: Layers },
+              { id: "preview", label: "Ad Preview", icon: Eye }
+            ];
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Campaign Name */}
-                  <div className="sm:col-span-2">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700">Campaign Name *</label>
-                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                        <Edit3 className="h-3 w-3" /> Google Ads API Mutable
-                      </span>
-                    </div>
-                    <Input
-                      value={detailName}
-                      onChange={(e: any) => setDetailName(e.target.value)}
-                      placeholder="e.g. Summer Promotion - Search"
-                    />
+            return (
+              <div className="space-y-4">
+                {/* Dynamic Campaign Channel Type Banner */}
+                <div className="p-3 bg-gradient-to-r from-slate-50 via-blue-50/40 to-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider flex items-center gap-1.5 border ${
+                      isAppCampaign ? "bg-purple-50 text-purple-700 border-purple-200" :
+                      isPMax ? "bg-amber-50 text-amber-800 border-amber-200" :
+                      isShopping ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+                      isVideoOrDemandGen ? "bg-rose-50 text-rose-700 border-rose-200" :
+                      "bg-blue-50 text-blue-700 border-blue-200"
+                    }`}>
+                      {isAppCampaign ? <Smartphone className="h-3 w-3" /> :
+                       isPMax ? <Sparkles className="h-3 w-3" /> :
+                       isShopping ? <ShoppingBag className="h-3 w-3" /> :
+                       isVideoOrDemandGen ? <Video className="h-3 w-3" /> :
+                       <Search className="h-3 w-3" />}
+                      {campTypeNorm.replace(/_/g, " ")} CAMPAIGN
+                    </span>
+                    <Pill status={selectedCampaignDetails.liveStatus || selectedCampaignDetails.status || "PAUSED"} />
+                    <span className="text-[11px] font-mono text-slate-500">
+                      ID: {selectedCampaignDetails.googleAdsCampaignId || selectedCampaignDetails.id || "Draft"}
+                    </span>
                   </div>
 
-                  {/* Objective & Channel Type */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Campaign Objective</label>
-                    <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-blue-700">
-                        <Target className="h-3.5 w-3.5" />
-                        {selectedCampaignDetails.objective || selectedCampaignDetails.geoTargets?.objective || "Sales / Lead Generation"}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-semibold">Goal</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Campaign Channel Type</label>
-                    <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-purple-700">
-                        <Layers className="h-3.5 w-3.5" />
-                        {selectedCampaignDetails.campaignType || selectedCampaignDetails.advertisingChannelType || "SEARCH"}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-800 rounded font-semibold">Channel</span>
-                    </div>
-                  </div>
-
-                  {/* Budget & Budget Type */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700">Campaign Budget (₹) *</label>
-                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                        <Edit3 className="h-3 w-3" /> Mutable
-                      </span>
-                    </div>
-                    <Input
-                      type="number"
-                      value={detailBudget}
-                      onChange={(e: any) => setDetailBudget(Number(e.target.value))}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Budget Type</label>
-                    <Select
-                      value={selectedCampaignDetails.budgetType || "DAILY"}
-                      onChange={(e: any) => saveSingleField("budgetType", e.target.value)}
-                    >
-                      <option value="DAILY">Daily Budget (Standard)</option>
-                      <option value="TOTAL">Campaign Total Budget</option>
-                    </Select>
-                  </div>
-
-                  {/* Status */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700">Campaign Status</label>
-                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                        <Edit3 className="h-3 w-3" /> Mutable
-                      </span>
-                    </div>
-                    <Select
-                      value={detailStatus}
-                      onChange={(e: any) => setDetailStatus(e.target.value)}
-                    >
-                      <option value="ENABLED">Enabled (Active)</option>
-                      <option value="PAUSED">Paused</option>
-                    </Select>
-                  </div>
-
-                  {/* Bidding Strategy */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Bidding Strategy</label>
-                    <Select
-                      value={detailBiddingStrategy}
-                      onChange={(e: any) => setDetailBiddingStrategy(e.target.value)}
-                    >
-                      <option value="Maximize conversions">Maximize Conversions</option>
-                      <option value="Maximize clicks">Maximize Clicks</option>
-                      <option value="Target CPA">Target CPA</option>
-                      <option value="Target ROAS">Target ROAS</option>
-                      <option value="Manual CPC">Manual CPC</option>
-                    </Select>
-                  </div>
-
-                  {/* Target CPA / Target ROAS inputs depending on strategy */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      {detailBiddingStrategy.toLowerCase().includes("roas") ? "Target ROAS (%)" : "Target CPA (₹)"}
-                    </label>
-                    {detailBiddingStrategy.toLowerCase().includes("roas") ? (
-                      <Input
-                        type="number"
-                        placeholder="e.g. 400 for 400%"
-                        value={detailTargetRoas}
-                        onChange={(e: any) => setDetailTargetRoas(e.target.value)}
-                      />
-                    ) : (
-                      <Input
-                        type="number"
-                        placeholder="e.g. 50 (optional target CPA)"
-                        value={detailTargetCpa}
-                        onChange={(e: any) => setDetailTargetCpa(e.target.value)}
-                      />
-                    )}
-                  </div>
-
-                  {/* Conversion Goals */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Primary Conversion Goal</label>
-                    <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800">
-                      {(() => {
-                        const goals = selectedCampaignDetails.conversionGoals || selectedCampaignDetails.geoTargets?.conversionGoals;
-                        if (!goals) return <span className="text-slate-500 italic">Account-default conversion goals</span>;
-                        if (typeof goals === "object") {
-                          return (
-                            <div className="space-y-0.5">
-                              {Object.entries(goals).map(([k, v]) => (
-                                <div key={k} className="flex justify-between">
-                                  <span className="font-semibold text-slate-600 capitalize">{k}:</span>
-                                  <span className="font-bold text-slate-900">{typeof v === "object" ? JSON.stringify(v) : String(v)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        }
-                        return <span className="font-semibold">{String(goals)}</span>;
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* Start Date & End Date */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700">Start Date</label>
-                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                        <Edit3 className="h-3 w-3" /> Mutable
-                      </span>
-                    </div>
-                    <Input
-                      type="date"
-                      value={detailStartDate}
-                      onChange={(e: any) => setDetailStartDate(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700">End Date</label>
-                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                        <Edit3 className="h-3 w-3" /> Mutable
-                      </span>
-                    </div>
-                    <Input
-                      type="date"
-                      value={detailEndDate}
-                      onChange={(e: any) => setDetailEndDate(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Location Target Type Mode */}
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Geographic Location Target Type</label>
-                    <Select
-                      value={detailPositiveGeoTargetType}
-                      onChange={(e: any) => setDetailPositiveGeoTargetType(e.target.value)}
-                    >
-                      <option value="PRESENCE_OR_INTEREST">Presence or Interest (People in, regularly in, or who have shown interest)</option>
-                      <option value="PRESENCE">Presence only (People regularly in or located in your targeted locations)</option>
-                    </Select>
-                  </div>
-
-                  {/* Network Settings */}
-                  {(selectedCampaignDetails.campaignType !== "PERFORMANCE_MAX" && selectedCampaignDetails.advertisingChannelType !== "PERFORMANCE_MAX") && (
-                    <div className="sm:col-span-2 p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                      <p className="text-xs font-bold text-slate-800">Google Network Distribution</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={detailNetworkSearch}
-                            onChange={(e) => setDetailNetworkSearch(e.target.checked)}
-                            className="rounded text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-slate-700 font-medium">Google Search</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={detailNetworkSearchPartners}
-                            onChange={(e) => setDetailNetworkSearchPartners(e.target.checked)}
-                            className="rounded text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-slate-700 font-medium">Search Partners</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={detailNetworkDisplay}
-                            onChange={(e) => setDetailNetworkDisplay(e.target.checked)}
-                            className="rounded text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-slate-700 font-medium">Google Display Network</span>
-                        </label>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tracking Template & Final URL Suffix */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Tracking Template</label>
-                    <Input
-                      placeholder="e.g. {lpurl}?utm_source=google"
-                      value={detailTrackingUrlTemplate}
-                      onChange={(e: any) => setDetailTrackingUrlTemplate(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Final URL Suffix</label>
-                    <Input
-                      placeholder="e.g. utm_source=google&utm_medium=cpc"
-                      value={detailFinalUrlSuffix}
-                      onChange={(e: any) => setDetailFinalUrlSuffix(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Final URL Website */}
-                  <div className="sm:col-span-2">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700">Final Landing Page URL / Website</label>
-                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                        <Edit3 className="h-3 w-3" /> Editable
-                      </span>
-                    </div>
-                    <Input
-                      value={detailFinalUrl}
-                      onChange={(e: any) => setDetailFinalUrl(e.target.value)}
-                      placeholder="https://example.com/promo"
-                    />
-                  </div>
-
-                  {/* Merchant Center Connected Details (Yes/No) */}
-                  <div className="sm:col-span-2 p-3.5 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                        <ShoppingBag className="h-4 w-4 text-amber-600" />
-                        Google Merchant Center & Product Feed Integration
-                      </p>
-                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
-                        (selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId)
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : "bg-slate-100 text-slate-600 border-slate-200"
-                      }`}>
-                        Merchant Center Details Send: {(selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId) ? "YES" : "NO"}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <span className="text-slate-500 text-[11px] block font-semibold">Merchant Center ID:</span>
-                        <p className="font-mono text-slate-900 font-bold mt-0.5">
-                          {selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId || "None (Not Attached)"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 text-[11px] block font-semibold">Feed Label / Country:</span>
-                        <p className="font-mono text-slate-900 font-bold mt-0.5">
-                          {selectedCampaignDetails.feedLabel || selectedCampaignDetails.geoTargets?.feedLabel || "IN (Default)"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <p className="text-[11px] text-slate-600 font-medium leading-tight">
+                    {isAppCampaign && "📱 Mobile App Promotion: Direct app installs. Google strictly mandates Average Daily Budget."}
+                    {isPMax && "✨ Performance Max: Omnichannel reach across Google via Asset Groups, Search Themes & Audience Signals."}
+                    {isSearch && "🔍 Google Search & Partners: High-intent keyword targeting with Responsive Search Ads."}
+                    {isShopping && "🛍️ Google Shopping: E-commerce product catalog feed via Google Merchant Center."}
+                    {isVideoOrDemandGen && "🎬 Video / Demand Gen: Visual storytelling across YouTube, Shorts, Discover & Gmail."}
+                    {isDisplay && "🖼️ Google Display Network: Responsive image banners across millions of sites and apps."}
+                  </p>
                 </div>
 
+                {/* Modal Navigation Tabs */}
+                <div className="flex border-b border-slate-200 gap-1 pb-1 overflow-x-auto">
+                  {modalTabs.map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveDetailsTab(tab.id as any)}
+                      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0 ${
+                        activeDetailsTab === tab.id
+                          ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      }`}
+                    >
+                      <tab.icon className="h-3.5 w-3.5" />
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* TAB 1: General Settings & Budget Edit */}
+                {activeDetailsTab === "info" && (
+                  <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+                    {/* Live Loading Indicator */}
+                    {detailLoadingLive && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 font-medium">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Fetching live Google Ads campaign configuration...</span>
+                      </div>
+                    )}
+
+                    {/* API Validation Error Display */}
+                    {detailError && (
+                      <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="font-bold">Google Ads API Validation Notice</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed">{detailError}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Campaign Name */}
+                      <div className="sm:col-span-2">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-slate-700">Campaign Name *</label>
+                          <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                            <Edit3 className="h-3 w-3" /> Google Ads API Mutable
+                          </span>
+                        </div>
+                        <Input
+                          value={detailName}
+                          onChange={(e: any) => setDetailName(e.target.value)}
+                          placeholder="e.g. Summer Promotion - Search"
+                        />
+                      </div>
+
+                      {/* Objective & Channel Type */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Campaign Objective</label>
+                        <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-blue-700">
+                            <Target className="h-3.5 w-3.5" />
+                            {selectedCampaignDetails.objective || selectedCampaignDetails.geoTargets?.objective || (isAppCampaign ? "APP_PROMOTION" : isShopping ? "SALES" : "Sales / Lead Generation")}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-semibold">Goal</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Campaign Channel Type</label>
+                        <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-purple-700">
+                            <Layers className="h-3.5 w-3.5" />
+                            {campTypeNorm}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-800 rounded font-semibold">Channel</span>
+                        </div>
+                      </div>
+
+                      {/* Budget & Budget Type */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-slate-700">
+                            Campaign Budget (₹) {isAppCampaign ? "(Average Daily Budget) *" : "*"}
+                          </label>
+                          <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                            <Edit3 className="h-3 w-3" /> Mutable
+                          </span>
+                        </div>
+                        <Input
+                          type="number"
+                          value={detailBudget}
+                          onChange={(e: any) => setDetailBudget(Number(e.target.value))}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-slate-700">Budget Type</label>
+                          {isAppCampaign ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              Daily Budget Only
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                              <Edit3 className="h-3 w-3" /> Mutable
+                            </span>
+                          )}
+                        </div>
+                        {isAppCampaign ? (
+                          <div className="space-y-1.5">
+                            <div className="px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold flex items-center justify-between">
+                              <span>Daily Budget (Standard)</span>
+                              <span className="text-[10px] text-slate-500 font-mono">Enforced by Google Ads API</span>
+                            </div>
+                            <p className="text-[10px] text-amber-800 bg-amber-50/90 border border-amber-200 rounded-lg p-2 leading-relaxed">
+                              ⚠️ Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Google strictly requires Average Daily Budget for app campaigns.
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            value={selectedCampaignDetails.budgetType || "DAILY"}
+                            onChange={(e: any) => saveSingleField("budgetType", e.target.value)}
+                          >
+                            <option value="DAILY">Daily Budget (Standard)</option>
+                            <option value="TOTAL">Campaign Total Budget</option>
+                          </Select>
+                        )}
+                      </div>
+
+                      {/* Status */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-slate-700">Campaign Status</label>
+                          <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                            <Edit3 className="h-3 w-3" /> Mutable
+                          </span>
+                        </div>
+                        <Select
+                          value={detailStatus}
+                          onChange={(e: any) => setDetailStatus(e.target.value)}
+                        >
+                          <option value="ENABLED">Enabled (Active)</option>
+                          <option value="PAUSED">Paused</option>
+                        </Select>
+                      </div>
+
+                      {/* Bidding Strategy */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Bidding Strategy</label>
+                        <Select
+                          value={detailBiddingStrategy}
+                          onChange={(e: any) => setDetailBiddingStrategy(e.target.value)}
+                        >
+                          {isAppCampaign ? (
+                            <>
+                              <option value="Maximize conversions">Maximize conversions (Install volume)</option>
+                              <option value="Target CPA">Target CPA (Target Cost Per Install)</option>
+                            </>
+                          ) : isShopping ? (
+                            <>
+                              <option value="Maximize clicks">Maximize clicks</option>
+                              <option value="Target ROAS">Target ROAS</option>
+                              <option value="Manual CPC">Manual CPC</option>
+                            </>
+                          ) : isPMax ? (
+                            <>
+                              <option value="Maximize conversions">Maximize conversions</option>
+                              <option value="Target CPA">Target CPA</option>
+                              <option value="Target ROAS">Target ROAS</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="Maximize conversions">Maximize Conversions</option>
+                              <option value="Maximize clicks">Maximize Clicks</option>
+                              <option value="Target CPA">Target CPA</option>
+                              <option value="Target ROAS">Target ROAS</option>
+                              <option value="Manual CPC">Manual CPC</option>
+                            </>
+                          )}
+                        </Select>
+                      </div>
+
+                      {/* Target CPA / Target ROAS inputs depending on strategy */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          {detailBiddingStrategy.toLowerCase().includes("roas") ? "Target ROAS (%)" : isAppCampaign ? "Target Cost Per Install / CPA (₹)" : "Target CPA (₹)"}
+                        </label>
+                        {detailBiddingStrategy.toLowerCase().includes("roas") ? (
+                          <Input
+                            type="number"
+                            placeholder="e.g. 400 for 400%"
+                            value={detailTargetRoas}
+                            onChange={(e: any) => setDetailTargetRoas(e.target.value)}
+                          />
+                        ) : (
+                          <Input
+                            type="number"
+                            placeholder={isAppCampaign ? "e.g. 45 (Cost per app install)" : "e.g. 50 (optional target CPA)"}
+                            value={detailTargetCpa}
+                            onChange={(e: any) => setDetailTargetCpa(e.target.value)}
+                          />
+                        )}
+                      </div>
+
+                      {/* Conversion Goals */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Primary Conversion Goal</label>
+                        <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800">
+                          {(() => {
+                            if (isAppCampaign) return <span className="font-bold text-purple-700">App Installs &amp; First Opens (Google Play / App Store)</span>;
+                            const goals = selectedCampaignDetails.conversionGoals || selectedCampaignDetails.geoTargets?.conversionGoals;
+                            if (!goals) return <span className="text-slate-500 italic">Account-default conversion goals</span>;
+                            if (typeof goals === "object") {
+                              return (
+                                <div className="space-y-0.5">
+                                  {Object.entries(goals).map(([k, v]) => (
+                                    <div key={k} className="flex justify-between">
+                                      <span className="font-semibold text-slate-600 capitalize">{k}:</span>
+                                      <span className="font-bold text-slate-900">{typeof v === "object" ? JSON.stringify(v) : String(v)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            }
+                            return <span className="font-semibold">{String(goals)}</span>;
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Start Date & End Date */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-slate-700">Start Date</label>
+                          <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                            <Edit3 className="h-3 w-3" /> Mutable
+                          </span>
+                        </div>
+                        <Input
+                          type="date"
+                          value={detailStartDate}
+                          onChange={(e: any) => setDetailStartDate(e.target.value)}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-slate-700">End Date</label>
+                          <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                            <Edit3 className="h-3 w-3" /> Mutable
+                          </span>
+                        </div>
+                        <Input
+                          type="date"
+                          value={detailEndDate}
+                          onChange={(e: any) => setDetailEndDate(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Location Target Type Mode */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Geographic Location Target Type</label>
+                        <Select
+                          value={detailPositiveGeoTargetType}
+                          onChange={(e: any) => setDetailPositiveGeoTargetType(e.target.value)}
+                        >
+                          <option value="PRESENCE_OR_INTEREST">Presence or Interest (People in, regularly in, or who have shown interest)</option>
+                          <option value="PRESENCE">Presence only (People regularly in or located in your targeted locations)</option>
+                        </Select>
+                      </div>
+
+                      {/* Type-Specific Configuration Cards */}
+                      {isAppCampaign ? (
+                        /* App Promotion Settings Card */
+                        <div className="sm:col-span-2 p-3.5 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                              <Smartphone className="h-4 w-4 text-purple-600" />
+                              App Promotion Configuration (Google Ads App Engine)
+                            </p>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold border border-purple-200">
+                              App Store Linked
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                            <div className="bg-white p-2.5 rounded-lg border border-purple-100">
+                              <span className="text-slate-500 text-[10px] block font-bold uppercase">App Platform:</span>
+                              <p className="font-bold text-slate-900 mt-0.5">Google Play Store / Android</p>
+                            </div>
+                            <div className="bg-white p-2.5 rounded-lg border border-purple-100">
+                              <span className="text-slate-500 text-[10px] block font-bold uppercase">Package / App ID:</span>
+                              <p className="font-mono text-purple-700 font-bold mt-0.5 truncate" title={selectedCampaignDetails.appId || selectedCampaignDetails.googleAdsCampaignId || "com.jisnu.app"}>
+                                {selectedCampaignDetails.appId || selectedCampaignDetails.googleAdsCampaignId || "com.jisnu.app"}
+                              </p>
+                            </div>
+                            <div className="bg-white p-2.5 rounded-lg border border-purple-100">
+                              <span className="text-slate-500 text-[10px] block font-bold uppercase">In-App Bidding Goal:</span>
+                              <p className="font-bold text-emerald-700 mt-0.5">OPTIMIZE_INSTALLS</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : isShopping ? (
+                        /* Shopping Settings Card */
+                        <div className="sm:col-span-2 p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                              <ShoppingBag className="h-4 w-4 text-amber-600" />
+                              Google Merchant Center Catalog Integration
+                            </p>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
+                              Product Feed
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                            <div className="bg-white p-2.5 rounded-lg border border-amber-100">
+                              <span className="text-slate-500 text-[10px] block font-bold uppercase">Merchant Center ID:</span>
+                              <p className="font-mono text-amber-900 font-bold mt-0.5 truncate">
+                                {selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId || "None (Add in CRM)"}
+                              </p>
+                            </div>
+                            <div className="bg-white p-2.5 rounded-lg border border-amber-100">
+                              <span className="text-slate-500 text-[10px] block font-bold uppercase">Target Sales Country:</span>
+                              <p className="font-bold text-slate-900 mt-0.5">{selectedCampaignDetails.salesCountry || selectedCampaignDetails.feedLabel || "IN (India)"}</p>
+                            </div>
+                            <div className="bg-white p-2.5 rounded-lg border border-amber-100">
+                              <span className="text-slate-500 text-[10px] block font-bold uppercase">Campaign Priority:</span>
+                              <p className="font-bold text-slate-900 mt-0.5">{selectedCampaignDetails.shoppingPriority || "LOW (Default)"}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : isPMax ? (
+                        /* Performance Max Omnichannel Settings Card */
+                        <div className="sm:col-span-2 p-3.5 bg-gradient-to-r from-amber-50/60 to-purple-50/50 border border-amber-200 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                              <Sparkles className="h-4 w-4 text-amber-600" />
+                              Performance Max Omnichannel Distribution
+                            </p>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
+                              Full Google Inventory
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            PMax automatically optimizes across Search, YouTube, Display, Discover, Gmail, and Google Maps using machine learning.
+                          </p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-1">
+                            <div className="bg-white p-2 rounded-lg border border-amber-100">
+                              <span className="text-slate-500 text-[10px] block font-semibold">URL Expansion:</span>
+                              <span className="font-bold text-emerald-700">Enabled</span>
+                            </div>
+                            <div className="bg-white p-2 rounded-lg border border-amber-100">
+                              <span className="text-slate-500 text-[10px] block font-semibold">Search Themes:</span>
+                              <span className="font-bold text-purple-700">Active</span>
+                            </div>
+                            <div className="bg-white p-2 rounded-lg border border-amber-100 col-span-2 sm:col-span-1">
+                              <span className="text-slate-500 text-[10px] block font-semibold">Audience Signals:</span>
+                              <span className="font-bold text-blue-700">Synced</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Search Network Settings */
+                        <div className="sm:col-span-2 p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                          <p className="text-xs font-bold text-slate-800">Google Network Distribution</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={detailNetworkSearch}
+                                onChange={(e) => setDetailNetworkSearch(e.target.checked)}
+                                className="rounded text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-slate-700 font-medium">Google Search</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={detailNetworkSearchPartners}
+                                onChange={(e) => setDetailNetworkSearchPartners(e.target.checked)}
+                                className="rounded text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-slate-700 font-medium">Search Partners</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={detailNetworkDisplay}
+                                onChange={(e) => setDetailNetworkDisplay(e.target.checked)}
+                                className="rounded text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-slate-700 font-medium">Google Display Network</span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tracking Template & Final URL Suffix */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Tracking Template</label>
+                        <Input
+                          placeholder="e.g. {lpurl}?utm_source=google"
+                          value={detailTrackingUrlTemplate}
+                          onChange={(e: any) => setDetailTrackingUrlTemplate(e.target.value)}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Final URL Suffix</label>
+                        <Input
+                          placeholder="e.g. utm_source=google&utm_medium=cpc"
+                          value={detailFinalUrlSuffix}
+                          onChange={(e: any) => setDetailFinalUrlSuffix(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Final URL Website vs App Store Link */}
+                      <div className="sm:col-span-2">
+                        {isAppCampaign ? (
+                          /* App Store Route */
+                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between">
+                              <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                                <Smartphone className="h-3.5 w-3.5 text-purple-600" />
+                                App Store Direct Destination
+                              </label>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Store Direct Routing
+                              </span>
+                            </div>
+                            <p className="font-mono text-blue-700 break-all text-[11px] bg-white p-2 rounded border border-slate-200">
+                              https://play.google.com/store/apps/details?id={selectedCampaignDetails.appId || "com.jisnu.app"}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              App campaigns route clicks directly to your Google Play Store listing. Website landing pages are not required.
+                            </p>
+                          </div>
+                        ) : (
+                          /* Standard Website Final URL */
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="text-xs font-bold text-slate-700">Final Landing Page URL / Website</label>
+                              <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                                <Edit3 className="h-3 w-3" /> Editable
+                              </span>
+                            </div>
+                            <Input
+                              value={detailFinalUrl}
+                              onChange={(e: any) => setDetailFinalUrl(e.target.value)}
+                              placeholder="https://example.com/promo"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Merchant Center Connected Details (Yes/No) - shown when applicable */}
+                      {(isShopping || isPMax || selectedCampaignDetails.merchantCenterId) && (
+                        <div className="sm:col-span-2 p-3.5 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                              <ShoppingBag className="h-4 w-4 text-amber-600" />
+                              Google Merchant Center &amp; Product Feed Integration
+                            </p>
+                            <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
+                              (selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId)
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-slate-100 text-slate-600 border-slate-200"
+                            }`}>
+                              Merchant Center Details Send: {(selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId) ? "YES" : "NO"}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div>
+                              <span className="text-slate-500 text-[11px] block font-semibold">Merchant Center ID:</span>
+                              <p className="font-mono text-slate-900 font-bold mt-0.5">
+                                {selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId || "None (Not Attached)"}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-slate-500 text-[11px] block font-semibold">Feed Label / Country:</span>
+                              <p className="font-mono text-slate-900 font-bold mt-0.5">
+                                {selectedCampaignDetails.feedLabel || selectedCampaignDetails.geoTargets?.feedLabel || "IN (Default)"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                 {/* Campaign Quick Summary Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <p className="text-[10px] text-slate-500 font-bold uppercase">Google Ads ID</p>
                     <p className="text-xs font-bold font-mono text-slate-900 truncate mt-0.5">{selectedCampaignDetails.googleAdsCampaignId || "Draft / Local"}</p>
@@ -4318,12 +4925,6 @@ export default function GoogleAdsPage() {
                     <p className="text-[10px] text-slate-500 font-bold uppercase">Start Date</p>
                     <p className="text-xs font-bold text-slate-900 truncate mt-0.5">
                       {detailStartDate || (selectedCampaignDetails.startDate ? new Date(selectedCampaignDetails.startDate).toISOString().split("T")[0] : "Today")}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">Database Record ID</p>
-                    <p className="text-xs font-bold text-slate-700 truncate mt-0.5 font-mono" title={selectedCampaignDetails.id}>
-                      {selectedCampaignDetails.id ? `${selectedCampaignDetails.id.slice(0, 10)}...` : "—"}
                     </p>
                   </div>
                 </div>
@@ -4342,8 +4943,112 @@ export default function GoogleAdsPage() {
             {/* TAB 2: Copy & Creative Assets */}
             {activeDetailsTab === "assets" && (
               <div className="space-y-5 max-h-[65vh] overflow-y-auto pr-1">
-                {/* Hierarchical Ad Groups -> Ads -> Media & Assets View */}
-                <GoogleAdsCampaignHierarchySection campaign={selectedCampaignDetails} />
+                {/* 1. PERFORMANCE MAX: Asset Groups & Creative Library */}
+                {isPMax && (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-gradient-to-r from-purple-50/60 to-amber-50/60 border border-purple-200 rounded-2xl">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 text-purple-600" />
+                          <h4 className="text-sm font-bold text-purple-950">
+                            Performance Max Asset Groups &amp; Asset Library
+                          </h4>
+                        </div>
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white text-purple-800 border border-purple-200">
+                          Omnichannel
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                        Performance Max replaces ad groups with Asset Groups. Google uses these assets to automatically assemble responsive ads across Search, YouTube, Display, Discover, Gmail, and Maps.
+                      </p>
+                      <GoogleAdsAssetGroupsSection
+                        customerId={selectedCustomerId}
+                        orgId={orgId}
+                        campaigns={[selectedCampaignDetails]}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. SEARCH: Ad Groups & Keywords Hierarchy */}
+                {isSearch && (
+                  <GoogleAdsCampaignHierarchySection campaign={selectedCampaignDetails} />
+                )}
+
+                {/* 3. APP CAMPAIGN: Google Play Store App Studio */}
+                {isAppCampaign && (
+                  <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-purple-950 flex items-center gap-2">
+                        <Smartphone className="h-4 w-4 text-purple-600" />
+                        Mobile App Creative Studio (Google Play Store)
+                      </h4>
+                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                        App Installs Engine
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      App campaigns dynamically generate ads across Google Play, Google Search, YouTube, and Display to drive app installs. No website landing page or standard ad groups are needed.
+                    </p>
+
+                    <div className="bg-white p-3.5 rounded-xl border border-purple-200 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                          <Smartphone className="h-6 w-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 text-sm truncate">{selectedCampaignDetails.name}</p>
+                          <p className="text-xs font-mono text-purple-700 truncate">
+                            Package ID: {selectedCampaignDetails.appId || selectedCampaignDetails.googleAdsCampaignId || "com.jisnu.app"}
+                          </p>
+                          <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block mt-0.5">
+                            ✓ Verified Google Play Store Target
+                          </span>
+                        </div>
+                      </div>
+
+                      <a
+                        href={`https://play.google.com/store/apps/details?id=${selectedCampaignDetails.appId || "com.jisnu.app"}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold text-xs flex items-center gap-1 border border-purple-200 shrink-0 cursor-pointer"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Play Store
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. SHOPPING: Merchant Feed & Catalog */}
+                {isShopping && (
+                  <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                        <ShoppingBag className="h-4 w-4 text-amber-600" />
+                        Google Merchant Center Product Feed &amp; Listing Groups
+                      </h4>
+                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                        Product Feed
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                      <div className="bg-white p-3 rounded-xl border border-amber-200">
+                        <span className="text-slate-500 text-[10px] block font-bold uppercase">Merchant Center ID:</span>
+                        <p className="font-mono text-amber-900 font-bold mt-1 text-sm">
+                          {selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId || "None"}
+                        </p>
+                      </div>
+                      <div className="bg-white p-3 rounded-xl border border-amber-200">
+                        <span className="text-slate-500 text-[10px] block font-bold uppercase">Listing Group:</span>
+                        <p className="font-bold text-slate-900 mt-1">All Products (Subdivided)</p>
+                      </div>
+                      <div className="bg-white p-3 rounded-xl border border-amber-200">
+                        <span className="text-slate-500 text-[10px] block font-bold uppercase">Country of Sale:</span>
+                        <p className="font-bold text-slate-900 mt-1">{selectedCampaignDetails.salesCountry || selectedCampaignDetails.feedLabel || "IN (India)"}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Final URL & Display Paths */}
                 <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200 text-xs space-y-3">
@@ -5445,7 +6150,14 @@ export default function GoogleAdsPage() {
                             </button>
                           </div>
                         ) : (
-                          <p className="font-bold text-emerald-700 text-sm mt-0.5">₹{selectedCampaignDetails.budget || 0} ({selectedCampaignDetails.budgetType || "DAILY"} Budget)</p>
+                          isAppCampaign ? (
+                            <div className="space-y-0.5 mt-0.5">
+                              <p className="font-bold text-emerald-700 text-sm">₹{selectedCampaignDetails.budget || 0} (Daily Average Budget)</p>
+                              <p className="text-[10px] text-amber-700 font-medium">Google Ads API strictly requires Average Daily Budget for App Promotion campaigns</p>
+                            </div>
+                          ) : (
+                            <p className="font-bold text-emerald-700 text-sm mt-0.5">₹{selectedCampaignDetails.budget || 0} ({selectedCampaignDetails.budgetType || "DAILY"} Budget)</p>
+                          )
                         )}
                       </div>
                       {editingParamField !== "budget" && (
@@ -5514,7 +6226,7 @@ export default function GoogleAdsPage() {
                       <div>
                         <p className="text-slate-500 text-[11px] font-semibold">Bidding Strategy & Targets</p>
                         <p className="font-semibold text-slate-800 mt-0.5">
-                          {selectedCampaignDetails.biddingStrategy || "Maximize conversions"}
+                          {selectedCampaignDetails.biddingStrategy || (isAppCampaign ? "Maximize conversions (Installs)" : "Maximize conversions")}
                           {selectedCampaignDetails.targetCpa ? ` · Target CPA: ₹${selectedCampaignDetails.targetCpa}` : ""}
                           {selectedCampaignDetails.targetRoas ? ` · Target ROAS: ${selectedCampaignDetails.targetRoas}%` : ""}
                         </p>
@@ -5558,33 +6270,132 @@ export default function GoogleAdsPage() {
                   </div>
                 </div>
 
-                {/* Section 3: Ad Copy, Creative Assets, Asset Groups & Feeds */}
+                {/* Section 3: Ad Copy, Creative Assets, Structure & Feeds (Type-Specific) */}
                 <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                   <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5 text-purple-600" /> Ad Copy, Creative Assets & Feeds
+                      {isAppCampaign ? <Smartphone className="h-3.5 w-3.5 text-purple-600" /> :
+                       isPMax ? <Sparkles className="h-3.5 w-3.5 text-purple-600" /> :
+                       isShopping ? <ShoppingBag className="h-3.5 w-3.5 text-amber-600" /> :
+                       <FileText className="h-3.5 w-3.5 text-blue-600" />}
+                      {isAppCampaign ? "App Promotion Package, Creative Assets & Store Destination" :
+                       isPMax ? "Performance Max Asset Groups & Creative Library" :
+                       isShopping ? "Google Merchant Center Product Catalog & Listing Feeds" :
+                       "Ad Copy, Responsive Ads, Media Assets & Keywords"}
                     </span>
                   </div>
                   <div className="p-3 space-y-3 divide-y divide-slate-100 text-xs">
-                    {/* Landing Page Website & Display Paths */}
-                    <div className="flex items-center justify-between pt-1">
-                      <div className="flex-1 pr-2">
-                        <p className="text-slate-500 text-[11px] font-semibold">Website (Final URL) & Display Paths</p>
-                        <p className="font-mono text-blue-600 break-all mt-0.5">{selectedCampaignDetails.finalUrl || "Not configured"}</p>
-                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">Paths: /{selectedCampaignDetails.displayPath1 || "promo"} /{selectedCampaignDetails.displayPath2 || "deal"}</p>
-                      </div>
-                      <button
-                        onClick={() => setActiveDetailsTab("assets")}
-                        className="px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-blue-200 cursor-pointer shrink-0"
-                      >
-                        <Edit3 className="h-3 w-3" /> Edit in Assets
-                      </button>
-                    </div>
+                    {/* APP CAMPAIGN SPECIFIC PARAMETERS */}
+                    {isAppCampaign && (
+                      <>
+                        <div className="flex items-center justify-between pt-1">
+                          <div className="flex-1 pr-2">
+                            <p className="text-slate-500 text-[11px] font-semibold">Google Play Store Package &amp; App ID</p>
+                            <p className="font-mono text-purple-700 font-bold mt-0.5">{selectedCampaignDetails.appId || selectedCampaignDetails.googleAdsCampaignId || "com.jisnu.app"}</p>
+                            <p className="text-[10px] text-slate-500 mt-0.5">Platform: Google Play Store (Android) · Optimization: OPTIMIZE_INSTALLS</p>
+                          </div>
+                          <span className="text-[10px] bg-purple-50 border border-purple-200 text-purple-700 px-2.5 py-1 rounded-full font-bold">Store Direct</span>
+                        </div>
+                        <div className="flex items-center justify-between pt-2">
+                          <div className="flex-1 pr-2">
+                            <p className="text-slate-500 text-[11px] font-semibold">Store Destination URL (Bypasses website)</p>
+                            <a
+                              href={`https://play.google.com/store/apps/details?id=${selectedCampaignDetails.appId || "com.jisnu.app"}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-blue-600 hover:underline break-all mt-0.5 block"
+                            >
+                              https://play.google.com/store/apps/details?id={selectedCampaignDetails.appId || "com.jisnu.app"}
+                            </a>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* SHOPPING CAMPAIGN SPECIFIC PARAMETERS */}
+                    {isShopping && (
+                      <>
+                        <div className="flex items-center justify-between pt-1">
+                          <div>
+                            <p className="text-slate-500 text-[11px] font-semibold">Google Merchant Center Account ID</p>
+                            <p className="font-mono text-amber-900 font-bold mt-0.5">{selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId || "None (Not Connected)"}</p>
+                          </div>
+                          <span className="text-[10px] bg-amber-50 text-amber-800 px-2 py-0.5 rounded font-bold border border-amber-200">Merchant Center</span>
+                        </div>
+                        <div className="flex items-center justify-between pt-2">
+                          <div>
+                            <p className="text-slate-500 text-[11px] font-semibold">Feed Country of Sale &amp; Priority</p>
+                            <p className="font-bold text-slate-800 mt-0.5">Sales Country: {selectedCampaignDetails.salesCountry || selectedCampaignDetails.feedLabel || "IN (India)"} · Priority: {selectedCampaignDetails.shoppingPriority || "LOW"}</p>
+                          </div>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono">Catalog</span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* PERFORMANCE MAX SPECIFIC PARAMETERS */}
+                    {isPMax && (
+                      <>
+                        <div className="flex items-center justify-between pt-1">
+                          <div>
+                            <p className="text-slate-500 text-[11px] font-semibold">Performance Max Asset Groups</p>
+                            <p className="font-bold text-purple-900 mt-0.5">
+                              {Array.isArray(selectedCampaignDetails.liveAssetGroups) ? `${selectedCampaignDetails.liveAssetGroups.length} Asset Group(s) Linked` : "1 Primary Asset Group Active"}
+                            </p>
+                            <p className="text-[10px] text-slate-500 mt-0.5">Omnichannel distribution across Search, YouTube, Display, Discover, Gmail, and Maps.</p>
+                          </div>
+                          <span className="text-[10px] bg-purple-50 text-purple-800 px-2 py-0.5 rounded font-bold border border-purple-200">Full Inventory</span>
+                        </div>
+                        <div className="flex items-center justify-between pt-2">
+                          <div>
+                            <p className="text-slate-500 text-[11px] font-semibold">URL Expansion &amp; Search Themes</p>
+                            <p className="font-bold text-emerald-700 mt-0.5">Final URL Expansion: Enabled · Search Themes: Active · Audience Signals: Linked</p>
+                          </div>
+                          <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold">Auto</span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* SEARCH SPECIFIC: LANDING PAGE & KEYWORDS */}
+                    {isSearch && (
+                      <>
+                        <div className="flex items-center justify-between pt-1">
+                          <div className="flex-1 pr-2">
+                            <p className="text-slate-500 text-[11px] font-semibold">Website (Final URL) &amp; Display Paths</p>
+                            <p className="font-mono text-blue-600 break-all mt-0.5">{selectedCampaignDetails.finalUrl || "Not configured"}</p>
+                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">Paths: /{selectedCampaignDetails.displayPath1 || "promo"} /{selectedCampaignDetails.displayPath2 || "deal"}</p>
+                          </div>
+                          <button
+                            onClick={() => setActiveDetailsTab("assets")}
+                            className="px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-blue-200 cursor-pointer shrink-0"
+                          >
+                            <Edit3 className="h-3 w-3" /> Edit in Assets
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between pt-2">
+                          <div>
+                            <p className="text-slate-500 text-[11px] font-semibold">Target Keywords ({Array.isArray(selectedCampaignDetails.keywords) ? selectedCampaignDetails.keywords.length : 0})</p>
+                            <p className="text-slate-700 mt-0.5 text-[11px]">
+                              {Array.isArray(selectedCampaignDetails.keywords) && selectedCampaignDetails.keywords.length > 0
+                                ? selectedCampaignDetails.keywords.slice(0, 4).map((kw: any) => typeof kw === "string" ? kw : kw.text).join(", ") + (selectedCampaignDetails.keywords.length > 4 ? ` (+${selectedCampaignDetails.keywords.length - 4} more)` : "")
+                                : "No keywords assigned"}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setActiveDetailsTab("assets")}
+                            className="px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-blue-200 cursor-pointer shrink-0"
+                          >
+                            <Edit3 className="h-3 w-3" /> View Keywords
+                          </button>
+                        </div>
+                      </>
+                    )}
 
                     {/* Headlines & Long Headlines */}
                     <div className="flex items-center justify-between pt-2">
                       <div>
-                        <p className="text-slate-500 text-[11px] font-semibold">Call Headlines & Long Headlines</p>
+                        <p className="text-slate-500 text-[11px] font-semibold">
+                          {isAppCampaign ? "App Promotion Headlines" : "Call Headlines & Long Headlines"}
+                        </p>
                         <p className="text-slate-700 mt-0.5 text-[11px]">
                           Headlines ({Array.isArray(selectedCampaignDetails.headlines) ? selectedCampaignDetails.headlines.length : 0}) · Long Headlines ({Array.isArray(selectedCampaignDetails.longHeadlines) ? selectedCampaignDetails.longHeadlines.length : 1})
                         </p>
@@ -5600,7 +6411,9 @@ export default function GoogleAdsPage() {
                     {/* Descriptions */}
                     <div className="flex items-center justify-between pt-2">
                       <div>
-                        <p className="text-slate-500 text-[11px] font-semibold">Descriptions ({Array.isArray(selectedCampaignDetails.descriptions) ? selectedCampaignDetails.descriptions.length : 0})</p>
+                        <p className="text-slate-500 text-[11px] font-semibold">
+                          {isAppCampaign ? "App Promotion Descriptions" : "Descriptions"} ({Array.isArray(selectedCampaignDetails.descriptions) ? selectedCampaignDetails.descriptions.length : 0})
+                        </p>
                         <p className="text-slate-700 mt-0.5 text-[11px]">
                           {Array.isArray(selectedCampaignDetails.descriptions) && selectedCampaignDetails.descriptions.length > 0
                             ? selectedCampaignDetails.descriptions.slice(0, 1).map((d: any) => typeof d === "string" ? d : d.text).join("") + (selectedCampaignDetails.descriptions.length > 1 ? ` (+${selectedCampaignDetails.descriptions.length - 1} more)` : "")
@@ -5620,7 +6433,7 @@ export default function GoogleAdsPage() {
                       <div>
                         <p className="text-slate-500 text-[11px] font-semibold">Media Assets (Images, Logos, Videos, Animated Clips)</p>
                         <p className="text-slate-700 mt-0.5 text-[11px]">
-                          Landscape/Square Images, Brand Logos, High-Resolution Videos & Automated Motion Clips
+                          Landscape/Square Images, Brand Logos, High-Resolution Videos &amp; Automated Motion Clips
                         </p>
                       </div>
                       <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold">Media Linked</span>
@@ -5629,34 +6442,23 @@ export default function GoogleAdsPage() {
                     {/* Call to Actions & Asset Automations */}
                     <div className="flex items-center justify-between pt-2">
                       <div>
-                        <p className="text-slate-500 text-[11px] font-semibold">Call to Actions & Asset Automations</p>
+                        <p className="text-slate-500 text-[11px] font-semibold">Call to Actions &amp; Asset Automations</p>
                         <p className="text-slate-700 mt-0.5 text-[11px]">
-                          CTA: {selectedCampaignDetails.callToAction || "Automated (Optimal CTA)"} · Asset Automations: Enabled
+                          CTA: {isAppCampaign ? "INSTALL (Google Play)" : (selectedCampaignDetails.callToAction || "Automated (Optimal CTA)")} · Asset Automations: Enabled
                         </p>
                       </div>
                       <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold">Optimized</span>
                     </div>
 
-                    {/* Asset Group URL Options & Custom Parameters */}
+                    {/* Tracking Template & Suffix */}
                     <div className="flex items-center justify-between pt-2">
                       <div>
-                        <p className="text-slate-500 text-[11px] font-semibold">Asset Group URL Options & Custom Parameters</p>
+                        <p className="text-slate-500 text-[11px] font-semibold">Tracking Template &amp; Final URL Suffix</p>
                         <p className="font-mono text-slate-700 mt-0.5 text-[11px]">
-                          Suffix: {selectedCampaignDetails.finalUrlSuffix || "None"} · Params: {JSON.stringify(selectedCampaignDetails.customParameters || { source: "google_ads" })}
+                          Template: {selectedCampaignDetails.trackingUrlTemplate || "None"} · Suffix: {selectedCampaignDetails.finalUrlSuffix || "None"}
                         </p>
                       </div>
                       <span className="text-[10px] text-slate-400 font-mono">Tracking</span>
-                    </div>
-
-                    {/* Google Merchant Center Details Send Yes/No */}
-                    <div className="flex items-center justify-between pt-2">
-                      <div>
-                        <p className="text-slate-500 text-[11px] font-semibold">Google Merchant Center Details Send (Yes/No)</p>
-                        <p className="font-bold text-amber-800 mt-0.5 text-[11px]">
-                          Merchant Center Send: {(selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId) ? "YES" : "NO"} · ID: {selectedCampaignDetails.merchantCenterId || selectedCampaignDetails.geoTargets?.merchantCenterId || "None"}
-                        </p>
-                      </div>
-                      <span className="text-[10px] bg-amber-50 text-amber-800 px-2 py-0.5 rounded font-bold">Shopping Feed</span>
                     </div>
                   </div>
                 </div>
@@ -5828,6 +6630,8 @@ export default function GoogleAdsPage() {
                 {/* Channel Selector Pills Bar */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                   {[
+                    ...(isAppCampaign ? [{ id: "app_install", label: "Google Play Store", icon: Smartphone, color: "text-purple-600", bg: "bg-purple-50 border-purple-200" }] : []),
+                    ...(isShopping ? [{ id: "shopping", label: "Google Shopping", icon: ShoppingBag, color: "text-amber-600", bg: "bg-amber-50 border-amber-200" }] : []),
                     { id: "search", label: "Google Search", icon: Search, color: "text-blue-600", bg: "bg-blue-50 border-blue-200" },
                     { id: "youtube", label: "YouTube / Video", icon: Video, color: "text-rose-600", bg: "bg-rose-50 border-rose-200" },
                     { id: "display", label: "Display Banner", icon: LayoutGrid, color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-200" },
@@ -5902,6 +6706,132 @@ export default function GoogleAdsPage() {
                             {previewChannel} {previewDeviceMode} Preview
                           </span>
                         </div>
+
+                        {/* 0. GOOGLE PLAY STORE APP INSTALL MOCKUP */}
+                        {previewChannel === "app_install" && (
+                          <div className="w-full max-w-[340px] bg-slate-900 rounded-[36px] p-3 shadow-xl border-4 border-slate-800 ring-1 ring-slate-900/10">
+                            <div className="flex justify-center mb-2">
+                              <div className="w-16 h-1.5 bg-slate-700 rounded-full" />
+                            </div>
+                            <div className="bg-white rounded-[24px] overflow-hidden text-xs flex flex-col shadow-inner min-h-[460px]">
+                              {/* Play Store Top Bar */}
+                              <div className="bg-slate-50 border-b border-slate-200 p-2.5 flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-5 h-5 rounded-md bg-purple-600 flex items-center justify-center text-white font-black text-[10px]">
+                                    ▶
+                                  </div>
+                                  <span className="font-bold text-slate-800 text-[11px]">Google Play</span>
+                                </div>
+                                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  Verified
+                                </span>
+                              </div>
+
+                              <div className="p-4 space-y-3">
+                                {/* App Header */}
+                                <div className="flex items-start gap-3">
+                                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0">
+                                    <Smartphone className="h-7 w-7" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <h3 className="font-bold text-sm text-slate-900 leading-tight truncate">
+                                      {selectedCampaignDetails.name}
+                                    </h3>
+                                    <p className="text-[11px] text-purple-700 font-semibold truncate mt-0.5">
+                                      {previewBiz}
+                                    </p>
+                                    <p className="text-[9px] text-slate-500">Contains ads · In-app purchases</p>
+                                  </div>
+                                </div>
+
+                                {/* Rating & Stats Badges */}
+                                <div className="flex items-center justify-around py-2 border-y border-slate-100 text-center">
+                                  <div>
+                                    <div className="font-bold text-slate-900 text-xs flex items-center justify-center gap-0.5">
+                                      4.8 <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                                    </div>
+                                    <p className="text-[9px] text-slate-500">28K reviews</p>
+                                  </div>
+                                  <div className="w-px h-6 bg-slate-200" />
+                                  <div>
+                                    <div className="font-bold text-slate-900 text-xs">100K+</div>
+                                    <p className="text-[9px] text-slate-500">Downloads</p>
+                                  </div>
+                                  <div className="w-px h-6 bg-slate-200" />
+                                  <div>
+                                    <div className="font-bold text-emerald-700 text-xs">3+</div>
+                                    <p className="text-[9px] text-slate-500">Rated for 3+</p>
+                                  </div>
+                                </div>
+
+                                {/* Install Button */}
+                                <a
+                                  href={`https://play.google.com/store/apps/details?id=${selectedCampaignDetails.appId || "com.jisnu.app"}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-full py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs text-center flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  Install
+                                </a>
+
+                                {/* Screenshots Carousel / Preview Cards */}
+                                <div className="space-y-1.5 pt-1">
+                                  <p className="text-[11px] font-bold text-slate-800">App Preview</p>
+                                  <div className="flex gap-2 overflow-x-auto pb-1">
+                                    <div className="w-20 h-28 rounded-xl bg-purple-100 border border-purple-200 flex flex-col items-center justify-center p-2 text-center shrink-0">
+                                      <Smartphone className="h-5 w-5 text-purple-600 mb-1" />
+                                      <span className="text-[8px] font-bold text-purple-900 leading-tight line-clamp-3">{primaryHeadline}</span>
+                                    </div>
+                                    <div className="w-20 h-28 rounded-xl bg-indigo-100 border border-indigo-200 flex flex-col items-center justify-center p-2 text-center shrink-0">
+                                      <Sparkles className="h-5 w-5 text-indigo-600 mb-1" />
+                                      <span className="text-[8px] font-bold text-indigo-900 leading-tight">Instant Sync</span>
+                                    </div>
+                                    <div className="w-20 h-28 rounded-xl bg-emerald-100 border border-emerald-200 flex flex-col items-center justify-center p-2 text-center shrink-0">
+                                      <CheckCircle className="h-5 w-5 text-emerald-600 mb-1" />
+                                      <span className="text-[8px] font-bold text-emerald-900 leading-tight">Offline Mode</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* About this app */}
+                                <div className="pt-2 border-t border-slate-100 space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-bold text-slate-900">About this app</span>
+                                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                                  </div>
+                                  <p className="text-[10px] text-slate-600 leading-relaxed line-clamp-3">
+                                    {primaryDescription}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 0.5 GOOGLE SHOPPING CARD MOCKUP */}
+                        {previewChannel === "shopping" && (
+                          <div className="w-full max-w-[340px] bg-white rounded-2xl border border-slate-200 shadow-md p-4 space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                Google Shopping Feed Ad
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                GMC: {selectedCampaignDetails.merchantCenterId || "Connected"}
+                              </span>
+                            </div>
+                            <div className="aspect-square w-full rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 flex flex-col items-center justify-center p-4 text-center">
+                              <ShoppingBag className="h-16 w-16 text-amber-500 mb-2" />
+                              <p className="font-bold text-slate-800 text-xs">{selectedCampaignDetails.name}</p>
+                              <span className="text-emerald-700 font-black text-base mt-1">₹{selectedCampaignDetails.budget ? Math.round(selectedCampaignDetails.budget * 0.4) : 999}</span>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="font-bold text-xs text-slate-900 truncate">{primaryHeadline}</p>
+                              <p className="text-[10px] text-slate-500">Free delivery · Top Rated Store</p>
+                              <p className="text-[10px] text-blue-700 font-semibold">{displayDomain}</p>
+                            </div>
+                          </div>
+                        )}
 
                         {/* 1. GOOGLE SEARCH MOCKUP */}
                         {previewChannel === "search" && (
@@ -6265,7 +7195,9 @@ export default function GoogleAdsPage() {
                 })()}
               </div>
             )}
-          </div>
+              </div>
+            );
+          })()}
         </Modal>
       )}
 
@@ -6619,6 +7551,101 @@ export default function GoogleAdsPage() {
               )}
             </div>
 
+            {/* Campaign Parameters Audit (Bidding, Merchant, Target CPA, Budget) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-2">
+                <span className="text-indigo-900 font-bold block text-[10px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-indigo-600" /> Bidding & Optimization
+                </span>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Strategy:</span>
+                  <span className="font-mono font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                    {selectedChangeDetail.biddingStrategy?.replace(/_/g, " ") || selectedChangeDetail.newResource?.campaign?.biddingStrategyType?.replace(/_/g, " ") || "MAXIMIZE_CONVERSIONS"}
+                  </span>
+                </div>
+                {selectedChangeDetail.oldBiddingStrategy && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Previous Strategy:</span>
+                    <span className="font-mono text-slate-500 line-through">
+                      {selectedChangeDetail.oldBiddingStrategy.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                )}
+                {selectedChangeDetail.targetCpa != null && Number(selectedChangeDetail.targetCpa) > 0 && (
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-indigo-100">
+                    <span className="text-slate-500">Target CPA:</span>
+                    <span className="font-bold text-slate-800">₹{Number(selectedChangeDetail.targetCpa).toLocaleString()}</span>
+                  </div>
+                )}
+                {selectedChangeDetail.targetRoas != null && Number(selectedChangeDetail.targetRoas) > 0 && (
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-indigo-100">
+                    <span className="text-slate-500">Target ROAS:</span>
+                    <span className="font-bold text-slate-800">{Number(selectedChangeDetail.targetRoas) * 100}%</span>
+                  </div>
+                )}
+                {selectedChangeDetail.budget != null && (
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-indigo-100">
+                    <span className="text-slate-500">Budget:</span>
+                    <span className="font-bold text-slate-800">₹{Number(selectedChangeDetail.budget).toLocaleString()}/day</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-2">
+                <span className="text-emerald-900 font-bold block text-[10px] uppercase tracking-wider flex items-center gap-1.5">
+                  <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" /> Merchant Center & Feeds
+                </span>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Merchant Linked:</span>
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                    selectedChangeDetail.hasMerchant || selectedChangeDetail.merchantCenterId
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                      : "bg-slate-100 text-slate-600 border border-slate-200"
+                  }`}>
+                    {selectedChangeDetail.hasMerchant || selectedChangeDetail.merchantCenterId ? "Yes (Linked)" : "No (Disabled)"}
+                  </span>
+                </div>
+                {selectedChangeDetail.merchantCenterId && (
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-emerald-100">
+                    <span className="text-slate-500">Merchant ID:</span>
+                    <span className="font-mono font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                      {selectedChangeDetail.merchantCenterId}
+                    </span>
+                  </div>
+                )}
+                {(selectedChangeDetail.videoUrl || (Array.isArray(selectedChangeDetail.videos) && selectedChangeDetail.videos.length > 0)) && (
+                  <div className="pt-1 border-t border-emerald-100">
+                    <span className="text-slate-500 block mb-1">YouTube Video Assets:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {(selectedChangeDetail.videos || [selectedChangeDetail.videoUrl]).map((v: string, idx: number) => (
+                        <a
+                          key={idx}
+                          href={v}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-50 text-red-700 border border-red-200 text-[10px] font-semibold hover:underline"
+                        >
+                          <Video className="w-3 h-3 text-red-600" /> Video #{idx + 1}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {Array.isArray(selectedChangeDetail.sitelinks) && selectedChangeDetail.sitelinks.length > 0 && (
+                  <div className="pt-1 border-t border-emerald-100">
+                    <span className="text-slate-500 block mb-1">Sitelinks ({selectedChangeDetail.sitelinks.length}):</span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedChangeDetail.sitelinks.map((s: any, idx: number) => (
+                        <span key={idx} className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-medium">
+                          {s.linkText || s.text || `Sitelink ${idx + 1}`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {selectedChangeDetail.changedFields && (
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
                 <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Changed Field Mask</span>
@@ -6686,7 +7713,7 @@ export default function GoogleAdsPage() {
       {/* Live Bulk Task Execution & Timer Modal */}
       {bulkTaskProgress?.isOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -6771,6 +7798,32 @@ export default function GoogleAdsPage() {
                   <span className="text-xs font-bold text-rose-700 font-mono">{bulkTaskProgress.failCount}</span>
                 </div>
               </div>
+
+              {/* Detailed Failure Reasons List */}
+              {bulkTaskProgress.failureReasons && bulkTaskProgress.failureReasons.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      Failure Reasons ({bulkTaskProgress.failureReasons.length})
+                    </span>
+                    <span className="text-[10px] text-slate-400">Google Ads API responses</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto rounded-2xl border border-rose-200 bg-rose-50/40 p-2.5 space-y-2 divide-y divide-rose-100 text-xs">
+                    {bulkTaskProgress.failureReasons.map((item, idx) => (
+                      <div key={idx} className={`${idx > 0 ? "pt-2" : ""} space-y-0.5`}>
+                        <div className="flex items-center justify-between gap-2 font-semibold text-slate-900 text-[11px]">
+                          <span className="truncate">{item.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-rose-100 text-rose-700 font-mono shrink-0">FAILED</span>
+                        </div>
+                        <p className="text-[11px] text-rose-800 leading-relaxed font-mono break-words bg-white/70 p-1.5 rounded-lg border border-rose-100/80">
+                          {item.reason}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}

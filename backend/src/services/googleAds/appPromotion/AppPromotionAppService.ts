@@ -244,10 +244,11 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
       campaignBudget: null
     };
 
-    if (startDate) {
-      const startStr = String(startDate).split("T")[0];
-      campaignObj.startDateTime = `${startStr} 00:00:00`;
-    }
+    const effectiveStartDate = startDate
+      ? String(startDate).split("T")[0]
+      : new Date().toISOString().split("T")[0];
+    campaignObj.startDateTime = `${effectiveStartDate} 00:00:00`;
+
     if (endDate) {
       const endStr = String(endDate).split("T")[0];
       campaignObj.endDateTime = `${endStr} 23:59:59`;
@@ -453,17 +454,20 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
       customerId,
       googleAdsCampaignId: apiResult.campaignId || `app-${Date.now()}`,
       name: campaignObj.name,
-      campaignType: "MULTI_CHANNEL",
+      campaignType: "APP",
       biddingStrategy: biddingStrategyGoalType,
       budget: effectiveBudget,
       budgetResourceName: apiResult.budgetResourceName || null,
       status: "PAUSED",
+      startDate: new Date(effectiveStartDate),
+      endDate: endDate ? new Date(String(endDate).split("T")[0]) : null,
       headlines: validHeadlines,
       descriptions: validDescriptions,
       finalUrl: payload.finalUrl || appStoreUrl,
+      languages: Array.isArray(languages) ? languages : (languages ? [languages] : ["All languages"]),
       geoTargets: {
-        locations,
-        languages,
+        locations: Array.isArray(locations) ? locations : [locations],
+        languages: Array.isArray(languages) ? languages : [languages],
         objective: "App Promotion",
         platform: normPlatform,
         appId: trimmedAppId,
@@ -495,6 +499,10 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
         app_store: appStore,
         app_id: trimmedAppId,
         target_cpa: rawTargetCpa,
+        startDate: effectiveStartDate,
+        endDate: endDate ? String(endDate).split("T")[0] : null,
+        locations: Array.isArray(locations) ? locations : [locations],
+        languages: Array.isArray(languages) ? languages : [languages],
         "CampaignBudget.amount_micros": amountMicros,
         "Campaign.advertising_channel_type": "MULTI_CHANNEL",
         "Campaign.advertising_channel_sub_type": "APP_CAMPAIGN",

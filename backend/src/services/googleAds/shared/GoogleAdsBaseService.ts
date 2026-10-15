@@ -979,63 +979,96 @@ export class GoogleAdsBaseService {
       "sunday": ["SUNDAY"]
     };
 
-    const criteria: any[] = [];
+    const dayIntervals: Record<string, Array<{ startM: number; endM: number }>> = {
+      MONDAY: [],
+      TUESDAY: [],
+      WEDNESDAY: [],
+      THURSDAY: [],
+      FRIDAY: [],
+      SATURDAY: [],
+      SUNDAY: []
+    };
 
     for (const sched of schedules) {
       if (!sched || typeof sched !== "object") continue;
       const rawDay = String(sched.day || sched.dayOfWeek || "All days").trim().toLowerCase();
       const targetDays = dayMap[rawDay] || [rawDay.toUpperCase()];
 
-      let sHour = 0;
-      let sMinStr = "ZERO";
-      let eHour = 24;
-      let eMinStr = "ZERO";
-
       const start = String(sched.start || "00:00").trim();
       const end = String(sched.end || "00:00").trim();
 
-      // Check if full day schedule (00:00 -> 00:00 or 00:00 -> 24:00)
-      if ((start === "00:00" || start === "0:00") && (end === "00:00" || end === "0:00" || end === "24:00")) {
-        // If there are other schedules for the same day with specific hours, skip this 00:00 - 00:00 row to prevent overlap conflict
-        const hasSpecificSameDay = schedules.some(other => {
-          if (!other || other === sched) return false;
-          const oDay = String(other.day || other.dayOfWeek || "").trim().toLowerCase();
-          const oStart = String(other.start || "00:00").trim();
-          const oEnd = String(other.end || "00:00").trim();
-          return oDay === rawDay && !( (oStart === "00:00" || oStart === "0:00") && (oEnd === "00:00" || oEnd === "0:00" || oEnd === "24:00") );
-        });
-        if (hasSpecificSameDay) {
-          continue;
-        }
-        sHour = 0;
-        sMinStr = "ZERO";
-        eHour = 24;
-        eMinStr = "ZERO";
+      let startM = 0;
+      let endM = 1440;
+
+      if ((start === "00:00" || start === "0:00") && (end === "00:00" || end === "0:00" || end === "24:00" || end === "23:45")) {
+        startM = 0;
+        endM = 1440;
       } else {
         const [sh, sm] = start.split(":").map(v => parseInt(v, 10));
         const [eh, em] = end.split(":").map(v => parseInt(v, 10));
 
-        sHour = isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh));
-        sMinStr = this.mapMinuteToEnum(sm || 0);
+        const sHour = isNaN(sh) ? 0 : Math.max(0, Math.min(23, sh));
+        const sMin = isNaN(sm) ? 0 : Math.max(0, Math.min(59, sm));
+        const eHour = isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh));
+        const eMin = isNaN(em) ? 0 : Math.max(0, Math.min(59, em));
 
-        eHour = isNaN(eh) ? 24 : Math.max(0, Math.min(24, eh));
-        eMinStr = this.mapMinuteToEnum(em || 0);
+        startM = sHour * 60 + sMin;
+        endM = eHour * 60 + eMin;
 
-        const startTotalMinutes = sHour * 60 + (sm || 0);
-        const endTotalMinutes = eHour * 60 + (em || 0);
-        if (endTotalMinutes <= startTotalMinutes && eHour !== 24) {
+        if (endM <= startM && eHour !== 24) {
           console.warn(`[GoogleAdsBaseService] Invalid ad schedule: End time (${end}) must be after start time (${start}) for ${sched.day || 'day'}. Skipping row.`);
           continue;
         }
       }
 
       for (const d of targetDays) {
+        if (dayIntervals[d]) {
+          dayIntervals[d].push({ startM, endM });
+        }
+      }
+    }
+
+    const allDaysFull = Object.keys(dayIntervals).every(d => {
+      const intervals = dayIntervals[d];
+      if (intervals.length === 0) return false;
+      return intervals.some(inv => inv.startM === 0 && inv.endM >= 1440);
+    });
+
+    if (allDaysFull && Object.values(dayIntervals).every(list => list.length <= 1)) {
+      return [];
+    }
+
+    const criteria: any[] = [];
+    for (const [day, intervals] of Object.entries(dayIntervals)) {
+      if (intervals.length === 0) continue;
+      intervals.sort((a, b) => a.startM - b.startM);
+
+      const merged: Array<{ startM: number; endM: number }> = [];
+      let current = { ...intervals[0] };
+
+      for (let i = 1; i < intervals.length; i++) {
+        const next = intervals[i];
+        if (next.startM <= current.endM) {
+          current.endM = Math.max(current.endM, next.endM);
+        } else {
+          merged.push(current);
+          current = { ...next };
+        }
+      }
+      merged.push(current);
+
+      for (const m of merged) {
+        const sHour = Math.floor(m.startM / 60);
+        const sMin = m.startM % 60;
+        const eHour = Math.floor(m.endM / 60);
+        const eMin = m.endM % 60;
+
         criteria.push({
-          dayOfWeek: d,
+          dayOfWeek: day,
           startHour: sHour,
-          startMinute: sMinStr,
+          startMinute: this.mapMinuteToEnum(sMin),
           endHour: eHour,
-          endMinute: eMinStr
+          endMinute: this.mapMinuteToEnum(eMin)
         });
       }
     }
@@ -1342,6 +1375,17 @@ export class GoogleAdsBaseService {
     // Preserve languages explicitly if provided
     if (sanitizedData.languages === undefined && data?.languages !== undefined) {
       sanitizedData.languages = data.languages;
+    }
+
+    // Preserve conversionGoals inside geoTargets JSON metadata
+    if (data?.conversionGoals !== undefined) {
+      const existingGeo = (typeof sanitizedData.geoTargets === "object" && sanitizedData.geoTargets !== null)
+        ? sanitizedData.geoTargets
+        : (typeof data?.geoTargets === "object" && data?.geoTargets !== null ? data.geoTargets : {});
+      sanitizedData.geoTargets = {
+        ...existingGeo,
+        conversionGoals: data.conversionGoals
+      };
     }
 
     let savedCampaign: any = null;

@@ -324,33 +324,7 @@ export default function CampaignCreatePage() {
   const [merchantCenterAccount, setMerchantCenterAccount] = useState<string>("");
   const [feedLabel, setFeedLabel] = useState<string>("");
 
-  // Fetch existing drafts on mount / customerId change
-  useEffect(() => {
-    const fetchDrafts = async () => {
-      setIsLoadingDrafts(true);
-      try {
-        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-        const url = customerId
-          ? `${BACKEND}/api/ads/campaigns/drafts?customerId=${customerId}`
-          : `${BACKEND}/api/ads/campaigns/drafts`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setExistingDrafts(data);
-            if (data.length > 0) {
-              setSelectedDraftId(data[0].id || data[0].campaignId);
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load drafts:", err);
-      } finally {
-        setIsLoadingDrafts(false);
-      }
-    };
-    fetchDrafts();
-  }, [customerId]);
+
 
   // Search Reach Goals State
   const [websiteVisitsUrl, setWebsiteVisitsUrl] = useState<string>("");
@@ -844,12 +818,16 @@ export default function CampaignCreatePage() {
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     if (customerId) {
       fetch(`${BACKEND}/api/ads/customer-info?orgId=${encodeURIComponent(orgId)}&customerId=${customerId}`)
-        .then(r => r.json())
+        .then(r => r.ok ? r.json() : null)
         .then(d => {
-          setAccountInfo({
-            customerId: d.customerId || customerId,
-            name: d.descriptiveName || `Account ${customerId}`
-          });
+          if (d) {
+            setAccountInfo({
+              customerId: d.customerId || customerId,
+              name: d.descriptiveName || `Account ${customerId}`
+            });
+          } else {
+            setAccountInfo({ customerId, name: `Account ${customerId}` });
+          }
         })
         .catch(() => {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
@@ -857,7 +835,7 @@ export default function CampaignCreatePage() {
 
       // Fetch customer profile to check mobile apps and merchant connection
       fetch(`${BACKEND}/api/ads/customer-profile?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(customerId)}`)
-        .then(r => r.json())
+        .then(r => r.ok ? r.json() : null)
         .then(prof => {
           if (prof && prof.success !== false) {
             setCustomerProfile(prof);
@@ -893,14 +871,14 @@ export default function CampaignCreatePage() {
           }
         })
         .catch(err => {
-          console.error("Failed to load customer profile for app connection check", err);
+          console.warn("Notice: could not load customer profile:", err?.message || err);
         });
     }
 
     // Fetch existing campaign drafts
     setIsLoadingDrafts(true);
     fetch(`${BACKEND}/api/ads/campaigns/drafts?orgId=${encodeURIComponent(orgId)}${customerId ? `&customerId=${encodeURIComponent(customerId)}` : ""}`)
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : [])
       .then(data => {
         if (Array.isArray(data)) {
           setExistingDrafts(data);
@@ -910,7 +888,7 @@ export default function CampaignCreatePage() {
         }
       })
       .catch(err => {
-        console.error("Failed to load drafts:", err);
+        console.warn("Notice: could not load drafts:", err?.message || err);
       })
       .finally(() => {
         setIsLoadingDrafts(false);
@@ -5276,19 +5254,42 @@ export default function CampaignCreatePage() {
 
                 {/* 2. Campaign Total Budget */}
                 <div className="space-y-3 pt-2 border-t border-slate-200">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="budgetTypeRadio"
-                      checked={budgetType === "TOTAL"}
-                      onChange={() => setBudgetType("TOTAL")}
-                      className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
-                    />
-                    <div className="space-y-0.5">
-                      <span className="text-xs font-semibold text-slate-900 block">Campaign total budget</span>
-                      <span className="text-[11px] text-slate-500 block">Set a budget for the duration of your campaign</span>
+                  {selectedType === "APP" || selectedType === "MULTI_CHANNEL" ? (
+                    <div className="flex items-start gap-3 opacity-60 cursor-not-allowed p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <input
+                        type="radio"
+                        name="budgetTypeRadio"
+                        checked={false}
+                        disabled
+                        className="mt-0.5 text-slate-400 h-4 w-4 cursor-not-allowed"
+                      />
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-700 block">Campaign total budget</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            Not Supported for App Campaigns
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-500 block">
+                          Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.
+                        </span>
+                      </div>
                     </div>
-                  </label>
+                  ) : (
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="budgetTypeRadio"
+                        checked={budgetType === "TOTAL"}
+                        onChange={() => setBudgetType("TOTAL")}
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                      />
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-semibold text-slate-900 block">Campaign total budget</span>
+                        <span className="text-[11px] text-slate-500 block">Set a budget for the duration of your campaign</span>
+                      </div>
+                    </label>
+                  )}
 
                   {budgetType === "TOTAL" && (
                     <div className="ml-7 space-y-4 animate-in fade-in duration-200">
@@ -7206,9 +7207,17 @@ export default function CampaignCreatePage() {
             } else if (wizardStep === "ASSET_GROUP") {
               setWizardStep("BUDGET");
             } else if (wizardStep === "BUDGET") {
+              if ((selectedType === "APP" || selectedType === "MULTI_CHANNEL") && budgetType === "TOTAL") {
+                alert("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+                return;
+              }
               setWizardStep("SUMMARY");
             } else {
               // Save & Publish Campaign Action
+              if ((selectedType === "APP" || selectedType === "MULTI_CHANNEL") && budgetType === "TOTAL") {
+                alert("Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX.");
+                return;
+              }
               setIsPublishing(true);
               try {
                 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";

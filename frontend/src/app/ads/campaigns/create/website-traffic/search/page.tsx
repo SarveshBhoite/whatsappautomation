@@ -1011,8 +1011,8 @@ export default function WebsiteTrafficSearchPage() {
         trackingTemplate: trackingTemplate ? trackingTemplate.trim() : undefined,
         // Param 22: Final URL Suffix
         finalUrlSuffix: finalUrlSuffix ? finalUrlSuffix.trim() : undefined,
-        // Param 23: Conversion Goals (Uses Account-level default goals unless custom goals are set)
-        conversionGoals: [],
+        // Param 23: Conversion Goals
+        conversionGoals: validConversionGoals.length > 0 ? validConversionGoals : selectedConversionGoals,
         // Param 24: Bidding Strategy Limits
         maxCpcLimit: setMaxCpc ? Number(maxCpcLimit) : undefined,
         impressionShareLocation: biddingFocus === "Impression share" ? impressionShareLocation : undefined,

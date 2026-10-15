@@ -4296,6 +4296,7 @@ function LocalPerformanceMaxContent() {
                     adSchedule: adScheduleList,
                     budgetType: budgetType,
                     dailyBudget: Number(dailyBudgetValue),
+                    conversionGoals: ["get_directions", "store_visits"],
                     objective: " LocalPerformance"
                   };
 

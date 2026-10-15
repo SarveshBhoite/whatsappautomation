@@ -1282,47 +1282,139 @@ router.get("/connected-apps", async (req, res) => {
           ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {})
         };
 
-        const query = `
-          SELECT
-            asset.id,
-            asset.name,
-            asset.type,
-            asset.mobile_app_asset.app_id,
-            asset.mobile_app_asset.app_store
-          FROM asset
-          WHERE asset.type = 'MOBILE_APP'
-          LIMIT 50
-        `;
+        // 3a. Query live Google Ads API for APP / MOBILE_APP assets
+        try {
+          const assetQuery = `
+            SELECT
+              asset.id,
+              asset.name,
+              asset.type,
+              asset.mobile_app_asset.app_id,
+              asset.mobile_app_asset.app_store
+            FROM asset
+            WHERE asset.type = 'MOBILE_APP'
+            LIMIT 50
+          `;
 
-        const adsBase = "https://googleads.googleapis.com/v24";
-        const gaqlRes = await axios.post(`${adsBase}/customers/${cleanCid}/googleAds:search`, { query }, { headers });
-        const results = gaqlRes.data?.results || [];
+          const adsBase = "https://googleads.googleapis.com/v24";
+          const gaqlRes = await axios.post(`${adsBase}/customers/${cleanCid}/googleAds:search`, { query: assetQuery }, { headers });
+          const results = gaqlRes.data?.results || [];
 
-        for (const row of results) {
-          const a = row.asset;
-          const aId = a?.mobileAppAsset?.appId || a?.appAsset?.appId;
-          if (aId && !appsMap.has(String(aId).toLowerCase())) {
-            const store = a?.mobileAppAsset?.appStore || a?.appAsset?.appStore;
-            const isIos = store === "APPLE_APP_STORE" || /^\d+$/.test(String(aId));
-            const platform = isIos ? "IOS" : "ANDROID";
-            appsMap.set(String(aId).toLowerCase(), {
-              id: `live-asset-${a.id}`,
-              platform,
-              appId: String(aId),
-              appName: a.name || `Mobile App (${aId})`,
-              appUrl: platform === "IOS"
-                ? `https://apps.apple.com/app/id${aId}`
-                : `https://play.google.com/store/apps/details?id=${aId}`,
-              source: "Google Ads Assets"
-            });
+          for (const row of results) {
+            const a = row.asset;
+            const aId = a?.mobileAppAsset?.appId || a?.appAsset?.appId;
+            if (aId && !appsMap.has(String(aId).toLowerCase())) {
+              const store = a?.mobileAppAsset?.appStore || a?.appAsset?.appStore;
+              const isIos = store === "APPLE_APP_STORE" || /^\d+$/.test(String(aId));
+              const platform = isIos ? "IOS" : "ANDROID";
+              appsMap.set(String(aId).toLowerCase(), {
+                id: `live-asset-${a.id}`,
+                platform,
+                appId: String(aId),
+                appName: a.name || `Mobile App (${aId})`,
+                appUrl: platform === "IOS"
+                  ? `https://apps.apple.com/app/id${aId}`
+                  : `https://play.google.com/store/apps/details?id=${aId}`,
+                source: "Google Ads Assets"
+              });
+            }
           }
+        } catch (assetErr: any) {
+          console.warn("[connected-apps] Live GAQL app assets query fallback:", assetErr?.response?.data || assetErr.message);
         }
+
+        // 3b. Query Google Play Product Links (linked Google Play Console account in Google Ads)
+        try {
+          const productLinkQuery = `
+            SELECT
+              product_link.product_link_id,
+              product_link.type,
+              product_link.google_play.app_id
+            FROM product_link
+            WHERE product_link.type = 'GOOGLE_PLAY'
+            LIMIT 50
+          `;
+          const adsBase = "https://googleads.googleapis.com/v24";
+          const plRes = await axios.post(`${adsBase}/customers/${cleanCid}/googleAds:search`, { query: productLinkQuery }, { headers });
+          const plResults = plRes.data?.results || [];
+          for (const row of plResults) {
+            const p = row.productLink;
+            const pAppId = p?.googlePlay?.appId;
+            if (pAppId && !appsMap.has(String(pAppId).toLowerCase())) {
+              appsMap.set(String(pAppId).toLowerCase(), {
+                id: `play-link-${p.productLinkId || pAppId}`,
+                platform: "ANDROID",
+                appId: String(pAppId),
+                appName: `Google Play (${pAppId})`,
+                appUrl: `https://play.google.com/store/apps/details?id=${pAppId}`,
+                source: "Google Play Console Link"
+              });
+            }
+          }
+        } catch (_plErr: any) {
+          // product_link may not be supported on all account types or may return UNRECOGNIZED_FIELD; fallback gracefully
+        }
+
+        // 3c. Query live App Campaigns for appCampaignSetting.appId
+        try {
+          const campQuery = `
+            SELECT
+              campaign.id,
+              campaign.name,
+              campaign.app_campaign_setting.app_id,
+              campaign.app_campaign_setting.app_store
+            FROM campaign
+            WHERE campaign.advertising_channel_type = 'MULTI_CHANNEL'
+            LIMIT 50
+          `;
+          const adsBase = "https://googleads.googleapis.com/v24";
+          const campRes = await axios.post(`${adsBase}/customers/${cleanCid}/googleAds:search`, { query: campQuery }, { headers });
+          const campResults = campRes.data?.results || [];
+          for (const row of campResults) {
+            const c = row.campaign;
+            const cAppId = c?.appCampaignSetting?.appId;
+            if (cAppId && !appsMap.has(String(cAppId).toLowerCase())) {
+              const store = c?.appCampaignSetting?.appStore;
+              const isIos = store === "APPLE_APP_STORE" || /^\d+$/.test(String(cAppId));
+              const platform = isIos ? "IOS" : "ANDROID";
+              appsMap.set(String(cAppId).toLowerCase(), {
+                id: `live-camp-${c.id}`,
+                platform,
+                appId: String(cAppId),
+                appName: c.name ? `${c.name} (${cAppId})` : `Mobile App (${cAppId})`,
+                appUrl: platform === "IOS"
+                  ? `https://apps.apple.com/app/id${cAppId}`
+                  : `https://play.google.com/store/apps/details?id=${cAppId}`,
+                source: `Campaign: ${c.name || c.id}`
+              });
+            }
+          }
+        } catch (_cErr: any) {}
+
       } catch (liveErr: any) {
-        console.warn("[connected-apps] Live GAQL app assets query fallback:", liveErr?.response?.data || liveErr.message);
+        console.warn("[connected-apps] Live GAQL connection setup fallback:", liveErr?.response?.data || liveErr.message);
       }
     }
 
     const apps = Array.from(appsMap.values());
+
+    // Auto-sync discovered apps back into CustomerBusinessProfile if newly found
+    if (cleanCid && apps.length > 0) {
+      try {
+        const curProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+        const existingAppDetails: any[] = curProfile?.appDetails || [];
+        const existingIds = new Set(existingAppDetails.map((a: any) => String(a.appId || "").toLowerCase()));
+        const toAdd = apps.filter(a => !existingIds.has(a.appId.toLowerCase()));
+        if (toAdd.length > 0) {
+          const merged = [...existingAppDetails, ...toAdd];
+          await CustomerBusinessProfileService.saveProfile(orgId, cleanCid, {
+            ...(curProfile || {}),
+            hasAppAccount: true,
+            appDetails: merged
+          });
+        }
+      } catch (_saveErr) {}
+    }
 
     return res.status(200).json({
       success: true,
@@ -1335,6 +1427,113 @@ router.get("/connected-apps", async (req, res) => {
       success: false,
       error: error?.message || "Failed to retrieve connected apps"
     });
+  }
+});
+
+/**
+ * POST /api/ads/connected-apps/add
+ * Manually link/register a published Google Play or App Store application into the customer's profile.
+ */
+router.post("/connected-apps/add", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const cleanCid = (rawCid || "").replace(/-/g, "").trim();
+
+    if (!cleanCid) {
+      return res.status(400).json({ success: false, error: "customerId is required" });
+    }
+
+    let { appId, platform, appName, appUrl } = req.body || {};
+    if (!appId || typeof appId !== "string" || !appId.trim()) {
+      return res.status(400).json({ success: false, error: "appId (package ID or store link) is required" });
+    }
+
+    let cleanAppId = appId.trim();
+    let detectedPlatform: "ANDROID" | "IOS" = platform === "IOS" ? "IOS" : "ANDROID";
+
+    // Auto-parse URL if user pasted full Play Store or App Store link
+    if (cleanAppId.includes("play.google.com/store/apps/details")) {
+      const match = cleanAppId.match(/[?&]id=([a-zA-Z0-9._]+)/);
+      if (match && match[1]) cleanAppId = match[1];
+      detectedPlatform = "ANDROID";
+    } else if (cleanAppId.includes("apps.apple.com")) {
+      const match = cleanAppId.match(/id(\d+)/);
+      if (match && match[1]) cleanAppId = match[1];
+      detectedPlatform = "IOS";
+    } else if (/^\d{8,12}$/.test(cleanAppId)) {
+      detectedPlatform = "IOS";
+    }
+
+    const defaultUrl = detectedPlatform === "IOS"
+      ? `https://apps.apple.com/app/id${cleanAppId}`
+      : `https://play.google.com/store/apps/details?id=${cleanAppId}`;
+
+    const newAppEntry = {
+      id: `app-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      platform: detectedPlatform,
+      appId: cleanAppId,
+      appName: appName?.trim() || cleanAppId,
+      appUrl: appUrl?.trim() || defaultUrl,
+      connectedAt: new Date().toISOString()
+    };
+
+    const curProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+    const existingApps: any[] = curProfile?.appDetails || [];
+    const filtered = existingApps.filter((a: any) => String(a.appId || "").toLowerCase() !== cleanAppId.toLowerCase());
+    const updatedApps = [newAppEntry, ...filtered];
+
+    await CustomerBusinessProfileService.saveProfile(orgId, cleanCid, {
+      ...(curProfile || {}),
+      hasAppAccount: true,
+      appDetails: updatedApps
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully linked ${cleanAppId} to profile`,
+      app: newAppEntry,
+      apps: updatedApps
+    });
+  } catch (error: any) {
+    console.error("[connected-apps/add] error:", error);
+    res.status(500).json({ success: false, error: error?.message || "Failed to add mobile app" });
+  }
+});
+
+/**
+ * POST /api/ads/connected-apps/remove
+ * Remove a linked mobile application from the customer profile.
+ */
+router.post("/connected-apps/remove", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const cleanCid = (rawCid || "").replace(/-/g, "").trim();
+    const { appId } = req.body || {};
+
+    if (!cleanCid || !appId) {
+      return res.status(400).json({ success: false, error: "customerId and appId are required" });
+    }
+
+    const curProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
+    const existingApps: any[] = curProfile?.appDetails || [];
+    const updatedApps = existingApps.filter((a: any) => String(a.appId || "").toLowerCase() !== String(appId).toLowerCase());
+
+    await CustomerBusinessProfileService.saveProfile(orgId, cleanCid, {
+      ...(curProfile || {}),
+      appDetails: updatedApps,
+      hasAppAccount: updatedApps.length > 0 || Boolean(curProfile?.hasAppAccount)
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Removed ${appId} from profile`,
+      apps: updatedApps
+    });
+  } catch (error: any) {
+    console.error("[connected-apps/remove] error:", error);
+    res.status(500).json({ success: false, error: error?.message || "Failed to remove mobile app" });
   }
 });
 
@@ -1421,7 +1620,8 @@ router.get("/campaigns", async (req, res) => {
       amountMicros: c.amountMicros != null ? Number(c.amountMicros) : 0,
       costMicros: c.costMicros != null ? Number(c.costMicros) : 0,
       impressions: c.impressions != null ? Number(c.impressions) : 0,
-      clicks: c.clicks != null ? Number(c.clicks) : 0
+      clicks: c.clicks != null ? Number(c.clicks) : 0,
+      conversionGoals: c.geoTargets?.conversionGoals?.selectedConversionGoals || c.geoTargets?.conversionGoals || null
     });
 
     if (!cleanCid) return res.status(200).json(localCampaigns.map(serializeCamp));
@@ -1444,7 +1644,8 @@ router.get("/campaigns", async (req, res) => {
             name: lp.name || serialized.name,
             status: lp.status || serialized.status,
             budget: liveBudgetNum > 0 ? liveBudgetNum : serialized.budget,
-            startDate: lp.startDate ? lp.startDate : serialized.startDate,
+            startDate: lp.startDate ? lp.startDate : (serialized.startDate || serialized.createdAt || new Date()),
+            endDate: lp.endDate ? lp.endDate : (serialized.endDate || null),
             publishDate: serialized.createdAt || lp.startDate || serialized.startDate || new Date(),
             live: lp,
             impressions: lp.impressions || 0,
@@ -1464,6 +1665,7 @@ router.get("/campaigns", async (req, res) => {
             budget: liveBudgetNum,
             budgetResourceName: lp.budgetResourceName,
             startDate: lp.startDate ? lp.startDate : new Date(),
+            endDate: lp.endDate ? lp.endDate : null,
             publishDate: lp.startDate ? lp.startDate : new Date(),
             status: lp.status,
             amountMicros: lp.budgetAmountMicros ? Number(lp.budgetAmountMicros) : 0,
@@ -1520,6 +1722,7 @@ router.get("/campaigns", async (req, res) => {
                   budget: liveBudgetNum !== undefined ? liveBudgetNum : 0,
                   budgetResourceName: lp.budgetResourceName,
                   startDate: lp.startDate ? new Date(lp.startDate) : new Date(),
+                  endDate: lp.endDate ? new Date(lp.endDate) : null,
                   status: lp.status,
                   headlines: [],
                   descriptions: [],
@@ -1535,6 +1738,12 @@ router.get("/campaigns", async (req, res) => {
             if (lp.budgetResourceName && existing.budgetResourceName !== lp.budgetResourceName) updateData.budgetResourceName = lp.budgetResourceName;
             if (liveBudgetNum !== undefined && liveBudgetNum > 0 && (existing.budget == null || existing.budget === 0 || existing.budget !== liveBudgetNum)) {
               updateData.budget = liveBudgetNum;
+            }
+            if (lp.startDate && (!existing.startDate || new Date(existing.startDate).getTime() !== new Date(lp.startDate).getTime())) {
+              updateData.startDate = new Date(lp.startDate);
+            }
+            if (lp.endDate && (!existing.endDate || new Date(existing.endDate).getTime() !== new Date(lp.endDate).getTime())) {
+              updateData.endDate = new Date(lp.endDate);
             }
 
             if (Object.keys(updateData).length > 0) {
@@ -1992,6 +2201,8 @@ router.get("/campaigns/:id", async (req, res) => {
     // Merge DB ad groups and live ad groups
     const finalAdGroups = dbAdGroups.length > 0 ? dbAdGroups : liveAdGroups;
 
+    const isAppCampaignType = (liveGoogleDetails?.channelType === "MULTI_CHANNEL" || liveGoogleDetails?.channelType === "APP" || campaign?.campaignType === "APP" || campaign?.campaignType === "MULTI_CHANNEL" || campaign?.advertisingChannelType === "MULTI_CHANNEL");
+
     res.status(200).json({
       id: campaign?.id || `google-${effectiveGoogleAdsCampaignId}`,
       organizationId: orgId,
@@ -2003,6 +2214,7 @@ router.get("/campaigns/:id", async (req, res) => {
       advertisingChannelType: liveGoogleDetails?.channelType || campaign?.advertisingChannelType || "SEARCH",
       biddingStrategy: liveGoogleDetails?.biddingStrategyType || campaign?.biddingStrategy || "MAXIMIZE_CONVERSIONS",
       budget: effectiveBudget,
+      budgetType: isAppCampaignType ? "DAILY" : (campaign?.geoTargets?.budgetType || "DAILY"),
       budgetResourceName: liveGoogleDetails?.budgetResourceName || campaign?.budgetResourceName,
       startDate: liveGoogleDetails?.startDateTime || campaign?.startDate,
       endDate: liveGoogleDetails?.endDateTime || campaign?.endDate,
@@ -2010,11 +2222,24 @@ router.get("/campaigns/:id", async (req, res) => {
       headlines: allHeadlines,
       descriptions: allDescriptions,
       keywords: allKeywords,
+      appId: campaign?.geoTargets?.appId || campaign?.geoTargets?.appPackageName || (campaign as any)?.appId || null,
+      appStore: campaign?.geoTargets?.appStore || (campaign as any)?.appStore || "APP_STORE_ANDROID",
+      targetCpa: liveGoogleDetails?.targetCpaMicros ? liveGoogleDetails.targetCpaMicros / 1_000_000 : (campaign?.geoTargets?.targetCpa || null),
+      targetRoas: liveGoogleDetails?.targetRoas || campaign?.geoTargets?.targetRoas || null,
+      merchantCenterId: campaign?.geoTargets?.merchantCenterId || (campaign as any)?.merchantCenterId || null,
+      salesCountry: campaign?.geoTargets?.salesCountry || (campaign as any)?.salesCountry || "IN",
+      shoppingPriority: campaign?.geoTargets?.priority || (campaign as any)?.priority || "LOW",
       geoTargets: campaign?.geoTargets || liveGeoTargets,
+      conversionGoals: campaign?.geoTargets?.conversionGoals?.selectedConversionGoals || campaign?.geoTargets?.conversionGoals || null,
       languages: campaign?.languages || ["English"],
       searchThemes: campaign?.searchThemes || [],
       audienceSignal: campaign?.audienceSignal || null,
       adSchedule: campaign?.adSchedule || null,
+      sitelinks: campaign?.geoTargets?.sitelinks || campaign?.sitelinks || [],
+      videos: campaign?.geoTargets?.videos || campaign?.videos || [],
+      images: campaign?.geoTargets?.images || campaign?.images || [],
+      logos: campaign?.geoTargets?.logos || campaign?.logos || [],
+      changeHistory: campaign?.geoTargets?.changeHistory || [],
       amountMicros: liveGoogleDetails?.budgetAmountMicros || Number(campaign?.amountMicros || 0),
       costMicros: Number(campaign?.costMicros || 0),
       impressions: liveGoogleDetails?.metrics?.impressions || Number(campaign?.impressions || 0),
@@ -2047,6 +2272,12 @@ router.put("/campaigns/:id", async (req, res) => {
       name,
       status,
       budget,
+      budgetType,
+      appId,
+      appStore,
+      merchantCenterId,
+      salesCountry,
+      shoppingPriority,
       startDate,
       endDate,
       finalUrl,
@@ -2067,6 +2298,13 @@ router.put("/campaigns/:id", async (req, res) => {
     } = req.body;
     const campaign = await prisma.googleAdCampaign.findFirst({ where: { id: req.params.id, organizationId: orgId } });
     if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+
+    const isAppCamp = (campaign.campaignType === "APP" || campaign.campaignType === "MULTI_CHANNEL" || campaign.advertisingChannelType === "MULTI_CHANNEL");
+    if (isAppCamp && budgetType === "TOTAL") {
+      return res.status(400).json({
+        error: "Campaign Total Budget (CUSTOM_PERIOD) is not supported for APP campaigns in Google Ads API. Supported types: DEMAND_GEN, SEARCH, SHOPPING, PERFORMANCE_MAX."
+      });
+    }
 
     const rawCid = customerId || campaign.customerId;
     const cid = rawCid ? rawCid.replace(/-/g, "") : "";
@@ -2163,6 +2401,68 @@ router.put("/campaigns/:id", async (req, res) => {
       }
     }
 
+    const existingGeoTargets = typeof campaign.geoTargets === "object" && campaign.geoTargets !== null ? campaign.geoTargets : {};
+    
+    // Determine changed fields and capture history snapshot
+    const changedFields: string[] = [];
+    if (name && name !== campaign.name) changedFields.push("name");
+    if (status && status !== campaign.status) changedFields.push("status");
+    if (budget !== undefined && Number(budget) !== campaign.budget) changedFields.push("budget");
+    if (biddingStrategy && biddingStrategy !== campaign.biddingStrategy) changedFields.push("biddingStrategy");
+    if (targetCpa !== undefined && Number(targetCpa) !== Number((existingGeoTargets as any).targetCpa)) changedFields.push("targetCpa");
+    if (merchantCenterId !== undefined && merchantCenterId !== (existingGeoTargets as any).merchantCenterId) changedFields.push("merchantCenterId");
+    if (req.body.videos !== undefined) changedFields.push("videos");
+    if (req.body.sitelinks !== undefined) changedFields.push("sitelinks");
+    if (headlines !== undefined) changedFields.push("headlines");
+    if (descriptions !== undefined) changedFields.push("descriptions");
+    if (finalUrl !== undefined) changedFields.push("finalUrl");
+
+    const effectiveMerchant = merchantCenterId !== undefined ? merchantCenterId : (existingGeoTargets as any).merchantCenterId;
+    const hasMerchantBool = Boolean(effectiveMerchant && String(effectiveMerchant).trim().length > 0 && String(effectiveMerchant).trim() !== "null");
+
+    const existingHistory = Array.isArray((existingGeoTargets as any).changeHistory) ? [...(existingGeoTargets as any).changeHistory] : [];
+    const historyEntry = {
+      id: `crm-hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      changeDateTime: new Date().toISOString(),
+      userEmail: req.body.userEmail || "crm-agent@jisnu.com",
+      clientType: "CRM_CAMPAIGN_WORKSPACE",
+      resourceChangeOperation: "UPDATE",
+      changeResourceType: "CAMPAIGN",
+      campaignId: campaign.googleAdsCampaignId || campaign.id,
+      campaignName: name || campaign.name,
+      changedFields: changedFields.length > 0 ? changedFields : ["settings"],
+      biddingStrategy: biddingStrategy || campaign.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+      oldBiddingStrategy: campaign.biddingStrategy || null,
+      targetCpa: targetCpa !== undefined ? (Number(targetCpa) > 0 ? Number(targetCpa) : null) : ((existingGeoTargets as any).targetCpa ? Number((existingGeoTargets as any).targetCpa) : null),
+      oldTargetCpa: (existingGeoTargets as any).targetCpa ? Number((existingGeoTargets as any).targetCpa) : null,
+      targetRoas: targetRoas !== undefined ? Number(targetRoas) : ((existingGeoTargets as any).targetRoas ? Number((existingGeoTargets as any).targetRoas) : null),
+      budget: budget !== undefined ? Number(budget) : campaign.budget,
+      oldBudget: campaign.budget,
+      merchantCenterId: hasMerchantBool ? effectiveMerchant : null,
+      hasMerchant: hasMerchantBool,
+      merchantStatus: hasMerchantBool ? `Yes (ID: ${effectiveMerchant})` : "No (Disabled / Not Linked)",
+      videos: req.body.videos || (existingGeoTargets as any).videos || [],
+      sitelinks: req.body.sitelinks || (existingGeoTargets as any).sitelinks || []
+    };
+    existingHistory.unshift(historyEntry);
+
+    const mergedGeoTargets = {
+      ...(typeof existingGeoTargets === "object" && !Array.isArray(existingGeoTargets) ? existingGeoTargets : { locations: existingGeoTargets }),
+      ...(geoTargets !== undefined ? (typeof geoTargets === "object" && !Array.isArray(geoTargets) ? geoTargets : { locations: geoTargets }) : {}),
+      ...(budgetType !== undefined ? { budgetType: isAppCamp ? "DAILY" : budgetType } : {}),
+      ...(appId !== undefined ? { appId } : {}),
+      ...(appStore !== undefined ? { appStore } : {}),
+      merchantCenterId: hasMerchantBool ? effectiveMerchant : null,
+      ...(salesCountry !== undefined ? { salesCountry } : {}),
+      ...(shoppingPriority !== undefined ? { priority: shoppingPriority } : {}),
+      ...(targetCpa !== undefined ? { targetCpa: Number(targetCpa) > 0 ? Number(targetCpa) : null } : {}),
+      ...(targetRoas !== undefined ? { targetRoas: Number(targetRoas) } : {}),
+      ...(req.body.videos !== undefined ? { videos: req.body.videos } : {}),
+      ...(req.body.sitelinks !== undefined ? { sitelinks: req.body.sitelinks } : {}),
+      changeHistory: existingHistory.slice(0, 50)
+    };
+
     const updated = await prisma.googleAdCampaign.update({
       where: { id: req.params.id },
       data: {
@@ -2175,7 +2475,7 @@ router.put("/campaigns/:id", async (req, res) => {
         ...(descriptions !== undefined ? { descriptions } : {}),
         ...(keywords !== undefined ? { keywords } : {}),
         ...(biddingStrategy !== undefined ? { biddingStrategy } : {}),
-        ...(geoTargets !== undefined ? { geoTargets } : {}),
+        geoTargets: mergedGeoTargets,
         ...(languages !== undefined ? { languages } : {}),
         ...(searchThemes !== undefined ? { searchThemes } : {}),
         ...(audienceSignal !== undefined ? { audienceSignal } : {})
@@ -2206,7 +2506,39 @@ router.post("/campaign/status", async (req, res) => {
     const resourceName = `customers/${cid}/campaigns/${campaign.googleAdsCampaignId}`;
     await GoogleAdsService.updateCampaign(orgId, cid, resourceName, { status });
 
-    const updated = await prisma.googleAdCampaign.update({ where: { id: campaignId }, data: { status } });
+    // Append status toggle entry to changeHistory
+    const existingGeo: any = typeof campaign.geoTargets === "object" && campaign.geoTargets !== null ? campaign.geoTargets : {};
+    const existingHist = Array.isArray(existingGeo.changeHistory) ? [...existingGeo.changeHistory] : [];
+    existingHist.unshift({
+      id: `crm-hist-status-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      changeDateTime: new Date().toISOString(),
+      userEmail: req.body.userEmail || "crm-agent@jisnu.com",
+      clientType: "CRM_CAMPAIGN_WORKSPACE",
+      resourceChangeOperation: "UPDATE",
+      changeResourceType: "CAMPAIGN",
+      campaignId: campaign.googleAdsCampaignId,
+      campaignName: campaign.name,
+      changedFields: ["status"],
+      status,
+      oldStatus: campaign.status,
+      biddingStrategy: campaign.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+      targetCpa: existingGeo.targetCpa || null,
+      budget: campaign.budget,
+      hasMerchant: Boolean(existingGeo.merchantCenterId),
+      merchantStatus: existingGeo.merchantCenterId ? `Yes (ID: ${existingGeo.merchantCenterId})` : "No (Disabled / Not Linked)"
+    });
+
+    const updated = await prisma.googleAdCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status,
+        geoTargets: {
+          ...existingGeo,
+          changeHistory: existingHist.slice(0, 50)
+        }
+      }
+    });
     res.status(200).json({ message: `Campaign ${status.toLowerCase()} successfully`, campaign: updated });
   } catch (error: any) {
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
@@ -2230,12 +2562,28 @@ router.delete("/campaigns/:id", async (req, res) => {
     if (campaign.googleAdsCampaignId) {
       const resourceName = `customers/${cid}/campaigns/${campaign.googleAdsCampaignId}`;
       await GoogleAdsService.removeCampaign(orgId, cid, resourceName);
+
+      // Clean up orphaned local ad groups for this deleted campaign
+      await prisma.googleAdGroup.deleteMany({
+        where: {
+          organizationId: orgId,
+          OR: [
+            { campaignId: campaign.id },
+            { googleCampaignId: campaign.googleAdsCampaignId }
+          ]
+        }
+      }).catch(() => null);
     }
 
     await prisma.googleAdCampaign.delete({ where: { id: req.params.id } });
     res.status(200).json({ message: "Campaign removed" });
   } catch (error: any) {
-    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
+    console.error("[DELETE /api/ads/campaigns/:id Error]:", formattedError, error?.response?.data || error.message);
+    res.status(500).json({
+      error: formattedError || error?.response?.data?.error?.message || error.message,
+      details: error?.response?.data
+    });
   }
 });
 
@@ -2279,6 +2627,29 @@ router.get("/ad-groups", async (req, res) => {
           });
         }
       } catch { /* skip */ }
+    }
+
+    // Sync and prune local DB
+    const activeGoogleAdGroupIds = adGroups.map((ag: any) => ag.id);
+
+    // Prune stale ad groups in local DB that were deleted/removed in Google Ads
+    if (!campaignId) {
+      await prisma.googleAdGroup.deleteMany({
+        where: {
+          organizationId: orgId,
+          customerId,
+          googleAdGroupId: { notIn: activeGoogleAdGroupIds }
+        }
+      }).catch(() => null);
+    } else {
+      await prisma.googleAdGroup.deleteMany({
+        where: {
+          organizationId: orgId,
+          customerId,
+          googleCampaignId: campaignId,
+          googleAdGroupId: { notIn: activeGoogleAdGroupIds }
+        }
+      }).catch(() => null);
     }
 
     res.status(200).json(adGroups);
@@ -2353,17 +2724,53 @@ router.delete("/ad-groups/:id", async (req, res) => {
   try {
     const orgId = getOrgId(req);
     const customerId = getCustomerId(req);
-    const localAg = await prisma.googleAdGroup.findFirst({ where: { id: req.params.id, organizationId: orgId } });
-    if (!localAg) return res.status(404).json({ error: "Ad Group not found" });
+    const idParam = req.params.id;
 
-    const cid = customerId || localAg.customerId;
-    if (localAg.googleAdGroupId) {
-      await GoogleAdsService.removeAdGroup(orgId, cid, `customers/${cid}/adGroups/${localAg.googleAdGroupId}`);
+    const localAg = await prisma.googleAdGroup.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { id: idParam },
+          { googleAdGroupId: idParam }
+        ]
+      }
+    });
+
+    const cid = customerId || localAg?.customerId;
+    const targetGoogleAdGroupId = localAg?.googleAdGroupId || idParam;
+
+    if (cid && targetGoogleAdGroupId) {
+      try {
+        await GoogleAdsService.removeAdGroup(orgId, cid, `customers/${cid}/adGroups/${targetGoogleAdGroupId}`);
+      } catch (err: any) {
+        // If already removed or not found in Google Ads (e.g. parent campaign was deleted), ignore error and clean up locally
+        const errMsg = err?.response?.data?.error?.message || err?.message || "";
+        const isAlreadyRemoved = /CANNOT_REMOVE_ALREADY_REMOVED|RESOURCE_NOT_FOUND|NOT_FOUND|does not exist/i.test(errMsg);
+        if (!isAlreadyRemoved) {
+          throw err;
+        }
+      }
     }
-    await prisma.googleAdGroup.delete({ where: { id: req.params.id } });
+
+    if (localAg) {
+      await prisma.googleAdGroup.delete({ where: { id: localAg.id } }).catch(() => null);
+    } else if (idParam) {
+      await prisma.googleAdGroup.deleteMany({
+        where: {
+          organizationId: orgId,
+          googleAdGroupId: idParam
+        }
+      }).catch(() => null);
+    }
+
     res.status(200).json({ message: "Ad Group removed" });
   } catch (error: any) {
-    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
+    console.error("[DELETE /api/ads/ad-groups/:id Error]:", formattedError, error?.response?.data || error.message);
+    res.status(500).json({
+      error: formattedError || error?.response?.data?.error?.message || error.message,
+      details: error?.response?.data
+    });
   }
 });
 
@@ -4027,15 +4434,112 @@ router.get("/change-history", async (req, res) => {
 
     const { startDate, endDate, changeResourceType, userEmail, limit } = req.query;
 
-    const changeHistory = await GoogleAdsService.listChangeHistory(orgId, customerId, {
-      startDate: startDate as string,
-      endDate: endDate as string,
-      changeResourceType: changeResourceType as string,
-      userEmail: userEmail as string,
-      limit: limit ? Number(limit) : 50
+    let apiHistory: any[] = [];
+    try {
+      apiHistory = await GoogleAdsService.listChangeHistory(orgId, customerId, {
+        startDate: startDate as string,
+        endDate: endDate as string,
+        changeResourceType: changeResourceType as string,
+        userEmail: userEmail as string,
+        limit: limit ? Number(limit) : 50
+      });
+    } catch (apiErr: any) {
+      console.warn("[change-history GET] Warning fetching live Google Ads API change events:", apiErr?.message);
+    }
+
+    // Enhance API history items with type-safe parsed fields
+    const parsedApiHistory = apiHistory.map((item: any) => {
+      const campNew = item.newResource?.campaign || {};
+      const campOld = item.oldResource?.campaign || {};
+      const assetNew = item.newResource?.asset || {};
+
+      const bStrat = campNew.biddingStrategyType || campNew.bidding_strategy_type || null;
+      const oldBStrat = campOld.biddingStrategyType || campOld.bidding_strategy_type || null;
+
+      const rawCpa = campNew.maximizeConversions?.targetCpaMicros || campNew.maximize_conversions?.target_cpa_micros || campNew.targetCpa?.targetCpaMicros || campNew.target_cpa?.target_cpa_micros;
+      const targetCpa = rawCpa ? Number(rawCpa) / 1_000_000 : null;
+
+      const oldRawCpa = campOld.maximizeConversions?.targetCpaMicros || campOld.maximize_conversions?.target_cpa_micros || campOld.targetCpa?.targetCpaMicros || campOld.target_cpa?.target_cpa_micros;
+      const oldTargetCpa = oldRawCpa ? Number(oldRawCpa) / 1_000_000 : null;
+
+      const rawRoas = campNew.maximizeConversionValue?.targetRoas || campNew.maximize_conversion_value?.target_roas;
+      const targetRoas = rawRoas ? Number(rawRoas) : null;
+
+      const merchantId = campNew.shoppingSetting?.merchantId || campNew.shopping_setting?.merchant_id || null;
+      const hasMerchant = Boolean(merchantId);
+
+      const ytId = assetNew.youtubeVideoAsset?.youtubeVideoId || assetNew.youtube_video_asset?.youtube_video_id || null;
+      const videoUrl = ytId ? `https://www.youtube.com/watch?v=${ytId}` : null;
+
+      const sitelinkData = assetNew.sitelinkAsset || assetNew.sitelink_asset || null;
+
+      return {
+        ...item,
+        biddingStrategy: bStrat,
+        oldBiddingStrategy: oldBStrat,
+        targetCpa,
+        oldTargetCpa,
+        targetRoas,
+        merchantCenterId: merchantId,
+        hasMerchant,
+        merchantStatus: hasMerchant ? `Yes (ID: ${merchantId})` : "No (Disabled / Not Linked)",
+        videoUrl,
+        videos: videoUrl ? [videoUrl] : [],
+        sitelink: sitelinkData
+      };
     });
 
-    res.status(200).json({ success: true, changeHistory });
+    // Load local CRM campaign history entries for this customer account
+    const localCampaigns = await prisma.googleAdCampaign.findMany({
+      where: {
+        organizationId: orgId,
+        OR: [{ customerId }, { customerId: rawCid }]
+      }
+    });
+
+    const localHistoryEntries: any[] = [];
+    for (const camp of localCampaigns) {
+      const geo: any = typeof camp.geoTargets === "object" && camp.geoTargets !== null ? camp.geoTargets : {};
+      if (Array.isArray(geo.changeHistory)) {
+        for (const h of geo.changeHistory) {
+          localHistoryEntries.push({
+            id: h.id || `crm-hist-${Date.now()}`,
+            resourceName: h.resourceName || `customers/${customerId}/campaigns/${camp.googleAdsCampaignId || camp.id}/history/${h.id}`,
+            campaignId: camp.googleAdsCampaignId || camp.id,
+            campaignName: camp.name,
+            changeResourceType: h.changeResourceType || "CAMPAIGN",
+            resourceChangeOperation: h.resourceChangeOperation || "UPDATE",
+            clientType: h.clientType || "CRM_CAMPAIGN_WORKSPACE",
+            userEmail: h.userEmail || "crm-agent@jisnu.com",
+            changeDateTime: h.timestamp || h.changeDateTime || camp.updatedAt,
+            changedFields: h.changedFields || ["settings"],
+            biddingStrategy: h.biddingStrategy || camp.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+            oldBiddingStrategy: h.oldBiddingStrategy || null,
+            targetCpa: h.targetCpa != null ? Number(h.targetCpa) : (geo.targetCpa ? Number(geo.targetCpa) : null),
+            oldTargetCpa: h.oldTargetCpa != null ? Number(h.oldTargetCpa) : null,
+            targetRoas: h.targetRoas != null ? Number(h.targetRoas) : (geo.targetRoas ? Number(geo.targetRoas) : null),
+            budget: h.budget != null ? Number(h.budget) : camp.budget,
+            oldBudget: h.oldBudget != null ? Number(h.oldBudget) : null,
+            merchantCenterId: h.merchantCenterId || null,
+            hasMerchant: Boolean(h.hasMerchant),
+            merchantStatus: h.merchantStatus || (h.hasMerchant ? `Yes (ID: ${h.merchantCenterId})` : "No (Disabled / Not Linked)"),
+            videos: Array.isArray(h.videos) ? h.videos : [],
+            videoUrl: Array.isArray(h.videos) && h.videos.length > 0 ? h.videos[0] : null,
+            sitelinks: Array.isArray(h.sitelinks) ? h.sitelinks : []
+          });
+        }
+      }
+    }
+
+    // Merge API history and CRM local history, sorted descending by date
+    const mergedHistory = [...localHistoryEntries, ...parsedApiHistory].sort((a, b) => {
+      const dateA = new Date(a.changeDateTime || a.timestamp || 0).getTime();
+      const dateB = new Date(b.changeDateTime || b.timestamp || 0).getTime();
+      return dateB - dateA;
+    });
+
+    const maxLimit = limit ? Number(limit) : 50;
+    res.status(200).json({ success: true, changeHistory: mergedHistory.slice(0, maxLimit) });
   } catch (error: any) {
     console.error("[change-history GET] error:", error?.response?.data || error.message);
     res.status(500).json({
@@ -5723,8 +6227,56 @@ router.patch("/asset-groups", async (req, res) => {
 
     res.status(200).json({ success: true, ...result });
   } catch (error: any) {
-    console.error("[PATCH /api/ads/asset-groups] error:", error?.response?.data || error.message);
-    res.status(500).json({ error: error?.response?.data?.error?.message || error.message || "Failed to update Asset Group" });
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
+    console.error("[PATCH /api/ads/asset-groups] error:", formattedError, error?.response?.data || error.message);
+    res.status(500).json({ error: formattedError || error?.response?.data?.error?.message || error.message || "Failed to update Asset Group" });
+  }
+});
+
+/**
+ * DELETE /api/ads/asset-groups
+ * Delete/Remove an Asset Group using resourceName or assetGroupId.
+ */
+router.delete("/asset-groups", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const rawCid = getCustomerId(req) || req.body?.customerId;
+    const resourceNameParam = (req.query.resourceName || req.body?.resourceName) as string;
+    const idParam = (req.query.id || req.body?.id) as string;
+
+    if (!rawCid) {
+      return res.status(400).json({ error: "customerId is required" });
+    }
+    const customerId = rawCid.replace(/-/g, "").trim();
+
+    const isOwned = await validateCustomerOwnership(orgId, customerId);
+    if (!isOwned) {
+      return res.status(403).json({ error: "Access denied. The specified Google Ads account is not associated with this organization." });
+    }
+
+    const targetResourceName = resourceNameParam || (idParam ? `customers/${customerId}/assetGroups/${idParam.replace(/\D/g, "")}` : "");
+    if (!targetResourceName) {
+      return res.status(400).json({ error: "resourceName or id is required to delete an Asset Group." });
+    }
+
+    try {
+      await GoogleAdsAssetGroupService.removeAssetGroup(orgId, customerId, targetResourceName);
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error?.message || err?.message || "";
+      const isAlreadyRemoved = /CANNOT_REMOVE_ALREADY_REMOVED|RESOURCE_NOT_FOUND|NOT_FOUND|does not exist/i.test(errMsg);
+      if (!isAlreadyRemoved) {
+        throw err;
+      }
+    }
+
+    res.status(200).json({ success: true, message: "Asset Group removed successfully" });
+  } catch (error: any) {
+    const formattedError = GoogleAdsBaseService.formatGoogleAdsError(error);
+    console.error("[DELETE /api/ads/asset-groups] error:", formattedError, error?.response?.data || error.message);
+    res.status(500).json({
+      error: formattedError || error?.response?.data?.error?.message || error.message || "Failed to remove Asset Group",
+      details: error?.response?.data
+    });
   }
 });
 
