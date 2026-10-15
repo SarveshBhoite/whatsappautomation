@@ -22,7 +22,9 @@ import {
   Plus,
   Minus,
   Star,
-  CheckCircle
+  CheckCircle,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import Footer from "@/components/Footer";
 import HeroShowcase from "@/components/home/HeroShowcase";
@@ -175,12 +177,15 @@ export default function PricingPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<any | null>(null);
 
-  // Registration Form Fields
+  // Registration Form Fields - Initialized empty for genuine new first-time customer signup
+  const [organizationName, setOrganizationName] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [organizationName, setOrganizationName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const activePlan = PLANS.find((p) => p.code === selectedPlanCode) || PLANS[2];
 
@@ -202,6 +207,29 @@ export default function PricingPage() {
   const handleProcessCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    // Validation
+    if (!organizationName.trim()) {
+      setErrorMsg("Please enter your business / organization name.");
+      return;
+    }
+    if (!fullName.trim()) {
+      setErrorMsg("Please enter your full name.");
+      return;
+    }
+    if (!email.trim() || !email.includes("@")) {
+      setErrorMsg("Please enter a valid email address.");
+      return;
+    }
+    if (!password || password.length < 6) {
+      setErrorMsg("Password must be at least 6 characters long.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg("Passwords do not match. Please verify your confirm password.");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -760,6 +788,12 @@ export default function PricingPage() {
                       <span className="font-bold text-slate-900">{successData.user.email}</span>
                     </div>
                     <div>
+                      <span className="text-slate-400">Account Password:</span>{" "}
+                      <span className="font-mono text-slate-700 bg-slate-200/80 px-2 py-0.5 rounded text-[11px]">
+                        Saved as created by you (use this password to log in anytime)
+                      </span>
+                    </div>
+                    <div>
                       <span className="text-slate-400">Plan:</span>{" "}
                       <span className="font-bold text-brand-blue">{successData.subscription.planName}</span>
                     </div>
@@ -770,13 +804,22 @@ export default function PricingPage() {
                       </span>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => router.push("/whatsapp")}
-                    className="w-full py-3 px-4 rounded-xl bg-brand-blue hover:bg-brand-blue-deep text-white font-bold text-sm transition-all shadow-md cursor-pointer"
-                  >
-                    Go to Your Workspace Dashboard →
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => router.push("/whatsapp")}
+                      className="flex-1 py-3 px-4 rounded-xl bg-brand-blue hover:bg-brand-blue-deep text-white font-bold text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <span>Go to CRM Dashboard</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                    <Link
+                      href="/login"
+                      className="py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm text-center transition-all cursor-pointer"
+                    >
+                      Sign In Page
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 /* Registration & Checkout Form */
@@ -823,6 +866,7 @@ export default function PricingPage() {
                         value={organizationName}
                         onChange={(e) => setOrganizationName(e.target.value)}
                         placeholder="e.g. Acme Media Labs"
+                        autoComplete="organization"
                         className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
                       />
                     </div>
@@ -840,6 +884,7 @@ export default function PricingPage() {
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="e.g. John Doe"
+                        autoComplete="name"
                         className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
                       />
                     </div>
@@ -857,26 +902,71 @@ export default function PricingPage() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="admin@yourbusiness.com"
+                        autoComplete="email"
                         className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
                       />
                     </div>
+                    <p className="text-[10px] text-slate-400 mt-1">This email will be your login ID for Jisnu CRM.</p>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Create Password *
-                    </label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="password"
-                        required
-                        minLength={6}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Min. 6 characters"
-                        className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
-                      />
+                  {/* Password & Confirm Password Side-by-Side */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Create Password *
+                      </label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          required
+                          minLength={6}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Min. 6 characters"
+                          autoComplete="new-password"
+                          className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                          title={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Confirm Password *
+                      </label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          required
+                          minLength={6}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Re-enter password"
+                          autoComplete="new-password"
+                          className={`w-full pl-10 pr-9 py-2.5 bg-slate-50 border rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-1 ${
+                            confirmPassword && confirmPassword !== password
+                              ? "border-rose-400 focus:border-rose-500 focus:ring-rose-500"
+                              : "border-slate-200 focus:border-brand-blue focus:ring-brand-blue"
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                          title={showConfirmPassword ? "Hide password" : "Show password"}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -890,7 +980,8 @@ export default function PricingPage() {
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+91 98765 43210"
+                        placeholder="e.g. +91 98765 43210"
+                        autoComplete="tel"
                         className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
                       />
                     </div>
