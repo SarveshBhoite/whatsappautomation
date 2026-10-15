@@ -47,6 +47,8 @@ model Organization {
   apiKeys             ApiKey[]
   googleCalendarConfigs GoogleCalendarConfig[]
   appointments        Appointment[]
+  subscriptions       Subscription[]
+  paymentTransactions PaymentTransaction[]
 }
 
 model User {
@@ -1600,4 +1602,59 @@ model Appointment {
   @@index([customerPhone])
   @@map("appointments")
 }
+
+model Subscription {
+  id                 String       @id @default(uuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planCode           String       // quarterly, half_yearly, annual
+  planName           String
+  billingCycle       String       // 3_months, 6_months, 12_months
+  durationMonths     Int          @default(12)
+  amountPaid         Float
+  currency           String       @default("INR")
+  status             String       @default("ACTIVE") // ACTIVE, EXPIRED, CANCELLED, PAST_DUE
+  startDate          DateTime     @default(now())
+  endDate            DateTime
+  featuresIncluded   String[]
+  maxUsers           Int          @default(10)
+  maxContacts        Int          @default(50000)
+  maxAiTokens        Int          @default(0)
+  extraChannels      Int          @default(0)
+  paymentMode        String       @default("ONE_TIME") // ONE_TIME
+  razorpayPaymentId  String?
+  razorpayOrderId    String?
+  razorpaySignature  String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model PaymentTransaction {
+  id                 String       @id @default(uuid())
+  organizationId     String?
+  organization       Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  razorpayOrderId    String       @unique
+  razorpayPaymentId  String?      @unique
+  razorpaySignature  String?
+  amount             Float
+  currency           String       @default("INR")
+  status             String       // created, authorized, captured, failed, refunded
+  planCode           String
+  billingCycle       String
+  customerEmail      String
+  customerPhone      String?
+  customerName       String?
+  metadata           Json?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([customerEmail])
+  @@map("payment_transactions")
+}
+
 
