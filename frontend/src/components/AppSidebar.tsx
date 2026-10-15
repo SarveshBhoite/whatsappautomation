@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import {
   MessageCircle, MessageSquare, User, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail, Send, FileText, Bot, Shield, LogOut, LayoutDashboard
 } from "lucide-react";
+import UserProfileModal from "./UserProfileModal";
 
 // WhatsApp SVG icon
 const WhatsApp = ({ className }: { className?: string }) => (
@@ -74,6 +75,7 @@ export default function AppSidebar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [hoveredNav, setHoveredNav] = useState<{ label: string; top: number; isRed?: boolean; isAmber?: boolean } | null>(null);
 
   useEffect(() => {
@@ -249,19 +251,18 @@ export default function AppSidebar() {
 
           <div className="relative shrink-0">
             <button
-              onClick={handleLogout}
+              onClick={() => setIsProfileOpen(true)}
               onMouseEnter={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 setHoveredNav({
-                  label: "Log Out",
+                  label: "User Profile & Plan Details",
                   top: rect.top + rect.height / 2,
-                  isRed: true,
                 });
               }}
               onMouseLeave={() => setHoveredNav(null)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all duration-200 cursor-pointer"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-700 hover:text-brand-blue-deep hover:bg-white/90 hover:shadow-2xs transition-all duration-200 cursor-pointer"
             >
-              <LogOut className="h-5 w-5" />
+              <User className="h-5 w-5" />
             </button>
           </div>
         </div>
@@ -319,13 +320,20 @@ export default function AppSidebar() {
         })}
 
         <button
-          onClick={handleLogout}
-          title="Log Out"
-          className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all duration-200 cursor-pointer"
+          onClick={() => setIsProfileOpen(true)}
+          title="User Profile & Plan"
+          className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center text-slate-700 hover:text-brand-blue hover:bg-white/80 transition-all duration-200 cursor-pointer"
         >
-          <LogOut className="h-5 w-5" />
+          <User className="h-5 w-5" />
         </button>
       </nav>
+
+      {/* ── ChatGPT Style User Profile & Plan Details Modal ── */}
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        onLogout={handleLogout}
+      />
     </>
   );
 }
