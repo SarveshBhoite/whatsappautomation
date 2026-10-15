@@ -70,7 +70,11 @@ const TIERS = [
     durationLabel: "3 Months Access",
     durationMonths: 3,
     basePrice: 5999,
+    effectiveMonthlyRate: 2000,
     tagline: "Essential starter setup for growing brands.",
+    savingsText: "Standard Quarterly Rate",
+    badge: "Agile Starter",
+    pillClass: "bg-slate-100 text-slate-700",
   },
   {
     code: "half_yearly",
@@ -78,7 +82,11 @@ const TIERS = [
     durationLabel: "6 Months Access",
     durationMonths: 6,
     basePrice: 9999,
+    effectiveMonthlyRate: 1667,
     tagline: "Balanced scale and marketing continuity.",
+    savingsText: "Save ~17% vs Quarterly",
+    badge: "Growing Teams",
+    pillClass: "bg-emerald-100 text-emerald-800",
   },
   {
     code: "annual",
@@ -86,8 +94,12 @@ const TIERS = [
     durationLabel: "1 Year / 12 Months",
     durationMonths: 12,
     basePrice: 14999,
+    effectiveMonthlyRate: 1250,
     tagline: "Maximum value & complete enterprise automation.",
     isRecommended: true,
+    savingsText: "Save ₹8,997 (37% OFF)",
+    badge: "MOST POPULAR • BEST VALUE",
+    pillClass: "bg-gradient-to-r from-brand-blue to-emerald-600 text-white",
   },
 ];
 
@@ -516,9 +528,10 @@ export default function ProfilePage() {
             </div>
 
             {/* 3 Tier Selector Cards inside Profile */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
               {TIERS.map((tier) => {
                 const isSelected = selectedPlanCode === tier.code;
+                const isRec = tier.isRecommended;
                 const tierCost = tier.basePrice + extraChannelsCost;
                 const tierGst = Math.round(tierCost * 0.18 * 100) / 100;
                 const tierTotal = Math.round((tierCost + tierGst) * 100) / 100;
@@ -527,32 +540,62 @@ export default function ProfilePage() {
                   <div
                     key={tier.code}
                     onClick={() => setSelectedPlanCode(tier.code)}
-                    className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-4 ${
+                    className={`relative p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-4 ${
                       isSelected
-                        ? "border-brand-blue bg-sky-50/50 shadow-md ring-2 ring-brand-blue/20"
+                        ? isRec
+                          ? "border-brand-blue bg-gradient-to-b from-sky-50/80 to-white shadow-xl ring-2 ring-brand-blue/30 -translate-y-1"
+                          : "border-brand-blue bg-sky-50/50 shadow-md ring-2 ring-brand-blue/20"
+                        : isRec
+                        ? "border-sky-300 bg-sky-50/30 hover:border-brand-blue/60 shadow-sm"
                         : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                   >
+                    {/* Top Badge */}
+                    {isRec ? (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                        <span className="px-3 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-brand-blue to-emerald-600 text-white uppercase tracking-wider shadow-xs flex items-center gap-1">
+                          <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
+                          {tier.badge}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="absolute -top-2.5 right-4">
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${tier.pillClass}`}>
+                          {tier.badge}
+                        </span>
+                      </div>
+                    )}
+
                     <div>
                       <div className="flex items-center justify-between">
                         <h4 className="font-black text-slate-900 text-base">{tier.name}</h4>
-                        {tier.isRecommended && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-brand-blue text-white uppercase">
-                            Best Value
-                          </span>
-                        )}
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">{tier.tagline}</p>
                       
+                      {/* Price Block */}
                       <div className="pt-3">
-                        <span className="text-2xl font-black text-slate-900">₹{tier.basePrice.toLocaleString("en-IN")}</span>
-                        <span className="text-xs text-slate-500 ml-1">/ {tier.durationLabel}</span>
+                        <div className="flex items-baseline justify-between">
+                          <div>
+                            <span className="text-2xl font-black text-slate-900">₹{tier.basePrice.toLocaleString("en-IN")}</span>
+                            <span className="text-[10px] text-slate-500 ml-1">/ {tier.durationMonths} Mo</span>
+                          </div>
+                          <span className={`text-xs font-black ${isRec ? "text-emerald-700" : "text-slate-600"}`}>
+                            ~₹{tier.effectiveMonthlyRate.toLocaleString("en-IN")}/mo
+                          </span>
+                        </div>
+                        <div className="mt-1.5 flex items-center justify-between">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                            isRec ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
+                          }`}>
+                            {tier.savingsText}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
                     <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-600 space-y-1">
                       <div className="flex justify-between">
-                        <span>Subtotal:</span>
+                        <span>Base + {extraChannels} Extra:</span>
                         <span className="font-semibold">₹{tierCost.toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between">
@@ -560,8 +603,10 @@ export default function ProfilePage() {
                         <span className="font-semibold">₹{tierGst.toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200/60 pt-1">
-                        <span>Total:</span>
-                        <span className="text-brand-blue">₹{tierTotal.toLocaleString("en-IN")}</span>
+                        <span>Total Payable:</span>
+                        <span className={isRec ? "text-brand-blue font-black" : "text-slate-900"}>
+                          ₹{tierTotal.toLocaleString("en-IN")}
+                        </span>
                       </div>
                     </div>
                   </div>

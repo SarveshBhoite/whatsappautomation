@@ -48,6 +48,14 @@ interface PlanItem {
   tagline: string;
   isRecommended?: boolean;
   badge?: string;
+  savingsText?: string;
+  effectiveMonthlyRate: number;
+  tierTheme: {
+    accentPill: string;
+    borderActive: string;
+    badgeBg: string;
+    highlightLabel: string;
+  };
   features: string[];
 }
 
@@ -58,7 +66,15 @@ const PLANS: PlanItem[] = [
     durationLabel: "3 Months Access",
     durationMonths: 3,
     basePrice: 5999,
-    tagline: "Great starting point to automate customer messaging and campaigns.",
+    effectiveMonthlyRate: 2000,
+    tagline: "Ideal agile starter package to kickstart WhatsApp automation and lead capture.",
+    savingsText: "Standard Quarterly Rate",
+    tierTheme: {
+      accentPill: "bg-slate-100 text-slate-700 border-slate-200",
+      borderActive: "border-slate-300",
+      badgeBg: "bg-slate-800 text-white",
+      highlightLabel: "Starter Flexibility"
+    },
     features: [
       "1-Click Official Meta WhatsApp Cloud API",
       "1-Click Google Ads & Meta Ads Suite",
@@ -79,7 +95,15 @@ const PLANS: PlanItem[] = [
     durationLabel: "6 Months Access",
     durationMonths: 6,
     basePrice: 9999,
-    tagline: "Extended flexibility and continuous lead generation for growing teams.",
+    effectiveMonthlyRate: 1667,
+    tagline: "Extended flexibility and continuous campaigns for growing marketing teams.",
+    savingsText: "Save ~17% vs Quarterly run-rate",
+    tierTheme: {
+      accentPill: "bg-emerald-50 text-emerald-800 border-emerald-200",
+      borderActive: "border-emerald-500",
+      badgeBg: "bg-emerald-600 text-white",
+      highlightLabel: "Growing Teams"
+    },
     features: [
       "1-Click Official Meta WhatsApp Cloud API",
       "1-Click Google Ads & Meta Ads Suite",
@@ -100,9 +124,17 @@ const PLANS: PlanItem[] = [
     durationLabel: "1 Year / 12 Months",
     durationMonths: 12,
     basePrice: 14999,
+    effectiveMonthlyRate: 1250,
     tagline: "Maximum value & complete enterprise automation with year-round peace of mind.",
     isRecommended: true,
-    badge: "Recommended • Best Value",
+    badge: "MOST POPULAR • BEST VALUE",
+    savingsText: "Save ₹8,997 (37% OFF vs Quarterly)",
+    tierTheme: {
+      accentPill: "bg-sky-50 text-brand-blue border-sky-200",
+      borderActive: "border-brand-blue",
+      badgeBg: "bg-gradient-to-r from-brand-blue to-emerald-600 text-white",
+      highlightLabel: "Maximum Value • Year-Round"
+    },
     features: [
       "1-Click Official Meta WhatsApp Cloud API",
       "1-Click Google Ads & Meta Ads Suite",
@@ -421,18 +453,26 @@ export default function PricingPage() {
             return (
               <div
                 key={plan.code}
-                className={`relative flex flex-col justify-between rounded-3xl transition-all duration-200 ${
+                className={`relative flex flex-col justify-between rounded-3xl transition-all duration-300 ${
                   isRec
-                    ? "bg-white border-2 border-brand-blue shadow-xl shadow-brand-blue/15 md:-translate-y-2 ring-4 ring-brand-blue/10"
-                    : "bg-white border border-slate-200/90 shadow-md hover:border-slate-300"
+                    ? "bg-gradient-to-b from-sky-50/70 via-white to-white border-2 border-brand-blue shadow-2xl shadow-brand-blue/20 md:-translate-y-3 ring-4 ring-brand-blue/15 z-10"
+                    : plan.code === "half_yearly"
+                    ? "bg-white border-2 border-emerald-500/40 shadow-lg hover:border-emerald-500 hover:shadow-xl transition-all"
+                    : "bg-white border border-slate-200/90 shadow-md hover:border-slate-300 hover:shadow-lg transition-all"
                 }`}
               >
-                {/* Recommended Badge on Top */}
-                {isRec && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-brand-blue text-white text-[11px] font-black uppercase tracking-wider shadow-sm">
-                      <Star className="w-3 h-3 fill-white" />
-                      {plan.badge || "Recommended"}
+                {/* Highlight Badge on Top for Annual Plan */}
+                {isRec ? (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20">
+                    <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-brand-blue via-sky-600 to-emerald-600 text-white text-[11px] font-black uppercase tracking-wider shadow-md shadow-brand-blue/30 ring-2 ring-white">
+                      <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                      {plan.badge || "MOST POPULAR • BEST VALUE"}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="absolute -top-3 right-6">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${plan.tierTheme.accentPill}`}>
+                      {plan.tierTheme.highlightLabel}
                     </span>
                   </div>
                 )}
@@ -441,72 +481,120 @@ export default function PricingPage() {
                   {/* Plan Header */}
                   <div>
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                        {plan.name}
-                      </h3>
-                      {!isRec && (
-                        <Badge variant="outline" className="text-slate-600 border-slate-200 text-[10px] font-bold">
+                      <div>
+                        <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                          {plan.name}
+                          {isRec && (
+                            <span className="inline-flex items-center text-[10px] font-black uppercase tracking-wider text-brand-blue bg-sky-100/80 px-2 py-0.5 rounded-md">
+                              VIP Choice
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-[11px] font-bold text-slate-500 mt-0.5">
                           {plan.durationLabel}
-                        </Badge>
-                      )}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500 mt-2 min-h-[32px] leading-relaxed">
+                    <p className="text-xs text-slate-600 mt-2.5 min-h-[34px] leading-relaxed">
                       {plan.tagline}
                     </p>
                   </div>
 
-                  {/* Price Block */}
-                  <div className="pt-2 pb-4 border-y border-slate-100">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-extrabold text-slate-500">₹</span>
-                      <span className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
-                        {formatINR(cardSubtotal)}
+                  {/* Price Block with Effective Monthly Breakdown */}
+                  <div className={`p-4 rounded-2xl border transition-all ${
+                    isRec 
+                      ? "bg-sky-50/60 border-sky-200/80 shadow-2xs" 
+                      : "bg-slate-50/70 border-slate-100"
+                  }`}>
+                    <div className="flex items-baseline justify-between">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-extrabold text-slate-500">₹</span>
+                        <span className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
+                          {formatINR(cardSubtotal)}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Effective</span>
+                        <span className={`text-sm font-black ${isRec ? "text-emerald-700 font-extrabold" : "text-slate-700"}`}>
+                          ~₹{formatINR(plan.effectiveMonthlyRate)}/mo
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Savings Tag */}
+                    <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
+                      <span className={`font-black text-[11px] px-2 py-0.5 rounded-md ${
+                        isRec 
+                          ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300/50" 
+                          : plan.code === "half_yearly"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-slate-200/70 text-slate-600"
+                      }`}>
+                        {plan.savingsText}
                       </span>
+                      <span className="text-[11px] text-slate-500 font-medium">Billed upfront</span>
                     </div>
 
                     {extraChannels > 0 ? (
-                      <div className="mt-1 space-y-0.5">
-                        <div className="flex items-center justify-between text-xs text-slate-500">
-                          <span>Base ({plan.durationLabel}): ₹{formatINR(plan.basePrice)}</span>
-                          <span className="font-semibold text-brand-blue">+{extraChannels} Acc (₹{formatINR(cardExtraCost)})</span>
+                      <div className="mt-3 pt-2 border-t border-slate-200/60 space-y-1 text-xs">
+                        <div className="flex items-center justify-between text-slate-500">
+                          <span>Base Plan ({plan.durationLabel}):</span>
+                          <span className="font-semibold text-slate-800">₹{formatINR(plan.basePrice)}</span>
                         </div>
-                        <div className="flex items-center justify-between text-xs text-slate-500">
-                          <span>Subtotal: ₹{formatINR(cardSubtotal)}</span>
-                          <span className="font-semibold text-slate-600">+18% GST (₹{formatINR(cardGst, true)})</span>
+                        <div className="flex items-center justify-between text-slate-500">
+                          <span>{extraChannels} Extra Account(s):</span>
+                          <span className="font-semibold text-brand-blue">+₹{formatINR(cardExtraCost)}</span>
                         </div>
-                        <p className="text-xs font-black text-slate-900 pt-0.5">
-                          Total payable: <span className="text-brand-blue">₹{formatINR(cardTotalWithGst, true)}</span>
-                        </p>
+                        <div className="flex items-center justify-between text-slate-500">
+                          <span>GST (18%):</span>
+                          <span className="font-semibold text-slate-700">₹{formatINR(cardGst, true)}</span>
+                        </div>
+                        <div className="flex items-center justify-between font-black text-slate-900 border-t border-slate-200 pt-1.5 text-xs">
+                          <span>Total Payable:</span>
+                          <span className="text-brand-blue text-sm">₹{formatINR(cardTotalWithGst, true)}</span>
+                        </div>
                       </div>
                     ) : (
-                      <>
-                        <div className="flex items-center justify-between mt-1 text-xs text-slate-500">
-                          <span>Upfront for {plan.durationLabel}</span>
-                          <span className="font-semibold text-slate-600">
-                            +18% GST (₹{formatINR(cardGst, true)})
+                      <div className="mt-3 pt-2 border-t border-slate-200/60 space-y-1 text-xs">
+                        <div className="flex items-center justify-between text-slate-500">
+                          <span>18% GST:</span>
+                          <span className="font-semibold text-slate-700">+₹{formatINR(cardGst, true)}</span>
+                        </div>
+                        <div className="flex items-center justify-between font-black text-slate-900 text-xs pt-0.5">
+                          <span>Total Payable:</span>
+                          <span className={`${isRec ? "text-brand-blue" : "text-slate-900"} text-sm font-black`}>
+                            ₹{formatINR(cardTotalWithGst, true)}
                           </span>
                         </div>
-                        <p className="text-[11px] font-semibold text-slate-500 mt-1">
-                          Total payable: <span className="font-bold text-slate-800">₹{formatINR(cardTotalWithGst, true)}</span>
-                        </p>
-                      </>
+                      </div>
                     )}
                   </div>
 
                   {/* Included Features */}
                   <div className="space-y-3">
-                    <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
-                      What&apos;s Included:
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                        {isRec ? "Full Enterprise Suite Unlocked:" : "What's Included:"}
+                      </p>
+                      {isRec && (
+                        <span className="text-[10px] font-bold text-brand-blue flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500" /> All 12 Modules
+                        </span>
+                      )}
+                    </div>
                     <div className="space-y-2.5">
                       {plan.features.map((feat, idx) => (
                         <div key={idx} className="flex items-start gap-2 text-xs text-slate-700">
                           <div className={`h-4 w-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                            isRec ? "bg-brand-blue/10 text-brand-blue" : "bg-emerald-100 text-emerald-600"
+                            isRec 
+                              ? "bg-brand-blue text-white shadow-2xs" 
+                              : plan.code === "half_yearly"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-slate-100 text-slate-700"
                           }`}>
-                            <Check className="h-3 w-3 stroke-[3]" />
+                            <Check className="h-2.5 w-2.5 stroke-[3]" />
                           </div>
-                          <span className="leading-tight">{feat}</span>
+                          <span className={`leading-tight ${isRec ? "font-medium text-slate-900" : ""}`}>{feat}</span>
                         </div>
                       ))}
                     </div>
@@ -518,17 +606,19 @@ export default function PricingPage() {
                   <button
                     type="button"
                     onClick={() => handleOpenCheckoutForPlan(plan.code)}
-                    className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
+                    className={`w-full py-3.5 px-4 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
                       isRec
-                        ? "bg-brand-blue hover:bg-brand-blue-deep text-white shadow-brand-blue/20"
-                        : "bg-slate-900 hover:bg-slate-800 text-white"
+                        ? "bg-gradient-to-r from-brand-blue via-sky-600 to-brand-blue-deep hover:brightness-110 text-white shadow-brand-blue/30 ring-2 ring-brand-blue/40"
+                        : plan.code === "half_yearly"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                        : "bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/10"
                     }`}
                   >
                     <span>Choose {plan.name}</span>
                     <ArrowRight className="h-4 w-4" />
                   </button>
                   <p className="text-center text-[10px] text-slate-400 mt-2 font-medium">
-                    Single upfront payment • Instant workspace activation
+                    {isRec ? "★ Recommended for highest ROI & continuous operations" : "Single upfront payment • Instant workspace activation"}
                   </p>
                 </div>
               </div>
