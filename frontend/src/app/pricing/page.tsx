@@ -25,6 +25,7 @@ import {
   CheckCircle
 } from "lucide-react";
 import Footer from "@/components/Footer";
+import HeroShowcase from "@/components/home/HeroShowcase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -553,6 +554,23 @@ export default function PricingPage() {
             </span>
           </div>
         </div>
+
+        {/* ── Live Cockpit & CRM Capability Showcase ── */}
+        <section id="cockpit" className="w-full max-w-6xl mx-auto mt-16 pt-10 border-t border-slate-200">
+          <div className="text-center max-w-2xl mx-auto mb-8 space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-brand-blue text-xs font-bold shadow-2xs">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>LIVE INTERACTIVE SHOWCASE</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              See How Jisnu CRM Powers Your Business
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Explore how all 12 modules work in harmony: ingest leads from WhatsApp &amp; Meta Ads, trigger sub-5s AI replies, sync Google Reviews, and monitor cross-channel analytics.
+            </p>
+          </div>
+          <HeroShowcase />
+        </section>
 
         {/* Feature Highlights Grid */}
         <div className="w-full max-w-5xl mx-auto mt-16 pt-10 border-t border-slate-200">
