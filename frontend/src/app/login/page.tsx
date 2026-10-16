@@ -42,6 +42,9 @@ export default function LoginPage() {
       localStorage.setItem("user_role", user.role);
       localStorage.setItem("organization_id", user.organizationId);
       localStorage.setItem("user_name", user.name || user.email);
+      if (user.email) localStorage.setItem("user_email", user.email);
+      if (user.organizationName) localStorage.setItem("organization_name", user.organizationName);
+      if (user.phone) localStorage.setItem("user_phone", user.phone);
       if (user.enabledModules) {
         localStorage.setItem("enabled_modules", JSON.stringify(user.enabledModules));
       }

@@ -369,6 +369,7 @@ router.post("/verify-and-register", async (req: Request, res: Response) => {
         role: newOrg.user.role,
         organizationId: newOrg.org.id,
         organizationName: newOrg.org.name,
+        phone: phone ? phone.trim() : null,
         enabledModules: newOrg.org.enabledModules,
         status: newOrg.org.status,
       },
@@ -568,6 +569,14 @@ router.get("/status", async (req: Request, res: Response) => {
         subscriptions: {
           orderBy: { startDate: "asc" },
         },
+        users: {
+          select: { id: true, email: true, name: true, role: true, phone: true },
+        },
+        paymentTransactions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { customerPhone: true, customerEmail: true, customerName: true },
+        },
       },
     });
 
@@ -598,15 +607,34 @@ router.get("/status", async (req: Request, res: Response) => {
       return (s.status === "UPCOMING" || sStart > nowTime) && s.id !== currentSub?.id;
     });
 
+    const primaryUser = (org.users || []).find((u: any) => u.role === "admin" || u.role === "client_admin") || org.users?.[0] || null;
+    const contactPhone = primaryUser?.phone || org.paymentTransactions?.[0]?.customerPhone || null;
+
     return res.status(200).json({
       success: true,
       organizationId: org.id,
       organizationName: org.name,
+      pendingBusinessName: org.pendingBusinessName || null,
+      businessCategory: org.businessCategory || null,
+      businessAddress: org.businessAddress || null,
+      businessWebsite: org.businessWebsite || null,
+      aboutBusiness: org.aboutBusiness || null,
+      gstin: org.gstin || null,
       status: org.status,
+      suspensionReason: org.suspensionReason || null,
       enabledModules: org.enabledModules,
       subscription: currentSub || null,
       upcomingSubscription: upcomingSub || null,
       allSubscriptions: subs,
+      primaryUser: primaryUser ? {
+        id: primaryUser.id,
+        email: primaryUser.email,
+        name: primaryUser.name,
+        role: primaryUser.role,
+        phone: primaryUser.phone || null,
+      } : null,
+      contactPhone,
+      users: org.users || [],
     });
   } catch (error: any) {
     return res.status(500).json({ error: "Failed to retrieve subscription status", details: error.message });

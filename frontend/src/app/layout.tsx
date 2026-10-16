@@ -56,6 +56,10 @@ export default function RootLayout({
           src="https://connect.facebook.net/en_US/sdk.js"
           strategy="afterInteractive"
         />
+        <Script
+          src="https://checkout.razorpay.com/v1/checkout.js"
+          strategy="lazyOnload"
+        />
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>

@@ -27,7 +27,17 @@ router.post("/login", async (req: Request, res: Response) => {
     // 1. Find user in database by email
     const user = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
-      include: { organization: true }
+      include: {
+        organization: {
+          include: {
+            paymentTransactions: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { customerPhone: true, customerName: true }
+            }
+          }
+        }
+      }
     });
 
     if (!user) {
@@ -81,6 +91,7 @@ router.post("/login", async (req: Request, res: Response) => {
         role: user.role,
         organizationId: user.organizationId,
         organizationName: user.organization?.name || "Client Workspace",
+        phone: (user.organization as any)?.paymentTransactions?.[0]?.customerPhone || null,
         enabledModules: (user.organization as any)?.enabledModules || []
       }
     });
@@ -2846,14 +2857,22 @@ router.get("/organizations", async (req: Request, res: Response) => {
   try {
     const organizations = await prisma.organization.findMany({
       include: {
-        users: { select: { id: true, email: true, name: true, role: true } },
+        users: { select: { id: true, email: true, name: true, role: true, phone: true } as any },
         subscriptions: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
+          orderBy: { startDate: "asc" },
         },
         paymentTransactions: {
           orderBy: { createdAt: "desc" },
-          take: 1,
+          select: {
+            id: true,
+            customerPhone: true,
+            customerEmail: true,
+            customerName: true,
+            amount: true,
+            status: true,
+            planCode: true,
+            createdAt: true,
+          },
         },
         waConfigs: { select: { phoneNumberId: true, wabaId: true } },
         gmbConfigs: { select: { locationId: true, accountId: true } },
@@ -2900,6 +2919,66 @@ router.post("/organizations/:id/approve", async (req: Request, res: Response) =>
   }
 });
 
+// POST: Approve a pending business name change (Super Admin action)
+router.post("/organizations/:id/approve-name", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.params.id as string;
+    const org = await (prisma.organization as any).findUnique({ where: { id: orgId } });
+    if (!org) {
+      return res.status(404).json({ error: "Organization not found" });
+    }
+
+    if (!org.pendingBusinessName) {
+      return res.status(400).json({ error: "No pending business name change for this organization" });
+    }
+
+    const updatedOrg = await (prisma.organization as any).update({
+      where: { id: orgId },
+      data: {
+        name: org.pendingBusinessName,
+        pendingBusinessName: null,
+      },
+      include: {
+        users: { select: { id: true, email: true, name: true, role: true, phone: true } },
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Approved business name change to "${updatedOrg.name}"!`,
+      organization: updatedOrg,
+    });
+  } catch (error: any) {
+    console.error("Error approving business name:", error);
+    return res.status(500).json({ error: "Failed to approve business name", details: error.message });
+  }
+});
+
+// POST: Reject a pending business name change (Super Admin action)
+router.post("/organizations/:id/reject-name", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.params.id as string;
+    const updatedOrg = await (prisma.organization as any).update({
+      where: { id: orgId },
+      data: {
+        pendingBusinessName: null,
+      },
+      include: {
+        users: { select: { id: true, email: true, name: true, role: true, phone: true } },
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Rejected business name change request for "${updatedOrg.name}"`,
+      organization: updatedOrg,
+    });
+  } catch (error: any) {
+    console.error("Error rejecting business name:", error);
+    return res.status(500).json({ error: "Failed to reject business name", details: error.message });
+  }
+});
+
 // POST: Create a new organization and default Client Admin user
 router.post("/organizations", async (req: Request, res: Response) => {
   try {
@@ -2943,21 +3022,93 @@ router.post("/organizations", async (req: Request, res: Response) => {
 router.put("/organizations/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, enabledModules, status } = req.body;
+    const {
+      name,
+      enabledModules,
+      status,
+      suspensionReason,
+      pendingBusinessName,
+      businessCategory,
+      businessAddress,
+      businessWebsite,
+      aboutBusiness,
+      gstin,
+    } = req.body;
 
     const updatedOrg = await (prisma.organization as any).update({
       where: { id },
       data: {
         ...(name && { name }),
         ...(enabledModules && { enabledModules }),
-        ...(typeof status === "string" && { status })
+        ...(typeof status === "string" && { status }),
+        ...(typeof suspensionReason !== "undefined" && { suspensionReason }),
+        ...(typeof pendingBusinessName !== "undefined" && { pendingBusinessName }),
+        ...(typeof businessCategory !== "undefined" && { businessCategory }),
+        ...(typeof businessAddress !== "undefined" && { businessAddress }),
+        ...(typeof businessWebsite !== "undefined" && { businessWebsite }),
+        ...(typeof aboutBusiness !== "undefined" && { aboutBusiness }),
+        ...(typeof gstin !== "undefined" && { gstin }),
       },
       include: {
-        users: { select: { id: true, email: true, name: true, role: true } }
+        users: { select: { id: true, email: true, name: true, role: true, phone: true } as any }
       }
     });
 
     return res.status(200).json({ success: true, organization: updatedOrg });
+  } catch (error: any) {
+    console.error("Error updating organization:", error);
+    return res.status(500).json({ error: "Failed to update organization", details: error.message });
+  }
+});
+
+// POST: Direct Profile Update from Client Profile Page
+router.post("/organizations/:id/profile", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      userName,
+      phone,
+      pendingBusinessName,
+      businessCategory,
+      businessAddress,
+      businessWebsite,
+      aboutBusiness,
+      gstin,
+    } = req.body;
+
+    const orgUpdateData: any = {};
+    if (typeof pendingBusinessName !== "undefined") orgUpdateData.pendingBusinessName = pendingBusinessName;
+    if (typeof businessCategory !== "undefined") orgUpdateData.businessCategory = businessCategory;
+    if (typeof businessAddress !== "undefined") orgUpdateData.businessAddress = businessAddress;
+    if (typeof businessWebsite !== "undefined") orgUpdateData.businessWebsite = businessWebsite;
+    if (typeof aboutBusiness !== "undefined") orgUpdateData.aboutBusiness = aboutBusiness;
+    if (typeof gstin !== "undefined") orgUpdateData.gstin = gstin;
+
+    const updatedOrg = await (prisma.organization as any).update({
+      where: { id },
+      data: orgUpdateData,
+      include: {
+        users: true,
+      },
+    });
+
+    // Update primary client admin user name and phone
+    const primaryUser = (updatedOrg.users || []).find((u: any) => u.role === "admin" || u.role === "client_admin") || updatedOrg.users?.[0];
+    if (primaryUser && (userName || phone)) {
+      await (prisma.user as any).update({
+        where: { id: primaryUser.id },
+        data: {
+          ...(userName && { name: userName }),
+          ...(phone && { phone }),
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully!",
+      organization: updatedOrg,
+    });
   } catch (error: any) {
     console.error("Error updating organization:", error);
     return res.status(500).json({ error: "Failed to update organization", details: error.message });
@@ -3004,6 +3155,169 @@ router.delete("/organizations/:id", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error deleting organization:", error);
     return res.status(500).json({ error: "Failed to delete organization", details: error.message });
+  }
+});
+
+// POST: Send a direct message / notification from Super Admin to a Client Organization
+router.post("/organizations/:id/notifications", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.params.id as string;
+    const { title, message, priority } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "Message content is required" });
+    }
+
+    const org = await (prisma.organization as any).findUnique({ where: { id: orgId } });
+    if (!org) {
+      return res.status(404).json({ error: "Organization not found" });
+    }
+
+    const notification = await (prisma as any).superAdminNotification.create({
+      data: {
+        organizationId: orgId,
+        title: title?.trim() || "Message from Super Admin",
+        message: message.trim(),
+        priority: priority || "normal",
+        sender: "Super Admin",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Notification sent to "${org.name}"!`,
+      notification,
+    });
+  } catch (error: any) {
+    console.error("Error sending notification:", error);
+    return res.status(500).json({ error: "Failed to send notification", details: error.message });
+  }
+});
+
+// POST: Broadcast a notification to ALL client organizations
+router.post("/notifications/broadcast-all", async (req: Request, res: Response) => {
+  try {
+    const { title, message, priority, targetStatus } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "Message content is required" });
+    }
+
+    // Find target organizations (optionally filter by status: ALL, ACTIVE, etc.)
+    const whereClause: any = {};
+    if (targetStatus && targetStatus !== "ALL") {
+      whereClause.status = targetStatus;
+    }
+
+    const organizations = await prisma.organization.findMany({
+      where: whereClause,
+      select: { id: true, name: true }
+    });
+
+    if (organizations.length === 0) {
+      return res.status(400).json({ error: "No organizations found to broadcast to." });
+    }
+
+    const payloadTitle = title?.trim() || "Global Notice from Super Admin";
+    const payloadMessage = message.trim();
+    const payloadPriority = priority || "normal";
+
+    const notificationsData = organizations.map(org => ({
+      organizationId: org.id,
+      title: payloadTitle,
+      message: payloadMessage,
+      priority: payloadPriority,
+      sender: "Super Admin",
+      isRead: false,
+    }));
+
+    await (prisma as any).superAdminNotification.createMany({
+      data: notificationsData,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Broadcast delivered to all ${organizations.length} client organizations!`,
+      recipientCount: organizations.length,
+    });
+  } catch (error: any) {
+    console.error("Error broadcasting to all organizations:", error);
+    return res.status(500).json({ error: "Failed to broadcast message", details: error.message });
+  }
+});
+
+// GET: Retrieve notifications for an organization (for Client Profile and Notifications Bell)
+router.get("/organizations/:id/notifications", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.params.id as string;
+    const notifications = await (prisma as any).superAdminNotification.findMany({
+      where: { organizationId: orgId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+
+    return res.status(200).json({
+      success: true,
+      notifications,
+    });
+  } catch (error: any) {
+    console.error("Error fetching notifications:", error);
+    return res.status(500).json({ error: "Failed to fetch notifications", details: error.message });
+  }
+});
+
+// GET: List all sent notifications across all organizations (for Super Admin Broadcast Audit History)
+router.get("/notifications/sent-history", async (req: Request, res: Response) => {
+  try {
+    const notifications = await (prisma as any).superAdminNotification.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: {
+        organization: {
+          select: { id: true, name: true }
+        }
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      notifications,
+    });
+  } catch (error: any) {
+    console.error("Error fetching sent notifications history:", error);
+    return res.status(500).json({ error: "Failed to fetch notification history", details: error.message });
+  }
+});
+
+// POST: Mark notification as read (with readAt timestamp)
+router.post("/notifications/:id/read", async (req: Request, res: Response) => {
+  try {
+    const notifId = req.params.id as string;
+    const updated = await (prisma as any).superAdminNotification.update({
+      where: { id: notifId },
+      data: { isRead: true, readAt: new Date() },
+    });
+
+    return res.status(200).json({ success: true, notification: updated });
+  } catch (error: any) {
+    console.error("Error marking notification as read:", error);
+    return res.status(500).json({ error: "Failed to mark as read", details: error.message });
+  }
+});
+
+// POST: Mark all notifications as read for an organization
+router.post("/organizations/:id/notifications/read-all", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.params.id as string;
+    await (prisma as any).superAdminNotification.updateMany({
+      where: { organizationId: orgId, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+
+    return res.status(200).json({ success: true, message: "All notifications marked as read" });
+  } catch (error: any) {
+    console.error("Error marking all notifications as read:", error);
+    return res.status(500).json({ error: "Failed to mark all as read", details: error.message });
   }
 });
 

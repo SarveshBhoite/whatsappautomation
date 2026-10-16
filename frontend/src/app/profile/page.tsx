@@ -25,10 +25,25 @@ import {
   Phone,
   Clock,
   ChevronRight,
+  ChevronDown,
   ShieldCheck,
   Sliders,
   CheckCircle,
-  HelpCircle
+  HelpCircle,
+  MapPin,
+  Globe,
+  Briefcase,
+  FileText,
+  Edit2,
+  Save,
+  XCircle,
+  Copy,
+  Info,
+  Lock,
+  AlertCircle,
+  Bell,
+  X,
+  CheckCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,11 +71,37 @@ interface SubscriptionData {
 interface OrgStatusResponse {
   organizationId: string;
   organizationName: string;
+  pendingBusinessName?: string | null;
+  businessCategory?: string | null;
+  businessAddress?: string | null;
+  businessWebsite?: string | null;
+  aboutBusiness?: string | null;
+  gstin?: string | null;
   status: string;
+  suspensionReason?: string | null;
   enabledModules: string[];
   subscription?: SubscriptionData | null;
   upcomingSubscription?: SubscriptionData | null;
   allSubscriptions?: SubscriptionData[];
+  primaryUser?: {
+    id: string;
+    email: string;
+    name: string | null;
+    role: string;
+    phone?: string | null;
+  } | null;
+  contactPhone?: string | null;
+}
+
+interface NotificationItem {
+  id: string;
+  organizationId: string;
+  title?: string;
+  message: string;
+  priority: string;
+  sender: string;
+  isRead: boolean;
+  createdAt: string;
 }
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -107,9 +148,32 @@ const TIERS = [
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [userName, setUserName] = useState("Admin User");
-  const [userRole, setUserRole] = useState("client_admin");
+  const [userName, setUserName] = useState("");
+  const [userRole, setUserRole] = useState("");
   const [userEmail, setUserEmail] = useState("");
+  const [userPhone, setUserPhone] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [businessCategory, setBusinessCategory] = useState("");
+  const [businessAddress, setBusinessAddress] = useState("");
+  const [businessWebsite, setBusinessWebsite] = useState("");
+  const [aboutBusiness, setAboutBusiness] = useState("");
+  const [gstin, setGstin] = useState("");
+
+  // Editable Profile State
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    businessName: "",
+    category: "",
+    address: "",
+    website: "",
+    about: "",
+    gstin: "",
+  });
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
   const [orgId, setOrgId] = useState("");
   const [orgData, setOrgData] = useState<OrgStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,16 +185,42 @@ export default function ProfilePage() {
   const [isProcessingUpgrade, setIsProcessingUpgrade] = useState(false);
   const [actionMsg, setActionMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
+  const [pendingBusinessName, setPendingBusinessName] = useState<string>("");
+  const [suspensionReason, setSuspensionReason] = useState<string>("");
+
+  // Super Admin Notifications State
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
+  const [fetchingNotifications, setFetchingNotifications] = useState<boolean>(false);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const storedName = localStorage.getItem("user_name") || "Admin User";
-    const storedRole = localStorage.getItem("user_role") || "client_admin";
+    const storedName = localStorage.getItem("user_name") || "";
+    const storedRole = localStorage.getItem("user_role") || "";
     const storedOrgId = localStorage.getItem("organization_id") || "";
+    const storedEmail = localStorage.getItem("user_email") || "";
+    const storedPhone = localStorage.getItem("user_phone") || "";
+    const storedBizName = localStorage.getItem("organization_name") || "";
+    const storedCategory = localStorage.getItem("business_category") || "";
+    const storedAddress = localStorage.getItem("business_address") || "";
+    const storedWebsite = localStorage.getItem("business_website") || "";
+    const storedAbout = localStorage.getItem("about_business") || "";
+    const storedGstin = localStorage.getItem("business_gstin") || "";
+    const storedPendingBiz = localStorage.getItem("pending_business_name") || "";
 
     setUserName(storedName);
     setUserRole(storedRole);
     setOrgId(storedOrgId);
+    setUserEmail(storedEmail);
+    setUserPhone(storedPhone);
+    setBusinessName(storedBizName);
+    setBusinessCategory(storedCategory);
+    setBusinessAddress(storedAddress);
+    setBusinessWebsite(storedWebsite);
+    setAboutBusiness(storedAbout);
+    setGstin(storedGstin);
+    setPendingBusinessName(storedPendingBiz);
 
     if (storedOrgId) {
       fetchStatus(storedOrgId);
@@ -138,6 +228,99 @@ export default function ProfilePage() {
       setLoading(false);
     }
   }, []);
+
+  const handleStartEdit = () => {
+    setEditForm({
+      name: userName,
+      email: userEmail,
+      phone: userPhone,
+      businessName: pendingBusinessName || businessName,
+      category: businessCategory,
+      address: businessAddress,
+      website: businessWebsite,
+      about: aboutBusiness,
+      gstin: gstin,
+    });
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editForm.name.trim()) {
+      setActionMsg({ text: "Name is a required field.", type: "error" });
+      return;
+    }
+
+    const trimmedBizName = editForm.businessName.trim();
+    const isBizNameChanged = trimmedBizName && trimmedBizName !== businessName;
+
+    setUserName(editForm.name.trim());
+    setUserPhone(editForm.phone.trim());
+    setBusinessCategory(editForm.category.trim());
+    setBusinessAddress(editForm.address.trim());
+    setBusinessWebsite(editForm.website.trim());
+    setAboutBusiness(editForm.about.trim());
+    setGstin(editForm.gstin.trim());
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("user_name", editForm.name.trim());
+      localStorage.setItem("user_phone", editForm.phone.trim());
+      localStorage.setItem("business_category", editForm.category.trim());
+      localStorage.setItem("business_address", editForm.address.trim());
+      localStorage.setItem("business_website", editForm.website.trim());
+      localStorage.setItem("about_business", editForm.about.trim());
+      localStorage.setItem("business_gstin", editForm.gstin.trim());
+    }
+
+    const payload = {
+      userName: editForm.name.trim(),
+      phone: editForm.phone.trim(),
+      pendingBusinessName: isBizNameChanged ? trimmedBizName : (pendingBusinessName || undefined),
+      businessCategory: editForm.category.trim(),
+      businessAddress: editForm.address.trim(),
+      businessWebsite: editForm.website.trim(),
+      aboutBusiness: editForm.about.trim(),
+      gstin: editForm.gstin.trim(),
+    };
+
+    if (orgId) {
+      try {
+        await fetch(`${BACKEND_URL}/api/admin/organizations/${orgId}/profile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (err) {
+        console.error("Failed to sync profile to server:", err);
+      }
+    }
+
+    if (isBizNameChanged) {
+      setPendingBusinessName(trimmedBizName);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("pending_business_name", trimmedBizName);
+      }
+      setIsEditingProfile(false);
+      setActionMsg({
+        text: `Business name change to "${trimmedBizName}" submitted. Pending Super Admin approval!`,
+        type: "success",
+      });
+      setTimeout(() => setActionMsg(null), 6000);
+      return;
+    }
+
+    setIsEditingProfile(false);
+    setActionMsg({ text: "Profile details updated successfully!", type: "success" });
+    setTimeout(() => setActionMsg(null), 4000);
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedField(label);
+      setTimeout(() => setCopiedField(null), 2500);
+    }
+  };
 
   const fetchStatus = async (organizationId: string) => {
     try {
@@ -150,16 +333,135 @@ export default function ProfilePage() {
         const data = await res.json();
         if (data && data.success) {
           setOrgData(data);
+          if (data.organizationName) {
+            setBusinessName(data.organizationName);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("organization_name", data.organizationName);
+            }
+          }
+          if (data.pendingBusinessName) {
+            setPendingBusinessName(data.pendingBusinessName);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("pending_business_name", data.pendingBusinessName);
+            }
+          } else {
+            setPendingBusinessName("");
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("pending_business_name");
+            }
+          }
+          if (data.businessCategory) {
+            setBusinessCategory(data.businessCategory);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("business_category", data.businessCategory);
+            }
+          }
+          if (data.businessAddress) {
+            setBusinessAddress(data.businessAddress);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("business_address", data.businessAddress);
+            }
+          }
+          if (data.businessWebsite) {
+            setBusinessWebsite(data.businessWebsite);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("business_website", data.businessWebsite);
+            }
+          }
+          if (data.aboutBusiness) {
+            setAboutBusiness(data.aboutBusiness);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("about_business", data.aboutBusiness);
+            }
+          }
+          if (data.gstin) {
+            setGstin(data.gstin);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("business_gstin", data.gstin);
+            }
+          }
+          if (data.primaryUser?.email) {
+            setUserEmail(data.primaryUser.email);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("user_email", data.primaryUser.email);
+            }
+          }
+          if (data.primaryUser?.name) {
+            setUserName(data.primaryUser.name);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("user_name", data.primaryUser.name);
+            }
+          }
+          const resolvedPhone = data.primaryUser?.phone || data.contactPhone;
+          if (resolvedPhone) {
+            setUserPhone(resolvedPhone);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("user_phone", resolvedPhone);
+            }
+          }
+          if (data.status) {
+            if (data.suspensionReason) {
+              setSuspensionReason(data.suspensionReason);
+            } else {
+              setSuspensionReason("");
+            }
+          }
           if (data.subscription?.planCode) {
             setSelectedPlanCode(data.subscription.planCode);
             setExtraChannels(data.subscription.extraChannels || 0);
           }
+
+          // Fetch Super Admin notifications for this organization
+          fetchNotifications(organizationId);
         }
       }
     } catch (err) {
-      console.error("Failed to load subscription status:", err);
+      console.warn("Could not load latest subscription status from backend, keeping cached details:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNotifications = async (organizationId: string) => {
+    if (!organizationId) return;
+    setFetchingNotifications(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/organizations/${organizationId}/notifications`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.notifications)) {
+          setNotifications(data.notifications);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch admin notifications:", err);
+    } finally {
+      setFetchingNotifications(false);
+    }
+  };
+
+  const handleMarkNotificationRead = async (notifId: string) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/admin/notifications/${notifId}/read`, {
+        method: "POST",
+      });
+      setNotifications(prev =>
+        prev.map(n => (n.id === notifId ? { ...n, isRead: true } : n))
+      );
+    } catch (err) {
+      console.error("Failed to mark notification as read:", err);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    if (!orgId) return;
+    try {
+      await fetch(`${BACKEND_URL}/api/admin/organizations/${orgId}/notifications/read-all`, {
+        method: "POST",
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch (err) {
+      console.error("Failed to mark all as read:", err);
     }
   };
 
@@ -310,12 +612,28 @@ export default function ProfilePage() {
               </Badge>
             </div>
             <p className="text-[11px] text-slate-500 font-medium">
-              {orgData?.organizationName || "Jisnu Organization Workspace"} • ID: <span className="font-mono text-slate-600">{orgId.slice(0, 8)}...</span>
+              {businessName || orgData?.organizationName || "Company Workspace"}{orgId ? <> • ID: <span className="font-mono text-slate-600">{orgId.slice(0, 8)}...</span></> : null}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Super Admin Notifications Bell */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotificationsModal(true)}
+              className="relative p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-all shadow-2xs cursor-pointer flex items-center justify-center"
+              title="Super Admin Messages & Broadcasts"
+            >
+              <Bell className="w-4 h-4 text-slate-600" />
+              {notifications.filter(n => !n.isRead).length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-black h-4.5 min-w-[18px] px-1 rounded-full flex items-center justify-center shadow-xs border-2 border-white animate-pulse">
+                  {notifications.filter(n => !n.isRead).length}
+                </span>
+              )}
+            </button>
+          </div>
+
           <Button
             variant="outline"
             size="sm"
@@ -364,292 +682,467 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* ── Top Bento Row: Profile Overview & Live Subscription Card ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* User Profile Card (Cockpit Bento Style) */}
-          <div className="lg:col-span-5 p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm shadow-slate-200/40 flex flex-col justify-between space-y-5">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-brand-blue" />
-                  Operator Profile
+        {/* ── Critical Account Suspension Banner ── */}
+        {(orgData?.status === "SUSPENDED" || suspensionReason) && (
+          <div className="p-5 rounded-3xl bg-rose-50 border-2 border-rose-200 shadow-sm space-y-2 animate-in fade-in">
+            <div className="flex items-center gap-2.5 text-rose-900">
+              <div className="p-2 rounded-xl bg-rose-100 text-rose-700">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black tracking-tight text-rose-900">
+                  Account Deployment Status: SUSPENDED
+                </h3>
+                <p className="text-xs text-rose-700 font-medium">
+                  Your organization access has been suspended by the Super Administrator.
+                </p>
+              </div>
+            </div>
+            {suspensionReason && (
+              <div className="mt-2 p-3.5 rounded-2xl bg-white border border-rose-200">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 block">
+                  Official Suspension Reason:
                 </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Active Session
-                </span>
+                <p className="text-xs font-bold text-slate-800 mt-0.5">
+                  &quot;{suspensionReason}&quot;
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 1. Operator & Business Profile Card (Light Theme) ── */}
+        <div className="rounded-3xl bg-white border border-slate-200 shadow-sm shadow-slate-200/50 overflow-hidden">
+          {/* Card Header */}
+          <div className="p-6 pb-5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-sky-50/40">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="relative group shrink-0">
+                  <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[#0284C7] via-[#0369A1] to-[#0F52BA] text-white font-black text-2xl flex items-center justify-center shadow-md shadow-brand-blue/20 ring-2 ring-white">
+                    {userName ? userName.slice(0, 2).toUpperCase() : <User className="w-7 h-7" />}
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 bg-emerald-500 border-2 border-white rounded-full p-0.5 shadow-xs" title="Online & Isolated">
+                    <Check className="w-2.5 h-2.5 text-white stroke-[3]" />
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+                      {userName || "Registered Operator"}
+                    </h3>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Active Session
+                    </span>
+                    <Badge variant="outline" className="text-[10px] font-extrabold text-brand-blue border-sky-300 bg-sky-50 uppercase py-0.5 px-2.5">
+                      Role: {userRole ? userRole.replace("_", " ") : "Operator"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-brand-blue font-bold mt-1">
+                    <Building className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{businessName || orgData?.organizationName || "Company Workspace"}</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center gap-4 mt-4">
-                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-[#0284C7] via-[#0369A1] to-[#0F52BA] text-white font-black text-xl flex items-center justify-center shadow-md shadow-brand-blue/20">
-                  {userName.slice(0, 2).toUpperCase()}
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <button
+                  onClick={handleStartEdit}
+                  className="px-4 py-2 rounded-xl bg-brand-blue text-white hover:bg-brand-blue-deep transition-colors cursor-pointer text-xs flex items-center gap-1.5 font-bold shadow-sm shadow-brand-blue/20"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Edit Profile</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Profile Information Grid (Light Theme) */}
+          <div className="p-6 space-y-5 text-xs">
+            {/* Operator Contact Credentials Row */}
+            <div className="space-y-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Registered Operator Credentials
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {/* Email Item */}
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/80 hover:border-slate-300 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-xl bg-sky-100/80 text-brand-blue shrink-0">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-slate-400">Registered Email ID (Permanent)</p>
+                      <p className="font-bold text-slate-900 truncate">
+                        {userEmail || <span className="text-slate-400 font-normal italic">Not specified</span>}
+                      </p>
+                    </div>
+                  </div>
+                  {userEmail && (
+                    <button
+                      onClick={() => copyToClipboard(userEmail, "email")}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+                      title="Copy Email"
+                    >
+                      {copiedField === "email" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                    {userName}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                    {orgData?.organizationName || "Jisnu Enterprise Hub"}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Role: <span className="font-bold text-slate-700 uppercase">{userRole}</span>
-                  </p>
+
+                {/* Phone Item */}
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/80 hover:border-slate-300 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-xl bg-emerald-100/80 text-emerald-700 shrink-0">
+                      <Phone className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-slate-400">Registered Phone Number</p>
+                      <p className="font-bold text-slate-900">
+                        {userPhone || <span className="text-slate-400 font-normal italic">Not specified</span>}
+                      </p>
+                    </div>
+                  </div>
+                  {userPhone && (
+                    <button
+                      onClick={() => copyToClipboard(userPhone, "phone")}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+                      title="Copy Phone"
+                    >
+                      {copiedField === "phone" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
-              <div className="flex justify-between items-center text-slate-600">
-                <span className="text-slate-400">Organization ID:</span>
-                <span className="font-mono text-slate-800 font-bold select-all">{orgId || "Demo-Org-123"}</span>
+            {/* Business Profile Details */}
+            <div className="space-y-2.5">
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                <span>Business &amp; Commerce Identity</span>
+                {businessWebsite && (
+                  <a
+                    href={businessWebsite.startsWith("http") ? businessWebsite : `https://${businessWebsite}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-blue font-bold flex items-center gap-1 hover:underline lowercase"
+                  >
+                    <Globe className="w-3 h-3" />
+                    <span>{businessWebsite.replace(/^https?:\/\//, "")}</span>
+                  </a>
+                )}
               </div>
-              <div className="flex justify-between items-center text-slate-600">
-                <span className="text-slate-400">Tenant Status:</span>
-                <span className="font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md text-[10px]">
+
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-50/60 to-white border border-slate-200/80 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-blue-100 text-brand-blue shrink-0">
+                      <Briefcase className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400">Commercial Business Name</p>
+                      <h4 className="font-black text-slate-900 text-base">
+                        {businessName || orgData?.organizationName || <span className="text-slate-400 font-normal italic">No business name</span>}
+                      </h4>
+                    </div>
+                  </div>
+
+                  {businessCategory && (
+                    <span className="self-start sm:self-auto px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200">
+                      {businessCategory}
+                    </span>
+                  )}
+                </div>
+
+                {/* Pending Business Name Approval Banner */}
+                {pendingBusinessName && pendingBusinessName !== businessName && (
+                  <div className="p-3 bg-amber-50/90 border border-amber-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-amber-900">
+                      <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>
+                        Requested Name Change: <strong className="font-black">&quot;{pendingBusinessName}&quot;</strong>
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-1 bg-amber-200/80 text-amber-950 font-black rounded-lg text-[10px] uppercase tracking-wider self-start sm:self-auto border border-amber-300">
+                      Pending Super Admin Approval
+                    </span>
+                  </div>
+                )}
+
+                {/* About Business */}
+                <div className="p-3 rounded-xl bg-slate-100/70 border border-slate-200/70 space-y-1">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase">
+                    <FileText className="w-3.5 h-3.5 text-slate-400" />
+                    <span>About Business</span>
+                  </div>
+                  <p className="text-xs text-slate-700 leading-relaxed font-normal">
+                    {aboutBusiness || <span className="text-slate-400 italic">No business description added yet. Click &quot;Edit Profile&quot; to add details.</span>}
+                  </p>
+                </div>
+
+                {/* Address & GSTIN Details */}
+                {(businessAddress || gstin) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-100 text-xs">
+                    {businessAddress && (
+                      <div className="flex items-start gap-2 text-slate-600">
+                        <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                        <span className="leading-snug">{businessAddress}</span>
+                      </div>
+                    )}
+                    {gstin && (
+                      <div className="flex items-center gap-2 text-slate-600 sm:justify-end">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">GSTIN / Tax ID:</span>
+                        <span className="font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 text-xs">
+                          {gstin}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Tenant Security Specs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-slate-400 text-[10px] font-bold uppercase">Organization ID</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-slate-800 font-bold select-all text-[11px] truncate">
+                    {orgId || "—"}
+                  </span>
+                  {orgId && (
+                    <button
+                      onClick={() => copyToClipboard(orgId, "orgId")}
+                      className="p-1 text-slate-400 hover:text-slate-700 rounded transition-colors cursor-pointer"
+                      title="Copy Org ID"
+                    >
+                      {copiedField === "orgId" ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-0.5">
+                <span className="text-slate-400 text-[10px] font-bold uppercase">Tenant Status</span>
+                <span className="font-bold text-emerald-700 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded-md text-[10px] uppercase self-start">
                   {orgData?.status || "ACTIVE"}
                 </span>
               </div>
-              <div className="flex justify-between items-center text-slate-600">
-                <span className="text-slate-400">Database Isolation:</span>
-                <span className="font-semibold text-slate-800 flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-brand-blue" /> Row-Level Isolation
+
+              <div className="flex flex-col gap-0.5">
+                <span className="text-slate-400 text-[10px] font-bold uppercase">Database Isolation</span>
+                <span className="font-semibold text-slate-800 flex items-center gap-1 text-[11px]">
+                  <ShieldCheck className="w-3.5 h-3.5 text-brand-blue" />
+                  Row-Level Isolation
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ── 2. Active Subscription & Continuity Cockpit (Light Theme) ── */}
+        <div className="rounded-3xl bg-white border border-slate-200 shadow-sm shadow-slate-200/50 overflow-hidden">
+          {/* Header */}
+          <div className="p-6 pb-4 border-b border-slate-100 bg-gradient-to-r from-sky-50/50 via-white to-emerald-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-brand-blue flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-brand-blue" />
+                  Subscription &amp; Continuity Cockpit
+                </span>
+                {orgData?.upcomingSubscription && (
+                  <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Next Tier Queued
+                  </span>
+                )}
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1">
+                {sub?.planName || "Annual Complete Growth Plan"}
+              </h2>
+            </div>
 
             <Button
-              variant="destructive"
-              onClick={handleLogout}
-              className="w-full py-2.5 rounded-xl font-bold text-xs bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-800 border border-rose-200 shadow-2xs cursor-pointer flex items-center justify-center gap-2"
+              type="button"
+              onClick={() => {
+                setIsUpgradeSectionOpen(!isUpgradeSectionOpen);
+                if (!isUpgradeSectionOpen) {
+                  setTimeout(() => {
+                    document.getElementById("upgrade-section")?.scrollIntoView({ behavior: "smooth" });
+                  }, 100);
+                }
+              }}
+              className="bg-brand-blue hover:bg-brand-blue-deep text-white font-bold text-xs py-2 px-4 rounded-xl shadow-md shadow-brand-blue/20 flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <LogOut className="w-4 h-4" />
-              <span>Sign Out of Account</span>
+              <span>{isUpgradeSectionOpen ? "Close Plan Selector" : "Queue / Upgrade Plan"}</span>
+              <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isUpgradeSectionOpen ? "rotate-90" : ""}`} />
             </Button>
           </div>
 
-          {/* Active & Upcoming Subscription Cockpit Card */}
-          <div className="lg:col-span-7 flex flex-col gap-5">
-            {/* 1. CURRENT ACTIVE PLAN CARD */}
-            <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-sky-950 text-white shadow-xl shadow-slate-900/15 border border-slate-800 flex flex-col justify-between space-y-6 relative overflow-hidden">
-              {/* Top Glow Ambient Accent */}
-              <div className="absolute top-0 right-0 w-72 h-72 bg-brand-blue/15 rounded-full blur-3xl pointer-events-none" />
-
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Current Active Plan
-                    </span>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                      ● Active Now
-                    </span>
-                  </div>
-                  <Badge className={isExpired ? "bg-rose-500 text-white text-[10px]" : "bg-emerald-500 text-white text-[10px]"}>
-                    {sub?.status || "ACTIVE"}
-                  </Badge>
+          {/* Subscription Content (Light Theme) */}
+          <div className="p-6 space-y-5">
+            {orgData?.upcomingSubscription ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-xs text-slate-500 pb-1">
+                  <span className="font-bold uppercase tracking-wider text-[10px] text-slate-400">
+                    Lifecycle Timeline • Continuous Auto-Transition
+                  </span>
+                  <span className="text-emerald-700 font-bold flex items-center gap-1 text-[11px]">
+                    <Clock className="w-3.5 h-3.5 text-emerald-600" /> Zero Downtime Guarantee
+                  </span>
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Card 1: Current Plan */}
+                  <div className="p-5 rounded-2xl bg-sky-50/60 border-2 border-sky-300/80 shadow-xs flex flex-col justify-between space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-100 text-sky-800 border border-sky-200 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-pulse" />
+                          Active Now
+                        </span>
+                        <span className="text-base font-black text-brand-blue">
+                          ₹{sub?.amountPaid?.toLocaleString("en-IN") || "—"}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-black text-slate-900 mt-2.5">{sub?.planName}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {sub?.durationMonths} Months Duration • {sub?.extraChannels ? `${sub.extraChannels} Extra Channel(s)` : "Standard Suite"}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white border border-sky-100 space-y-2 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-brand-blue" /> Start Date:
+                        </span>
+                        <span className="font-semibold text-slate-800">
+                          {sub?.startDate ? new Date(sub.startDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Live"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center border-t border-slate-100 pt-1.5">
+                        <span className="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-amber-500" /> Expires:
+                        </span>
+                        <span className="font-bold text-amber-800">
+                          {sub?.endDate ? new Date(sub.endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Continuous"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Upcoming Plan */}
+                  <div className="p-5 rounded-2xl bg-emerald-50/60 border-2 border-emerald-300/80 shadow-xs flex flex-col justify-between space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                          <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                          Queued Next
+                        </span>
+                        <span className="text-base font-black text-emerald-700">
+                          ₹{orgData.upcomingSubscription.amountPaid?.toLocaleString("en-IN") || "—"}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-black text-slate-900 mt-2.5">{orgData.upcomingSubscription.planName}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {orgData.upcomingSubscription.durationMonths} Months Duration • Seamless auto-activation
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white border border-emerald-100 space-y-2 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-emerald-600" /> Auto-Starts:
+                        </span>
+                        <span className="font-semibold text-slate-800">
+                          {orgData.upcomingSubscription.startDate
+                            ? new Date(orgData.upcomingSubscription.startDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                            : "Upon Expiry"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center border-t border-slate-100 pt-1.5">
+                        <span className="text-slate-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-brand-blue" /> Valid Through:
+                        </span>
+                        <span className="font-bold text-emerald-700">
+                          {orgData.upcomingSubscription.endDate
+                            ? new Date(orgData.upcomingSubscription.endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                            : "Extended"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Single Plan Light Theme View */
+              <div className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
                   <div>
-                    <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Plan Active &amp; Operational
+                    </span>
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                       {sub?.planName || "Annual Complete Growth Plan"}
-                    </h2>
-                    <p className="text-xs text-slate-300 mt-1">
-                      Duration: <span className="font-bold text-sky-300">{sub?.durationMonths ? `${sub.durationMonths} Months` : "12 Months"}</span>
-                      {sub?.extraChannels ? ` • Includes ${sub.extraChannels} Extra Channel(s)` : ""}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Full 12-Module Enterprise Suite • Valid for {sub?.durationMonths || 12} Months
                     </p>
                   </div>
+
                   {sub?.amountPaid && (
                     <div className="sm:text-right">
-                      <span className="text-xs text-slate-400 block font-semibold">Amount Paid</span>
-                      <span className="text-2xl font-black text-sky-400">
+                      <span className="text-xs text-slate-400 block font-semibold">Total Paid</span>
+                      <span className="text-2xl font-black text-brand-blue">
                         ₹{sub.amountPaid.toLocaleString("en-IN")}
                       </span>
                     </div>
                   )}
                 </div>
-              </div>
 
-              {/* Exact Timeline & Expiry Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm text-xs">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                    <Calendar className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Active Since (Date &amp; Time)</span>
-                  </div>
-                  <div className="text-slate-100 font-bold text-sm">
-                    {sub?.startDate
-                      ? new Date(sub.startDate).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "Live Active"}
-                  </div>
-                  <div className="text-[11px] text-slate-400 font-mono">
-                    {sub?.startDate
-                      ? new Date(sub.startDate).toLocaleTimeString("en-IN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                          hour12: true,
-                        })
-                      : "Instant Provisioning"}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                    <Clock className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Expires At (Exact Date &amp; Time)</span>
-                  </div>
-                  <div className={`font-black text-sm ${isExpired ? "text-rose-400" : "text-emerald-400"}`}>
-                    {sub?.endDate
-                      ? new Date(sub.endDate).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "Year-Round Active"}
-                  </div>
-                  <div className="text-[11px] text-slate-400 font-mono">
-                    {sub?.endDate
-                      ? new Date(sub.endDate).toLocaleTimeString("en-IN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                          hour12: true,
-                        })
-                      : "Continuous Access"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Upgrade Drawer Trigger Button */}
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800/80">
-                <span className="text-[11px] text-slate-300">
-                  {orgData?.upcomingSubscription 
-                    ? "★ You have an upcoming plan scheduled!" 
-                    : "Need to stack another tier or renew in advance?"}
-                </span>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setIsUpgradeSectionOpen(!isUpgradeSectionOpen);
-                    if (!isUpgradeSectionOpen) {
-                      setTimeout(() => {
-                        document.getElementById("upgrade-section")?.scrollIntoView({ behavior: "smooth" });
-                      }, 100);
-                    }
-                  }}
-                  className="w-full sm:w-auto bg-gradient-to-r from-brand-blue to-emerald-500 hover:from-brand-blue-deep hover:to-emerald-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span>{isUpgradeSectionOpen ? "Hide Plan Selector" : "Queue / Upgrade Next Plan"}</span>
-                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isUpgradeSectionOpen ? "rotate-90" : ""}`} />
-                </Button>
-              </div>
-            </div>
-
-            {/* 2. UPCOMING PLAN CARD (When user queued or paid a new plan while current is active) */}
-            {orgData?.upcomingSubscription && (
-              <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-900 border-2 border-emerald-500/50 text-white shadow-xl shadow-emerald-950/20 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-                <div className="flex items-center justify-between pb-3 border-b border-emerald-900/60">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      Upcoming Scheduled Plan
-                    </span>
-                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-2 py-0.5 rounded-full uppercase">
-                      Queued
-                    </span>
-                  </div>
-                  <Badge className="bg-emerald-500 text-white font-bold text-[10px]">
-                    Auto-Activates on Start Date
-                  </Badge>
-                </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mt-4">
-                  <div>
-                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-                      {orgData.upcomingSubscription.planName}
-                      <span className="text-xs font-normal text-emerald-300">
-                        ({orgData.upcomingSubscription.durationMonths} Months)
-                      </span>
-                    </h3>
-                    <p className="text-xs text-slate-300 mt-1">
-                      Paid in advance • All 12 modules seamlessly continuous without interruption.
-                    </p>
-                  </div>
-                  {orgData.upcomingSubscription.amountPaid && (
-                    <div className="sm:text-right">
-                      <span className="text-xs text-slate-400 block font-semibold">Amount Paid</span>
-                      <span className="text-xl font-black text-emerald-400">
-                        ₹{orgData.upcomingSubscription.amountPaid.toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Upcoming Plan Exact Timestamps */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 p-4 rounded-2xl bg-white/5 border border-emerald-500/20 backdrop-blur-sm text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl bg-white border border-slate-200/80 text-xs">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
-                      <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Starts Automatically At</span>
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-brand-blue" /> Active Since
+                    </span>
+                    <div className="text-slate-900 font-bold text-sm">
+                      {sub?.startDate ? new Date(sub.startDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Live"}
                     </div>
-                    <div className="text-white font-bold text-sm">
-                      {orgData.upcomingSubscription.startDate
-                        ? new Date(orgData.upcomingSubscription.startDate).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "Upon Current Expiry"}
-                    </div>
-                    <div className="text-[11px] text-emerald-300/80 font-mono">
-                      {orgData.upcomingSubscription.startDate
-                        ? new Date(orgData.upcomingSubscription.startDate).toLocaleTimeString("en-IN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                            hour12: true,
-                          })
-                        : "12:00:00 AM"}
+                    <div className="text-[11px] text-slate-500 font-mono">
+                      {sub?.startDate ? new Date(sub.startDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true }) : ""}
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-slate-300 text-[10px] font-bold uppercase tracking-wider">
-                      <Clock className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Valid Until (Date &amp; Time)</span>
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-amber-500" /> Expiration Date
+                    </span>
+                    <div className={`font-black text-sm ${isExpired ? "text-rose-600" : "text-emerald-700"}`}>
+                      {sub?.endDate ? new Date(sub.endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Year-Round"}
                     </div>
-                    <div className="text-emerald-400 font-bold text-sm">
-                      {orgData.upcomingSubscription.endDate
-                        ? new Date(orgData.upcomingSubscription.endDate).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "Extended"}
-                    </div>
-                    <div className="text-[11px] text-slate-400 font-mono">
-                      {orgData.upcomingSubscription.endDate
-                        ? new Date(orgData.upcomingSubscription.endDate).toLocaleTimeString("en-IN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                            hour12: true,
-                          })
-                        : "11:59:59 PM"}
+                    <div className="text-[11px] text-slate-500 font-mono">
+                      {sub?.endDate ? new Date(sub.endDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true }) : ""}
                     </div>
                   </div>
                 </div>
               </div>
             )}
+
+            {/* Footer Continuity Banner (Light Theme) */}
+            <div className="p-3.5 rounded-2xl bg-sky-50/60 border border-sky-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-slate-700">
+                <ShieldCheck className="w-4 h-4 text-brand-blue shrink-0" />
+                <span>
+                  {orgData?.upcomingSubscription
+                    ? "Your upcoming plan is queued. When current expiry arrives, your modules will renew automatically without downtime."
+                    : "Plan validity can be extended anytime. Stacking a new tier automatically queues it without overlapping."}
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-brand-blue uppercase tracking-wider shrink-0 bg-white px-2.5 py-1 rounded-md border border-sky-200">
+                Auto-Renewal Protection
+              </span>
+            </div>
           </div>
         </div>
 
@@ -861,6 +1354,332 @@ export default function ProfilePage() {
         </section>
 
       </main>
+
+      {/* ── Edit Profile & Business Details Modal ── */}
+      {isEditingProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-sky-100 text-brand-blue">
+                  <Edit2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Edit Operator &amp; Business Profile</h3>
+                  <p className="text-xs text-slate-500">Update your company details, contact numbers &amp; commerce profile</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsEditingProfile(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Form Body */}
+            <form onSubmit={handleSaveProfile} className="p-6 overflow-y-auto space-y-4 text-xs font-semibold text-slate-700">
+              
+              {/* Operator Personal Details */}
+              <div className="space-y-3 pb-3 border-b border-slate-100">
+                <p className="text-[11px] font-black uppercase tracking-wider text-brand-blue flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5" />
+                  Operator Contact Info
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      placeholder="e.g. Raj Joshi"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:bg-white focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-bold">Registered Email ID (Locked)</label>
+                      <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" /> Permanent
+                      </span>
+                    </div>
+                    <input
+                      type="email"
+                      disabled
+                      readOnly
+                      value={editForm.email}
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 text-xs cursor-not-allowed outline-none select-none font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Company login email cannot be changed.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Contact Phone Number</label>
+                    <input
+                      type="text"
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                      placeholder="+91 98765 43210"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:bg-white focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">GSTIN / Tax ID</label>
+                    <input
+                      type="text"
+                      value={editForm.gstin}
+                      onChange={(e) => setEditForm({ ...editForm, gstin: e.target.value.toUpperCase() })}
+                      placeholder="27AABCU9603R1ZM"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs uppercase font-mono focus:bg-white focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Business Entity Details */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5" />
+                    Business &amp; Commerce Details
+                  </p>
+                  <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold">
+                    Name changes require Super Admin Approval
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Commercial Business Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.businessName}
+                      onChange={(e) => setEditForm({ ...editForm, businessName: e.target.value })}
+                      placeholder="e.g. Acme Tech Solutions"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:bg-white focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none"
+                    />
+                    <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      Changing name submits request for Super Admin approval
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Industry / Category</label>
+                    <input
+                      type="text"
+                      value={editForm.category}
+                      onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                      placeholder="e.g. Retail & Electronics / Mobile Services"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:bg-white focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Official Website URL</label>
+                  <input
+                    type="text"
+                    value={editForm.website}
+                    onChange={(e) => setEditForm({ ...editForm, website: e.target.value })}
+                    placeholder="https://rajmobileshop.in"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:bg-white focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Commercial Address / Store Location</label>
+                  <input
+                    type="text"
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    placeholder="Shop No. 4, Main Market, Mumbai, Maharashtra 400001"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:bg-white focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">About Business (Summary &amp; Speciality)</label>
+                  <textarea
+                    rows={3}
+                    value={editForm.about}
+                    onChange={(e) => setEditForm({ ...editForm, about: e.target.value })}
+                    placeholder="Describe your products, services, operating hours or customer value proposition..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:bg-white focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none resize-none leading-relaxed"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Action Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setIsEditingProfile(false)}
+                  className="font-bold text-xs text-slate-500"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-brand-blue hover:bg-brand-blue-deep text-white font-bold text-xs py-2 px-5 rounded-xl shadow-md shadow-brand-blue/20 flex items-center gap-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Changes</span>
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────────── */}
+      {/* Super Admin Messages & Notifications Drawer / Modal */}
+      {/* ───────────────────────────────────────────────────────────────── */}
+      {showNotificationsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 max-w-xl w-full max-h-[85vh] flex flex-col space-y-4 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-sky-50 border border-sky-200 text-sky-600">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Super Admin Announcements
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Direct broadcasts and alerts from platform management
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {notifications.some(n => !n.isRead) && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="text-[11px] text-sky-600 hover:text-sky-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5" /> Mark all read
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowNotificationsModal(false)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Notifications List */}
+            <div className="overflow-y-auto space-y-3 flex-1 pr-1">
+              {fetchingNotifications ? (
+                <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
+                  <RefreshCw className="w-6 h-6 animate-spin text-sky-600" />
+                  <span className="text-xs font-semibold">Loading messages...</span>
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="py-12 flex flex-col items-center justify-center text-center p-6 space-y-2">
+                  <div className="p-3 rounded-full bg-slate-50 border border-slate-200 text-slate-400">
+                    <Bell className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-700">No announcements yet</h4>
+                  <p className="text-xs text-slate-400 max-w-xs">
+                    Whenever Super Admin transmits a broadcast, alert, or update, it will appear here with the exact timestamp.
+                  </p>
+                </div>
+              ) : (
+                notifications.map((notif) => {
+                  const dateStr = new Date(notif.createdAt).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  });
+                  const timeStr = new Date(notif.createdAt).toLocaleTimeString("en-IN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+
+                  return (
+                    <div
+                      key={notif.id}
+                      onClick={() => !notif.isRead && handleMarkNotificationRead(notif.id)}
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 ${
+                        notif.isRead
+                          ? "bg-slate-50/70 border-slate-200/80 text-slate-600"
+                          : "bg-sky-50/40 border-sky-200 text-slate-900 shadow-xs"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          {!notif.isRead && (
+                            <span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse" />
+                          )}
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
+                            notif.priority === "urgent"
+                              ? "bg-rose-100 text-rose-800 border-rose-300"
+                              : notif.priority === "high"
+                              ? "bg-amber-100 text-amber-800 border-amber-300"
+                              : "bg-sky-100 text-sky-800 border-sky-300"
+                          }`}>
+                            {notif.priority || "Announcement"}
+                          </span>
+                          <span className="text-xs font-black text-slate-900">
+                            {notif.title || "Super Admin Broadcast"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium shrink-0">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          <span>{dateStr} at {timeStr}</span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-700 leading-relaxed font-medium pl-4 border-l-2 border-sky-200">
+                        {notif.message}
+                      </p>
+
+                      <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400">
+                        <span>Sender: <strong>{notif.sender || "Super Admin"}</strong></span>
+                        {notif.isRead ? (
+                          <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Read
+                          </span>
+                        ) : (
+                          <span className="text-sky-700 font-bold">Click to mark read</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowNotificationsModal(false)}
+                className="text-xs font-bold"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

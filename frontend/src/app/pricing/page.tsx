@@ -337,6 +337,9 @@ export default function PricingPage() {
       localStorage.setItem("user_role", user.role);
       localStorage.setItem("organization_id", user.organizationId);
       localStorage.setItem("user_name", user.name || user.email);
+      if (user.email) localStorage.setItem("user_email", user.email);
+      if (phone.trim()) localStorage.setItem("user_phone", phone.trim());
+      if (organizationName.trim()) localStorage.setItem("organization_name", organizationName.trim());
       if (user.enabledModules) {
         localStorage.setItem("enabled_modules", JSON.stringify(user.enabledModules));
       }
